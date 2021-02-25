@@ -1,4 +1,4 @@
-#/|/ Copyright (c) Prusa Research 2018 - 2023 Tomáš Mészáros @tamasmeszaros, Oleksandra Iushchenko @YuSanka, Enrico Turri @enricoturri1966, Vojtěch Bubník @bubnikv, Pavel Mikuš @Godrak, Lukáš Hejl @hejllukas, Lukáš Matěna @lukasmatena, Filip Sykala @Jony01, David Kocík @kocikdav, Vojtěch Král @vojtechkral
+#/|/ Copyright (c) Prusa Research 2018 - 2023 Tom� M�sz�ros @tamasmeszaros, Oleksandra Iushchenko @YuSanka, Enrico Turri @enricoturri1966, Vojt�ch Bubn�k @bubnikv, Pavel Miku� @Godrak, Luk� Hejl @hejllukas, Luk� Mat�na @lukasmatena, Filip Sykala @Jony01, David Koc�k @kocikdav, Vojt�ch Kr�l @vojtechkral
 #/|/ Copyright (c) BambuStudio 2023 manch1n @manch1n
 #/|/ Copyright (c) 2023 Mimoja @Mimoja
 #/|/ Copyright (c) 2022 ole00 @ole00
@@ -452,7 +452,21 @@ set(SLIC3R_SOURCES
     SLA/BranchingTreeSLA.hpp
     SLA/BranchingTreeSLA.cpp
     SLA/ZCorrection.hpp
-    SLA/ZCorrection.cpp
+    SLA/ZCorrection.cpp    
+    SLA/SupportIslands/EvaluateNeighbor.cpp
+    SLA/SupportIslands/EvaluateNeighbor.hpp
+    SLA/SupportIslands/ExpandNeighbor.cpp
+    SLA/SupportIslands/ExpandNeighbor.hpp
+    SLA/SupportIslands/IStackFunction.hpp
+    SLA/SupportIslands/NodeDataWithResult.hpp
+    SLA/SupportIslands/PostProcessNeighbor.cpp
+    SLA/SupportIslands/PostProcessNeighbor.hpp
+    SLA/SupportIslands/PostProcessNeighbors.cpp
+    SLA/SupportIslands/PostProcessNeighbors.hpp
+    SLA/SupportIslands/SampleConfig.hpp
+    SLA/SupportIslands/VoronoiGraph.hpp
+    SLA/SupportIslands/VoronoiGraphUtils.cpp
+    SLA/SupportIslands/VoronoiGraphUtils.hpp
     BranchingTree/BranchingTree.cpp
     BranchingTree/BranchingTree.hpp
     BranchingTree/PointCloud.cpp
@@ -523,6 +537,9 @@ foreach(_source IN ITEMS ${SLIC3R_SOURCES})
     string(REPLACE "/" "\\" _group_path "${_source_path}")
     source_group("${_group_path}" FILES "${_source}")
 endforeach()
+
+# Create the source groups for source tree with root at CMAKE_CURRENT_SOURCE_DIR.
+source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${SOURCE_LIST_SLA})
 
 if (SLIC3R_STATIC)
     set(CGAL_Boost_USE_STATIC_LIBS ON CACHE BOOL "" FORCE)

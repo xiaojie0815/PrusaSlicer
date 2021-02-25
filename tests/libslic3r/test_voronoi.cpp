@@ -2283,3 +2283,4 @@ TEST_CASE("Voronoi cell doesn't contain a source point - SPE-2298", "[VoronoiCel
 
     REQUIRE(vd.is_valid());
 }
+// */
