@@ -5,6 +5,7 @@ add_executable(${_TEST_NAME}_tests ${_TEST_NAME}_tests_main.cpp
     sla_supptgen_tests.cpp
     sla_raycast_tests.cpp
     sla_parabola_tests.cpp
+    sla_voronoi_graph_tests.cpp
     sla_supptreeutils_tests.cpp
     sla_archive_readwrite_tests.cpp
     sla_zcorrection_tests.cpp)
