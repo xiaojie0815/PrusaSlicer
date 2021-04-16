@@ -1495,7 +1495,7 @@ void PhysicalPrinter::update_preset_names_in_config()
     if (!preset_names.empty()) {
         std::vector<std::string>& values = config.option<ConfigOptionStrings>("preset_names")->values;
         values.clear();
-        for (auto preset : preset_names)
+        for (const std::string& preset : preset_names)
             values.push_back(preset);
 
         // temporary workaround for compatibility with older Slicer
@@ -1568,7 +1568,7 @@ void PhysicalPrinter::set_name(const std::string& name)
     this->name = name;
 }
 
-std::string PhysicalPrinter::get_full_name(std::string preset_name) const
+std::string PhysicalPrinter::get_full_name(const std::string& preset_name) const
 {
     return name + separator() + preset_name;
 }
@@ -1885,7 +1885,7 @@ std::vector<std::string> PhysicalPrinterCollection::get_printers_with_only_prese
 {
     std::vector<std::string> printers;
 
-    for (auto printer : m_printers)
+    for (const PhysicalPrinter& printer : m_printers)
         if (printer.preset_names.size() == 1 && *printer.preset_names.begin() == preset_name)
             printers.emplace_back(printer.name);
 
@@ -1940,7 +1940,7 @@ void PhysicalPrinterCollection::unselect_printer()
     m_selected_preset.clear();
 }
 
-bool PhysicalPrinterCollection::is_selected(PhysicalPrinterCollection::ConstIterator it, const std::string& preset_name) const
+bool PhysicalPrinterCollection::is_selected(const PhysicalPrinterCollection::ConstIterator& it, const std::string& preset_name) const
 {
     return  m_idx_selected      == size_t(it - m_printers.begin()) &&
             m_selected_preset   == preset_name;

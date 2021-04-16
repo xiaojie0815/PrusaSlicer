@@ -18,7 +18,7 @@ class PrintObject;
 
 namespace FillAdaptive {
     struct Octree;
-};
+}
 
 class LayerRegion
 {

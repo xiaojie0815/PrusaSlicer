@@ -672,7 +672,7 @@ public:
     bool                operator<(const PhysicalPrinter& other) const { return this->name < other.name; }
 
     // get full printer name included a name of the preset
-    std::string         get_full_name(std::string preset_name) const;
+    std::string         get_full_name(const std::string &preset_name) const;
 
     // get printer name from the full name uncluded preset name
     static std::string  get_short_name(std::string full_name);
@@ -763,7 +763,7 @@ public:
     void select_printer(const std::string& printer_name, const std::string& preset_name);
     bool has_selection() const;
     void unselect_printer() ;
-    bool is_selected(ConstIterator it, const std::string &preset_name) const;
+    bool is_selected(const ConstIterator &it, const std::string &preset_name) const;
 
     // Return a printer by an index. If the printer is active, a temporary copy is returned.
     PhysicalPrinter& printer(size_t idx) { return m_printers[idx]; }
