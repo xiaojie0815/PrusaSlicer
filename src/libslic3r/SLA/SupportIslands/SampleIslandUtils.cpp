@@ -228,7 +228,7 @@ SupportIslandPoints SampleIslandUtils::sample_side_branch(
         result.push_back(
             create_point_on_path(reverse_path, side_distance, cfg.sample_config,
                                  SupportIslandPoint::Type::center_line_end));
-        return std::move(result);
+        return result;
     }
     // count of segment between points on main path
     size_t segment_count = static_cast<size_t>(
@@ -272,7 +272,7 @@ SupportIslandPoints SampleIslandUtils::sample_side_branch(
     //}
     //assert(fabs(distance - (sample_distance - cfg.side_distance)) < 1e-5);
     result.back()->type = SupportIslandPoint::Type::center_line_end;
-    return std::move(result);
+    return result;
 }
 
 SupportIslandPoints SampleIslandUtils::sample_side_branches(
@@ -299,7 +299,7 @@ SupportIslandPoints SampleIslandUtils::sample_side_branches(
             std::move_iterator(samples.end()));
         side_branches_cpy.pop();
     }
-    return std::move(result);
+    return result;
 }
 
 std::vector<std::set<const VoronoiGraph::Node *>> create_circles_sets(
@@ -434,7 +434,7 @@ SupportIslandPoints SampleIslandUtils::sample_center_line(
     if (path.circles.empty()) return result;
     sample_center_circles(path, cfg, result);
     
-    return std::move(result);
+    return result;
 }
 
 void SampleIslandUtils::sample_center_circle_end(
@@ -782,7 +782,7 @@ SupportIslandPoints SampleIslandUtils::sample_expath(
         SupportIslandPoints result;
         result.push_back(create_middle_path_point(
             path, SupportIslandPoint::Type::one_center_point));
-        return std::move(result);
+        return result;
     }
 
     double max_width = VoronoiGraphUtils::get_max_width(path);
@@ -797,7 +797,7 @@ SupportIslandPoints SampleIslandUtils::sample_expath(
             centerLineConfiguration(path.side_branches, config);
         SupportIslandPoints samples = sample_center_line(path, centerLineConfiguration);
         samples.front()->type = SupportIslandPoint::Type::center_line_end2;
-        return std::move(samples);
+        return samples;
     }
 
     // TODO: 3) Triangle of points
