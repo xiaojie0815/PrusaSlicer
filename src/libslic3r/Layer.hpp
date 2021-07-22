@@ -155,6 +155,8 @@ public:
     void                    make_fills(FillAdaptive::Octree* adaptive_fill_octree, FillAdaptive::Octree* support_fill_octree);
     void 					make_ironing();
 
+    void                    extend_bridging_infill();
+
     void                    export_region_slices_to_svg(const char *path) const;
     void                    export_region_fill_surfaces_to_svg(const char *path) const;
     // Export to "out/LayerRegion-name-%d.svg" with an increasing index with every export.

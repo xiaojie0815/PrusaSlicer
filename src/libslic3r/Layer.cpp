@@ -278,6 +278,8 @@ void Layer::export_region_fill_surfaces_to_svg_debug(const char *name) const
     this->export_region_fill_surfaces_to_svg(debug_out_path("Layer-fill_surfaces-%s-%d.svg", name, idx ++).c_str());
 }
 
+
+
 BoundingBox get_extents(const LayerRegion &layer_region)
 {
     BoundingBox bbox;
@@ -300,4 +302,163 @@ BoundingBox get_extents(const LayerRegionPtrs &layer_regions)
     return bbox;
 }
 
+
+
+void Layer::extend_bridging_infill()
+{
+    double angle = -Geometry::deg2rad(45.);
+
+    for (LayerRegion* region : m_regions) {
+
+        // is there some bridging infill?
+        if (std::none_of(region->fills.entities.begin(),
+                         region->fills.entities.end(),
+                         [](const ExtrusionEntity* ee) { return ee->role()==erBridgeInfill; }))
+            continue;
+
+        // collect all infill (except yet unmodified bridge infill)
+        Polylines extrusions;
+        Polylines temp;
+        for (const ExtrusionEntityCollection& ee_collection: { region->fills, region->perimeters}) {
+            for (const ExtrusionEntity* ee : ee_collection.entities) {
+                assert(ee->is_collection());
+                if (ee->role() != erBridgeInfill) {
+                    temp = dynamic_cast<const ExtrusionEntityCollection*>(ee)->as_polylines();
+                    for (Polyline& p : temp)
+                        p.rotate(angle);
+                    extrusions.insert(extrusions.end(), temp.begin(), temp.end());
+                }
+            }
+        }
+
+
+        // Now go through the bridging infill patches.
+        for (ExtrusionEntity* ee : region->fills.entities) {
+            if (ee->role() != erBridgeInfill)
+                continue;
+
+            // Make a rotated copy.
+            auto eec = dynamic_cast<ExtrusionEntityCollection*>(ee);
+            Polylines bridges = eec->as_polylines();
+            for (Polyline& p : bridges)
+                p.rotate(angle);
+
+            // Bridging infill lines should now be vertical with equidistant spacing.
+            struct VertLine {
+                coord_t x;
+                coord_t y_top;
+                coord_t y_bottom;
+                std::vector<coord_t> ys;
+            };
+
+            std::vector<VertLine> lines;
+            for (const Polyline& bridge : bridges) {
+                const Points& pts = bridge.points;
+                for (size_t i=0; i < pts.size(); i+=1) {
+                    lines.push_back(VertLine{pts[i].x(), pts[i].y(), pts[i+1].y(), std::vector<coord_t>()});
+                    if (lines.back().y_top < lines.back().y_bottom)
+                        std::swap(lines.back().y_top, lines.back().y_bottom);
+                    // Filter out very short segments and lines that are not vertical.
+                    if (lines.back().y_top - lines.back().y_bottom < 500000
+                     || std::abs((pts[i+1].x()-pts[i].x())/(lines.back().y_top-lines.back().y_bottom)) > 0.0001)
+                        lines.pop_back();
+                }
+            }
+            if (lines.empty())
+                continue;
+            std::sort(lines.begin(), lines.end(), [](const VertLine& a, const VertLine& b) { return a.x < b.x; });
+            double spacing = lines.size() > 1 ? double(lines.back().x - lines.front().x) / (lines.size() - 1) : 0.;
+
+            // Now go through infill polylines, pick those that will intersect
+            // the bridging lines (extended to infinity), calculate intersections
+            // with all of them and save the intersection with the respective line.
+            for (const Polyline& p : extrusions) {
+                for (size_t i=1; i<p.points.size(); ++i) {
+                    Point start = p.points[i-1];
+                    Point end = p.points[i];
+                    if (start.x() > end.x())
+                        std::swap(start, end);
+                    if (start.x() == end.x())
+                        continue; // vertical lines will not intersect
+
+                    // Which of the lines this segment intersects?
+                    int idx_start = 0;
+                    int idx_end   = 0;
+                    if (spacing != 0.) {
+                        idx_start = std::floor((start.x() - lines.front().x) / spacing) + 1;
+                        idx_end = std::floor((end.x() - lines.front().x) / spacing);
+                    }
+                    else {
+                        if (! (start.x() <= lines.front().x && end.x() >= lines.front().x))
+                            continue; // there is just one line
+                    }
+
+                    if (idx_start > idx_end)
+                        continue;
+
+                    if (idx_end >= int(lines.size()))
+                        idx_end = lines.size() - 1;
+                    double slope = std::nan("");
+                    double increment = 0;
+                    while (idx_end >= idx_start && idx_end >= 0) {
+                        assert(lines[idx_end].x >= start.x() && lines[idx_end].x <= end.x());
+                        // Find and save an intersection with lines[idx_end].
+                        if (std::isnan(slope)) { // first run
+                            slope = (end.y()-start.y())/(end.x()-start.x());
+                            lines[idx_end].ys.push_back(start.y() + slope * (lines[idx_end].x - start.x()));
+                            increment = slope * spacing;
+                        } else
+                            lines[idx_end].ys.push_back(lines[idx_end+1].ys.back() - increment);
+                        --idx_end;
+                    }
+                }
+            }
+
+
+            // Each of the vertical lines should now have candidates
+            // for extension. Extend them.
+            for (VertLine& line : lines) {
+                coord_t top_cand = std::numeric_limits<coord_t>::max();
+                coord_t bot_cand = std::numeric_limits<coord_t>::min();
+                for (coord_t a : line.ys) {
+                    if (a > line.y_top && a < top_cand)
+                        top_cand = a;
+                    if (a < line.y_bottom && a > bot_cand)
+                        bot_cand = a;
+                }
+                if (top_cand != std::numeric_limits<coord_t>::max())
+                    line.y_top = top_cand;
+                if (bot_cand != std::numeric_limits<coord_t>::min())
+                    line.y_bottom = bot_cand;
+
+            }
+
+
+            {
+                eec->clear();
+                Polyline polyline;
+                for (VertLine& line : lines) {
+                    Point a(line.x, line.y_bottom);
+                    Point b(line.x, line.y_top);
+                    if ((polyline.size()/2) % 2)
+                        std::swap(a, b);
+                    polyline.append(a);
+                    polyline.append(b);
+                }
+                polyline.rotate(-angle);
+                Polylines out;
+                out.emplace_back(std::move(polyline));
+                extrusion_entities_append_paths(eec->entities, out, erBridgeInfill, 0.3, 0.3, 0.15);
+            }
+        }
+
+
+
+
+
+
+    }
 }
+
+
+} // namespace Slic3r
