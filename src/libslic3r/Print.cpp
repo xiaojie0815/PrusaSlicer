@@ -868,8 +868,8 @@ std::string Print::export_gcode(const std::string& path_template, GCodeProcessor
     this->set_status(90, message);
 
     // The following line may die for multiple reasons.
-    GCode gcode;
-    gcode.do_export(this, path.c_str(), result, thumbnail_cb);
+    std::unique_ptr<GCode> gcode(new GCode);
+    gcode->do_export(this, path.c_str(), result, thumbnail_cb);
     return path.c_str();
 }
 
