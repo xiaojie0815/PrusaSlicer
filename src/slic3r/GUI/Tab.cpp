@@ -2926,13 +2926,13 @@ void TabPrinter::toggle_options()
     if (!m_active_page || m_presets->get_edited_preset().printer_technology() == ptSLA)
         return;
 
+    const GCodeFlavor flavor = m_config->option<ConfigOptionEnum<GCodeFlavor>>("gcode_flavor")->value;
     bool have_multiple_extruders = m_extruders_count > 1;
     if (m_active_page->title() == "Custom G-code")
         toggle_option("toolchange_gcode", have_multiple_extruders);
     if (m_active_page->title() == "General") {
         toggle_option("single_extruder_multi_material", have_multiple_extruders);
 
-        auto flavor = m_config->option<ConfigOptionEnum<GCodeFlavor>>("gcode_flavor")->value;
         bool is_marlin_flavor = flavor == gcfMarlinLegacy || flavor == gcfMarlinFirmware;
         // Disable silent mode for non-marlin firmwares.
         toggle_option("silent_mode", is_marlin_flavor);
@@ -3002,9 +3002,9 @@ void TabPrinter::toggle_options()
     }
 
     if (m_active_page->title() == "Machine limits" && m_machine_limits_description_line) {
-        assert(m_config->option<ConfigOptionEnum<GCodeFlavor>>("gcode_flavor")->value == gcfMarlinLegacy
-            || m_config->option<ConfigOptionEnum<GCodeFlavor>>("gcode_flavor")->value == gcfMarlinFirmware
-            || m_config->option<ConfigOptionEnum<GCodeFlavor>>("gcode_flavor")->value == gcfRepRapFirmware);
+        assert(flavor == gcfMarlinLegacy
+            || flavor == gcfMarlinFirmware
+            || flavor == gcfRepRapFirmware);
 		const auto *machine_limits_usage = m_config->option<ConfigOptionEnum<MachineLimitsUsage>>("machine_limits_usage");
 		bool enabled = machine_limits_usage->value != MachineLimitsUsage::Ignore;
         bool silent_mode = m_config->opt_bool("silent_mode");
