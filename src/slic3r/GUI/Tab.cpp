@@ -3963,9 +3963,7 @@ void TabPrinter::update_machine_limits_description(const MachineLimitsUsage usag
 		break;
 	case MachineLimitsUsage::TimeEstimateOnly:
 		text = _L("Machine limits will NOT be emitted to G-code, however they will be used to estimate print time, "
-			      "which may therefore not be accurate as the printer may apply a different set of machine limits. "
-                  "This newly works with RepRapFirmware to estimate time, but the algorithm is unchanged from Marlin. "
-                  "Estimates work well when machine limits are accurately described.");
+			      "which may therefore not be accurate as the printer may apply a different set of machine limits.");
 		break;
 	case MachineLimitsUsage::Ignore:
 		text = _L("Machine limits are not set, therefore the print time estimate may not be accurate.");
