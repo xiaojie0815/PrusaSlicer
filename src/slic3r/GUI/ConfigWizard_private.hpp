@@ -470,6 +470,15 @@ struct PageTemperatures: ConfigWizardPage
     virtual void apply_custom_config(DynamicPrintConfig &config);
 };
 
+struct PageBuildVolume : ConfigWizardPage
+{
+    wxTextCtrl* build_volume;
+    wxTextCtrl* z_offset;
+
+    PageBuildVolume(ConfigWizard* parent);
+    virtual void apply_custom_config(DynamicPrintConfig& config);
+};
+
 // hypothetically, each vendor can has printers both of technologies (FFF and SLA)
 typedef std::map<std::string /* = vendor ID */, 
                  std::pair<PagePrinters* /* = FFF page */, 
@@ -586,6 +595,7 @@ struct ConfigWizard::priv
     PageBedShape     *page_bed = nullptr;
     PageDiameters    *page_diams = nullptr;
     PageTemperatures *page_temps = nullptr;
+    PageBuildVolume  *page_bvolume = nullptr;
 
     // Pointers to all pages (regardless or whether currently part of the ConfigWizardIndex)
     std::vector<ConfigWizardPage*> all_pages;

@@ -1524,6 +1524,59 @@ void PageDiameters::apply_custom_config(DynamicPrintConfig &config)
     set_extrusion_width("solid_infill_extrusion_width",       0.45);
 }
 
+PageBuildVolume::PageBuildVolume(ConfigWizard* parent)
+    : ConfigWizardPage(parent, _L("Build Volume"), _L("Build Volume"), 1)
+    , build_volume(new DiamTextCtrl(this))
+    , z_offset(new DiamTextCtrl(this))
+{
+    append_text(_L("Set verctical size of your printer."));
+
+    //uto* default_volume = print_config_def.get("nozzle_diameter")->get_default_value<ConfigOptionFloats>();
+    wxString value = "200";// double_to_string(default_nozzle != nullptr && default_nozzle->size() > 0 ? default_nozzle->get_at(0) : 0.5);
+    build_volume->SetValue(value);
+
+    value = "0";
+    z_offset->SetValue(value);
+
+    build_volume->Bind(wxEVT_KILL_FOCUS, [this](wxFocusEvent& e) { focus_event(e, build_volume, 200.0); }, build_volume->GetId());
+
+    auto* sizer_volume = new wxFlexGridSizer(3, 5, 5);
+    auto* text_volume = new wxStaticText(this, wxID_ANY, _L("Max print height:"));
+    auto* unit_volume = new wxStaticText(this, wxID_ANY, _L("mm"));
+    sizer_volume->AddGrowableCol(0, 1);
+    sizer_volume->Add(text_volume, 0, wxALIGN_CENTRE_VERTICAL);
+    sizer_volume->Add(build_volume);
+    sizer_volume->Add(unit_volume, 0, wxALIGN_CENTRE_VERTICAL);
+    append(sizer_volume);
+
+    append_spacer(VERTICAL_SPACING);
+
+    auto* sizer_offset = new wxFlexGridSizer(3, 5, 5);
+    auto* text_offset  = new wxStaticText(this, wxID_ANY, _L("Z offset:"));
+    auto* unit_offset  = new wxStaticText(this, wxID_ANY, _L("mm"));
+    sizer_offset->AddGrowableCol(0, 1);
+    sizer_offset->Add(text_offset, 0, wxALIGN_CENTRE_VERTICAL);
+    sizer_offset->Add(z_offset);
+    sizer_offset->Add(unit_offset, 0, wxALIGN_CENTRE_VERTICAL);
+    append(sizer_offset);
+
+}
+
+void PageBuildVolume::apply_custom_config(DynamicPrintConfig& config)
+{
+    
+    double val = 0.0;
+    build_volume->GetValue().ToDouble(&val);
+    auto* opt_volume = new ConfigOptionFloat(val);
+    config.set_key_value("max_print_height", opt_volume);
+
+    val = 0.0;
+    z_offset->GetValue().ToDouble(&val);
+    auto* opt_offset = new ConfigOptionFloat(val);
+    config.set_key_value("z_offset", opt_offset);
+    
+}
+
 class SpinCtrlDouble: public wxSpinCtrlDouble
 {
 public:
@@ -1925,6 +1978,7 @@ void ConfigWizard::priv::load_pages()
         if (page_custom->custom_wanted()) {
             index->add_page(page_firmware);
             index->add_page(page_bed);
+            index->add_page(page_bvolume);
             index->add_page(page_diams);
             index->add_page(page_temps);
         }
@@ -2777,6 +2831,7 @@ bool ConfigWizard::priv::apply_config(AppConfig *app_config, PresetBundle *prese
         page_bed->apply_custom_config(*custom_config);
         page_diams->apply_custom_config(*custom_config);
         page_temps->apply_custom_config(*custom_config);
+        page_bvolume->apply_custom_config(*custom_config);
 
         const std::string profile_name = page_custom->profile_name();
         preset_bundle->load_config_from_wizard(profile_name, *custom_config);
@@ -2923,9 +2978,10 @@ ConfigWizard::ConfigWizard(wxWindow *parent)
     p->add_page(p->page_mode     = new PageMode(this));
     p->add_page(p->page_firmware = new PageFirmware(this));
     p->add_page(p->page_bed      = new PageBedShape(this));
+    p->add_page(p->page_bvolume = new PageBuildVolume(this));
     p->add_page(p->page_diams    = new PageDiameters(this));
     p->add_page(p->page_temps    = new PageTemperatures(this));
-
+    
     p->load_pages();
     p->index->go_to(size_t{0});
 
