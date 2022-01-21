@@ -447,6 +447,7 @@ struct PageFirmware: ConfigWizardPage
 struct PageBedShape: ConfigWizardPage
 {
     BedShapePanel *shape_panel;
+    wxTextCtrl* max_height;
 
     PageBedShape(ConfigWizard *parent);
     virtual void apply_custom_config(DynamicPrintConfig &config);
@@ -468,15 +469,6 @@ struct PageTemperatures: ConfigWizardPage
 
     PageTemperatures(ConfigWizard *parent);
     virtual void apply_custom_config(DynamicPrintConfig &config);
-};
-
-struct PageBuildVolume : ConfigWizardPage
-{
-    wxTextCtrl* build_volume;
-    wxTextCtrl* z_offset;
-
-    PageBuildVolume(ConfigWizard* parent);
-    virtual void apply_custom_config(DynamicPrintConfig& config);
 };
 
 // hypothetically, each vendor can has printers both of technologies (FFF and SLA)
@@ -595,7 +587,6 @@ struct ConfigWizard::priv
     PageBedShape     *page_bed = nullptr;
     PageDiameters    *page_diams = nullptr;
     PageTemperatures *page_temps = nullptr;
-    PageBuildVolume  *page_bvolume = nullptr;
 
     // Pointers to all pages (regardless or whether currently part of the ConfigWizardIndex)
     std::vector<ConfigWizardPage*> all_pages;
