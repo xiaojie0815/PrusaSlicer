@@ -845,18 +845,21 @@ bool GUI_App::init_opengl()
 // gets path to PrusaSlicer.ini, returns semver from first line comment
 static boost::optional<Semver> parse_semver_from_ini(std::string path)
 {
-    std::ifstream stream(path);
-    std::stringstream buffer;
-    buffer << stream.rdbuf();
-    std::string body = buffer.str();
-    size_t start = body.find("PrusaSlicer ");
-    if (start == std::string::npos)
+    // Parse Prusaslicer.ini at path into ptree
+    boost::property_tree::ptree tree;
+    boost::nowide::ifstream ifs(path);
+    try {
+        boost::property_tree::read_ini(ifs, tree);
+    }
+    catch (const boost::property_tree::ini_parser::ini_parser_error& err) {
+        BOOST_LOG_TRIVIAL(info) << format("Other configuration check: Failed to load PrusaSlicer.ini at \"%1%\"\nError: \"%2%\" at line %3%", path, err.message(), err.line()).c_str();
         return boost::none;
-    body = body.substr(start + 12);
-    size_t end = body.find_first_of(" \n");
-    if (end < body.size())
-        body.resize(end);
-    return Semver::parse(body);
+    }
+    // its version string should be in the first layer under tag "version"
+    boost::property_tree::ptree::const_assoc_iterator it = tree.find("version");
+    if (it == tree.not_found())
+        return boost::none;
+    return Semver::parse(it->second.data());
 }
 
 void GUI_App::init_app_config()
