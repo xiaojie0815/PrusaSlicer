@@ -783,6 +783,7 @@ void PlaterPresetComboBox::update()
     bool wide_icons = selected_preset && !selected_preset->is_compatible;
 
     std::map<wxString, wxBitmap*> nonsys_presets;
+    std::map<wxString, wxBitmap*> template_presets;
 
     wxString selected_user_preset;
     wxString tooltip;
@@ -830,10 +831,18 @@ void PlaterPresetComboBox::update()
 
         const std::string name = preset.alias.empty() ? preset.name : preset.alias;
         if (preset.is_default || preset.is_system) {
-            Append(get_preset_name(preset), *bmp);
-            validate_selection(is_selected);
-            if (is_selected)
-                tooltip = from_u8(preset.name);
+            if (preset.vendor && preset.vendor->templates_profile) {
+                template_presets.emplace(get_preset_name(preset), bmp);
+                if (is_selected) {
+                    selected_user_preset = get_preset_name(preset);
+                    tooltip = from_u8(preset.name);
+                }
+            } else {
+                Append(get_preset_name(preset), *bmp);
+                validate_selection(is_selected);
+                if (is_selected)
+                    tooltip = from_u8(preset.name);
+            }
         }
         else
         {
@@ -845,6 +854,15 @@ void PlaterPresetComboBox::update()
         }
         if (i + 1 == m_collection->num_default_presets())
             set_label_marker(Append(separator(L("System presets")), wxNullBitmap));
+    }
+
+    const AppConfig* app_config = wxGetApp().app_config;
+    if (!template_presets.empty() && app_config->get("no_templates") == "0") {
+        set_label_marker(Append(separator(L("Template presets")), wxNullBitmap));
+        for (std::map<wxString, wxBitmap*>::iterator it = template_presets.begin(); it != template_presets.end(); ++it) {
+            Append(it->first, *it->second);
+            validate_selection(it->first == selected_user_preset);
+        }
     }
     if (!nonsys_presets.empty())
     {
@@ -982,6 +1000,7 @@ void TabPresetComboBox::update()
     const std::deque<Preset>& presets = m_collection->get_presets();
 
     std::map<wxString, std::pair<wxBitmap*, bool>> nonsys_presets;
+    std::map<wxString, std::pair<wxBitmap*, bool>> template_presets;
     wxString selected = "";
     if (!presets.front().is_visible)
         set_label_marker(Append(separator(L("System presets")), wxNullBitmap));
@@ -1014,11 +1033,19 @@ void TabPresetComboBox::update()
         wxBitmap* bmp = get_bmp(bitmap_key, main_icon_name, "lock_closed", is_enabled, preset.is_compatible, preset.is_system || preset.is_default);
         assert(bmp);
 
-        if (preset.is_default || preset.is_system) {
-            int item_id = Append(get_preset_name(preset), *bmp);
-            if (!is_enabled)
-                set_label_marker(item_id, LABEL_ITEM_DISABLED);
-            validate_selection(i == idx_selected);
+         if (preset.is_default || preset.is_system) {
+            if (preset.vendor && preset.vendor->templates_profile) {
+                template_presets.emplace(get_preset_name(preset), std::pair<wxBitmap*, bool>(bmp, is_enabled));
+                if (i == idx_selected)
+                    selected = get_preset_name(preset);
+            } else {
+                int item_id = Append(get_preset_name(preset), *bmp);
+                if (!is_enabled)
+                    set_label_marker(item_id, LABEL_ITEM_DISABLED);
+                validate_selection(i == idx_selected);
+            }
+
+            
         }
         else
         {
@@ -1029,6 +1056,17 @@ void TabPresetComboBox::update()
         }
         if (i + 1 == m_collection->num_default_presets())
             set_label_marker(Append(separator(L("System presets")), wxNullBitmap));
+    }
+    const AppConfig* app_config = wxGetApp().app_config;
+    if (!template_presets.empty() && app_config->get("no_templates") == "0") {
+        set_label_marker(Append(separator(L("Template presets")), wxNullBitmap));
+        for (std::map<wxString, std::pair<wxBitmap*, bool>>::iterator it = template_presets.begin(); it != template_presets.end(); ++it) {
+            int item_id = Append(it->first, *it->second.first);
+            bool is_enabled = it->second.second;
+            if (!is_enabled)
+                set_label_marker(item_id, LABEL_ITEM_DISABLED);
+            validate_selection(it->first == selected);
+        }
     }
     if (!nonsys_presets.empty())
     {

@@ -235,6 +235,11 @@ void PreferencesDialog::build()
 			L("Suppress \" - default - \" presets in the Print / Filament / Printer selections once there are any other valid presets available."),
 			app_config->get("no_defaults") == "1");
 
+		append_bool_option(m_optgroup_general, "no_templates",
+			L("Suppress \" Template \" filament presets"),
+			L("Suppress \" Template \" filament presets in configuration wizard and sidebar visibility."),
+			app_config->get("no_templates") == "1");
+
 		append_bool_option(m_optgroup_general, "show_incompatible_presets",
 			L("Show incompatible print and filament presets"),
 			L("When checked, the print and filament presets are shown in the preset editor "
@@ -551,6 +556,8 @@ void PreferencesDialog::update_ctrls_alignment()
 
 void PreferencesDialog::accept(wxEvent&)
 {
+	bool update_filament_sidebar = (m_values.find("no_templates") != m_values.end());
+
 	std::vector<std::string> options_to_recreate_GUI = { "no_defaults", "tabs_as_menu", "sys_menu_enabled" };
 
 	for (const std::string& option : options_to_recreate_GUI) {
@@ -634,6 +641,9 @@ void PreferencesDialog::accept(wxEvent&)
 	else
 	    // Nothify the UI to update itself from the ini file.
         wxGetApp().update_ui_from_settings();
+
+	if (update_filament_sidebar)
+		wxGetApp().plater()->sidebar().update_presets(Preset::Type::TYPE_FILAMENT);
 }
 
 void PreferencesDialog::msw_rescale()

@@ -65,14 +65,15 @@ class SavePresetDialog : public DPIDialog
     wxStaticText*       m_label             {nullptr};
     wxBoxSizer*         m_radio_sizer       {nullptr};  
     ActionType          m_action            {UndefAction};
+    wxCheckBox*         m_template_filament_checkbox {nullptr};
 
     std::string         m_ph_printer_name;
     std::string         m_old_preset_name;
 
 public:
 
-    SavePresetDialog(wxWindow* parent, Preset::Type type, std::string suffix = "");
-    SavePresetDialog(wxWindow* parent, std::vector<Preset::Type> types, std::string suffix = "");
+    SavePresetDialog(wxWindow* parent, Preset::Type type, std::string suffix = "", bool template_filament = false);
+    SavePresetDialog(wxWindow* parent, std::vector<Preset::Type> types, std::string suffix = "", bool template_filament = false);
     ~SavePresetDialog();
 
     void AddItem(Preset::Type type, const std::string& suffix);
@@ -85,12 +86,13 @@ public:
     void update_info_for_edit_ph_printer(const std::string &preset_name);
     void layout();
 
+    bool get_template_filament_checkbox();
 protected:
     void on_dpi_changed(const wxRect& suggested_rect) override;
     void on_sys_color_changed() override {}
 
 private:
-    void build(std::vector<Preset::Type> types, std::string suffix = "");
+    void build(std::vector<Preset::Type> types, std::string suffix = "", bool template_filament = false);
     void update_physical_printers(const std::string& preset_name);
     void accept();
 };

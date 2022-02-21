@@ -187,16 +187,16 @@ void SavePresetDialog::Item::accept()
 //          SavePresetDialog
 //-----------------------------------------------
 
-SavePresetDialog::SavePresetDialog(wxWindow* parent, Preset::Type type, std::string suffix)
+SavePresetDialog::SavePresetDialog(wxWindow* parent, Preset::Type type, std::string suffix, bool template_filament)
     : DPIDialog(parent, wxID_ANY, _L("Save preset"), wxDefaultPosition, wxSize(45 * wxGetApp().em_unit(), 5 * wxGetApp().em_unit()), wxDEFAULT_DIALOG_STYLE | wxICON_WARNING | wxRESIZE_BORDER)
 {
-    build(std::vector<Preset::Type>{type}, suffix);
+    build(std::vector<Preset::Type>{type}, suffix, template_filament);
 }
 
-SavePresetDialog::SavePresetDialog(wxWindow* parent, std::vector<Preset::Type> types, std::string suffix)
+SavePresetDialog::SavePresetDialog(wxWindow* parent, std::vector<Preset::Type> types, std::string suffix, bool template_filament)
     : DPIDialog(parent, wxID_ANY, _L("Save preset"), wxDefaultPosition, wxSize(45 * wxGetApp().em_unit(), 5 * wxGetApp().em_unit()), wxDEFAULT_DIALOG_STYLE | wxICON_WARNING | wxRESIZE_BORDER)
 {
-    build(types, suffix);
+    build(types, suffix, template_filament);
 }
 
 SavePresetDialog::~SavePresetDialog()
@@ -206,7 +206,7 @@ SavePresetDialog::~SavePresetDialog()
     }
 }
 
-void SavePresetDialog::build(std::vector<Preset::Type> types, std::string suffix)
+void SavePresetDialog::build(std::vector<Preset::Type> types, std::string suffix, bool template_filament)
 {
 #if defined(__WXMSW__)
     // ys_FIXME! temporary workaround for correct font scaling
@@ -235,6 +235,15 @@ void SavePresetDialog::build(std::vector<Preset::Type> types, std::string suffix
     btnOK->Bind(wxEVT_UPDATE_UI, [this](wxUpdateUIEvent& evt)   { evt.Enable(enable_ok_btn()); });
 
     topSizer->Add(m_presets_sizer,  0, wxEXPAND | wxALL, BORDER_W);
+    
+    // Add checkbox for Template filament saving
+    if (template_filament && types.size() == 1 && *types.begin() == Preset::Type::TYPE_FILAMENT) {
+        m_template_filament_checkbox = new wxCheckBox(this, wxID_ANY, _L("Save as profile derived from current printer only."));
+        wxBoxSizer* check_sizer = new wxBoxSizer(wxVERTICAL);
+        check_sizer->Add(m_template_filament_checkbox);
+        topSizer->Add(check_sizer, 0, wxEXPAND | wxALL, BORDER_W);
+    }
+
     topSizer->Add(btns,             0, wxEXPAND | wxALL, BORDER_W);
 
     SetSizer(topSizer);
@@ -263,6 +272,15 @@ std::string SavePresetDialog::get_name(Preset::Type type)
         if (item->type() == type)
             return item->preset_name();
     return "";
+}
+
+bool SavePresetDialog::get_template_filament_checkbox()
+{
+    if (m_template_filament_checkbox)
+    {
+        return m_template_filament_checkbox->GetValue();
+    }
+    return false;
 }
 
 bool SavePresetDialog::enable_ok_btn() const
