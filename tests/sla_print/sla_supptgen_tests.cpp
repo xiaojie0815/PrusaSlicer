@@ -5,6 +5,7 @@
 #include <libslic3r/BoundingBox.hpp>
 #include <libslic3r/SLA/SpatIndex.hpp>
 #include <libslic3r/ClipperUtils.hpp>
+#include <libslic3r/TriangleMeshSlicer.hpp>
 
 #include <libslic3r/SLA/SupportIslands/SampleConfig.hpp>
 #include <libslic3r/SLA/SupportIslands/VoronoiGraphUtils.hpp>
@@ -350,10 +351,7 @@ ExPolygons createTestIslands(double size)
     
     if (useFrogLeg) {
         TriangleMesh            mesh = load_model("frog_legs.obj");
-        TriangleMeshSlicer      slicer{&mesh};
-        std::vector<float>      grid({0.1f});
-        std::vector<ExPolygons> slices;
-        slicer.slice(grid, SlicingMode::Regular, 0.05f, &slices, [] {});
+        std::vector<ExPolygons>   slices = slice_mesh_ex(mesh.its, {0.1f});
         ExPolygon frog_leg = slices.front()[1];
         result.push_back(frog_leg);
     }
@@ -481,14 +479,12 @@ SampleConfig create_sample_config(double size) {
 }
 
 #include <libslic3r/Geometry.hpp>
-#include <libslic3r/VoronoiOffset.hpp>
+#include <libslic3r/Geometry/VoronoiOffset.hpp>
 TEST_CASE("Sampling speed test on FrogLegs", "[hide], [VoronoiSkeleton]")
 {
     TriangleMesh            mesh = load_model("frog_legs.obj");
-    TriangleMeshSlicer      slicer{&mesh};
     std::vector<float>      grid({0.1f});
-    std::vector<ExPolygons> slices;
-    slicer.slice(grid, SlicingMode::Regular, 0.05f, &slices, [] {});
+    std::vector<ExPolygons> slices = slice_mesh_ex(mesh.its, {0.1f});
     ExPolygon frog_leg = slices.front()[1];
     SampleConfig cfg = create_sample_config(3e7);
 

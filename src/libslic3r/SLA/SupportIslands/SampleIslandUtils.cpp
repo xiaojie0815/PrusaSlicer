@@ -2,7 +2,7 @@
 
 #include <cmath>
 #include <optional>
-#include <libslic3r/VoronoiOffset.hpp>
+#include <libslic3r/Geometry/VoronoiOffset.hpp>
 #include "IStackFunction.hpp"
 #include "EvaluateNeighbor.hpp"
 #include "ParabolaUtils.hpp"
@@ -11,7 +11,7 @@
 #include "LineUtils.hpp"
 #include "PointUtils.hpp"
 
-#include <libslic3r/VoronoiVisualUtils.hpp>
+#include <libslic3r/Geometry/VoronoiVisualUtils.hpp>
 
 #include <libslic3r/ClipperUtils.hpp> // allign
 

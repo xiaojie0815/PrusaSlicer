@@ -3,6 +3,7 @@
 
 #include <map>
 #include <libslic3r/Geometry.hpp>
+#include <libslic3r/Geometry/Voronoi.hpp>
 #include <numeric>
 
 namespace Slic3r::sla {

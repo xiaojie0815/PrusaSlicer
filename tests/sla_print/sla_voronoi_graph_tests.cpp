@@ -1,6 +1,6 @@
 #include "sla_test_utils.hpp"
 #include <libslic3r/SLA/SupportIslands/VoronoiGraphUtils.hpp>
-#include <libslic3r/VoronoiVisualUtils.hpp>
+#include <libslic3r/Geometry/VoronoiVisualUtils.hpp>
 
 using namespace Slic3r;
 using namespace Slic3r::sla;

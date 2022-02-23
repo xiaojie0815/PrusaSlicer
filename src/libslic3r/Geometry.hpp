@@ -309,36 +309,6 @@ bool liang_barsky_line_clipping(
 	return liang_barsky_line_clipping(x0clip, x1clip, bbox);
 }
 
-// Ugly named variant, that accepts the squared line 
-// Don't call me with a nearly zero length vector!
-template<typename T>
-int ray_circle_intersections_r2_lv2_c(T r2, T a, T b, T lv2, T c, std::pair<Eigen::Matrix<T, 2, 1, Eigen::DontAlign>, Eigen::Matrix<T, 2, 1, Eigen::DontAlign>> &out)
-{
-    T d = r2 - c * c / lv2;
-    if (d < T(0))
-        return 0;
-    T x0 = - a * c / lv2;
-    T y0 = - b * c / lv2;
-    T mult = sqrt(d / lv2);
-    out.first.x() = x0 + b * mult;
-    out.first.y() = y0 - a * mult;
-    out.second.x() = x0 - b * mult;
-    out.second.y() = y0 + a * mult;
-    return mult == T(0) ? 1 : 2;
-}
-template<typename T>
-int ray_circle_intersections(T r, T a, T b, T c, std::pair<Eigen::Matrix<T, 2, 1, Eigen::DontAlign>, Eigen::Matrix<T, 2, 1, Eigen::DontAlign>> &out)
-{
-    T lv2 = a * a + b * b;
-    if (lv2 < T(SCALED_EPSILON * SCALED_EPSILON)) {
-        //FIXME what is the correct epsilon?
-        // What if the line touches the circle?
-        return false;
-    }
-    return ray_circle_intersections_r2_lv2_c(r * r, a, b, a * a + b * b, c, out);
-}
-
-Pointf3s convex_hull(Pointf3s points);
 Polygon convex_hull(Points points);
 Polygon convex_hull(const Polygons &polygons);
 

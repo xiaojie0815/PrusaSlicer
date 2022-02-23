@@ -1,5 +1,6 @@
 #include "LineUtils.hpp"
 #include <libslic3r/Geometry.hpp>
+#include <libslic3r/Geometry/Circle.hpp>
 #include <functional>
 #include "VectorUtils.hpp"
 #include "PointUtils.hpp"

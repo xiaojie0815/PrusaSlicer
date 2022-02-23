@@ -2,7 +2,7 @@
 
 #include <cmath>
 #include <set>
-#include <libslic3r/VoronoiOffset.hpp>
+#include <libslic3r/Geometry/VoronoiOffset.hpp>
 #include "IStackFunction.hpp"
 #include "EvaluateNeighbor.hpp"
 #include "ParabolaUtils.hpp"
@@ -10,7 +10,7 @@
 #include "PointUtils.hpp"
 #include "PolygonUtils.hpp"
 
-#include <libslic3r/VoronoiVisualUtils.hpp>
+#include <libslic3r/Geometry/VoronoiVisualUtils.hpp>
 
 // comment definition of NDEBUG to enable assert()
 //#define NDEBUG

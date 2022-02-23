@@ -4,8 +4,8 @@
 
 // sampling parabola
 #include <libslic3r/Geometry.hpp>
-#include <libslic3r/VoronoiOffset.hpp>
-#include <libslic3r/VoronoiVisualUtils.hpp>
+#include <libslic3r/Geometry/VoronoiOffset.hpp>
+#include <libslic3r/Geometry/VoronoiVisualUtils.hpp>
 
 using namespace Slic3r::sla;
 
