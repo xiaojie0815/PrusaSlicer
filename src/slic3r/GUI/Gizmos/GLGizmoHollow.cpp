@@ -118,8 +118,9 @@ void GLGizmoHollow::render_points(const Selection& selection, bool picking)
 #endif // ENABLE_GLBEGIN_GLEND_REMOVAL
 
     const GLVolume* vol = selection.get_volume(*selection.get_volume_idxs().begin());
-    const Transform3d& instance_scaling_matrix_inverse = vol->get_instance_transformation().get_matrix(true, true, false, true).inverse();
-    const Transform3d& instance_matrix = vol->get_instance_transformation().get_matrix();
+    Geometry::Transformation trafo =  vol->get_instance_transformation() * vol->get_volume_transformation();
+    const Transform3d& instance_scaling_matrix_inverse = trafo.get_matrix(true, true, false, true).inverse();
+    const Transform3d& instance_matrix = trafo.get_matrix();
 
     glsafe(::glPushMatrix());
     glsafe(::glTranslated(0.0, 0.0, m_c->selection_info()->get_sla_shift()));
@@ -192,7 +193,7 @@ bool GLGizmoHollow::is_mesh_point_clipped(const Vec3d& point) const
     auto sel_info = m_c->selection_info();
     int active_inst = m_c->selection_info()->get_active_instance();
     const ModelInstance* mi = sel_info->model_object()->instances[active_inst];
-    const Transform3d& trafo = mi->get_transformation().get_matrix();
+    const Transform3d& trafo = mi->get_transformation().get_matrix() * sel_info->model_object()->volumes.front()->get_matrix();
 
     Vec3d transformed_point =  trafo * point;
     transformed_point(2) += sel_info->get_sla_shift();
@@ -211,7 +212,7 @@ bool GLGizmoHollow::unproject_on_mesh(const Vec2d& mouse_pos, std::pair<Vec3f, V
     const Camera& camera = wxGetApp().plater()->get_camera();
     const Selection& selection = m_parent.get_selection();
     const GLVolume* volume = selection.get_volume(*selection.get_volume_idxs().begin());
-    Geometry::Transformation trafo = volume->get_instance_transformation();
+    Geometry::Transformation trafo = volume->get_instance_transformation() * volume->get_volume_transformation();
     trafo.set_offset(trafo.get_offset() + Vec3d(0., 0., m_c->selection_info()->get_sla_shift()));
 
     double clp_dist = m_c->object_clipper()->get_position();
