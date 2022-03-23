@@ -43,6 +43,7 @@ class OG_CustomCtrl :public wxPanel
         bool draw_just_act_buttons  { false };
         bool draw_mode_bitmap       { true };
         bool is_visible             { true };
+        bool is_forced_hidden       { false };
         bool is_focused             { false };
 
         CtrlLine(   wxCoord         height,
@@ -57,7 +58,7 @@ class OG_CustomCtrl :public wxPanel
         void    msw_rescale();
         void    update_visibility(ConfigOptionMode mode);
 
-        void render_separator(wxDC& dc, wxCoord v_pos);
+        void    render_separator(wxDC& dc, wxCoord v_pos);
 
         void    render(wxDC& dc, wxCoord v_pos);
         wxCoord draw_mode_bmp(wxDC& dc, wxCoord v_pos);
@@ -101,6 +102,8 @@ public:
 
     wxPoint get_pos(const Line& line, Field* field = nullptr);
     int     get_height(const Line& line);
+
+    void    force_hidden(const Line& line, bool hidden);
 
     OptionsGroup*  opt_group;
 

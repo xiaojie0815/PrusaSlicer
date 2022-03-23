@@ -1224,6 +1224,9 @@ bool GUI_App::on_init_inner()
 
     preset_bundle = new PresetBundle();
 
+    if(app_config)
+        preset_bundle->app_config = app_config;
+
     // just checking for existence of Slic3r::data_dir is not enough : it may be an empty directory
     // supplied as argument to --datadir; in that case we should still run the wizard
     preset_bundle->setup_directories();

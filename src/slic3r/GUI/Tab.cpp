@@ -597,6 +597,10 @@ void Tab::update_changed_ui()
             dirty_options.emplace_back("extruders_count");
         if (tab->m_sys_extruders_count != tab->m_extruders_count)
             nonsys_options.emplace_back("extruders_count");
+    } else if (m_type == Slic3r::Preset::TYPE_FILAMENT) {
+        // In case, this is called from load_current_preset, update_filament_cost_visibility will be called twice
+        // This second call wont break the previous one and will fix f.e. optgroup show / hide.
+        dynamic_cast<TabFilament*>(this)->update_filament_cost_visibility();
     }
 
     for (auto& it : m_options_list)
@@ -1925,7 +1929,9 @@ void TabFilament::build()
         optgroup->append_single_option_line("filament_diameter");
         optgroup->append_single_option_line("extrusion_multiplier");
         optgroup->append_single_option_line("filament_density");
-        optgroup->append_single_option_line("filament_cost");
+        Option option = optgroup->get_option("filament_cost");
+        option.opt.sidetext = format("%1%/kg", wxGetApp().app_config->get("currency_shortcut"));
+        optgroup->append_single_option_line(option);
         optgroup->append_single_option_line("filament_spool_weight");
 
         optgroup->m_on_change = [this](t_config_option_key opt_key, boost::any value)
@@ -1950,6 +1956,34 @@ void TabFilament::build()
         line.append_option(optgroup->get_option("first_layer_bed_temperature"));
         line.append_option(optgroup->get_option("bed_temperature"));
         optgroup->append_line(line);
+
+        optgroup = page->new_optgroup(L("User Cost"));
+        // system inherited profiles has checkbox to override - this info is written to appconfig
+        line = Line("override_cost", L("Override System Cost"), L("Allows to use User Cost with inherited from system profile."));
+        line.widget = [this](wxWindow* parent) {
+            return create_override_cost_widget(parent);
+        };
+        // Add key and append option. Both needs to be done here as this option is not in config.
+        wxGetApp().sidebar().get_searcher().add_key("override_cost", static_cast<Preset::Type>(optgroup->config_type()), optgroup->title, optgroup->config_category());
+        wxGetApp().sidebar().get_searcher().append_non_config_option(line, Preset::Type::TYPE_FILAMENT);
+        optgroup->append_line(line);
+        // Next line is not affecting print config but app config
+        line = Line("alias_filament_cost", L("User Cost"), L("Current local price of filament, transfering to aliases. Overrides profile filament cost."));
+        line.widget = [this](wxWindow* parent) {
+            return create_filament_cost_widget(parent);
+        };
+        // Add key and append option. Both needs to be done here as this option is not in config.
+        wxGetApp().sidebar().get_searcher().add_key("alias_filament_cost", static_cast<Preset::Type>(optgroup->config_type()), optgroup->title, optgroup->config_category());
+        wxGetApp().sidebar().get_searcher().append_non_config_option(line, Preset::Type::TYPE_FILAMENT);
+        optgroup->append_line(line);
+        // Description line
+        line = { "", "" };
+        line.full_width = 1;
+        line.widget = [this](wxWindow* parent) {
+            return description_line_widget(parent, &m_alias_filament_cost_description_line);
+        };
+        optgroup->append_line(line);
+
 
     page = add_options_page(L("Cooling"), "cooling");
         std::string category_path = "cooling_127569#";
@@ -1983,7 +2017,7 @@ void TabFilament::build()
     page = add_options_page(L("Advanced"), "wrench");
         optgroup = page->new_optgroup(L("Filament properties"));
         // Set size as all another fields for a better alignment
-        Option option = optgroup->get_option("filament_type");
+        option = optgroup->get_option("filament_type");
         option.opt.width = Field::def_width();
         optgroup->append_single_option_line(option);
         optgroup->append_single_option_line("filament_soluble");
@@ -2107,6 +2141,104 @@ void TabFilament::update_volumetric_flow_preset_hints()
     m_volumetric_speed_description_line->SetText(text);
 }
 
+wxSizer* TabFilament::create_filament_cost_widget(wxWindow* parent)
+{
+    auto size = wxSize(8 * m_em_unit, wxDefaultCoord);
+    wxTextCtrl* txtctrl = new wxTextCtrl(parent, wxID_ANY, "0", wxDefaultPosition, size, wxTE_PROCESS_ENTER | wxBORDER_SIMPLE);
+
+    txtctrl->SetFont(Slic3r::GUI::wxGetApp().normal_font());
+    wxGetApp().UpdateDarkUI(txtctrl);
+    if (!wxOSX)
+        // Only disable background refresh for single line input fields, as they are completely painted over by the edit control.
+        // This does not apply to the multi-line edit field, where the last line and a narrow frame around the text is not cleared.
+        txtctrl->SetBackgroundStyle(wxBG_STYLE_PAINT);
+#ifdef __WXOSX__
+    txtctrl->OSXDisableAllSmartSubstitutions();
+#endif // __WXOSX__
+
+    std::string real_cost = wxGetApp().app_config->get("cost_override", wxGetApp().preset_bundle->filaments.get_edited_preset().alias);
+    txtctrl->SetValue(real_cost.empty() ? wxString("0") : boost::nowide::widen(real_cost));
+    
+    wxString tooltip = GUI::format_wxstr("%1%\n%2% : 0\n%3% : alias_filament_cost",
+        _L("Enter your filament cost per kg here. This is only for statistical information."), 
+        _L("Default value"), 
+        _L("parameter name"));
+    
+    txtctrl->SetToolTip(tooltip);
+
+    txtctrl->Bind(wxEVT_TEXT_ENTER, ([this, txtctrl](wxEvent& e)
+        {
+            if (!txtctrl->IsEnabled() || !txtctrl->IsEditable())
+                return;
+            const Preset& preset = m_presets->get_edited_preset();
+            // parent of non system is always system or this txtctrl is not shown at all
+            std::string saved_val = wxGetApp().app_config->get("cost_override", preset.is_system ? preset.alias : m_presets->get_selected_preset_parent()->alias);
+            std::string curr_val = boost::nowide::narrow(txtctrl->GetValue());
+            if (saved_val != curr_val && (saved_val != "" || curr_val != "0"))
+                wxGetApp().app_config->set("cost_override", preset.is_system ? preset.alias : m_presets->get_selected_preset_parent()->alias, curr_val);
+
+        }), txtctrl->GetId());
+
+    txtctrl->Bind(wxEVT_KILL_FOCUS, ([this, txtctrl](wxFocusEvent& e)
+        {
+            e.Skip();
+            if (!txtctrl->IsEnabled() || !txtctrl->IsEditable())
+                return;
+            const Preset& preset = m_presets->get_edited_preset();
+            // parent of non system is always system or this txtctrl is not shown at all
+            std::string saved_val = wxGetApp().app_config->get("cost_override", preset.is_system ? preset.alias : m_presets->get_selected_preset_parent()->alias);
+            std::string curr_val = boost::nowide::narrow(txtctrl->GetValue());
+            if (saved_val != curr_val && (saved_val != "" || curr_val != "0"))
+                wxGetApp().app_config->set("cost_override", preset.is_system ? preset.alias : m_presets->get_selected_preset_parent()->alias, curr_val);
+
+        }), txtctrl->GetId());
+
+    auto* label = new wxStaticText(parent, wxID_ANY, format("%1%/kg", wxGetApp().app_config->get("currency_shortcut")));
+    label->SetFont(Slic3r::GUI::wxGetApp().normal_font());
+    
+    auto sizer = new wxBoxSizer(wxHORIZONTAL);
+    sizer->Add(txtctrl, 0, wxALIGN_CENTER_VERTICAL);
+    sizer->Add(label, 0, wxALIGN_CENTER_VERTICAL);
+
+    return sizer;
+}
+
+wxSizer* TabFilament::create_override_cost_widget(wxWindow* parent)
+{
+    wxCheckBox* checkbox = new wxCheckBox(parent, wxID_ANY, "Enable User cost for this profile");
+    checkbox->SetFont(Slic3r::GUI::wxGetApp().normal_font());
+    checkbox->Bind(wxEVT_CHECKBOX, ([this, checkbox](wxCommandEvent e)
+        {
+            if (Line* line = this->get_line("alias_filament_cost")) {
+                if (line->widget_sizer && line->widget_sizer->GetItemCount() > 0) {
+                    wxSizerItem* item = line->widget_sizer->GetItem((size_t)0); // text control should be first item in sizer 
+                    wxTextCtrl* txtctrl = dynamic_cast<wxTextCtrl*>(item->GetWindow());
+                    // This value is stored in AppConfig, it is in the same category "cost_override", where user cost are stored.
+                    // Name of inherited profile should never have name of alias of its parent system profile. Otherwise this needs to be changed.
+                    if (txtctrl) {
+                        if (checkbox->GetValue() == wxCHK_CHECKED) {
+                            txtctrl->Enable();
+                            txtctrl->SetEditable(true);
+                            std::string real_cost = wxGetApp().app_config->get("cost_override", m_presets->get_selected_preset_parent()->alias);
+                            txtctrl->SetValue(real_cost.empty() ? wxString("0") : boost::nowide::widen(real_cost));
+                            const Preset& preset = m_presets->get_edited_preset();
+                            wxGetApp().app_config->set("cost_override", preset.name, "Enabled");
+                        } else {
+                            txtctrl->Disable();
+                            txtctrl->SetEditable(false);
+                            txtctrl->SetValue(wxString("0"));
+                            const Preset& preset = m_presets->get_edited_preset();
+                            wxGetApp().app_config->set("cost_override", preset.name, "Disabled");
+                        }
+                    }
+                }
+            }
+        }) );
+    auto sizer = new wxBoxSizer(wxHORIZONTAL);
+    sizer->Add(checkbox, 0, wxALIGN_CENTER_VERTICAL);
+    return sizer;
+}
+
 void TabFilament::update_description_lines()
 {
     Tab::update_description_lines();
@@ -2118,6 +2250,91 @@ void TabFilament::update_description_lines()
         m_cooling_description_line->SetText(from_u8(PresetHints::cooling_description(m_presets->get_edited_preset())));
     if (m_active_page->title() == "Advanced" && m_volumetric_speed_description_line)
         this->update_volumetric_flow_preset_hints();
+    if (m_active_page->title() == "Filament" && m_alias_filament_cost_description_line)
+        m_alias_filament_cost_description_line->SetText(_L("This settings allows you to set your current local price of filament spool."
+            " If you set User cost for filament here, it will transfer to every system profile of the same name."
+            " It is also possible to allow this price on profiles inherited from system profiles."
+            " This settings is not part of the filament profile and saves to PrusaSlicer.ini."
+            " You can change currency shortcut in preferences."
+            " If user cost is zero, standart Cost settings is used."));
+}
+
+void TabFilament::update_filament_cost_visibility()
+{
+    // title is not translated text
+    if (m_active_page->title() != L"Filament")
+        return;
+    const Preset& preset = m_presets->get_edited_preset();
+    // For filaments, get alias value for user cost
+        // if non system without system parent - hide group "User Cost"
+        // if system - hide override checkox
+        // if non system with system parent - show checkbox and with it toggle textbox
+    if (preset.is_system) {
+        // Find text control, enable it and fill value.
+        if (Line* line = this->get_line("alias_filament_cost")) {
+            if (line->widget_sizer && line->widget_sizer->GetItemCount() > 0) {
+                wxSizerItem* item = line->widget_sizer->GetItem((size_t)0); // text control should be first item in sizer 
+                wxTextCtrl* txtctrl = dynamic_cast<wxTextCtrl*>(item->GetWindow());
+                if (txtctrl) {
+                    txtctrl->Enable();
+                    txtctrl->SetEditable(true);
+                    std::string real_cost = wxGetApp().app_config->get("cost_override", preset.alias);
+                    txtctrl->SetValue(real_cost.empty() ? wxString("0") : boost::nowide::widen(real_cost));
+                }
+            }
+        }
+        // Hide line with override checkbox
+        if (ConfigOptionsGroupShp optgrp = this->m_active_page->get_optgroup(L"User Cost"); optgrp != nullptr) {
+            if (OG_CustomCtrl* ogcc = optgrp->custom_ctrl) {
+                if (Line* line = this->get_line("override_cost")) {
+                    ogcc->force_hidden(*line, true);
+                    ogcc->update_visibility(m_mode);
+                }
+            }
+        }
+    } else if (m_presets->get_selected_preset_parent()->is_system) {
+        // show override checkbox
+        if (ConfigOptionsGroupShp optgrp = this->m_active_page->get_optgroup(L"User Cost"); optgrp != nullptr) {
+            if (OG_CustomCtrl * ogcc = optgrp->custom_ctrl) {
+                if (Line* line = this->get_line("override_cost")) {
+                    ogcc->force_hidden(*line, false);
+                }
+            }
+        }
+        // get appconfig value
+        std::string enabled_string = wxGetApp().app_config->get("cost_override", preset.name);
+        bool enabled = (enabled_string == "Enabled" ? true : false);
+        // check / uncheck
+        if (Line* line = this->get_line("override_cost")) {
+            if (line->widget_sizer && line->widget_sizer->GetItemCount() > 0) {
+                if (wxCheckBox* checkbox = dynamic_cast<wxCheckBox*>(line->widget_sizer->GetItem((size_t)0)->GetWindow())) {
+                    checkbox->SetValue(enabled);
+                }
+            }
+        }
+        // disable / enable textbox
+        if (Line* line = this->get_line("alias_filament_cost")) {
+            if (line->widget_sizer && line->widget_sizer->GetItemCount() > 0) {
+                if (wxTextCtrl* txtctrl = dynamic_cast<wxTextCtrl*>(line->widget_sizer->GetItem((size_t)0)->GetWindow())) {
+                    if (enabled) {
+                        txtctrl->Enable();
+                        txtctrl->SetEditable(true);
+                        std::string real_cost = wxGetApp().app_config->get("cost_override", m_presets->get_selected_preset_parent()->alias);
+                        txtctrl->SetValue(real_cost.empty() ? wxString("0") : boost::nowide::widen(real_cost));
+                    } else {
+                        txtctrl->Disable();
+                        txtctrl->SetEditable(false);
+                        txtctrl->SetValue(wxString("0"));
+                    }
+                }
+            }
+        }
+    } else {
+        // Hide whole optgroup if nonsystem and nonsytem parent
+        if (ConfigOptionsGroupShp optgrp = this->m_active_page->get_optgroup(L"User Cost")) {
+            optgrp->Hide();
+        }
+    }        
 }
 
 void TabFilament::toggle_options()
@@ -2165,6 +2382,7 @@ void TabFilament::clear_pages()
 
     m_volumetric_speed_description_line = nullptr;
 	m_cooling_description_line = nullptr;
+    m_alias_filament_cost_description_line = nullptr;
 }
 
 wxSizer* Tab::description_line_widget(wxWindow* parent, ogStaticText* *StaticText, wxString text /*= wxEmptyString*/)
@@ -3068,9 +3286,12 @@ void Tab::load_current_preset()
             on_preset_loaded();
         else
             wxGetApp().sidebar().update_objects_list_extruder_column(1);
+    } else if (m_type == Slic3r::Preset::TYPE_FILAMENT){
+        dynamic_cast<TabFilament*>(this)->update_filament_cost_visibility();
     }
     // Reload preset pages with the new configuration values.
     reload_config();
+
 
     update_ui_items_related_on_parent_preset(m_presets->get_selected_preset_parent());
 
@@ -3593,6 +3814,11 @@ void Tab::save_preset(std::string name /*= ""*/, bool detach)
 
     // Save the preset into Slic3r::data_dir / presets / section_name / preset_name.ini
     m_presets->save_current_preset(name, detach);
+
+    // User filament cost needs to reload preset to correctly show / hide its elements
+    if (m_type == Preset::TYPE_FILAMENT)
+        load_current_preset();
+
     // Mark the print & filament enabled if they are compatible with the currently selected preset.
     // If saving the preset changes compatibility with other presets, keep the now incompatible dependent presets selected, however with a "red flag" icon showing that they are no more compatible.
     m_preset_bundle->update_compatible(PresetSelectCompatibleType::Never);
@@ -3611,6 +3837,7 @@ void Tab::save_preset(std::string name /*= ""*/, bool detach)
     if (detach)
         update_ui_items_related_on_parent_preset(m_presets->get_selected_preset_parent());
 
+    toggle_options();
     update_changed_ui();
 
     /* If filament preset is saved for multi-material printer preset, 

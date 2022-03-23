@@ -9,6 +9,8 @@
 #include "Notebook.hpp"
 #include "ButtonsDescription.hpp"
 #include "OG_CustomCtrl.hpp"
+#include "MainFrame.hpp"
+#include "format.hpp"
 
 namespace Slic3r {
 
@@ -69,7 +71,7 @@ void PreferencesDialog::show(const std::string& highlight_opt_key /*= std::strin
 	this->ShowModal();
 }
 
-static std::shared_ptr<ConfigOptionsGroup>create_options_tab(const wxString& title, wxBookCtrlBase* tabs)
+static std::shared_ptr<ConfigOptionsGroup> create_options_tab(const wxString& title, wxBookCtrlBase* tabs)
 {
 	wxPanel* tab = new wxPanel(tabs, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxBK_LEFT | wxTAB_TRAVERSAL);
 	tabs->AddPage(tab, _(title));
@@ -108,6 +110,25 @@ static void append_bool_option( std::shared_ptr<ConfigOptionsGroup> optgroup,
 	def.tooltip = tooltip;
 	def.mode = mode;
 	def.set_default_value(new ConfigOptionBool{ def_val });
+	Option option(def, opt_key);
+	optgroup->append_single_option_line(option);
+
+	// fill data to the Search Dialog
+	wxGetApp().sidebar().get_searcher().add_key(opt_key, Preset::TYPE_PREFERENCES, optgroup->config_category(), L("Preferences"));
+}
+
+static void append_string_option(std::shared_ptr<ConfigOptionsGroup> optgroup,
+									const std::string& opt_key,
+									const std::string& label,
+									const std::string& tooltip,
+									const std::string& def_val,
+									ConfigOptionMode mode = comSimple)
+{
+	ConfigOptionDef def = { opt_key, coString };
+	def.label = label;
+	def.tooltip = tooltip;
+	def.mode = mode;
+	def.set_default_value(new ConfigOptionString{ def_val });
 	Option option(def, opt_key);
 	optgroup->append_single_option_line(option);
 
@@ -177,7 +198,11 @@ void PreferencesDialog::build()
 			m_values[opt_key] = boost::any_cast<bool>(value) ? "none" : "discard";
 		else if (opt_key == "default_action_on_dirty_project")
 			m_values[opt_key] = boost::any_cast<bool>(value) ? "" : "0";
-		else
+		else if (opt_key == "currency_shortcut") {
+			m_values[opt_key] = boost::any_cast<std::string>(value);
+			wxGetApp().mainframe->update_line_sidetext(2, "filament_cost", format("%1%/kg", boost::any_cast<std::string>(value)));
+			wxGetApp().mainframe->update_widget_sidetext(2, "alias_filament_cost", format("%1%/kg", boost::any_cast<std::string>(value)));
+		} else
 		    m_values[opt_key] = boost::any_cast<bool>(value) ? "1" : "0";
 	};
 
@@ -329,6 +354,13 @@ void PreferencesDialog::build()
 		L("If enabled, the legacy 3DConnexion devices settings dialog is available by pressing CTRL+M"),
 		app_config->get("use_legacy_3DConnexion") == "1");
 #endif // _WIN32 || __APPLE__
+
+
+	// Currency shortcut shown for filament_cost
+	append_string_option(m_optgroup_general, "currency_shortcut",
+		L("Currency shortcut"),
+		L("Currency used for filament cost."),
+		app_config->get("currency_shortcut"));
 
 	activate_options_tab(m_optgroup_general);
 

@@ -23,13 +23,13 @@
 #include "AboutDialog.hpp"
 #include "MsgDialog.hpp"
 #include "format.hpp"
+#include "Field.hpp"
+#include "Tab.hpp"
 
+#include "libslic3r/AppConfig.hpp"
 #include "libslic3r/Print.hpp"
 
 namespace Slic3r {
-
-class AppConfig;
-
 namespace GUI {
 
 #if __APPLE__
@@ -441,6 +441,15 @@ void combochecklist_set_flags(wxComboCtrl* comboCtrl, unsigned int flags)
 AppConfig* get_app_config()
 {
     return wxGetApp().app_config;
+}
+
+Preset& get_edited_preset(Preset::Type type)
+{
+	return wxGetApp().get_tab(type)->m_presets->get_edited_preset();
+}
+const Preset& get_edited_preset_const(Preset::Type type)
+{
+	return wxGetApp().get_tab(type)->m_presets->get_edited_preset();
 }
 
 wxString from_u8(const std::string &str)

@@ -105,6 +105,16 @@ int OG_CustomCtrl::get_height(const Line& line)
     return 0;
 }
 
+void OG_CustomCtrl::force_hidden(const Line& line, bool hidden)
+{
+    for (CtrlLine& ctrl_line : ctrl_lines) {
+        if (&ctrl_line.og_line == &line) {
+            ctrl_line.is_forced_hidden = hidden;
+            break;  
+        }
+    }
+}
+
 wxPoint OG_CustomCtrl::get_pos(const Line& line, Field* field_in/* = nullptr*/)
 {
     wxCoord v_pos = 0;
@@ -514,7 +524,7 @@ void OG_CustomCtrl::CtrlLine::update_visibility(ConfigOptionMode mode)
     const std::vector<Option>& option_set = og_line.get_options();
 
     const ConfigOptionMode& line_mode = option_set.front().opt.mode;
-    is_visible = line_mode <= mode;
+    is_visible = (!is_forced_hidden) && line_mode <= mode;
 
     if (draw_just_act_buttons)
         return;

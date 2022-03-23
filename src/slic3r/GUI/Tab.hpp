@@ -436,10 +436,13 @@ class TabFilament : public Tab
 private:
 	ogStaticText*	m_volumetric_speed_description_line {nullptr};
 	ogStaticText*	m_cooling_description_line {nullptr};
+	ogStaticText*   m_alias_filament_cost_description_line {nullptr};
 
     void            add_filament_overrides_page();
     void            update_filament_overrides_page();
 	void 			update_volumetric_flow_preset_hints();
+	wxSizer*		create_filament_cost_widget(wxWindow* parent);
+	wxSizer*		create_override_cost_widget(wxWindow* parent);
 
     std::map<std::string, wxCheckBox*> m_overrides_options;
 public:
@@ -454,6 +457,7 @@ public:
 	void		update() override;
 	void		clear_pages() override;
 	bool 		supports_printer_technology(const PrinterTechnology tech) const override { return tech == ptFFF; }
+	void		update_filament_cost_visibility();
 };
 
 class TabPrinter : public Tab

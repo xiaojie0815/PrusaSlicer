@@ -1416,7 +1416,7 @@ void Sidebar::update_sliced_info_sizer()
                 p->sliced_info->SetTextAndShow(siFilament_g, info_text, new_label);
             }
 
-            new_label = _L("Cost");
+            new_label = format(("%1% (%2%)"), _L("Cost"), wxGetApp().app_config->get("currency_shortcut"));
             if (is_wipe_tower)
                 new_label += format_wxstr(":\n    - %1%\n    - %2%", _L("objects"), _L("wipe tower"));
 
@@ -3181,6 +3181,8 @@ unsigned int Plater::priv::update_background_process(bool force_validation, bool
     update_print_volume_state();
     // Apply new config to the possibly running background task.
     bool               was_running = background_process.running();
+    if (!wxGetApp().preset_bundle->app_config)
+        wxGetApp().preset_bundle->app_config = wxGetApp().app_config;
     Print::ApplyStatus invalidated = background_process.apply(q->model(), wxGetApp().preset_bundle->full_config());
 
     // Just redraw the 3D canvas without reloading the scene to consume the update of the layer height profile.

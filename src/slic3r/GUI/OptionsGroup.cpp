@@ -817,7 +817,6 @@ boost::any ConfigOptionsGroup::get_config_value(const DynamicPrintConfig& config
 	boost::any ret;
 	wxString text_value = wxString("");
 	const ConfigOptionDef* opt = config.def()->get(opt_key);
-
     if (opt->nullable)
     {
         switch (opt->type)
@@ -872,7 +871,7 @@ boost::any ConfigOptionsGroup::get_config_value(const DynamicPrintConfig& config
 		ret = double_to_string(val);
 		}
 		break;
-	case coString:
+    case coString:
 		ret = from_u8(config.opt_string(opt_key));
 		break;
 	case coStrings:
@@ -958,7 +957,6 @@ std::pair<OG_CustomCtrl*, bool*> ConfigOptionsGroup::get_custom_ctrl_with_blinki
 
 // Change an option on m_config, possibly call ModelConfig::touch().
 void ConfigOptionsGroup::change_opt_value(const t_config_option_key& opt_key, const boost::any& value, int opt_index /*= 0*/)
-
 {
 	Slic3r::GUI::change_opt_value(const_cast<DynamicPrintConfig&>(*m_config), opt_key, value, opt_index);
 	if (m_modelconfig)

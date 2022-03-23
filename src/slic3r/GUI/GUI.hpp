@@ -34,6 +34,9 @@ extern const std::string& shortkey_alt_prefix();
 
 extern AppConfig* get_app_config();
 
+ Preset& get_edited_preset(Preset::Type type);
+ const Preset& get_edited_preset_const(Preset::Type type);
+
 extern void add_menus(wxMenuBar *menu, int event_preferences_changed, int event_language_change);
 
 // Change option value in config

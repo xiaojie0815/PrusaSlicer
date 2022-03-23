@@ -11,6 +11,8 @@
 
 namespace Slic3r {
 
+class AppConfig;
+
 // Bundle of Print + Filament + Printer presets.
 class PresetBundle
 {
@@ -18,6 +20,9 @@ public:
     PresetBundle();
     PresetBundle(const PresetBundle &rhs);
     PresetBundle& operator=(const PresetBundle &rhs);
+
+    // appconfig is needed for real_filament_cost values.
+    AppConfig* app_config { nullptr };
 
     // Remove all the presets but the "-- default --".
     // Optionally remove all the files referenced by the presets from the user profile directory.

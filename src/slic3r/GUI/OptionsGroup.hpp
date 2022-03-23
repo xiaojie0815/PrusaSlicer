@@ -84,6 +84,7 @@ public:
 
     const std::vector<widget_t>&	get_extra_widgets() const {return m_extra_widgets;}
     const std::vector<Option>&		get_options() const { return m_options; }
+	std::vector<Option>&			get_options() { return m_options; }
 
 private:
 	std::vector<Option>		m_options;//! {std::vector<Option>()};
