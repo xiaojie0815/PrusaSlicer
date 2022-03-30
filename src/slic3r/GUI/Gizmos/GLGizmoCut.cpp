@@ -841,7 +841,8 @@ void GLGizmoCut3D::on_render_input_window(float x, float y, float bottom_limit)
     static bool hide_clipped = true;
     static bool fill_cut = true;
     static float contour_width = 0.2f;
-    m_imgui->checkbox("hide_clipped", hide_clipped);
+    if (m_imgui->checkbox("hide_clipped", hide_clipped) && !hide_clipped)
+        m_clp_normal = m_c->object_clipper()->get_clipping_plane()->get_normal();
     m_imgui->checkbox("fill_cut", fill_cut);
     m_imgui->slider_float("contour_width", &contour_width, 0.f, 3.f);
     m_c->object_clipper()->set_behavior(hide_clipped, fill_cut, contour_width);
@@ -860,8 +861,36 @@ void GLGizmoCut3D::on_render_input_window(float x, float y, float bottom_limit)
     }
 }
 
+// get volume transformation regarding to the "border". Border is related from the siae of connectors
+Transform3d GLGizmoCut3D::get_volume_transformation(const ModelVolume* volume, const Transform3d& inst_trafo) const
+{
+    bool is_prizm_dowel = m_connector_type == CutConnectorType::Dowel && m_connector_style == size_t(CutConnectorStyle::Prizm);
+    const Transform3d connector_trafo = Geometry::assemble_transform(
+        is_prizm_dowel ? Vec3d(0.0, 0.0, -m_connector_depth_ratio) : Vec3d::Zero(),
+        m_rotation_gizmo.get_rotation(),
+        Vec3d(0.5*m_connector_size, 0.5*m_connector_size, is_prizm_dowel ? 2 * m_connector_depth_ratio : m_connector_depth_ratio),
+        Vec3d::Ones());
+    const Vec3d connector_bb = m_connector_mesh.transformed_bounding_box(connector_trafo).size();
+
+    const Vec3d bb = volume->mesh().bounding_box().size();
+//    const Vec3d bb = volume->mesh().transformed_bounding_box(inst_trafo).size();
+
+    // calculate an unused border - part of the the volume, where we can't put connectors
+    const Vec3d border_scale(connector_bb.x() / bb.x(), connector_bb.y() / bb.y(), connector_bb.z() / bb.z());
+
+    const Transform3d vol_matrix = volume->get_matrix();
+    const Vec3d vol_trans = vol_matrix.translation();
+    // offset of the volume will be changed after scaling, so calculate the needed offset and set it to a volume_trafo
+    const Vec3d offset(vol_trans.x() * border_scale.x(), vol_trans.y() * border_scale.y(), vol_trans.z() * border_scale.z());
+
+    // scale and translate volume to suppress to put connectors too close to the border
+    return Geometry::assemble_transform(offset, Vec3d::Zero(), Vec3d::Ones() - border_scale, Vec3d::Ones()) * vol_matrix;
+}
+
 void GLGizmoCut3D::render_connectors(bool picking)
 {
+    m_has_invalid_connector = false;
+
     if (m_connector_mode == CutConnectorMode::Auto)
         return;
 
@@ -894,17 +923,29 @@ void GLGizmoCut3D::render_connectors(bool picking)
     ColorRGBA render_color;
     const ModelObject* mo = m_c->selection_info()->model_object();
     const CutConnectors& connectors = mo->cut_connectors;
-    size_t cache_size = connectors.size();
 
-    const Vec3d& instance_offset = mo->instances[m_c->selection_info()->get_active_instance()]->get_offset();
+    const ModelInstance* mi = mo->instances[m_c->selection_info()->get_active_instance()];
+    const Vec3d& instance_offset = mi->get_offset();
     const float sla_shift        = m_c->selection_info()->get_sla_shift();
 
     const ClippingPlane* cp = m_c->object_clipper()->get_clipping_plane();
-    const Vec3d& normal = cp ? cp->get_normal() : Vec3d::Ones();
+    const Vec3d& normal = cp && cp->is_active() ? cp->get_normal() : m_clp_normal;
 
-    for (size_t i = 0; i < cache_size; ++i) {
+    const Transform3d instance_trafo = Geometry::assemble_transform(Vec3d(0.0, 0.0, sla_shift), Vec3d::Zero(), Vec3d::Ones(), Vec3d::Ones()) * mi->get_transformation().get_matrix();
+
+    for (size_t i = 0; i < connectors.size(); ++i) {
         const CutConnector& connector = connectors[i];
         const bool& point_selected = m_selected[i];
+
+        double height = connector.height;
+        // recalculate connector position to world position
+        Vec3d pos = connector.pos + instance_offset;
+        if (m_connector_type == CutConnectorType::Dowel &&
+            m_connector_style == size_t(CutConnectorStyle::Prizm)) {
+            pos -= height * normal;
+            height *= 2;
+        }
+        pos[Z] += sla_shift;
 
         // First decide about the color of the point.
         if (picking)
@@ -912,27 +953,29 @@ void GLGizmoCut3D::render_connectors(bool picking)
         else {
             if (size_t(m_hover_id- m_connectors_group_id) == i)
                 render_color = ColorRGBA::CYAN();
-            else  // neither hover nor picking
-                render_color = point_selected ? ColorRGBA(1.0f, 0.3f, 0.3f, 0.5f) : ColorRGBA(1.0f, 1.0f, 1.0f, 0.5f);
-        }
+            else { // neither hover nor picking
+                int mesh_id = -1;
+                for (const ModelVolume* mv : mo->volumes) {
+                    ++mesh_id;
+                    if (!mv->is_model_part())
+                        continue;
 
-#if ENABLE_LEGACY_OPENGL_REMOVAL
-        m_connector_shape.set_color(render_color);
-#else
-        const_cast<GLModel*>(&m_connector_shape)->set_color(-1, render_color);
-#endif // ENABLE_GLBEGIN_GLEND_REMOVAL
+                    const Transform3d volume_trafo = get_volume_transformation(mv, instance_trafo);
 
-        double height = connector.height;
-        // recalculate connector position to world position
-        Vec3d pos = connector.pos + instance_offset;
-        if (m_connector_type  == CutConnectorType::Dowel &&
-            m_connector_style == size_t(CutConnectorStyle::Prizm)) {
-            pos -= height * normal;
-            height *= 2;
+                    if (m_c->raycaster()->raycasters()[mesh_id]->is_valid_intersection(pos, -normal, instance_trafo * volume_trafo)) {
+                        render_color = ColorRGBA(1.0f, 1.0f, 1.0f, 0.5f);
+                        break;
+                    }
+                    render_color = ColorRGBA(1.0f, 0.3f, 0.3f, 0.5f);
+                }
+                if (!m_has_invalid_connector && render_color == ColorRGBA(1.0f, 0.3f, 0.3f, 0.5f))
+                    m_has_invalid_connector = true;
+            }
         }
-        pos[Z] += sla_shift;
 
 #if ENABLE_GL_SHADERS_ATTRIBUTES
+        m_connector_shape.set_color(render_color);
+
         const Transform3d view_model_matrix = camera.get_view_matrix() * Geometry::assemble_transform(
             Vec3d(pos.x(), pos.y(), pos.z()),
             m_rotation_gizmo.get_rotation(),
@@ -942,6 +985,8 @@ void GLGizmoCut3D::render_connectors(bool picking)
         shader->set_uniform("view_model_matrix", view_model_matrix);
         shader->set_uniform("projection_matrix", camera.get_projection_matrix());
 #else
+        const_cast<GLModel*>(&m_connector_shape)->set_color(-1, render_color);
+
         glsafe(::glPushMatrix());
         glsafe(::glTranslatef(pos.x(), pos.y(), pos.z()));
 
@@ -968,12 +1013,12 @@ void GLGizmoCut3D::render_connectors(bool picking)
 
 bool GLGizmoCut3D::can_perform_cut() const
 {
-    BoundingBoxf3 box   = bounding_box();
-    double dist = (m_plane_center - box.center()).norm();
-    if (dist > box.radius())
+    if (m_has_invalid_connector)
         return false;
 
-    return true;
+    BoundingBoxf3 box   = bounding_box();
+    double dist = (m_plane_center - box.center()).norm();
+    return dist <= box.radius();
 }
 
 void GLGizmoCut3D::perform_cut(const Selection& selection)
@@ -1053,7 +1098,10 @@ bool GLGizmoCut3D::unproject_on_cut_plane(const Vec2d& mouse_position, std::pair
         Vec3f hit;
         Vec3f normal;
         bool clipping_plane_was_hit = false;
-        m_c->raycaster()->raycasters()[mesh_id]->unproject_on_mesh(mouse_position, instance_trafo * mv->get_matrix(),
+
+        const Transform3d volume_trafo = get_volume_transformation(mv, instance_trafo);
+
+        m_c->raycaster()->raycasters()[mesh_id]->unproject_on_mesh(mouse_position, instance_trafo * volume_trafo,
             camera, hit, normal, m_c->object_clipper()->get_clipping_plane(),
             nullptr, &clipping_plane_was_hit);
         if (clipping_plane_was_hit) {
@@ -1082,7 +1130,12 @@ void GLGizmoCut3D::update_connector_shape()
     if (m_connector_shape.is_initialized())
         m_connector_shape.reset();
 
-    m_connector_shape.init_from(ModelObject::get_connector_mesh({ m_connector_type, CutConnectorStyle(m_connector_style), CutConnectorShape(m_connector_shape_id) }));
+    const indexed_triangle_set its = ModelObject::get_connector_mesh({ m_connector_type, CutConnectorStyle(m_connector_style), CutConnectorShape(m_connector_shape_id) });
+    m_connector_shape.init_from(its);
+
+    m_connector_mesh.clear();
+    m_connector_mesh = TriangleMesh(its);
+
 }
 
 void GLGizmoCut3D::update_model_object() const
