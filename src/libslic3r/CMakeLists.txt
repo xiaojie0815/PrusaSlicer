@@ -225,6 +225,8 @@ set(SLIC3R_SOURCES
     SlicesToTriangleMesh.cpp
     SlicingAdaptive.cpp
     SlicingAdaptive.hpp
+	SupportableIssuesSearch.cpp
+	SupportableIssuesSearch.hpp
     SupportMaterial.cpp
     SupportMaterial.hpp
     Surface.cpp
