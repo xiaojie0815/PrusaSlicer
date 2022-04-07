@@ -253,6 +253,8 @@ set(SLIC3R_SOURCES
     Thread.hpp
     TriangleSelector.cpp
     TriangleSelector.hpp
+    TriangleSelectorWrapper.cpp
+    TriangleSelectorWrapper.hpp
     MTUtils.hpp
     Zipper.hpp
     Zipper.cpp
