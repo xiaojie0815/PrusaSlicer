@@ -16,13 +16,14 @@ namespace Slic3r {
 
 bool load_stl(const char *path, Model *model, const char *object_name_in)
 {
+    BOOST_LOG_TRIVIAL(trace) << "load_stl() starts...";
     TriangleMesh mesh;
     if (! mesh.ReadSTLFile(path)) {
-//    die "Failed to open $file\n" if !-e $path;
+        BOOST_LOG_TRIVIAL(trace) << "load_stl(): ReadSTLFile returned false";
         return false;
     }
     if (mesh.empty()) {
-        // die "This STL file couldn't be read because it's empty.\n"
+        BOOST_LOG_TRIVIAL(trace) << "load_stl(): mesh loaded but seems to be empty";
         return false;
     }
 
@@ -34,6 +35,7 @@ bool load_stl(const char *path, Model *model, const char *object_name_in)
        object_name.assign(object_name_in);
 
     model->add_object(object_name.c_str(), path, std::move(mesh));
+    BOOST_LOG_TRIVIAL(trace) << "load_stl() about to return true...";
     return true;
 }
 

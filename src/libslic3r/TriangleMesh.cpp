@@ -178,12 +178,22 @@ static void trianglemesh_repair_on_import(stl_file &stl)
 }
 
 bool TriangleMesh::ReadSTLFile(const char* input_file, bool repair)
-{ 
+{
+    BOOST_LOG_TRIVIAL(trace) << "ReadSTLFile() starts...'" << input_file << "'"; 
     stl_file stl;
-    if (! stl_open(&stl, input_file))
+    if (! stl_open(&stl, input_file)) {
+        BOOST_LOG_TRIVIAL(trace) << "ReadSTLFile(): stl_open returned false"; 
         return false;
-    if (repair)
+    }
+
+    BOOST_LOG_TRIVIAL(trace) << "ReadSTLFile(): stl constains " << stl.stats.number_of_facets << " facets";
+
+    if (repair) {
+        BOOST_LOG_TRIVIAL(trace) << "ReadSTLFile(): calling trianglemesh_repair_on_import";
         trianglemesh_repair_on_import(stl);
+    }
+
+    BOOST_LOG_TRIVIAL(trace) << "ReadSTLFile(): stl constains " << stl.stats.number_of_facets << " facets";
 
     m_stats.number_of_facets        = stl.stats.number_of_facets;
     m_stats.min                     = stl.stats.min;
@@ -205,6 +215,7 @@ bool TriangleMesh::ReadSTLFile(const char* input_file, bool repair)
     m_stats.number_of_parts         = stl.stats.number_of_parts;
 
     stl_generate_shared_vertices(&stl, this->its);
+    BOOST_LOG_TRIVIAL(trace) << "ReadSTLFile() about to return true";
     return true;
 }
 

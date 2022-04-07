@@ -44,6 +44,7 @@ extern void stl_internal_reverse_quads(char *buf, size_t cnt);
 
 static FILE* stl_open_count_facets(stl_file *stl, const char *file) 
 {
+	BOOST_LOG_TRIVIAL(trace) << "stl_open_count_facets starts";
   	// Open the file in binary mode first.
   	FILE *fp = boost::nowide::fopen(file, "rb");
   	if (fp == nullptr) {
@@ -139,6 +140,7 @@ static FILE* stl_open_count_facets(stl_file *stl, const char *file)
 
   	stl->stats.number_of_facets += num_facets;
   	stl->stats.original_num_facets = stl->stats.number_of_facets;
+	BOOST_LOG_TRIVIAL(trace) << "stl_open returns successfully";
   	return fp;
 }
 
@@ -147,6 +149,7 @@ static FILE* stl_open_count_facets(stl_file *stl, const char *file)
    time running this for the stl and therefore we should reset our max and min stats. */
 static bool stl_read(stl_file *stl, FILE *fp, int first_facet, bool first)
 {
+	BOOST_LOG_TRIVIAL(trace) << "stl_read starts";
 	if (stl->stats.type == binary)
     	fseek(fp, HEADER_SIZE, SEEK_SET);
   	else
@@ -158,8 +161,10 @@ static bool stl_read(stl_file *stl, FILE *fp, int first_facet, bool first)
 
     	if (stl->stats.type == binary) {
       		// Read a single facet from a binary .STL file. We assume little-endian architecture!
-      		if (fread(&facet, 1, SIZEOF_STL_FACET, fp) != SIZEOF_STL_FACET)
+      		if (fread(&facet, 1, SIZEOF_STL_FACET, fp) != SIZEOF_STL_FACET) {
+				BOOST_LOG_TRIVIAL(trace) << "stl_read: binary stl facet size unexpected";
       			return false;
+			  }
 #if BOOST_ENDIAN_BIG_BYTE
       		// Convert the loaded little endian data to big endian.
       		stl_internal_reverse_quads((char*)&facet, 48);
@@ -203,6 +208,7 @@ static bool stl_read(stl_file *stl, FILE *fp, int first_facet, bool first)
 			    sscanf(normal_buf[2], "%f", &facet.normal(2)) != 1) {
 			    // Normal was mangled. Maybe denormals or "not a number" were stored?
 			  	// Just reset the normal and silently ignore it.
+				BOOST_LOG_TRIVIAL(trace) << "stl_read: mangled normal";
 			  	memset(&facet.normal, 0, sizeof(facet.normal));
 			}
 		}
@@ -229,19 +235,28 @@ static bool stl_read(stl_file *stl, FILE *fp, int first_facet, bool first)
   
   	stl->stats.size = stl->stats.max - stl->stats.min;
   	stl->stats.bounding_diameter = stl->stats.size.norm();
+	BOOST_LOG_TRIVIAL(error) << "stl_read returning true";
   	return true;
 }
 
 bool stl_open(stl_file *stl, const char *file)
 {
+	BOOST_LOG_TRIVIAL(trace) << "stl_open starts"; 
+	BOOST_LOG_TRIVIAL(trace) << "stl_open locale check (original): " << Slic3r::is_decimal_separator_point();
     Slic3r::CNumericLocalesSetter locales_setter;
+	BOOST_LOG_TRIVIAL(trace) << "stl_open locale check (new): " << Slic3r::is_decimal_separator_point();
 	stl->clear();
 	FILE *fp = stl_open_count_facets(stl, file);
-	if (fp == nullptr)
+	if (fp == nullptr) {
+		BOOST_LOG_TRIVIAL(trace) << "stl_open: stl_open_count_facets returned nullptr"; 
 		return false;
+	}
 	stl_allocate(stl);
 	bool result = stl_read(stl, fp, 0, true);
+	if (! result)
+		BOOST_LOG_TRIVIAL(trace) << "stl_open: stl_read returned false..."; 
   	fclose(fp);
+	BOOST_LOG_TRIVIAL(trace) << "stl_open about to return (" << result << ")"; 
   	return result;
 }
 
