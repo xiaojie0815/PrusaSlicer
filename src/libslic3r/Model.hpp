@@ -35,6 +35,7 @@
 #include <utility>
 #include <vector>
 #include <optional>
+#include <random>
 
 namespace cereal {
 	class BinaryInputArchive;
@@ -233,6 +234,7 @@ private:
     friend class ModelObject;
 };
 
+
 class CutObjectBase
 {
     size_t m_unique_id;      // 0 = invalid
@@ -249,7 +251,12 @@ public:
         m_check_sum = 1;
         m_connectors_cnt = 0;
     }
-    void init()                                 { m_unique_id = 1 + rand(); }
+    void init() {
+        std::random_device rd;
+        std::mt19937_64 mt(rd() + time(NULL));
+        std::uniform_int_distribution<size_t> dist(1, std::numeric_limits<size_t>::max());
+        m_unique_id = dist(mt);
+    }
     bool has_same_id(const CutObjectBase& rhs) const { return id() == rhs.id(); }
     bool is_equal(const CutObjectBase& rhs) const    { return id()             == rhs.id() &&
                                                               check_sum()      == rhs.check_sum() &&
