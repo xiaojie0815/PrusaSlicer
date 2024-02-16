@@ -233,6 +233,41 @@ private:
     friend class ModelObject;
 };
 
+class CutObjectBase
+{
+    size_t m_unique_id;      // 0 = invalid
+    size_t m_check_sum;      // check sum of CutParts in initial Object
+    size_t m_connectors_cnt; // connectors count
+
+public:
+    CutObjectBase() { invalidate(); }
+    CutObjectBase(size_t id, size_t check_sum, size_t connectors_cnt) :
+        m_unique_id{ id }, m_check_sum{ check_sum }, m_connectors_cnt{ connectors_cnt } {}
+
+    void invalidate() {
+        m_unique_id = 0;
+        m_check_sum = 1;
+        m_connectors_cnt = 0;
+    }
+    void init()                                 { m_unique_id = 1 + rand(); }
+    bool has_same_id(const CutObjectBase& rhs) const { return id() == rhs.id(); }
+    bool is_equal(const CutObjectBase& rhs) const    { return id()             == rhs.id() &&
+                                                              check_sum()      == rhs.check_sum() &&
+                                                              connectors_cnt() == rhs.connectors_cnt() ; }
+    size_t id() const                     { return m_unique_id; }
+    bool valid() const                    { return m_unique_id != 0; }
+    size_t check_sum() const              { return m_check_sum; }
+    void increase_check_sum(size_t cnt)   { m_check_sum += cnt; }
+
+    size_t connectors_cnt() const                           { return m_connectors_cnt; }
+    void   increase_connectors_cnt(size_t connectors_cnt)   { m_connectors_cnt += connectors_cnt; }
+
+private:
+    template<class Archive> void serialize(Archive &ar) {
+        ar(m_unique_id, m_check_sum, m_connectors_cnt);
+    }
+};
+
 enum class CutConnectorType : int {
     Plug
     , Dowel
