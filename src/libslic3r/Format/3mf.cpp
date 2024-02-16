@@ -1191,9 +1191,9 @@ namespace Slic3r {
                 for (const auto& obj_cut_info : object_tree) {
                     if (obj_cut_info.first == "cut_id") {
                         pt::ptree cut_id_tree = obj_cut_info.second;
-                        cut_id = CutObjectBase(ObjectID( cut_id_tree.get<size_t>("<xmlattr>.id")),
-                                                         cut_id_tree.get<size_t>("<xmlattr>.check_sum"),
-                                                         cut_id_tree.get<size_t>("<xmlattr>.connectors_cnt"));
+                        cut_id = CutObjectBase(cut_id_tree.get<size_t>("<xmlattr>.id"),
+                                               cut_id_tree.get<size_t>("<xmlattr>.check_sum"),
+                                               cut_id_tree.get<size_t>("<xmlattr>.connectors_cnt"));
                     }
                     if (obj_cut_info.first == "connectors") {
                         pt::ptree cut_connectors_tree = obj_cut_info.second;
@@ -3360,7 +3360,7 @@ namespace Slic3r {
             pt::ptree& cut_id_tree = obj_tree.add("cut_id", "");
 
             // store cut_id atributes
-            cut_id_tree.put("<xmlattr>.id",             object->cut_id.id().id);
+            cut_id_tree.put("<xmlattr>.id",             object->cut_id.id());
             cut_id_tree.put("<xmlattr>.check_sum",      object->cut_id.check_sum());
             cut_id_tree.put("<xmlattr>.connectors_cnt", object->cut_id.connectors_cnt());
 
