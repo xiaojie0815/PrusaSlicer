@@ -474,7 +474,7 @@ namespace Slic3r {
                 float   r_tolerance;
                 float   h_tolerance;
             };
-            CutObjectBase           id;
+            CutId           id;
             std::vector<Connector>  connectors;
         };
 
@@ -1185,15 +1185,15 @@ namespace Slic3r {
                     continue;
                 }
 
-                CutObjectBase cut_id;
+                CutId cut_id;
                 std::vector<CutObjectInfo::Connector>  connectors;
 
                 for (const auto& obj_cut_info : object_tree) {
                     if (obj_cut_info.first == "cut_id") {
                         pt::ptree cut_id_tree = obj_cut_info.second;
-                        cut_id = CutObjectBase(cut_id_tree.get<size_t>("<xmlattr>.id"),
-                                               cut_id_tree.get<size_t>("<xmlattr>.check_sum"),
-                                               cut_id_tree.get<size_t>("<xmlattr>.connectors_cnt"));
+                        cut_id = CutId(cut_id_tree.get<size_t>("<xmlattr>.id"),
+                                       cut_id_tree.get<size_t>("<xmlattr>.check_sum"),
+                                       cut_id_tree.get<size_t>("<xmlattr>.connectors_cnt"));
                     }
                     if (obj_cut_info.first == "connectors") {
                         pt::ptree cut_connectors_tree = obj_cut_info.second;
