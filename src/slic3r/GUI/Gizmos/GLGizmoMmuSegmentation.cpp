@@ -509,7 +509,7 @@ void GLGizmoMmuSegmentation::update_model_object() const
         if (! mv->is_model_part())
             continue;
         ++idx;
-        updated |= mv->mm_segmentation_facets.set(*m_triangle_selectors[idx].get());
+        updated |= mv->mm_segmentation_facets.set(*m_triangle_selectors[idx]);
     }
 
     if (updated) {
@@ -699,7 +699,7 @@ void GLMmSegmentationGizmo3DScene::render(size_t triangle_indices_idx) const
     glsafe(::glBindBuffer(GL_ARRAY_BUFFER, this->vertices_VBO_id));
     const GLint position_id = shader->get_attrib_location("v_position");
     if (position_id != -1) {
-        glsafe(::glVertexAttribPointer(position_id, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (GLvoid*)0));
+        glsafe(::glVertexAttribPointer(position_id, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (GLvoid*)nullptr));
         glsafe(::glEnableVertexAttribArray(position_id));
     }
 

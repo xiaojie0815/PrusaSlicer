@@ -97,9 +97,9 @@ public:
     // after all volumes (including transparent ones) are rendered.
     virtual void render_painter_gizmo() = 0;
 
-    virtual const float get_cursor_radius_min() const { return CursorRadiusMin; }
-    virtual const float get_cursor_radius_max() const { return CursorRadiusMax; }
-    virtual const float get_cursor_radius_step() const { return CursorRadiusStep; }
+    virtual float get_cursor_radius_min() const { return CursorRadiusMin; }
+    virtual float get_cursor_radius_max() const { return CursorRadiusMax; }
+    virtual float get_cursor_radius_step() const { return CursorRadiusStep; }
 
     /// <summary>
     /// Implement when want to process mouse events in gizmo
@@ -192,7 +192,6 @@ private:
 
     static std::shared_ptr<GLModel> s_sphere;
 
-    bool m_internal_stack_active = false;
     bool m_schedule_update = false;
     Vec2d m_last_mouse_click = Vec2d::Zero();
 

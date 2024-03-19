@@ -201,7 +201,7 @@ void GLGizmoSeam::update_model_object() const
         if (! mv->is_model_part())
             continue;
         ++idx;
-        updated |= mv->seam_facets.set(*m_triangle_selectors[idx].get());
+        updated |= mv->seam_facets.set(*m_triangle_selectors[idx]);
     }
 
     if (updated) {

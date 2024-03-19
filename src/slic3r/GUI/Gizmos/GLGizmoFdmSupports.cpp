@@ -459,7 +459,7 @@ void GLGizmoFdmSupports::update_model_object() const
         if (! mv->is_model_part())
             continue;
         ++idx;
-        updated |= mv->supported_facets.set(*m_triangle_selectors[idx].get());
+        updated |= mv->supported_facets.set(*m_triangle_selectors[idx]);
     }
 
     if (updated) {
