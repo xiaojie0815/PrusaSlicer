@@ -79,7 +79,7 @@ void GLGizmoSeam::on_render_input_window(float x, float y, float bottom_limit)
     if (! m_c->selection_info()->model_object())
         return;
 
-    const float approx_height = m_imgui->scaled(12.5f);
+    const float approx_height = m_imgui->scaled(13.45f);
     y = std::min(y, bottom_limit - approx_height);
     ImGuiPureWrap::set_next_window_pos(x, y, ImGuiCond_Always);
     ImGuiPureWrap::begin(get_name(), ImGuiWindowFlags_NoMove | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoCollapse);

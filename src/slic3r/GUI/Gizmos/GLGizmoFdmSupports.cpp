@@ -103,7 +103,7 @@ void GLGizmoFdmSupports::on_render_input_window(float x, float y, float bottom_l
     if (! m_c->selection_info()->model_object())
         return;
 
-    const float approx_height = m_imgui->scaled(25.f);
+    const float approx_height = m_imgui->scaled(26.3f);
     y = std::min(y, bottom_limit - approx_height);
     ImGuiPureWrap::set_next_window_pos(x, y, ImGuiCond_Always);
 

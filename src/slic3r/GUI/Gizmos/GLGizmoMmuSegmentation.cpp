@@ -263,7 +263,7 @@ void GLGizmoMmuSegmentation::on_render_input_window(float x, float y, float bott
     if (!m_c->selection_info()->model_object())
         return;
 
-    const float approx_height = m_imgui->scaled(22.0f);
+    const float approx_height = m_imgui->scaled(23.7f);
                             y = std::min(y, bottom_limit - approx_height);
     ImGuiPureWrap::set_next_window_pos(x, y, ImGuiCond_Always);
 
