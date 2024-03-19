@@ -115,7 +115,7 @@ void GLGizmoFdmSupports::on_render_input_window(float x, float y, float bottom_l
     const float cursor_slider_left             = ImGuiPureWrap::calc_text_size(m_desc.at("cursor_size")).x + m_imgui->scaled(1.f);
     const float smart_fill_slider_left         = ImGuiPureWrap::calc_text_size(m_desc.at("smart_fill_angle")).x + m_imgui->scaled(1.f);
     const float autoset_slider_label_max_width = m_imgui->scaled(7.5f);
-    const float autoset_slider_left            = ImGuiPureWrap::calc_text_size(m_desc.at("highlight_by_angle"), autoset_slider_label_max_width).x + m_imgui->scaled(1.f);
+    const float autoset_slider_left            = ImGuiPureWrap::calc_text_size(m_desc.at("highlight_by_angle"), false, autoset_slider_label_max_width).x + m_imgui->scaled(1.f);
 
     const float cursor_type_radio_circle  = ImGuiPureWrap::calc_text_size(m_desc["circle"]).x + m_imgui->scaled(2.5f);
     const float cursor_type_radio_sphere  = ImGuiPureWrap::calc_text_size(m_desc["sphere"]).x + m_imgui->scaled(2.5f);
