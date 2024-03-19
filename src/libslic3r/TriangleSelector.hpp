@@ -320,6 +320,7 @@ public:
                                     const Transform3d  &trafo_no_translate,                        // matrix to get from mesh to world without translation
                                     const ClippingPlane &clp,                                      // Clipping plane to limit painting to not clipped facets only
                                     float               seed_fill_angle,                           // the maximal angle between two facets to be painted by the same color
+                                    float               seed_fill_gap_area,                        // The maximal area that will be automatically selected when the surrounding triangles have already been selected.
                                     float               highlight_by_angle_deg = 0.f,              // The maximal angle of overhang. If it is set to a non-zero value, it is possible to paint only the triangles of overhang defined by this angle in degrees.
                                     ForceReselection    force_reselection = ForceReselection::NO); // force reselection of the triangle mesh even in cases that mouse is pointing on the selected triangle
 
@@ -380,6 +381,9 @@ public:
     // For all triangles selected by seed fill, set new TriangleStateType and remove flag indicating that triangle was selected by seed fill.
     // The operation may merge split triangles if they are being assigned the same color.
     void seed_fill_apply_on_triangles(TriangleStateType new_state);
+
+    // Compute total area of the triangle.
+    double get_triangle_area(const Triangle &triangle) const;
 
 protected:
     // Triangle and info about how it's split.
@@ -498,6 +502,9 @@ private:
     void append_touching_subtriangles(int itriangle, int vertexi, int vertexj, std::vector<int> &touching_subtriangles_out) const;
     void append_touching_edges(int itriangle, int vertexi, int vertexj, std::vector<Vec2i> &touching_edges_out) const;
 
+    // Check if the triangle index is the original triangle from mesh, or it was additionally created by splitting.
+    bool is_original_triangle(int triangle_idx) const { return triangle_idx < m_orig_size_indices; }
+
 #ifndef NDEBUG
     bool verify_triangle_neighbors(const Triangle& tr, const Vec3i& neighbors) const;
     bool verify_triangle_midpoints(const Triangle& tr) const;
@@ -515,6 +522,11 @@ private:
     void get_facets_split_by_tjoints(const Vec3i &vertices, const Vec3i &neighbors, uint8_t color, std::vector<stl_triangle_vertex_indices> &out_triangles, std::vector<uint8_t> &out_colors) const;
 
     void get_seed_fill_contour_recursive(int facet_idx, const Vec3i &neighbors, const Vec3i &neighbors_propagated, std::vector<Vec2i> &edges_out) const;
+
+    bool is_any_neighbor_selected_by_seed_fill(const Triangle &triangle);
+
+    void seed_fill_fill_gaps(const std::vector<int> &gap_fill_candidate_facets, // Facet of the original mesh (unsplit), which needs to be checked if the surrounding gap can be filled (selected).
+                             float                   seed_fill_gap_area);       // The maximal area that will be automatically selected when the surrounding triangles have already been selected.
 
     int m_free_triangles_head { -1 };
     int m_free_vertices_head { -1 };

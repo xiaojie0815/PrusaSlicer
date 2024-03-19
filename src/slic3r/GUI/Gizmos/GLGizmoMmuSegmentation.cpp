@@ -121,6 +121,7 @@ bool GLGizmoMmuSegmentation::on_init()
     m_desc["tool_bucket_fill"]     = _u8L("Bucket fill");
 
     m_desc["smart_fill_angle"]     = _u8L("Smart fill angle");
+    m_desc["smart_fill_gap_area"]  = _u8L("Smart fill gap");
     m_desc["split_triangles"]      = _u8L("Split triangles");
 
     init_extruders_data();
@@ -452,15 +453,27 @@ void GLGizmoMmuSegmentation::on_render_input_window(float x, float y, float bott
     } else if(m_tool_type == ToolType::SMART_FILL) {
         ImGui::AlignTextToFramePadding();
         ImGuiPureWrap::text(m_desc["smart_fill_angle"] + ":");
-        std::string format_str = std::string("%.f") + I18N::translate_utf8("°", "Degree sign to use in the respective slider in MMU gizmo,"
-                                                                                "placed after the number with no whitespace in between.");
+        std::string format_str_angle = std::string("%.f") + I18N::translate_utf8("°", "Degree sign to use in the respective slider in MMU gizmo,"
+                                                                                      "placed after the number with no whitespace in between.");
         ImGui::SameLine(sliders_left_width);
         ImGui::PushItemWidth(window_width - sliders_left_width - slider_icon_width);
-        if (m_imgui->slider_float("##smart_fill_angle", &m_smart_fill_angle, SmartFillAngleMin, SmartFillAngleMax, format_str.data(), 1.0f, true, _L("Alt + Mouse wheel")))
-            for (auto &triangle_selector : m_triangle_selectors) {
+        if (m_imgui->slider_float("##smart_fill_angle", &m_smart_fill_angle, SmartFillAngleMin, SmartFillAngleMax, format_str_angle.data(), 1.0f, true, _L("Alt + Mouse wheel"))) {
+            for (auto &triangle_selector: m_triangle_selectors) {
                 triangle_selector->seed_fill_unselect_all_triangles();
                 triangle_selector->request_update_render_data();
             }
+        }
+
+        ImGui::AlignTextToFramePadding();
+        ImGuiPureWrap::text(m_desc["smart_fill_gap_area"] + ":");
+        ImGui::SameLine(sliders_left_width);
+        ImGui::PushItemWidth(window_width - sliders_left_width - slider_icon_width);
+        if (m_imgui->slider_float("##smart_fill_gap_area", &m_smart_fill_gap_area, SmartFillGapAreaMin, SmartFillGapAreaMax, "%.2f", 1.0f, true)) {
+            for (auto &triangle_selector: m_triangle_selectors) {
+                triangle_selector->seed_fill_unselect_all_triangles();
+                triangle_selector->request_update_render_data();
+            }
+        }
 
         ImGui::Separator();
     }

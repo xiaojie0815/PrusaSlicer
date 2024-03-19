@@ -150,6 +150,7 @@ protected:
     bool     m_triangle_splitting_enabled = true;
     ToolType m_tool_type                  = ToolType::BRUSH;
     float    m_smart_fill_angle           = 30.f;
+    float    m_smart_fill_gap_area        = 0.02f;
 
     bool     m_paint_on_overhangs_only          = false;
     float    m_highlight_by_angle_threshold_deg = 0.f;
@@ -161,6 +162,9 @@ protected:
     static constexpr float SmartFillAngleMin  = 0.0f;
     static constexpr float SmartFillAngleMax  = 90.f;
     static constexpr float SmartFillAngleStep = 1.f;
+
+    static constexpr float SmartFillGapAreaMin = 0.0f;
+    static constexpr float SmartFillGapAreaMax = 1.f;
 
     // It stores the value of the previous mesh_id to which the seed fill was applied.
     // It is used to detect when the mouse has moved from one volume to another one.
