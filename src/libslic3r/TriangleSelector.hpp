@@ -70,7 +70,8 @@ public:
     enum class CursorType {
         CIRCLE,
         SPHERE,
-        POINTER
+        POINTER,
+        HEIGHT_RANGE
     };
 
     enum class ForceReselection {
@@ -240,6 +241,26 @@ public:
         bool is_facet_visible(int facet_idx, const std::vector<Vec3f> &face_normals) const override {
             return TriangleSelector::Cursor::is_facet_visible(*this, facet_idx, face_normals);
         }
+    };
+
+    class HeightRange : public Cursor
+    {
+    public:
+        HeightRange() = delete;
+
+        explicit HeightRange(const Vec3f &mesh_hit, const BoundingBoxf3 &mesh_bbox, float z_range, const Transform3d &trafo, const ClippingPlane &clipping_plane);
+        ~HeightRange() override = default;
+
+        bool is_pointer_in_triangle(const Vec3f &p1, const Vec3f &p2, const Vec3f &p3) const override { return false; }
+        bool is_mesh_point_inside(const Vec3f &point) const override;
+        bool is_any_edge_inside_cursor(const Triangle &tr, const std::vector<Vertex> &vertices) const override;
+        bool is_facet_visible(int facet_idx, const std::vector<Vec3f> &face_normals) const override { return true; }
+
+        std::vector<int> get_facets_to_select(int facet_idx, const std::vector<Vertex> &vertices, const std::vector<Triangle> &triangles, int orig_size_vertices, int orig_size_indices) const override;
+
+    private:
+        float m_z_range_top;
+        float m_z_range_bottom;
     };
 
     struct TriangleBitStreamMapping

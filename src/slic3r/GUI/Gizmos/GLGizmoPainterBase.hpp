@@ -112,9 +112,12 @@ public:
 
 protected:
     virtual void render_triangles(const Selection& selection) const;
+
     void render_cursor();
     void render_cursor_circle();
-    void render_cursor_sphere(const Transform3d& trafo) const;
+    void render_cursor_sphere(const Transform3d &trafo) const;
+    void render_cursor_height_range(const Transform3d &trafo) const;
+
     virtual void update_model_object() const = 0;
     virtual void update_from_model_object() = 0;
 
@@ -137,7 +140,8 @@ protected:
     enum class ToolType {
         BRUSH,
         BUCKET_FILL,
-        SMART_FILL
+        SMART_FILL,
+        HEIGHT_RANGE
     };
 
     struct ProjectedMousePosition
@@ -151,6 +155,7 @@ protected:
     ToolType m_tool_type                  = ToolType::BRUSH;
     float    m_smart_fill_angle           = 30.f;
     float    m_smart_fill_gap_area        = 0.02f;
+    float    m_height_range_z_range       = 1.00f;
 
     bool     m_paint_on_overhangs_only          = false;
     float    m_highlight_by_angle_threshold_deg = 0.f;
@@ -165,6 +170,10 @@ protected:
 
     static constexpr float SmartFillGapAreaMin = 0.0f;
     static constexpr float SmartFillGapAreaMax = 1.f;
+
+    static constexpr float HeightRangeZRangeMin  = 0.1f;
+    static constexpr float HeightRangeZRangeMax  = 10.f;
+    static constexpr float HeightRangeZRangeStep = 0.1f;
 
     // It stores the value of the previous mesh_id to which the seed fill was applied.
     // It is used to detect when the mouse has moved from one volume to another one.

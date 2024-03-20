@@ -1984,9 +1984,9 @@ TriangleSelector::Cursor::Cursor(const Vec3f &source_, float radius_world, const
     : source{source_}, trafo{trafo_.cast<float>()}, clipping_plane{clipping_plane_}
 {
     Vec3d sf = Geometry::Transformation(trafo_).get_scaling_factor();
-    if (is_approx(sf(0), sf(1)) && is_approx(sf(1), sf(2))) {
-        radius          = float(radius_world / sf(0));
-        radius_sqr      = float(Slic3r::sqr(radius_world / sf(0)));
+    if (is_approx(sf.x(), sf.y()) && is_approx(sf.y(), sf.z())) {
+        radius          = float(radius_world / sf.x());
+        radius_sqr      = float(Slic3r::sqr(radius_world / sf.x()));
         uniform_scaling = true;
     } else {
         // In case that the transformation is non-uniform, all checks whether
@@ -2218,6 +2218,56 @@ bool TriangleSelector::Capsule2D::is_any_edge_inside_cursor(const Triangle &tr, 
     }
 
     return false;
+}
+
+TriangleSelector::HeightRange::HeightRange(const Vec3f &mesh_hit, const BoundingBoxf3 &mesh_bbox, float z_range, const Transform3d &trafo, const ClippingPlane &clipping_plane)
+    : Cursor(Vec3f::Zero(), 0.f, trafo, clipping_plane) {
+    m_z_range_top    = std::max(mesh_hit.z() + z_range / 2.f, float(mesh_bbox.min.z()));
+    m_z_range_bottom = std::min(mesh_hit.z() - z_range / 2.f, float(mesh_bbox.max.z()));
+    m_edge_limit     = 0.1f;
+}
+
+bool TriangleSelector::HeightRange::is_mesh_point_inside(const Vec3f &point) const {
+    const float transformed_point_z = (this->uniform_scaling ? point : Vec3f(this->trafo * point)).z();
+    return Slic3r::is_in_range<float>(transformed_point_z, m_z_range_bottom, m_z_range_top);
+}
+
+bool TriangleSelector::HeightRange::is_any_edge_inside_cursor(const Triangle &tr, const std::vector<Vertex> &vertices) const {
+    const std::array<Vec3f, 3> pts = this->transform_triangle(tr, vertices);
+    // If all vertices are below m_z_range_bottom or all vertices are above m_z_range_top, then it means that no edge
+    // is inside the height range. Otherwise, there is at least one edge inside the height range.
+    return !((pts[0].z() < m_z_range_bottom && pts[1].z() < m_z_range_bottom && pts[2].z() < m_z_range_bottom) ||
+             (pts[0].z() > m_z_range_top    && pts[1].z() > m_z_range_top    && pts[2].z() > m_z_range_top));
+}
+
+std::vector<int> TriangleSelector::HeightRange::get_facets_to_select(const int facet_idx, const std::vector<Vertex> &vertices, const std::vector<Triangle> &triangles, const int orig_size_vertices, const int orig_size_indices) const {
+    std::vector<int> facets_to_check;
+
+    // Assigns each vertex a value of -1, 1, or 0. The value -1 indicates a vertex is below m_z_range_bottom,
+    // while 1 indicates a vertex is above m_z_range_top. The value of 0 indicates that the vertex between
+    // m_z_range_bottom and m_z_range_top.
+    std::vector<int8_t> vertex_side(orig_size_vertices, 0);
+    if (trafo.matrix() == Transform3f::Identity().matrix()) {
+        for (int i = 0; i < orig_size_vertices; ++i) {
+            const float z = vertices[i].v.z();
+            vertex_side[i] = z < m_z_range_bottom ? int8_t(-1) : z > m_z_range_top ? int8_t(1) : int8_t(0);
+        }
+    } else {
+        for (int i = 0; i < orig_size_vertices; ++i) {
+            const float z = (this->uniform_scaling ? vertices[i].v : Vec3f(this->trafo * vertices[i].v)).z();
+            vertex_side[i] = z < m_z_range_bottom ? int8_t(-1) : z > m_z_range_top ? int8_t(1) : int8_t(0);
+        }
+    }
+
+    // Determine if each triangle crosses m_z_range_bottom or m_z_range_top.
+    for (int i = 0; i < orig_size_indices; ++i) {
+        const std::array<int, 3>    &face  = triangles[i].verts_idxs;
+        const std::array<int8_t, 3>  sides = { vertex_side[face[0]], vertex_side[face[1]], vertex_side[face[2]] };
+        if ((sides[0] * sides[1] <= 0) || (sides[1] * sides[2] <= 0) || (sides[0] * sides[2] <= 0))
+            facets_to_check.emplace_back(i);
+    }
+
+    return facets_to_check;
 }
 
 } // namespace Slic3r
