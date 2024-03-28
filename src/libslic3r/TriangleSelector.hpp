@@ -67,10 +67,20 @@ protected:
     struct Vertex;
 
 public:
-    enum CursorType {
+    enum class CursorType {
         CIRCLE,
         SPHERE,
         POINTER
+    };
+
+    enum class ForceReselection {
+        NO,
+        YES
+    };
+
+    enum class BucketFillPropagate {
+        NO,
+        YES
     };
 
     struct ClippingPlane
@@ -91,13 +101,20 @@ public:
         Cursor()          = delete;
         virtual ~Cursor() = default;
 
+        float get_edge_limit() { return m_edge_limit; };
+
         bool is_pointer_in_triangle(const Triangle &tr, const std::vector<Vertex> &vertices) const;
+        std::array<Vec3f, 3> transform_triangle(const Triangle &tr, const std::vector<Vertex> &vertices) const;
 
         virtual bool is_mesh_point_inside(const Vec3f &point) const = 0;
         virtual bool is_pointer_in_triangle(const Vec3f &p1, const Vec3f &p2, const Vec3f &p3) const = 0;
         virtual int  vertices_inside(const Triangle &tr, const std::vector<Vertex> &vertices) const;
-        virtual bool is_edge_inside_cursor(const Triangle &tr, const std::vector<Vertex> &vertices) const = 0;
+        virtual bool is_any_edge_inside_cursor(const Triangle &tr, const std::vector<Vertex> &vertices) const = 0;
         virtual bool is_facet_visible(int facet_idx, const std::vector<Vec3f> &face_normals) const = 0;
+
+        virtual std::vector<int> get_facets_to_select(int facet_idx, const std::vector<Vertex> &vertices, const std::vector<Triangle> &triangles, int orig_size_vertices, int orig_size_indices) const {
+            return { facet_idx };
+        };
 
         static bool is_facet_visible(const Cursor &cursor, int facet_idx, const std::vector<Vec3f> &face_normals);
 
@@ -114,6 +131,8 @@ public:
         Vec3f       dir = Vec3f(0.f, 0.f, 0.f);
 
         ClippingPlane clipping_plane; // Clipping plane to limit painting to not clipped facets only
+
+        float m_edge_limit;
 
         friend TriangleSelector;
     };
@@ -174,7 +193,7 @@ public:
         ~Sphere() override = default;
 
         bool is_mesh_point_inside(const Vec3f &point) const override;
-        bool is_edge_inside_cursor(const Triangle &tr, const std::vector<Vertex> &vertices) const override;
+        bool is_any_edge_inside_cursor(const Triangle &tr, const std::vector<Vertex> &vertices) const override;
         bool is_facet_visible(int facet_idx, const std::vector<Vec3f> &face_normals) const override { return true; }
     };
 
@@ -187,9 +206,8 @@ public:
         ~Circle() override = default;
 
         bool is_mesh_point_inside(const Vec3f &point) const override;
-        bool is_edge_inside_cursor(const Triangle &tr, const std::vector<Vertex> &vertices) const override;
-        bool is_facet_visible(int facet_idx, const std::vector<Vec3f> &face_normals) const override
-        {
+        bool is_any_edge_inside_cursor(const Triangle &tr, const std::vector<Vertex> &vertices) const override;
+        bool is_facet_visible(int facet_idx, const std::vector<Vec3f> &face_normals) const override {
             return TriangleSelector::Cursor::is_facet_visible(*this, facet_idx, face_normals);
         }
     };
@@ -204,7 +222,7 @@ public:
         ~Capsule3D() override = default;
 
         bool is_mesh_point_inside(const Vec3f &point) const override;
-        bool is_edge_inside_cursor(const Triangle &tr, const std::vector<Vertex> &vertices) const override;
+        bool is_any_edge_inside_cursor(const Triangle &tr, const std::vector<Vertex> &vertices) const override;
         bool is_facet_visible(int facet_idx, const std::vector<Vec3f> &face_normals) const override { return true; }
     };
 
@@ -218,9 +236,8 @@ public:
         ~Capsule2D() override = default;
 
         bool is_mesh_point_inside(const Vec3f &point) const override;
-        bool is_edge_inside_cursor(const Triangle &tr, const std::vector<Vertex> &vertices) const override;
-        bool is_facet_visible(int facet_idx, const std::vector<Vec3f> &face_normals) const override
-        {
+        bool is_any_edge_inside_cursor(const Triangle &tr, const std::vector<Vertex> &vertices) const override;
+        bool is_facet_visible(int facet_idx, const std::vector<Vec3f> &face_normals) const override {
             return TriangleSelector::Cursor::is_facet_visible(*this, facet_idx, face_normals);
         }
     };
@@ -298,19 +315,19 @@ public:
                       bool                      triangle_splitting,            // If triangles will be split base on the cursor or not
                       float                     highlight_by_angle_deg = 0.f); // The maximal angle of overhang. If it is set to a non-zero value, it is possible to paint only the triangles of overhang defined by this angle in degrees.
 
-    void seed_fill_select_triangles(const Vec3f        &hit,                          // point where to start
-                                    int                 facet_start,                  // facet of the original mesh (unsplit) that the hit point belongs to
-                                    const Transform3d  &trafo_no_translate,           // matrix to get from mesh to world without translation
-                                    const ClippingPlane &clp,                         // Clipping plane to limit painting to not clipped facets only
-                                    float               seed_fill_angle,              // the maximal angle between two facets to be painted by the same color
-                                    float               highlight_by_angle_deg = 0.f, // The maximal angle of overhang. If it is set to a non-zero value, it is possible to paint only the triangles of overhang defined by this angle in degrees.
-                                    bool                force_reselection = false);   // force reselection of the triangle mesh even in cases that mouse is pointing on the selected triangle
+    void seed_fill_select_triangles(const Vec3f        &hit,                                       // point where to start
+                                    int                 facet_start,                               // facet of the original mesh (unsplit) that the hit point belongs to
+                                    const Transform3d  &trafo_no_translate,                        // matrix to get from mesh to world without translation
+                                    const ClippingPlane &clp,                                      // Clipping plane to limit painting to not clipped facets only
+                                    float               seed_fill_angle,                           // the maximal angle between two facets to be painted by the same color
+                                    float               highlight_by_angle_deg = 0.f,              // The maximal angle of overhang. If it is set to a non-zero value, it is possible to paint only the triangles of overhang defined by this angle in degrees.
+                                    ForceReselection    force_reselection = ForceReselection::NO); // force reselection of the triangle mesh even in cases that mouse is pointing on the selected triangle
 
-    void bucket_fill_select_triangles(const Vec3f         &hit,                        // point where to start
-                                      int                  facet_start,                // facet of the original mesh (unsplit) that the hit point belongs to
-                                      const ClippingPlane &clp,                        // Clipping plane to limit painting to not clipped facets only
-                                      bool                 propagate,                  // if bucket fill is propagated to neighbor faces or if it fills the only facet of the modified mesh that the hit point belongs to.
-                                      bool                 force_reselection = false); // force reselection of the triangle mesh even in cases that mouse is pointing on the selected triangle
+    void bucket_fill_select_triangles(const Vec3f         &hit,                                       // point where to start
+                                      int                  facet_start,                               // facet of the original mesh (unsplit) that the hit point belongs to
+                                      const ClippingPlane &clp,                                       // Clipping plane to limit painting to not clipped facets only
+                                      BucketFillPropagate  propagate,                                 // if bucket fill is propagated to neighbor faces or if it fills the only facet of the modified mesh that the hit point belongs to.
+                                      ForceReselection     force_reselection = ForceReselection::NO); // force reselection of the triangle mesh even in cases that mouse is pointing on the selected triangle
 
     bool                 has_facets(TriangleStateType state) const;
     static bool          has_facets(const TriangleSplittingData &data, TriangleStateType test_state);
@@ -450,8 +467,6 @@ protected:
     int m_orig_size_indices = 0;
 
     std::unique_ptr<Cursor> m_cursor;
-    // Zero indicates an uninitialized state.
-    float m_old_cursor_radius_sqr = 0;
 
     // Private functions:
 private:

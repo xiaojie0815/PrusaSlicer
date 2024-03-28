@@ -132,7 +132,7 @@ protected:
     // For each model-part volume, store status and division of the triangles.
     std::vector<std::unique_ptr<TriangleSelectorGUI>> m_triangle_selectors;
 
-    TriangleSelector::CursorType m_cursor_type = TriangleSelector::SPHERE;
+    TriangleSelector::CursorType m_cursor_type = TriangleSelector::CursorType::SPHERE;
 
     enum class ToolType {
         BRUSH,

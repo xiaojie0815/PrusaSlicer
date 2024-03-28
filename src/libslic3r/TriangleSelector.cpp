@@ -247,21 +247,15 @@ void TriangleSelector::select_patch(int facet_start, std::unique_ptr<Cursor> &&c
     // have to pass it around.
     m_cursor = std::move(cursor);
 
-    // In case user changed cursor size since last time, update triangle edge limit.
-    // It is necessary to compare the internal radius in m_cursor! radius is in
-    // world coords and does not change after scaling.
-    if (m_old_cursor_radius_sqr != m_cursor->radius_sqr) {
-        set_edge_limit(std::sqrt(m_cursor->radius_sqr) / 5.f);
-        m_old_cursor_radius_sqr = m_cursor->radius_sqr;
-    }
+    // In case user changed cursor parameters size since last time, update triangle edge limit.
+    set_edge_limit(m_cursor->get_edge_limit());
 
     const float highlight_angle_limit = cos(Geometry::deg2rad(highlight_by_angle_deg));
     Vec3f       vec_down              = (trafo_no_translate.inverse() * -Vec3d::UnitZ()).normalized().cast<float>();
 
     // Now start with the facet the pointer points to and check all adjacent facets.
-    std::vector<int> facets_to_check;
+    std::vector<int> facets_to_check = m_cursor->get_facets_to_select(facet_start, m_vertices, m_triangles, m_orig_size_vertices, m_orig_size_indices);
     facets_to_check.reserve(16);
-    facets_to_check.emplace_back(facet_start);
     // Keep track of facets of the original mesh we already processed.
     std::vector<bool> visited(m_orig_size_indices, false);
     // Breadth-first search around the hit point. facets_to_check may grow significantly large.
@@ -293,13 +287,13 @@ bool TriangleSelector::is_facet_clipped(int facet_idx, const ClippingPlane &clp)
 }
 
 void TriangleSelector::seed_fill_select_triangles(const Vec3f &hit, int facet_start, const Transform3d& trafo_no_translate,
-                                                  const ClippingPlane &clp, float seed_fill_angle, float highlight_by_angle_deg,
-                                                  bool force_reselection)
+                                                  const ClippingPlane &clp, float seed_fill_angle,
+                                                  float highlight_by_angle_deg, ForceReselection force_reselection)
 {
     assert(facet_start < m_orig_size_indices);
 
     // Recompute seed fill only if the cursor is pointing on facet unselected by seed fill or a clipping plane is active.
-    if (int start_facet_idx = select_unsplit_triangle(hit, facet_start); start_facet_idx >= 0 && m_triangles[start_facet_idx].is_selected_by_seed_fill() && !force_reselection && !clp.is_active())
+    if (int start_facet_idx = select_unsplit_triangle(hit, facet_start); start_facet_idx >= 0 && m_triangles[start_facet_idx].is_selected_by_seed_fill() && force_reselection == ForceReselection::NO && !clp.is_active())
         return;
 
     this->seed_fill_unselect_all_triangles();
@@ -451,19 +445,20 @@ void TriangleSelector::append_touching_edges(int itriangle, int vertexi, int ver
         process_subtriangle(touching.second, Partition::Second);
 }
 
-void TriangleSelector::bucket_fill_select_triangles(const Vec3f& hit, int facet_start, const ClippingPlane &clp, bool propagate, bool force_reselection)
-{
+void TriangleSelector::bucket_fill_select_triangles(const Vec3f &hit, int facet_start, const ClippingPlane &clp,
+                                                    BucketFillPropagate propagate,
+                                                    ForceReselection force_reselection) {
     int start_facet_idx = select_unsplit_triangle(hit, facet_start);
     assert(start_facet_idx != -1);
     // Recompute bucket fill only if the cursor is pointing on facet unselected by bucket fill or a clipping plane is active.
-    if (start_facet_idx == -1 || (m_triangles[start_facet_idx].is_selected_by_seed_fill() && !force_reselection && !clp.is_active()))
+    if (start_facet_idx == -1 || (m_triangles[start_facet_idx].is_selected_by_seed_fill() && force_reselection == ForceReselection::NO && !clp.is_active()))
         return;
 
     assert(!m_triangles[start_facet_idx].is_split());
     TriangleStateType start_facet_state = m_triangles[start_facet_idx].get_state();
     this->seed_fill_unselect_all_triangles();
 
-    if (!propagate) {
+    if (propagate == BucketFillPropagate::NO) {
         m_triangles[start_facet_idx].select_by_seed_fill();
         return;
     }
@@ -878,7 +873,7 @@ bool TriangleSelector::select_triangle_recursive(int facet_idx, const Vec3i &nei
 
     if (num_of_inside_vertices == 0
      && ! m_cursor->is_pointer_in_triangle(*tr, m_vertices)
-     && ! m_cursor->is_edge_inside_cursor(*tr, m_vertices))
+     && ! m_cursor->is_any_edge_inside_cursor(*tr, m_vertices))
         return false;
 
     if (num_of_inside_vertices == 3) {
@@ -949,8 +944,8 @@ void TriangleSelector::split_triangle(int facet_idx, const Vec3i &neighbors)
 
     // In case the object is non-uniformly scaled, transform the
     // points to world coords.
-    if (! m_cursor->uniform_scaling) {
-        for (size_t i=0; i<pts.size(); ++i) {
+    if (!m_cursor->uniform_scaling) {
+        for (size_t i = 0; i < pts.size(); ++i) {
             pts_transformed[i] = m_cursor->trafo * (*pts[i]);
             pts[i] = &pts_transformed[i];
         }
@@ -1011,16 +1006,21 @@ int TriangleSelector::Cursor::vertices_inside(const Triangle &tr, const std::vec
     return inside;
 }
 
-// Is any edge inside Sphere cursor?
-bool TriangleSelector::Sphere::is_edge_inside_cursor(const Triangle &tr, const std::vector<Vertex> &vertices) const
-{
+inline std::array<Vec3f, 3> TriangleSelector::Cursor::transform_triangle(const Triangle &tr, const std::vector<Vertex> &vertices) const {
     std::array<Vec3f, 3> pts;
-    for (int i = 0; i < 3; ++i) {
+    for (size_t i = 0; i < 3; ++i) {
         pts[i] = vertices[tr.verts_idxs[i]].v;
         if (!this->uniform_scaling)
             pts[i] = this->trafo * pts[i];
     }
 
+    return pts;
+}
+
+// Is any edge inside Sphere cursor?
+bool TriangleSelector::Sphere::is_any_edge_inside_cursor(const Triangle &tr, const std::vector<Vertex> &vertices) const
+{
+    const std::array<Vec3f, 3> pts = this->transform_triangle(tr, vertices);
     for (int side = 0; side < 3; ++side) {
         const Vec3f &edge_a = pts[side];
         const Vec3f &edge_b = pts[side < 2 ? side + 1 : 0];
@@ -1031,16 +1031,10 @@ bool TriangleSelector::Sphere::is_edge_inside_cursor(const Triangle &tr, const s
 }
 
 // Is edge inside cursor?
-bool TriangleSelector::Circle::is_edge_inside_cursor(const Triangle &tr, const std::vector<Vertex> &vertices) const
+bool TriangleSelector::Circle::is_any_edge_inside_cursor(const Triangle &tr, const std::vector<Vertex> &vertices) const
 {
-    std::array<Vec3f, 3> pts;
-    for (int i = 0; i < 3; ++i) {
-        pts[i] = vertices[tr.verts_idxs[i]].v;
-        if (!this->uniform_scaling)
-            pts[i] = this->trafo * pts[i];
-    }
-
-    const Vec3f &p = this->center;
+    const std::array<Vec3f, 3>  pts = this->transform_triangle(tr, vertices);
+    const Vec3f                &p   = this->center;
     for (int side = 0; side < 3; ++side) {
         const Vec3f &a      = pts[side];
         const Vec3f &b      = pts[side < 2 ? side + 1 : 0];
@@ -1216,7 +1210,7 @@ void TriangleSelector::reset()
 
 void TriangleSelector::set_edge_limit(float edge_limit)
 {
-    m_edge_limit_sqr = std::pow(edge_limit, 2.f);
+    m_edge_limit_sqr = Slic3r::sqr(edge_limit);
 }
 
 int TriangleSelector::push_triangle(int a, int b, int c, int source_triangle, const TriangleStateType state) {
@@ -1890,6 +1884,8 @@ TriangleSelector::Cursor::Cursor(const Vec3f &source_, float radius_world, const
         radius_sqr      = Slic3r::sqr(radius_world);
         trafo_normal    = trafo.linear().inverse().transpose();
     }
+
+    m_edge_limit = std::sqrt(radius_sqr) / 5.f;
 }
 
 TriangleSelector::SinglePointCursor::SinglePointCursor(const Vec3f& center_, const Vec3f& source_, float radius_world, const Transform3d& trafo_, const ClippingPlane &clipping_plane_)
@@ -2048,15 +2044,9 @@ bool line_plane_intersection(const Vec3f &line_a, const Vec3f &line_b, const Vec
     return false;
 }
 
-bool TriangleSelector::Capsule3D::is_edge_inside_cursor(const Triangle &tr, const std::vector<Vertex> &vertices) const
+bool TriangleSelector::Capsule3D::is_any_edge_inside_cursor(const Triangle &tr, const std::vector<Vertex> &vertices) const
 {
-    std::array<Vec3f, 3> pts;
-    for (int i = 0; i < 3; ++i) {
-        pts[i] = vertices[tr.verts_idxs[i]].v;
-        if (!this->uniform_scaling)
-            pts[i] = this->trafo * pts[i];
-    }
-
+    const std::array<Vec3f, 3> pts = this->transform_triangle(tr, vertices);
     for (int side = 0; side < 3; ++side) {
         const Vec3f &edge_a = pts[side];
         const Vec3f &edge_b = pts[side < 2 ? side + 1 : 0];
@@ -2068,15 +2058,8 @@ bool TriangleSelector::Capsule3D::is_edge_inside_cursor(const Triangle &tr, cons
 }
 
 // Is edge inside cursor?
-bool TriangleSelector::Capsule2D::is_edge_inside_cursor(const Triangle &tr, const std::vector<Vertex> &vertices) const
+bool TriangleSelector::Capsule2D::is_any_edge_inside_cursor(const Triangle &tr, const std::vector<Vertex> &vertices) const
 {
-    std::array<Vec3f, 3> pts;
-    for (int i = 0; i < 3; ++i) {
-        pts[i] = vertices[tr.verts_idxs[i]].v;
-        if (!this->uniform_scaling)
-            pts[i] = this->trafo * pts[i];
-    }
-
     const Vec3f centers_diff                  = this->second_center - this->first_center;
     // Vector in the direction of line |AD| of the rectangle that intersects the circle with the center in first_center.
     const Vec3f rectangle_da_dir              = centers_diff.cross(this->dir);
@@ -2095,6 +2078,7 @@ bool TriangleSelector::Capsule2D::is_edge_inside_cursor(const Triangle &tr, cons
         return false;
     };
 
+    const std::array<Vec3f, 3> pts = this->transform_triangle(tr, vertices);
     for (int side = 0; side < 3; ++side) {
         const Vec3f &edge_a     = pts[side];
         const Vec3f &edge_b     = pts[side < 2 ? side + 1 : 0];
