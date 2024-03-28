@@ -540,18 +540,27 @@ bool GLGizmoPainterBase::gizmo_event(SLAGizmoEventType action, const Vec2d& mous
                                                                               : std::min(m_cursor_radius + this->get_cursor_radius_step(), this->get_cursor_radius_max());
                 m_parent.set_as_dirty();
                 return true;
-            } else if (m_tool_type == ToolType::SMART_FILL) {
+            } else if (m_tool_type == ToolType::SMART_FILL || m_tool_type == ToolType::BUCKET_FILL) {
                 m_smart_fill_angle = action == SLAGizmoEventType::MouseWheelDown ? std::max(m_smart_fill_angle - SmartFillAngleStep, SmartFillAngleMin)
                                                                                  : std::min(m_smart_fill_angle + SmartFillAngleStep, SmartFillAngleMax);
                 m_parent.set_as_dirty();
                 if (m_rr.mesh_id != -1) {
-                    const Selection     &selection                 = m_parent.get_selection();
-                    const ModelObject   *mo                        = m_c->selection_info()->model_object();
-                    const ModelInstance *mi                        = mo->instances[selection.get_instance_idx()];
-                    const Transform3d   trafo_matrix_not_translate = mi->get_transformation().get_matrix_no_offset() * mo->volumes[m_rr.mesh_id]->get_matrix_no_offset();
-                    const Transform3d   trafo_matrix = mi->get_transformation().get_matrix() * mo->volumes[m_rr.mesh_id]->get_matrix();
-                    m_triangle_selectors[m_rr.mesh_id]->seed_fill_select_triangles(m_rr.hit, int(m_rr.facet), trafo_matrix_not_translate, this->get_clipping_plane_in_volume_coordinates(trafo_matrix), m_smart_fill_angle,
-                                                                                   m_smart_fill_gap_area, m_paint_on_overhangs_only ? m_highlight_by_angle_threshold_deg : 0.f, TriangleSelector::ForceReselection::YES);
+                    const Selection                       &selection      = m_parent.get_selection();
+                    const ModelObject                     *mo             = m_c->selection_info()->model_object();
+                    const ModelInstance                   *mi             = mo->instances[selection.get_instance_idx()];
+                    const Transform3d                      trafo_matrix   = mi->get_transformation().get_matrix() * mo->volumes[m_rr.mesh_id]->get_matrix();
+                    const TriangleSelector::ClippingPlane &clipping_plane = this->get_clipping_plane_in_volume_coordinates(trafo_matrix);
+
+                    if (m_tool_type == ToolType::SMART_FILL) {
+                        const Transform3d trafo_matrix_not_translate = mi->get_transformation().get_matrix_no_offset() * mo->volumes[m_rr.mesh_id]->get_matrix_no_offset();
+                        m_triangle_selectors[m_rr.mesh_id]->seed_fill_select_triangles(m_rr.hit, int(m_rr.facet), trafo_matrix_not_translate, clipping_plane, m_smart_fill_angle, m_smart_fill_gap_area,
+                                                                                       m_paint_on_overhangs_only ? m_highlight_by_angle_threshold_deg : 0.f, TriangleSelector::ForceReselection::YES);
+                    } else {
+                        assert(m_tool_type == ToolType::BUCKET_FILL);
+                        m_triangle_selectors[m_rr.mesh_id]->bucket_fill_select_triangles(m_rr.hit, int(m_rr.facet), clipping_plane, m_smart_fill_angle, m_smart_fill_gap_area,
+                                                                                         TriangleSelector::BucketFillPropagate::YES, TriangleSelector::ForceReselection::YES);
+                    }
+
                     m_triangle_selectors[m_rr.mesh_id]->request_update_render_data();
                     m_seed_fill_last_mesh_id = m_rr.mesh_id;
                 }
@@ -641,9 +650,9 @@ bool GLGizmoPainterBase::gizmo_event(SLAGizmoEventType action, const Vec2d& mous
                         m_triangle_selectors[mesh_idx]->seed_fill_select_triangles(mesh_hit, facet_idx, trafo_matrix_not_translate, clp, m_smart_fill_angle, m_smart_fill_gap_area,
                                                                                    (m_paint_on_overhangs_only ? m_highlight_by_angle_threshold_deg : 0.f), TriangleSelector::ForceReselection::YES);
                     } else if (m_tool_type == ToolType::BRUSH && m_cursor_type == TriangleSelector::CursorType::POINTER) {
-                        m_triangle_selectors[mesh_idx]->bucket_fill_select_triangles(mesh_hit, facet_idx, clp, TriangleSelector::BucketFillPropagate::NO, TriangleSelector::ForceReselection::YES);
+                        m_triangle_selectors[mesh_idx]->bucket_fill_select_triangles(mesh_hit, facet_idx, clp, m_smart_fill_angle, m_smart_fill_gap_area, TriangleSelector::BucketFillPropagate::NO, TriangleSelector::ForceReselection::YES);
                     } else if (m_tool_type == ToolType::BUCKET_FILL) {
-                        m_triangle_selectors[mesh_idx]->bucket_fill_select_triangles(mesh_hit, facet_idx, clp, TriangleSelector::BucketFillPropagate::YES, TriangleSelector::ForceReselection::YES);
+                        m_triangle_selectors[mesh_idx]->bucket_fill_select_triangles(mesh_hit, facet_idx, clp, m_smart_fill_angle, m_smart_fill_gap_area, TriangleSelector::BucketFillPropagate::YES, TriangleSelector::ForceReselection::YES);
                     }
 
                     m_seed_fill_last_mesh_id = -1;
@@ -736,9 +745,9 @@ bool GLGizmoPainterBase::gizmo_event(SLAGizmoEventType action, const Vec2d& mous
             m_triangle_selectors[m_rr.mesh_id]->seed_fill_select_triangles(m_rr.hit, int(m_rr.facet), trafo_matrix_not_translate, clp, m_smart_fill_angle, m_smart_fill_gap_area,
                                                                            m_paint_on_overhangs_only ? m_highlight_by_angle_threshold_deg : 0.f);
         else if (m_tool_type == ToolType::BRUSH && m_cursor_type == TriangleSelector::CursorType::POINTER)
-            m_triangle_selectors[m_rr.mesh_id]->bucket_fill_select_triangles(m_rr.hit, int(m_rr.facet), clp, TriangleSelector::BucketFillPropagate::NO);
+            m_triangle_selectors[m_rr.mesh_id]->bucket_fill_select_triangles(m_rr.hit, int(m_rr.facet), clp, m_smart_fill_angle, m_smart_fill_gap_area, TriangleSelector::BucketFillPropagate::NO);
         else if (m_tool_type == ToolType::BUCKET_FILL)
-            m_triangle_selectors[m_rr.mesh_id]->bucket_fill_select_triangles(m_rr.hit, int(m_rr.facet), clp, TriangleSelector::BucketFillPropagate::YES);
+            m_triangle_selectors[m_rr.mesh_id]->bucket_fill_select_triangles(m_rr.hit, int(m_rr.facet), clp, m_smart_fill_angle, m_smart_fill_gap_area, TriangleSelector::BucketFillPropagate::YES);
         m_triangle_selectors[m_rr.mesh_id]->request_update_render_data();
         m_seed_fill_last_mesh_id = m_rr.mesh_id;
         return true;

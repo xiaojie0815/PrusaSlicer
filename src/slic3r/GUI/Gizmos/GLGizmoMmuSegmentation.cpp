@@ -123,6 +123,10 @@ bool GLGizmoMmuSegmentation::on_init()
 
     m_desc["smart_fill_angle"]     = _u8L("Smart fill angle");
     m_desc["smart_fill_gap_area"]  = _u8L("Smart fill gap");
+
+    m_desc["bucket_fill_angle"]    = _u8L("Bucket fill angle");
+    m_desc["bucket_fill_gap_area"] = _u8L("Bucket fill gap");
+
     m_desc["split_triangles"]      = _u8L("Split triangles");
 
     m_desc["height_range_z_range"] = _u8L("Height range");
@@ -475,9 +479,9 @@ void GLGizmoMmuSegmentation::on_render_input_window(float x, float y, float bott
         m_imgui->disabled_end();
 
         ImGui::Separator();
-    } else if (m_tool_type == ToolType::SMART_FILL) {
+    } else if (m_tool_type == ToolType::SMART_FILL || m_tool_type == ToolType::BUCKET_FILL) {
         ImGui::AlignTextToFramePadding();
-        ImGuiPureWrap::text(m_desc["smart_fill_angle"] + ":");
+        ImGuiPureWrap::text((m_tool_type == ToolType::SMART_FILL ? m_desc["smart_fill_angle"] : m_desc["bucket_fill_angle"])  + ":");
         std::string format_str_angle = std::string("%.f") + I18N::translate_utf8("°", "Degree sign to use in the respective slider in MMU gizmo,"
                                                                                       "placed after the number with no whitespace in between.");
         ImGui::SameLine(sliders_left_width);
@@ -490,7 +494,7 @@ void GLGizmoMmuSegmentation::on_render_input_window(float x, float y, float bott
         }
 
         ImGui::AlignTextToFramePadding();
-        ImGuiPureWrap::text(m_desc["smart_fill_gap_area"] + ":");
+        ImGuiPureWrap::text((m_tool_type == ToolType::SMART_FILL ? m_desc["smart_fill_gap_area"] : m_desc["bucket_fill_gap_area"]) + ":");
         ImGui::SameLine(sliders_left_width);
         ImGui::PushItemWidth(window_width - sliders_left_width - slider_icon_width);
         if (m_imgui->slider_float("##smart_fill_gap_area", &m_smart_fill_gap_area, SmartFillGapAreaMin, SmartFillGapAreaMax, "%.2f", 1.0f, true)) {

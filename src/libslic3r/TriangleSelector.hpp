@@ -348,6 +348,8 @@ public:
     void bucket_fill_select_triangles(const Vec3f         &hit,                                       // point where to start
                                       int                  facet_start,                               // facet of the original mesh (unsplit) that the hit point belongs to
                                       const ClippingPlane &clp,                                       // Clipping plane to limit painting to not clipped facets only
+                                      float                bucket_fill_angle,                         // the maximal angle between two facets to be painted by the same color
+                                      float                bucket_fill_gap_area,                      // The maximal area that will be automatically selected when the surrounding triangles have already been selected.
                                       BucketFillPropagate  propagate,                                 // if bucket fill is propagated to neighbor faces or if it fills the only facet of the modified mesh that the hit point belongs to.
                                       ForceReselection     force_reselection = ForceReselection::NO); // force reselection of the triangle mesh even in cases that mouse is pointing on the selected triangle
 
@@ -523,6 +525,9 @@ private:
     void append_touching_subtriangles(int itriangle, int vertexi, int vertexj, std::vector<int> &touching_subtriangles_out) const;
     void append_touching_edges(int itriangle, int vertexi, int vertexj, std::vector<Vec2i> &touching_edges_out) const;
 
+    // Returns all triangles that are touching the given facet.
+    std::vector<int> get_all_touching_triangles(int facet_idx, const Vec3i &neighbors, const Vec3i &neighbors_propagated) const;
+
     // Check if the triangle index is the original triangle from mesh, or it was additionally created by splitting.
     bool is_original_triangle(int triangle_idx) const { return triangle_idx < m_orig_size_indices; }
 
@@ -548,6 +553,12 @@ private:
 
     void seed_fill_fill_gaps(const std::vector<int> &gap_fill_candidate_facets, // Facet of the original mesh (unsplit), which needs to be checked if the surrounding gap can be filled (selected).
                              float                   seed_fill_gap_area);       // The maximal area that will be automatically selected when the surrounding triangles have already been selected.
+
+    void bucket_fill_fill_gaps(const std::vector<int>   &gap_fill_candidate_facets, // Facet of the mesh (unsplit), which needs to be checked if the surrounding gap can be filled (selected).
+                               float                     bucket_fill_gap_area,      // The maximal area that will be automatically selected when the surrounding triangles have already been selected.
+                               TriangleStateType         start_facet_state,         // The state of the starting facet that determines which neighbors to consider.
+                               const std::vector<Vec3i> &neighbors,
+                               const std::vector<Vec3i> &neighbors_propagate);
 
     int m_free_triangles_head { -1 };
     int m_free_vertices_head { -1 };

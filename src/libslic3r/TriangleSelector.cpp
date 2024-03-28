@@ -316,7 +316,7 @@ void TriangleSelector::seed_fill_select_triangles(const Vec3f &hit, int facet_st
     std::queue<int>   facet_queue;
     facet_queue.push(facet_start);
 
-    const double facet_angle_limit     = cos(Geometry::deg2rad(seed_fill_angle)) - EPSILON;
+    const float  facet_angle_limit     = cos(Geometry::deg2rad(seed_fill_angle)) - EPSILON;
     const float  highlight_angle_limit = cos(Geometry::deg2rad(highlight_by_angle_deg));
     Vec3f        vec_down              = (trafo_no_translate.inverse() * -Vec3d::UnitZ()).normalized().cast<float>();
 
@@ -552,9 +552,29 @@ void TriangleSelector::append_touching_edges(int itriangle, int vertexi, int ver
         process_subtriangle(touching.second, Partition::Second);
 }
 
+// Returns all triangles that are touching the given facet.
+std::vector<int> TriangleSelector::get_all_touching_triangles(int facet_idx, const Vec3i &neighbors, const Vec3i &neighbors_propagated) const {
+    assert(facet_idx != -1 && facet_idx < int(m_triangles.size()));
+    assert(this->verify_triangle_neighbors(m_triangles[facet_idx], neighbors));
+
+    const Vec3i vertices = { m_triangles[facet_idx].verts_idxs[0], m_triangles[facet_idx].verts_idxs[1], m_triangles[facet_idx].verts_idxs[2] };
+
+    std::vector<int> touching_triangles;
+    append_touching_subtriangles(neighbors(0), vertices(1), vertices(0), touching_triangles);
+    append_touching_subtriangles(neighbors(1), vertices(2), vertices(1), touching_triangles);
+    append_touching_subtriangles(neighbors(2), vertices(0), vertices(2), touching_triangles);
+
+    for (int neighbor_idx: neighbors_propagated) {
+        if (neighbor_idx != -1 && !m_triangles[neighbor_idx].is_split())
+            touching_triangles.emplace_back(neighbor_idx);
+    }
+
+    return touching_triangles;
+}
+
 void TriangleSelector::bucket_fill_select_triangles(const Vec3f &hit, int facet_start, const ClippingPlane &clp,
-                                                    BucketFillPropagate propagate,
-                                                    ForceReselection force_reselection) {
+                                                    float bucket_fill_angle, float bucket_fill_gap_area,
+                                                    BucketFillPropagate propagate, ForceReselection force_reselection) {
     int start_facet_idx = select_unsplit_triangle(hit, facet_start);
     assert(start_facet_idx != -1);
     // Recompute bucket fill only if the cursor is pointing on facet unselected by bucket fill or a clipping plane is active.
@@ -570,25 +590,14 @@ void TriangleSelector::bucket_fill_select_triangles(const Vec3f &hit, int facet_
         return;
     }
 
-    auto get_all_touching_triangles = [this](int facet_idx, const Vec3i &neighbors, const Vec3i &neighbors_propagated) -> std::vector<int> {
-        assert(facet_idx != -1 && facet_idx < int(m_triangles.size()));
-        assert(this->verify_triangle_neighbors(m_triangles[facet_idx], neighbors));
-        std::vector<int> touching_triangles;
-        Vec3i            vertices = {m_triangles[facet_idx].verts_idxs[0], m_triangles[facet_idx].verts_idxs[1], m_triangles[facet_idx].verts_idxs[2]};
-        append_touching_subtriangles(neighbors(0), vertices(1), vertices(0), touching_triangles);
-        append_touching_subtriangles(neighbors(1), vertices(2), vertices(1), touching_triangles);
-        append_touching_subtriangles(neighbors(2), vertices(0), vertices(2), touching_triangles);
-
-        for (int neighbor_idx : neighbors_propagated)
-            if (neighbor_idx != -1 && !m_triangles[neighbor_idx].is_split())
-                touching_triangles.emplace_back(neighbor_idx);
-
-        return touching_triangles;
-    };
+    const float facet_angle_limit = std::cos(Geometry::deg2rad(bucket_fill_angle)) - EPSILON;
 
     auto [neighbors, neighbors_propagated] = this->precompute_all_neighbors();
     std::vector<bool>  visited(m_triangles.size(), false);
     std::queue<int>    facet_queue;
+
+    // Facets that need to be checked for gap filling.
+    std::vector<int> gap_fill_candidate_facets;
 
     facet_queue.push(start_facet_idx);
     while (!facet_queue.empty()) {
@@ -599,17 +608,97 @@ void TriangleSelector::bucket_fill_select_triangles(const Vec3f &hit, int facet_
         if (!visited[current_facet]) {
             m_triangles[current_facet].select_by_seed_fill();
 
-            std::vector<int> touching_triangles = get_all_touching_triangles(current_facet, neighbors[current_facet], neighbors_propagated[current_facet]);
-            for(const int tr_idx : touching_triangles) {
+            std::vector<int> touching_triangles = this->get_all_touching_triangles(current_facet, neighbors[current_facet], neighbors_propagated[current_facet]);
+            for (const int tr_idx: touching_triangles) {
                 if (tr_idx < 0 || visited[tr_idx] || m_triangles[tr_idx].get_state() != start_facet_state || is_facet_clipped(tr_idx, clp))
                     continue;
 
-                assert(!m_triangles[tr_idx].is_split());
-                facet_queue.push(tr_idx);
+                // Check if neighbour_facet_idx is satisfies angle in seed_fill_angle and append it to facet_queue if it do.
+                const Vec3f &n1 = m_face_normals[m_triangles[tr_idx].source_triangle];
+                const Vec3f &n2 = m_face_normals[m_triangles[current_facet].source_triangle];
+                if (std::clamp(n1.dot(n2), 0.f, 1.f) >= facet_angle_limit) {
+                    assert(!m_triangles[tr_idx].is_split());
+                    facet_queue.push(tr_idx);
+                } else if (bucket_fill_gap_area > 0. && get_triangle_area(m_triangles[tr_idx]) <= bucket_fill_gap_area) {
+                    gap_fill_candidate_facets.emplace_back(tr_idx);
+                }
             }
         }
 
         visited[current_facet] = true;
+    }
+
+    bucket_fill_fill_gaps(gap_fill_candidate_facets, bucket_fill_gap_area, start_facet_state, neighbors, neighbors_propagated);
+}
+
+void TriangleSelector::bucket_fill_fill_gaps(const std::vector<int> &gap_fill_candidate_facets, const float bucket_fill_gap_area,
+                                             const TriangleStateType start_facet_state, const std::vector<Vec3i> &neighbors,
+                                             const std::vector<Vec3i> &neighbors_propagated) {
+    std::vector<bool> visited(m_triangles.size(), false);
+
+    for (const int starting_facet_idx: gap_fill_candidate_facets) {
+        const Triangle &starting_facet = m_triangles[starting_facet_idx];
+
+        // If starting_facet_idx was visited from any facet, then we can skip it.
+        if (visited[starting_facet_idx])
+            continue;
+
+        // In the way how gap_fill_candidate_facets is filled, neither of the following two conditions should ever be met.
+        // But both of those conditions are here to allow more general usage of this method.
+        if (starting_facet.is_selected_by_seed_fill() || starting_facet.is_split()) {
+            // Already selected by seed fill or split facet, so no additional actions are required.
+            visited[starting_facet_idx] = true;
+            continue;
+        }
+
+        // In the way how bucket_fill_select_triangles() is implemented, all gap_fill_candidate_facets
+        // have at least one neighbor selected by seed fill.
+        // So we start depth-first (it doesn't need to be depth-first) traversal of neighbors to check
+        // if the total area of unselected triangles by seed fill meets the threshold.
+        double total_gap_area = 0.;
+        std::queue<int>  facet_queue;
+        std::vector<int> gap_facets;
+
+        facet_queue.push(starting_facet_idx);
+        while (!facet_queue.empty()) {
+            const int       current_facet_idx = facet_queue.front();
+            const Triangle &current_facet     = m_triangles[current_facet_idx];
+            facet_queue.pop();
+
+            if (visited[current_facet_idx])
+                continue;
+
+            total_gap_area += get_triangle_area(current_facet);
+
+            // We exceed maximum gap area.
+            if (total_gap_area > bucket_fill_gap_area) {
+                // It is necessary to set every facet inside gap_facets unvisited.
+                // Otherwise, we incorrectly select facets that are in a gap that is bigger
+                // than bucket_fill_gap_area.
+                for (const int gap_facet_idx : gap_facets)
+                    visited[gap_facet_idx] = false;
+
+                gap_facets.clear();
+                break;
+            }
+
+            gap_facets.emplace_back(current_facet_idx);
+
+            std::vector<int> touching_triangles = this->get_all_touching_triangles(current_facet_idx, neighbors[current_facet_idx], neighbors_propagated[current_facet_idx]);
+            for (const int tr_idx: touching_triangles) {
+                if (tr_idx < 0 || visited[tr_idx] || m_triangles[tr_idx].get_state() != start_facet_state || m_triangles[tr_idx].is_selected_by_seed_fill())
+                    continue;
+
+                facet_queue.push(tr_idx);
+            }
+
+            visited[current_facet_idx] = true;
+        }
+
+        for (int to_seed_idx : gap_facets)
+            m_triangles[to_seed_idx].select_by_seed_fill();
+
+        gap_facets.clear();
     }
 }
 
