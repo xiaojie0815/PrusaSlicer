@@ -583,11 +583,17 @@ void TriangleSelector::bucket_fill_select_triangles(const Vec3f &hit, int facet_
 
     assert(!m_triangles[start_facet_idx].is_split());
     TriangleStateType start_facet_state = m_triangles[start_facet_idx].get_state();
-    this->seed_fill_unselect_all_triangles();
 
     if (propagate == BucketFillPropagate::NO) {
+        if (m_triangle_selected_by_seed_fill != -1)
+            this->seed_fill_unselect_triangle(m_triangle_selected_by_seed_fill);
+
         m_triangles[start_facet_idx].select_by_seed_fill();
+        m_triangle_selected_by_seed_fill = start_facet_idx;
         return;
+    } else {
+        m_triangle_selected_by_seed_fill = -1;
+        this->seed_fill_unselect_all_triangles();
     }
 
     const float facet_angle_limit = std::cos(Geometry::deg2rad(bucket_fill_angle)) - EPSILON;
@@ -1286,42 +1292,43 @@ void TriangleSelector::undivide_triangle(int facet_idx)
     }
 }
 
-void TriangleSelector::remove_useless_children(int facet_idx)
-{
+// Returns true when some triangle during recursive descending was removed (undivided).
+bool TriangleSelector::remove_useless_children(int facet_idx) {
     // Check that all children are leafs of the same type. If not, try to
-    // make them (recursive call). Remove them if sucessful.
+    // make them (recursive call). Remove them if successful.
 
     assert(facet_idx < int(m_triangles.size()) && m_triangles[facet_idx].valid());
-    Triangle& tr = m_triangles[facet_idx];
+    Triangle &tr = m_triangles[facet_idx];
 
-    if (! tr.is_split()) {
+    if (!tr.is_split()) {
         // This is a leaf, there nothing to do. This can happen during the
         // first (non-recursive call). Shouldn't otherwise.
-        return;
+        return false;
     }
 
     // Call this for all non-leaf children.
-    for (int child_idx=0; child_idx<=tr.number_of_split_sides(); ++child_idx) {
+    bool children_removed = false;
+    for (int child_idx = 0; child_idx <= tr.number_of_split_sides(); ++child_idx) {
         assert(child_idx < int(m_triangles.size()) && m_triangles[child_idx].valid());
         if (m_triangles[tr.children[child_idx]].is_split())
-            remove_useless_children(tr.children[child_idx]);
+            children_removed |= remove_useless_children(tr.children[child_idx]);
     }
-
 
     // Return if a child is not leaf or two children differ in type.
     TriangleStateType first_child_type = TriangleStateType::NONE;
-    for (int child_idx=0; child_idx<=tr.number_of_split_sides(); ++child_idx) {
+    for (int child_idx = 0; child_idx <= tr.number_of_split_sides(); ++child_idx) {
         if (m_triangles[tr.children[child_idx]].is_split())
-            return;
+            return children_removed;
         if (child_idx == 0)
             first_child_type = m_triangles[tr.children[0]].get_state();
         else if (m_triangles[tr.children[child_idx]].get_state() != first_child_type)
-            return;
+            return children_removed;
     }
 
     // If we got here, the children can be removed.
     undivide_triangle(facet_idx);
     tr.set_state(first_child_type);
+    return true;
 }
 
 void TriangleSelector::garbage_collect()
@@ -2050,7 +2057,22 @@ void TriangleSelector::seed_fill_unselect_all_triangles()
             triangle.unselect_by_seed_fill();
 }
 
+void TriangleSelector::seed_fill_unselect_triangle(const int facet_idx) {
+    assert(facet_idx > 0 && facet_idx < m_triangles.size());
+    Triangle &triangle = m_triangles[facet_idx];
+
+    assert(!triangle.is_split());
+    if (!triangle.is_split())
+        triangle.unselect_by_seed_fill();
+}
+
 void TriangleSelector::seed_fill_apply_on_triangles(TriangleStateType new_state) {
+    if (m_triangle_selected_by_seed_fill != -1) {
+        this->seed_fill_apply_on_single_triangle(new_state, m_triangle_selected_by_seed_fill);
+        m_triangle_selected_by_seed_fill = -1;
+        return;
+    }
+
     for (Triangle &triangle : m_triangles)
         if (!triangle.is_split() && triangle.is_selected_by_seed_fill())
             triangle.set_state(new_state);
@@ -2060,6 +2082,15 @@ void TriangleSelector::seed_fill_apply_on_triangles(TriangleStateType new_state)
             size_t facet_idx = &triangle - &m_triangles.front();
             remove_useless_children(int(facet_idx));
         }
+}
+
+void TriangleSelector::seed_fill_apply_on_single_triangle(TriangleStateType new_state, const int facet_idx) {
+    assert(facet_idx > 0 && facet_idx < m_triangles.size());
+
+    if (Triangle &triangle = m_triangles[facet_idx]; !triangle.is_split() && triangle.is_selected_by_seed_fill()) {
+        triangle.set_state(new_state);
+        remove_useless_children(triangle.source_triangle);
+    }
 }
 
 double TriangleSelector::get_triangle_area(const Triangle &triangle) const {

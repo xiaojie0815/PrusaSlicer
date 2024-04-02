@@ -643,9 +643,11 @@ bool GLGizmoPainterBase::gizmo_event(SLAGizmoEventType action, const Vec2d& mous
             if (m_tool_type == ToolType::SMART_FILL || m_tool_type == ToolType::BUCKET_FILL || (m_tool_type == ToolType::BRUSH && m_cursor_type == TriangleSelector::CursorType::POINTER)) {
                 for (const ProjectedMousePosition &projected_mouse_position: projected_mouse_positions) {
                     assert(projected_mouse_position.mesh_idx == mesh_idx);
-                    const Vec3f mesh_hit = projected_mouse_position.mesh_hit;
-                    const int facet_idx = int(projected_mouse_position.facet_idx);
+                    const Vec3f mesh_hit  = projected_mouse_position.mesh_hit;
+                    const int   facet_idx = int(projected_mouse_position.facet_idx);
+
                     m_triangle_selectors[mesh_idx]->seed_fill_apply_on_triangles(new_state);
+
                     if (m_tool_type == ToolType::SMART_FILL) {
                         m_triangle_selectors[mesh_idx]->seed_fill_select_triangles(mesh_hit, facet_idx, trafo_matrix_not_translate, clp, m_smart_fill_angle, m_smart_fill_gap_area,
                                                                                    (m_paint_on_overhangs_only ? m_highlight_by_angle_threshold_deg : 0.f), TriangleSelector::ForceReselection::YES);
