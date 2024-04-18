@@ -44,6 +44,7 @@
 #include "I18N.hpp"
 #include "NotificationManager.hpp"
 #include "format.hpp"
+#include "ArrangeHelper.hpp"
 
 #include "slic3r/GUI/BitmapCache.hpp"
 #include "slic3r/GUI/Gizmos/GLGizmoPainterBase.hpp"
@@ -2217,7 +2218,49 @@ void GLCanvas3D::render()
 #endif // SHOW_IMGUI_DEMO_WINDOW
 
 
-    
+
+
+    {
+        // This is just temporary pipe to export data to the separate arrange algorithm
+        // and importing the result back. TESTING ONLY !!!
+        ImGui::Begin("TESTING ONLY (arrange)");
+        static bool decimation = true;
+        static bool precision_high = false;
+        static bool assumptions = false;
+        static int  object_group_size = 4;
+        static bool delete_files = true;
+        static std::string printer_file = "printer_geometry.mk4.txt";
+        ImGui::Checkbox("Decimation", &decimation);
+        ImGui::Checkbox("Precision", &precision_high);
+        ImGui::Checkbox("Assumptions", &assumptions);
+        ImGui::InputInt("Group size", &object_group_size);
+        wxGetApp().imgui()->disabled_begin(true);
+        ImGui::InputText("Printer file", printer_file.data(), printer_file.size());
+        wxGetApp().imgui()->disabled_end();
+        ImGui::Separator();
+        ImGui::Checkbox("Delete files after use", &delete_files);
+
+        std::stringstream ss;
+        ss << "./sequential_prusa"
+           << " --decimation=" << (decimation ? "yes" : "no")
+           << " --precision="  << (precision_high ? "high" : "low")
+           << " --assumptions=" << (assumptions ? "yes" : "no")
+           << " --object-group-size=" << object_group_size
+            << " --printer-file=" << printer_file
+           << " --interactive=no";
+        ImGui::Text((std::string("Command: '") + ss.str() + "'").c_str());
+
+
+        if (ImGui::Button("Do external arrange")) {
+            export_run_and_import_arrange_data(wxGetApp().plater()->model(), ss.str(), delete_files);
+            reload_scene(true, true);
+            wxGetApp().obj_list()->update_after_undo_redo();
+        }
+        ImGui::End();
+    }
+
+
+
 
 
     const bool is_looking_downward = camera.is_looking_downward();
