@@ -66,17 +66,17 @@ inline OutputIterator douglas_peucker(InputIterator begin, InputIterator end, Ou
                     // Two point segment. Accept the floater.
                     take_floater = true;
                 } else {
-                    SquareLengthType max_dist_sq = 0;
+                    std::optional<SquareLengthType> max_dist_sq;
                     // Find point furthest from line seg created by (anchor, floater) and note it.
                     const Vector v = (f - a).template cast<SquareLengthType>();
                     if (const SquareLengthType l2 = v.squaredNorm(); l2 == 0) {
                         // Zero length segment, find the furthest point between anchor and floater.
-                        for (auto it = std::next(anchor); it != floater; ++ it)
-                            if (SquareLengthType dist_sq = (point_getter(*it) - a).template cast<SquareLengthType>().squaredNorm(); 
-                                dist_sq > max_dist_sq) {
-                                max_dist_sq  = dist_sq;
-                                furthest = it;
+                        for (auto it = std::next(anchor); it != floater; ++ it) {
+                            if (SquareLengthType dist_sq = (point_getter(*it) - a).template cast<SquareLengthType>().squaredNorm(); !max_dist_sq.has_value() || dist_sq > max_dist_sq) {
+                                max_dist_sq = dist_sq;
+                                furthest    = it;
                             }
+                        }
                     } else {
                         // Find Find the furthest point from the line <anchor, floater>.
                         const double dl2 = double(l2);
@@ -98,15 +98,20 @@ inline OutputIterator douglas_peucker(InputIterator begin, InputIterator end, Ou
                                 const Vector w = (dt * dv).cast<SquareLengthType>();
                                 dist_sq = (w - va).squaredNorm();
                             }
-                            if (dist_sq > max_dist_sq) {
+
+                            if (!max_dist_sq.has_value() || dist_sq > max_dist_sq) {
                                 max_dist_sq  = dist_sq;
                                 furthest     = it;
                             }
                         }                        
                     }
+
+                    assert(max_dist_sq.has_value());
+
                     // remove point if less than tolerance
                     take_floater = max_dist_sq <= tolerance_sq;
                 }
+
                 if (take_floater) {
                     // The points between anchor and floater are close to the <anchor, floater> line.
                     // Drop the points between them.
@@ -117,6 +122,7 @@ inline OutputIterator douglas_peucker(InputIterator begin, InputIterator end, Ou
                     dpStack.pop_back();
                     if (dpStack.empty())
                         break;
+
                     floater = dpStack.back();
                     f = point_getter(*floater);
                 } else {
