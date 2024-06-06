@@ -33,8 +33,8 @@ class BoundingBox3;
 
 // Reduces polyline in the <begin, end) range, outputs into the output iterator.
 // Output iterator may be equal to input iterator as long as the iterator value type move operator supports move at the same input / output address.
-template<typename SquareLengthType, typename InputIterator, typename OutputIterator, typename PointGetter>
-inline OutputIterator douglas_peucker(InputIterator begin, InputIterator end, OutputIterator out, const double tolerance, PointGetter point_getter)
+template<typename SquareLengthType, typename InputIterator, typename OutputIterator, typename TakeFloaterPredicate, typename PointGetter>
+inline OutputIterator douglas_peucker(InputIterator begin, InputIterator end, OutputIterator out, TakeFloaterPredicate take_floater_predicate, PointGetter point_getter)
 {
     using InputIteratorCategory = typename std::iterator_traits<InputIterator>::iterator_category;
     static_assert(std::is_base_of_v<std::input_iterator_tag, InputIteratorCategory>);
@@ -50,7 +50,6 @@ inline OutputIterator douglas_peucker(InputIterator begin, InputIterator end, Ou
             // Two points input.
             *out ++ = std::move(*next);
         } else {
-            const auto tolerance_sq = SquareLengthType(sqr(tolerance));
             InputIterator anchor  = begin;
             InputIterator floater = std::prev(end);
             std::vector<InputIterator> dpStack;
@@ -108,8 +107,8 @@ inline OutputIterator douglas_peucker(InputIterator begin, InputIterator end, Ou
 
                     assert(max_dist_sq.has_value());
 
-                    // remove point if less than tolerance
-                    take_floater = max_dist_sq <= tolerance_sq;
+                    // Remove points between the anchor and the floater when the predicate is satisfied.
+                    take_floater = take_floater_predicate(anchor, floater, *max_dist_sq);
                 }
 
                 if (take_floater) {
@@ -138,12 +137,27 @@ inline OutputIterator douglas_peucker(InputIterator begin, InputIterator end, Ou
     return out;
 }
 
-// Reduces polyline in the <begin, end) range, outputs into the output iterator.
-// Output iterator may be equal to input iterator as long as the iterator value type move operator supports move at the same input / output address.
+template<typename SquareLengthType, typename InputIterator, typename OutputIterator, typename PointGetter>
+inline OutputIterator douglas_peucker(InputIterator begin, InputIterator end, OutputIterator out, const double tolerance, PointGetter point_getter) {
+    const auto tolerance_sq = static_cast<SquareLengthType>(sqr(tolerance));
+
+    const auto take_floater_predicate = [&tolerance_sq](InputIterator, InputIterator, const SquareLengthType max_dist_sq) -> bool {
+        return max_dist_sq <= tolerance_sq;
+    };
+
+    return douglas_peucker<SquareLengthType>(begin, end, out, take_floater_predicate, point_getter);
+}
+
 template<typename OutputIterator>
 inline OutputIterator douglas_peucker(Points::const_iterator begin, Points::const_iterator end, OutputIterator out, const double tolerance)
 {
     return douglas_peucker<int64_t>(begin, end, out, tolerance, [](const Point &p) { return p; });
+}
+
+template<typename OutputIterator>
+inline OutputIterator douglas_peucker(Pointfs::const_iterator begin, Pointfs::const_iterator end, OutputIterator out, const double tolerance)
+{
+    return douglas_peucker<double>(begin, end, out, tolerance, [](const Vec2d &p) { return p; });
 }
 
 inline Points douglas_peucker(const Points &src, const double tolerance) 
