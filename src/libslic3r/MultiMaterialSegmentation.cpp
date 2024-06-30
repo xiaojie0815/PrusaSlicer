@@ -2077,6 +2077,7 @@ std::vector<std::vector<ExPolygons>> segmentation_by_painting(const PrintObject 
                                                               const size_t                                                     num_facets_states,
                                                               const float                                                      segmentation_max_width,
                                                               const float                                                      segmentation_interlocking_depth,
+                                                              const bool                                                       segmentation_interlocking_beam,
                                                               const IncludeTopAndBottomLayers                                  include_top_and_bottom_layers,
                                                               const std::function<void()>                                     &throw_on_cancel_callback)
 {
@@ -2244,7 +2245,7 @@ std::vector<std::vector<ExPolygons>> segmentation_by_painting(const PrintObject 
         throw_on_cancel_callback();
     }
 
-    if (segmentation_max_width > 0.f) {
+    if ((segmentation_max_width > 0.f || segmentation_interlocking_depth > 0.f) && !segmentation_interlocking_beam) {
         cut_segmented_layers(input_expolygons, segmented_regions, scaled<float>(segmentation_max_width), scaled<float>(segmentation_interlocking_depth), throw_on_cancel_callback);
         throw_on_cancel_callback();
     }
@@ -2266,12 +2267,13 @@ std::vector<std::vector<ExPolygons>> multi_material_segmentation_by_painting(con
     const size_t num_facets_states  = print_object.print()->config().nozzle_diameter.size() + 1;
     const float  max_width          = float(print_object.config().mmu_segmented_region_max_width.value);
     const float  interlocking_depth = float(print_object.config().mmu_segmented_region_interlocking_depth.value);
+    const bool   interlocking_beam  = print_object.config().interlocking_beam.value;
 
     const auto extract_facets_info = [](const ModelVolume &mv) -> ModelVolumeFacetsInfo {
         return {mv.mm_segmentation_facets, mv.is_mm_painted(), false};
     };
 
-    return segmentation_by_painting(print_object, extract_facets_info, num_facets_states, max_width, interlocking_depth, IncludeTopAndBottomLayers::Yes, throw_on_cancel_callback);
+    return segmentation_by_painting(print_object, extract_facets_info, num_facets_states, max_width, interlocking_depth, interlocking_beam, IncludeTopAndBottomLayers::Yes, throw_on_cancel_callback);
 }
 
 // Returns fuzzy skin segmentation based on painting in fuzzy skin segmentation gizmo
@@ -2290,7 +2292,7 @@ std::vector<std::vector<ExPolygons>> fuzzy_skin_segmentation_by_painting(const P
         max_external_perimeter_width = std::max<float>(max_external_perimeter_width, region.flow(print_object, frExternalPerimeter, print_object.config().layer_height).width());
     }
 
-    return segmentation_by_painting(print_object, extract_facets_info, num_facets_states, max_external_perimeter_width, 0.f, IncludeTopAndBottomLayers::No, throw_on_cancel_callback);
+    return segmentation_by_painting(print_object, extract_facets_info, num_facets_states, max_external_perimeter_width, 0.f, false, IncludeTopAndBottomLayers::No, throw_on_cancel_callback);
 }
 
 
