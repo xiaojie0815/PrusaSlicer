@@ -187,7 +187,7 @@ public:
     void rotate(double angle) { this->rotate(cos(angle), sin(angle)); }
     void rotate(double cos_angle, double sin_angle);
     void rotate(double angle, const Point &center);
-    void reverse() { std::reverse(this->points.begin(), this->points.end()); }
+    virtual void reverse() { std::reverse(this->points.begin(), this->points.end()); }
 
     const Point& front() const { return this->points.front(); }
     const Point& back() const { return this->points.back(); }

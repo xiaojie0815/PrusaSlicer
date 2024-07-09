@@ -234,9 +234,14 @@ private:
 // Map from a face edge to a unique edge identifier or -1 if no neighbor exists.
 // Two neighbor faces share a unique edge identifier even if they are flipped.
 // Used for chaining slice lines into polygons.
-std::vector<Vec3i> its_face_edge_ids(const indexed_triangle_set &its);
+template<AdditionalMeshInfo mesh_info = AdditionalMeshInfo::None>
+std::vector<Vec3i> its_face_edge_ids(const typename IndexedTriangleSetType<mesh_info>::type &its);
+
 std::vector<Vec3i> its_face_edge_ids(const indexed_triangle_set &its, std::function<void()> throw_on_cancel_callback);
-std::vector<Vec3i> its_face_edge_ids(const indexed_triangle_set &its, const std::vector<char> &face_mask);
+
+template<AdditionalMeshInfo mesh_info = AdditionalMeshInfo::None>
+std::vector<Vec3i> its_face_edge_ids(const typename IndexedTriangleSetType<mesh_info>::type &its, const std::vector<char> &face_mask);
+
 // Having the face neighbors available, assign unique edge IDs to face edges for chaining of polygons over slices.
 std::vector<Vec3i> its_face_edge_ids(const indexed_triangle_set &its, std::vector<Vec3i> &face_neighbors, bool assign_unbound_edges = false, int *num_edges = nullptr);
 
