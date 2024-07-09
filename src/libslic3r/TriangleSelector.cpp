@@ -1333,13 +1333,16 @@ int TriangleSelector::num_facets(TriangleStateType state) const {
     return cnt;
 }
 
-indexed_triangle_set TriangleSelector::get_facets(TriangleStateType state) const {
-    indexed_triangle_set out;
+template<AdditionalMeshInfo facet_info>
+typename IndexedTriangleSetType<facet_info>::type TriangleSelector::get_facets(const std::function<bool(const Triangle &)> &facet_filter) const {
+    using IndexedTriangleSetType = typename IndexedTriangleSetType<facet_info>::type;
+
+    IndexedTriangleSetType out;
     std::vector<int> vertex_map(m_vertices.size(), -1);
-    for (const Triangle& tr : m_triangles) {
-        if (tr.valid() && ! tr.is_split() && tr.get_state() == state) {
+    for (const Triangle &tr : m_triangles) {
+        if (tr.valid() && !tr.is_split() && facet_filter(tr)) {
             stl_triangle_vertex_indices indices;
-            for (int i=0; i<3; ++i) {
+            for (int i = 0; i < 3; ++i) {
                 int j = tr.verts_idxs[i];
                 if (vertex_map[j] == -1) {
                     vertex_map[j] = int(out.vertices.size());
@@ -1348,55 +1351,105 @@ indexed_triangle_set TriangleSelector::get_facets(TriangleStateType state) const
                 indices[i] = vertex_map[j];
             }
             out.indices.emplace_back(indices);
+
+            if constexpr (facet_info == AdditionalMeshInfo::Color) {
+                out.colors.emplace_back(static_cast<uint8_t>(tr.get_state()));
+            }
         }
     }
+
     return out;
 }
 
-indexed_triangle_set TriangleSelector::get_facets_strict(TriangleStateType state) const {
-    indexed_triangle_set out;
+indexed_triangle_set TriangleSelector::get_facets(TriangleStateType state) const {
+    return this->get_facets([state](const Triangle &tr) { return tr.get_state() == state; });
+}
 
-    size_t num_vertices = 0;
-    for (const Vertex &v : m_vertices)
-        if (v.ref_cnt > 0)
-            ++ num_vertices;
-    out.vertices.reserve(num_vertices);
+indexed_triangle_set TriangleSelector::get_all_facets() const {
+    return this->get_facets([](const Triangle &tr) { return true; });
+}
+
+indexed_triangle_set_with_color TriangleSelector::get_all_facets_with_colors() const {
+    return this->get_facets<AdditionalMeshInfo::Color>([](const Triangle &tr) { return true; });
+}
+
+template<AdditionalMeshInfo facet_info>
+typename IndexedTriangleSetType<facet_info>::type TriangleSelector::get_facets_strict(const std::function<bool(const Triangle &)> &facet_filter) const {
+    using IndexedTriangleSetType = typename IndexedTriangleSetType<facet_info>::type;
+
+    auto get_vertices_count = [&vertices = std::as_const(m_vertices)]() -> size_t {
+        size_t vertices_cnt = 0;
+        for (const Vertex &v : vertices) {
+            if (v.ref_cnt > 0)
+                ++vertices_cnt;
+        }
+
+        return vertices_cnt;
+    };
+
+    IndexedTriangleSetType out;
+    out.vertices.reserve(get_vertices_count());
+
     std::vector<int> vertex_map(m_vertices.size(), -1);
-    for (size_t i = 0; i < m_vertices.size(); ++ i)
+    for (size_t i = 0; i < m_vertices.size(); ++i) {
         if (const Vertex &v = m_vertices[i]; v.ref_cnt > 0) {
             vertex_map[i] = int(out.vertices.size());
             out.vertices.emplace_back(v.v);
         }
+    }
 
+    std::vector<uint8_t> out_colors;
     for (int itriangle = 0; itriangle < m_orig_size_indices; ++ itriangle)
-        this->get_facets_strict_recursive(m_triangles[itriangle], m_neighbors[itriangle], state, out.indices);
+        this->get_facets_strict_recursive<facet_info>(m_triangles[itriangle], m_neighbors[itriangle], facet_filter, out.indices, out_colors);
 
-    for (auto &triangle : out.indices)
-        for (int i = 0; i < 3; ++ i)
+    if constexpr (facet_info == AdditionalMeshInfo::Color) {
+        out.colors = std::move(out_colors);
+    }
+
+    for (auto &triangle : out.indices) {
+        for (int i = 0; i < 3; ++i) {
             triangle(i) = vertex_map[triangle(i)];
+        }
+    }
 
     return out;
 }
 
+indexed_triangle_set TriangleSelector::get_facets_strict(TriangleStateType state) const {
+    return this->get_facets_strict([state](const Triangle &tr) { return tr.get_state() == state; });
+}
+
+indexed_triangle_set TriangleSelector::get_all_facets_strict() const {
+    return this->get_facets_strict([](const Triangle &tr) { return true; });
+}
+
+indexed_triangle_set_with_color TriangleSelector::get_all_facets_strict_with_colors() const {
+    return this->get_facets_strict<AdditionalMeshInfo::Color>([](const Triangle &tr) { return true; });
+}
+
+template<AdditionalMeshInfo facet_info>
 void TriangleSelector::get_facets_strict_recursive(
     const Triangle                              &tr,
     const Vec3i                                 &neighbors,
-    TriangleStateType                            state,
-    std::vector<stl_triangle_vertex_indices>    &out_triangles) const
+    const std::function<bool(const Triangle &)> &facet_filter,
+    std::vector<stl_triangle_vertex_indices>    &out_triangles,
+    std::vector<uint8_t>                        &out_colors) const
 {
     if (tr.is_split()) {
         for (int i = 0; i <= tr.number_of_split_sides(); ++ i)
-            this->get_facets_strict_recursive(
+            this->get_facets_strict_recursive<facet_info>(
                 m_triangles[tr.children[i]],
                 this->child_neighbors(tr, neighbors, i),
-                state, out_triangles);
-    } else if (tr.get_state() == state)
-        this->get_facets_split_by_tjoints({tr.verts_idxs[0], tr.verts_idxs[1], tr.verts_idxs[2]}, neighbors, out_triangles);
+                facet_filter, out_triangles, out_colors);
+    } else if (facet_filter(tr)) {
+        const uint8_t facet_color = static_cast<uint8_t>(tr.get_state());
+        this->get_facets_split_by_tjoints<facet_info>({tr.verts_idxs[0], tr.verts_idxs[1], tr.verts_idxs[2]}, neighbors, facet_color, out_triangles, out_colors);
+    }
 }
 
-void TriangleSelector::get_facets_split_by_tjoints(const Vec3i &vertices, const Vec3i &neighbors, std::vector<stl_triangle_vertex_indices> &out_triangles) const
-{
-// Export this triangle, but first collect the T-joint vertices along its edges.
+template<AdditionalMeshInfo facet_info>
+void TriangleSelector::get_facets_split_by_tjoints(const Vec3i &vertices, const Vec3i &neighbors, const uint8_t color, std::vector<stl_triangle_vertex_indices> &out_triangles, std::vector<uint8_t> &out_colors) const {
+    // Export this triangle, but first collect the T-joint vertices along its edges.
     Vec3i midpoints(
         this->triangle_midpoint(neighbors(0), vertices(1), vertices(0)),
         this->triangle_midpoint(neighbors(1), vertices(2), vertices(1)),
@@ -1406,6 +1459,11 @@ void TriangleSelector::get_facets_split_by_tjoints(const Vec3i &vertices, const 
     case 0:
         // Just emit this triangle.
         out_triangles.emplace_back(vertices(0), vertices(1), vertices(2));
+
+        if constexpr (facet_info == AdditionalMeshInfo::Color) {
+            out_colors.emplace_back(color);
+        }
+
         break;
     case 1:
     {
@@ -1413,18 +1471,18 @@ void TriangleSelector::get_facets_split_by_tjoints(const Vec3i &vertices, const 
         int i = midpoints(0) != -1 ? 2 : midpoints(1) != -1 ? 0 : 1;
         int j = next_idx_modulo(i, 3);
         int k = next_idx_modulo(j, 3);
-        this->get_facets_split_by_tjoints(
+        this->get_facets_split_by_tjoints<facet_info>(
             { vertices(i), vertices(j), midpoints(j) },
             { neighbors(i),
               this->neighbor_child(neighbors(j), vertices(k), vertices(j), Partition::Second),
               -1 },
-              out_triangles);
-        this->get_facets_split_by_tjoints(
+              color, out_triangles, out_colors);
+        this->get_facets_split_by_tjoints<facet_info>(
             { midpoints(j), vertices(k), vertices(i) },
             { this->neighbor_child(neighbors(j), vertices(k), vertices(j), Partition::First),
               neighbors(k),
               -1 },
-              out_triangles);
+              color, out_triangles, out_colors);
         break;
     }
     case 2:
@@ -1433,47 +1491,53 @@ void TriangleSelector::get_facets_split_by_tjoints(const Vec3i &vertices, const 
         int i = midpoints(0) == -1 ? 2 : midpoints(1) == -1 ? 0 : 1;
         int j = next_idx_modulo(i, 3);
         int k = next_idx_modulo(j, 3);
-        this->get_facets_split_by_tjoints(
+        this->get_facets_split_by_tjoints<facet_info>(
             { vertices(i), midpoints(i), midpoints(k) },
             { this->neighbor_child(neighbors(i), vertices(j), vertices(i), Partition::Second),
               -1,
               this->neighbor_child(neighbors(k), vertices(i), vertices(k), Partition::First) },
-              out_triangles);
-        this->get_facets_split_by_tjoints(
+              color, out_triangles, out_colors);
+        this->get_facets_split_by_tjoints<facet_info>(
             { midpoints(i), vertices(j), midpoints(k) },
             { this->neighbor_child(neighbors(i), vertices(j), vertices(i), Partition::First),
               -1, -1 },
-              out_triangles);
-        this->get_facets_split_by_tjoints(
+              color, out_triangles, out_colors);
+        this->get_facets_split_by_tjoints<facet_info>(
             { vertices(j), vertices(k), midpoints(k) },
             { neighbors(j),
               this->neighbor_child(neighbors(k), vertices(i), vertices(k), Partition::Second),
               -1 },
-              out_triangles);
+              color, out_triangles, out_colors);
         break;
     }
     default:
         assert(splits == 3);
         // Split to 4 triangles.
-        this->get_facets_split_by_tjoints(
+        this->get_facets_split_by_tjoints<facet_info>(
             { vertices(0), midpoints(0), midpoints(2) },
             { this->neighbor_child(neighbors(0), vertices(1), vertices(0), Partition::Second),
               -1, 
               this->neighbor_child(neighbors(2), vertices(0), vertices(2), Partition::First) },
-              out_triangles);
-        this->get_facets_split_by_tjoints(
+              color, out_triangles, out_colors);
+        this->get_facets_split_by_tjoints<facet_info>(
             { midpoints(0), vertices(1), midpoints(1) },
             { this->neighbor_child(neighbors(0), vertices(1), vertices(0), Partition::First),
               this->neighbor_child(neighbors(1), vertices(2), vertices(1), Partition::Second),
               -1 },
-              out_triangles);
-        this->get_facets_split_by_tjoints(
+              color, out_triangles, out_colors);
+        this->get_facets_split_by_tjoints<facet_info>(
             { midpoints(1), vertices(2), midpoints(2) },
             { this->neighbor_child(neighbors(1), vertices(2), vertices(1), Partition::First),
               this->neighbor_child(neighbors(2), vertices(0), vertices(2), Partition::Second),
               -1 },
-              out_triangles);
+              color, out_triangles, out_colors);
+
         out_triangles.emplace_back(midpoints);
+
+        if constexpr (facet_info == AdditionalMeshInfo::Color) {
+            out_colors.emplace_back(color);
+        }
+
         break;
     }
 }

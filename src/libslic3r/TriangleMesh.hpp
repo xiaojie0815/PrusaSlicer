@@ -39,6 +39,30 @@ namespace Slic3r {
 class TriangleMesh;
 class TriangleMeshSlicer;
 
+struct indexed_triangle_set_with_color
+{
+    std::vector<stl_triangle_vertex_indices> indices;
+    std::vector<stl_vertex>                  vertices;
+    std::vector<uint8_t>                     colors;
+};
+
+enum class AdditionalMeshInfo {
+    None,
+    Color
+};
+
+template<AdditionalMeshInfo mesh_info> struct IndexedTriangleSetType;
+
+template<> struct IndexedTriangleSetType<AdditionalMeshInfo::None>
+{
+    using type = indexed_triangle_set;
+};
+
+template<> struct IndexedTriangleSetType<AdditionalMeshInfo::Color>
+{
+    using type = indexed_triangle_set_with_color;
+};
+
 struct RepairedMeshErrors {
     // How many edges were united by merging their end points with some other end points in epsilon neighborhood?
     int           edges_fixed               = 0;
@@ -394,7 +418,7 @@ inline BoundingBoxf3 bounding_box(const indexed_triangle_set& its, const Transfo
     return {bmin.cast<double>(), bmax.cast<double>()};
 }
 
-}
+} // namespace Slic3r
 
 // Serialization through the Cereal library
 #include <cereal/access.hpp>

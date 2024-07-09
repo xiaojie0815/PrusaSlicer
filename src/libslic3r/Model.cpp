@@ -2043,35 +2043,46 @@ void ModelInstance::transform_polygon(Polygon* polygon) const
     polygon->scale(get_scaling_factor(X), get_scaling_factor(Y)); // scale around polygon origin
 }
 
-indexed_triangle_set FacetsAnnotation::get_facets(const ModelVolume& mv, TriangleStateType type) const
-{
+indexed_triangle_set FacetsAnnotation::get_facets(const ModelVolume &mv, TriangleStateType type) const {
     TriangleSelector selector(mv.mesh());
     // Reset of TriangleSelector is done inside TriangleSelector's constructor, so we don't need it to perform it again in deserialize().
     selector.deserialize(m_data, false);
     return selector.get_facets(type);
 }
 
-indexed_triangle_set FacetsAnnotation::get_facets_strict(const ModelVolume& mv, TriangleStateType type) const
-{
+indexed_triangle_set FacetsAnnotation::get_facets_strict(const ModelVolume &mv, TriangleStateType type) const {
     TriangleSelector selector(mv.mesh());
     // Reset of TriangleSelector is done inside TriangleSelector's constructor, so we don't need it to perform it again in deserialize().
     selector.deserialize(m_data, false);
     return selector.get_facets_strict(type);
 }
 
-bool FacetsAnnotation::has_facets(const ModelVolume& mv, TriangleStateType type) const
-{
+indexed_triangle_set_with_color FacetsAnnotation::get_all_facets_with_colors(const ModelVolume &mv) const {
+    TriangleSelector selector(mv.mesh());
+    // Reset of TriangleSelector is done inside TriangleSelector's constructor, so we don't need it to perform it again in deserialize().
+    selector.deserialize(m_data, false);
+    return selector.get_all_facets_with_colors();
+}
+
+indexed_triangle_set_with_color FacetsAnnotation::get_all_facets_strict_with_colors(const ModelVolume &mv) const {
+    TriangleSelector selector(mv.mesh());
+    // Reset of TriangleSelector is done inside TriangleSelector's constructor, so we don't need it to perform it again in deserialize().
+    selector.deserialize(m_data, false);
+    return selector.get_all_facets_strict_with_colors();
+}
+
+bool FacetsAnnotation::has_facets(const ModelVolume &mv, TriangleStateType type) const {
     return TriangleSelector::has_facets(m_data, type);
 }
 
-bool FacetsAnnotation::set(const TriangleSelector& selector)
-{
+bool FacetsAnnotation::set(const TriangleSelector &selector) {
     TriangleSelector::TriangleSplittingData sel_map = selector.serialize();
     if (sel_map != m_data) {
         m_data = std::move(sel_map);
         this->touch();
         return true;
     }
+
     return false;
 }
 

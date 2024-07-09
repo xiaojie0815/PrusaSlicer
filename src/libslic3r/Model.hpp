@@ -667,10 +667,12 @@ public:
     void assign(const FacetsAnnotation &rhs) { if (! this->timestamp_matches(rhs)) { m_data = rhs.m_data; this->copy_timestamp(rhs); } }
     void assign(FacetsAnnotation &&rhs) { if (! this->timestamp_matches(rhs)) { m_data = std::move(rhs.m_data); this->copy_timestamp(rhs); } }
     const TriangleSelector::TriangleSplittingData &get_data() const noexcept { return m_data; }
-    bool set(const TriangleSelector& selector);
-    indexed_triangle_set get_facets(const ModelVolume& mv, TriangleStateType type) const;
-    indexed_triangle_set get_facets_strict(const ModelVolume& mv, TriangleStateType type) const;
-    bool has_facets(const ModelVolume& mv, TriangleStateType type) const;
+    bool set(const TriangleSelector &selector);
+    indexed_triangle_set get_facets(const ModelVolume &mv, TriangleStateType type) const;
+    indexed_triangle_set get_facets_strict(const ModelVolume &mv, TriangleStateType type) const;
+    indexed_triangle_set_with_color get_all_facets_with_colors(const ModelVolume &mv) const;
+    indexed_triangle_set_with_color get_all_facets_strict_with_colors(const ModelVolume &mv) const;
+    bool has_facets(const ModelVolume &mv, TriangleStateType type) const;
     bool empty() const { return m_data.triangles_to_split.empty(); }
 
     // Following method clears the config and increases its timestamp, so the deleted
