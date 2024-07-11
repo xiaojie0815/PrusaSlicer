@@ -122,8 +122,8 @@ std::optional<std::size_t> snap_to_angle(
         }
         return false;
     }};
-    Geometry::visit_near_backward(search_start, positions.size(), visitor);
-    Geometry::visit_near_forward(search_start, positions.size(), visitor);
+    Geometry::visit_backward(search_start, positions.size(), visitor);
+    Geometry::visit_forward(search_start, positions.size(), visitor);
     if (match) {
         return match;
     }
@@ -131,8 +131,8 @@ std::optional<std::size_t> snap_to_angle(
     min_distance = std::numeric_limits<double>::infinity();
     angle_type = AngleType::concave;
 
-    Geometry::visit_near_backward(search_start, positions.size(), visitor);
-    Geometry::visit_near_forward(search_start, positions.size(), visitor);
+    Geometry::visit_backward(search_start, positions.size(), visitor);
+    Geometry::visit_forward(search_start, positions.size(), visitor);
 
     return match;
 }

@@ -387,13 +387,24 @@ std::string GCodeWriter::get_travel_to_z_gcode(double z, const std::string_view 
 
 std::string GCodeWriter::extrude_to_xy(const Vec2d &point, double dE, const std::string_view comment)
 {
-    assert(dE != 0);
+    //assert(dE != 0);
     assert(std::abs(dE) < 1000.0);
 
     m_pos.head<2>() = point.head<2>();
 
     GCodeG1Formatter w;
     w.emit_xy(point);
+    w.emit_e(m_extrusion_axis, m_extruder->extrude(dE).second);
+    w.emit_comment(this->config.gcode_comments, comment);
+    return w.string();
+}
+
+std::string GCodeWriter::extrude_to_xyz(const Vec3d &point, double dE, const std::string_view comment)
+{
+    m_pos = point;
+
+    GCodeG1Formatter w;
+    w.emit_xyz(point);
     w.emit_e(m_extrusion_axis, m_extruder->extrude(dE).second);
     w.emit_comment(this->config.gcode_comments, comment);
     return w.string();
