@@ -1538,7 +1538,10 @@ void MainFrame::init_menubar_as_editor()
 
         editMenu->AppendSeparator();
         append_menu_item(editMenu, wxID_ANY, _L("Searc&h") + "\tCtrl+F",
-            _L("Search in settings"), [](wxCommandEvent&) { wxGetApp().show_search_dialog(); },
+            _L("Search in settings"), [this](wxCommandEvent&) {
+//             wxGetApp().show_search_dialog(); 
+				m_tabpanel->GetTopBarItemsCtrl()->TriggerSearch();
+            },
             "search", nullptr, []() {return true; }, this);
     }
 
@@ -2267,7 +2270,8 @@ SettingsDialog::SettingsDialog(MainFrame* mainframe)
 #else /* __APPLE__ */
                 case WXK_CONTROL_F:
 #endif /* __APPLE__ */
-                case 'F': { wxGetApp().show_search_dialog(); break; }
+                case 'F': { m_tabpanel->GetTopBarItemsCtrl()->TriggerSearch();
+                			break; }
                 default:break;
                 }
             }
