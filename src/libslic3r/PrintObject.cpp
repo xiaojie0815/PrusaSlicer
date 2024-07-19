@@ -875,6 +875,13 @@ bool PrintObject::invalidate_state_by_config_options(
             steps.emplace_back(posSlice);
         } else if (
                opt_key == "seam_position"
+            || opt_key == "scarf_seam_placement"
+            || opt_key == "scarf_seam_only_on_smooth"
+            || opt_key == "scarf_seam_start_height"
+            || opt_key == "scarf_seam_entire_loop"
+            || opt_key == "scarf_seam_length"
+            || opt_key == "scarf_seam_max_segment_length"
+            || opt_key == "scarf_seam_on_inner_perimeters"
             || opt_key == "seam_preferred_direction"
             || opt_key == "seam_preferred_direction_jitter"
             || opt_key == "support_material_speed"

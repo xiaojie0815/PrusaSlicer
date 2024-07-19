@@ -1458,6 +1458,15 @@ void TabPrint::build()
         optgroup = page->new_optgroup(L("Advanced"));
         optgroup->append_single_option_line("seam_position", category_path + "seam-position");
         optgroup->append_single_option_line("staggered_inner_seams", category_path + "staggered-inner-seams");
+
+        optgroup->append_single_option_line("scarf_seam_placement", category_path + "scarf-seam-placement");
+        optgroup->append_single_option_line("scarf_seam_only_on_smooth", category_path + "scarf-seam-only-on-smooth");
+        optgroup->append_single_option_line("scarf_seam_start_height", category_path + "scarf-seam-start-height");
+        optgroup->append_single_option_line("scarf_seam_entire_loop", category_path + "scarf-seam-entire-loop");
+        optgroup->append_single_option_line("scarf_seam_length", category_path + "scarf-seam-length");
+        optgroup->append_single_option_line("scarf_seam_max_segment_length", category_path + "scarf-seam-max-segment-length");
+        optgroup->append_single_option_line("scarf_seam_on_inner_perimeters", category_path + "scarf-seam-on-inner-perimeters");
+
         optgroup->append_single_option_line("external_perimeters_first", category_path + "external-perimeters-first");
         optgroup->append_single_option_line("gap_fill_enabled", category_path + "fill-gaps");
         optgroup->append_single_option_line("perimeter_generator");
