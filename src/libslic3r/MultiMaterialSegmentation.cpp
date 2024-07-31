@@ -968,16 +968,38 @@ static inline std::vector<std::vector<ExPolygons>> mm_segmentation_top_and_botto
     }
 
     auto filter_out_small_polygons = [&num_extruders, &num_layers](std::vector<std::vector<Polygons>> &raw_surfaces, double min_area) -> void {
-        for (size_t extruder_idx = 0; extruder_idx < num_extruders; ++extruder_idx)
-            if (!raw_surfaces[extruder_idx].empty())
-                for (size_t layer_idx = 0; layer_idx < num_layers; ++layer_idx)
-                    if (!raw_surfaces[extruder_idx][layer_idx].empty())
-                        remove_small(raw_surfaces[extruder_idx][layer_idx], min_area);
+        for (size_t extruder_idx = 0; extruder_idx < num_extruders; ++extruder_idx) {
+            if (raw_surfaces[extruder_idx].empty())
+                continue;
+
+            for (size_t layer_idx = 0; layer_idx < num_layers; ++layer_idx) {
+                if (raw_surfaces[extruder_idx][layer_idx].empty())
+                    continue;
+
+                remove_small(raw_surfaces[extruder_idx][layer_idx], min_area);
+            }
+        }
     };
 
     // Filter out polygons less than 0.1mm^2, because they are unprintable and causing dimples on outer primers (#7104)
     filter_out_small_polygons(top_raw, Slic3r::sqr(scale_(0.1f)));
     filter_out_small_polygons(bottom_raw, Slic3r::sqr(scale_(0.1f)));
+
+    // Remove top and bottom surfaces that are covered by the previous or next sliced layer.
+    for (size_t extruder_idx = 0; extruder_idx < num_extruders; ++extruder_idx) {
+        for (size_t layer_idx = 0; layer_idx < num_layers; ++layer_idx) {
+            const bool has_top_surface    = !top_raw[extruder_idx].empty() && !top_raw[extruder_idx][layer_idx].empty();
+            const bool has_bottom_surface = !bottom_raw[extruder_idx].empty() && !bottom_raw[extruder_idx][layer_idx].empty();
+
+            if (has_top_surface && layer_idx < (num_layers - 1)) {
+                top_raw[extruder_idx][layer_idx] = diff(top_raw[extruder_idx][layer_idx], input_expolygons[layer_idx + 1]);
+            }
+
+            if (has_bottom_surface && layer_idx > 0) {
+                bottom_raw[extruder_idx][layer_idx] = diff(bottom_raw[extruder_idx][layer_idx], input_expolygons[layer_idx - 1]);
+            }
+        }
+    }
 
 #ifdef MM_SEGMENTATION_DEBUG_TOP_BOTTOM
     {
