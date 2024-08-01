@@ -45,11 +45,12 @@
 #include "libslic3r/libslic3r.h"
 #include "MultiMaterialSegmentation.hpp"
 
-constexpr bool MM_SEGMENTATION_DEBUG_GRAPH              = false;
-constexpr bool MM_SEGMENTATION_DEBUG_REGIONS            = false;
-constexpr bool MM_SEGMENTATION_DEBUG_INPUT              = false;
-constexpr bool MM_SEGMENTATION_DEBUG_COLORIZED_POLYGONS = false;
-constexpr bool MM_SEGMENTATION_DEBUG_TOP_BOTTOM         = false;
+constexpr bool MM_SEGMENTATION_DEBUG_GRAPH                = false;
+constexpr bool MM_SEGMENTATION_DEBUG_REGIONS              = false;
+constexpr bool MM_SEGMENTATION_DEBUG_INPUT                = false;
+constexpr bool MM_SEGMENTATION_DEBUG_FILTERED_COLOR_LINES = false;
+constexpr bool MM_SEGMENTATION_DEBUG_COLORIZED_POLYGONS   = false;
+constexpr bool MM_SEGMENTATION_DEBUG_TOP_BOTTOM           = false;
 
 namespace Slic3r {
 
@@ -65,6 +66,19 @@ enum VD_ANNOTATION : Voronoi::VD::cell_type::color_type {
     VERTEX_ON_CONTOUR = 1,
     DELETED           = 2
 };
+
+struct ColorLine {
+    static const constexpr int Dim = 2;
+    using Scalar = Point::Scalar;
+
+    ColorLine(const Point &a, const Point &b, ColorPolygon::Color color) : a(a), b(b), color(color) {}
+
+    Point               a;
+    Point               b;
+    ColorPolygon::Color color;
+};
+
+using ColorLines = std::vector<ColorLine>;
 
 struct ColorChange {
     explicit ColorChange(double t, uint8_t color_next) : t(t), color_next(color_next) {}
@@ -193,6 +207,38 @@ using ColorPoints = std::vector<ColorPoint>;
         }
 
         svg.draw(Line(color_polygon_points.back().p, color_polygon_points.front().p), colors[color_polygon_points.back().color_next], stroke_width);
+    }
+}
+
+[[maybe_unused]] static void export_color_polygons_to_svg(const std::string &path, const ColorPolygons &color_polygons, const ExPolygons &lslices) {
+    const std::vector<std::string> colors        = {"blue", "cyan", "red", "orange", "pink", "yellow", "magenta", "purple", "black"};
+    const std::string              default_color = "black";
+    const coordf_t                 stroke_width  = scaled<coordf_t>(0.05);
+    const BoundingBox              bbox          = get_extents(lslices);
+
+    ::Slic3r::SVG svg(path.c_str(), bbox);
+    for (const ColorPolygon &color_polygon : color_polygons) {
+        for (size_t pt_idx = 1; pt_idx < color_polygon.size(); ++pt_idx) {
+            const uint8_t color = color_polygon.colors[pt_idx - 1];
+            svg.draw(Line(color_polygon.points[pt_idx - 1], color_polygon.points[pt_idx]), (color < colors.size() ? colors[color] : default_color), stroke_width);
+        }
+
+        const uint8_t color = color_polygon.colors.back();
+        svg.draw(Line(color_polygon.points.back(), color_polygon.points.front()), (color < colors.size() ? colors[color] : default_color), stroke_width);
+    }
+}
+
+[[maybe_unused]] static void export_color_polygons_lines_to_svg(const std::string &path, const std::vector<ColorLines> &color_polygons_lines, const ExPolygons &lslices) {
+    const std::vector<std::string> colors        = {"blue", "cyan", "red", "orange", "pink", "yellow", "magenta", "purple", "black"};
+    const std::string              default_color = "black";
+    const coordf_t                 stroke_width  = scaled<coordf_t>(0.05);
+    const BoundingBox              bbox          = get_extents(lslices);
+
+    ::Slic3r::SVG svg(path.c_str(), bbox);
+    for (const ColorLines &color_polygon_lines : color_polygons_lines) {
+        for (const ColorLine &color_line : color_polygon_lines) {
+            svg.draw(Line(color_line.a, color_line.b), (color_line.color < colors.size() ? colors[color_line.color] : default_color), stroke_width);
+        }
     }
 }
 
@@ -1016,6 +1062,21 @@ std::vector<ColoredLines> color_points_to_colored_lines(const std::vector<ColorP
     return colored_lines_vec_out;
 }
 
+ColorLines color_points_to_color_lines(const ColorPoints &color_points) {
+    ColorLines color_lines_out;
+    color_lines_out.reserve(color_points.size());
+
+    for (size_t cpt_idx = 1; cpt_idx < color_points.size(); ++cpt_idx) {
+        const ColorPoint &prev_cpt = color_points[cpt_idx - 1];
+        const ColorPoint &curr_cpt = color_points[cpt_idx];
+        color_lines_out.emplace_back(prev_cpt.p, curr_cpt.p, prev_cpt.color_next);
+    }
+
+    color_lines_out.emplace_back(color_points.back().p, color_points.front().p, color_points.back().color_next);
+
+    return color_lines_out;
+}
+
 static std::vector<float> get_print_object_layers_zs(const SpanOfConstPtrs<Layer> &layers) {
     std::vector<float> layers_zs;
     layers_zs.reserve(layers.size());
@@ -1350,6 +1411,7 @@ std::vector<std::vector<ExPolygons>> multi_material_segmentation_by_painting(con
 
     std::vector<ExPolygons>                        input_expolygons(num_layers);
     std::vector<std::vector<ColorProjectionLines>> input_polygons_projection_lines_layers(num_layers);
+    std::vector<std::vector<ColorLines>>           color_polygons_lines_layers(num_layers);
 
     // Merge all regions and remove small holes
     BOOST_LOG_TRIVIAL(debug) << "MM segmentation - Slices preprocessing in parallel - Begin";
@@ -1384,19 +1446,9 @@ std::vector<std::vector<ExPolygons>> multi_material_segmentation_by_painting(con
             }
         }
     }); // end of parallel_for
-
-    std::vector<AABBTreeLines::LinesDistancer<ColorProjectionLineWrapper>> color_projection_lines_distancer_layers(num_layers);
-
-    tbb::parallel_for(tbb::blocked_range<size_t>(0, num_layers), [&input_polygons_projection_lines_layers, &color_projection_lines_distancer_layers, &throw_on_cancel_callback](const tbb::blocked_range<size_t> &range) {
-        for (size_t layer_idx = range.begin(); layer_idx < range.end(); ++layer_idx) {
-            throw_on_cancel_callback();
-
-            color_projection_lines_distancer_layers[layer_idx] = AABBTreeLines::LinesDistancer{create_color_projection_lines_mapping(input_polygons_projection_lines_layers[layer_idx])};
-        }
-    }); // end of parallel_for
     BOOST_LOG_TRIVIAL(debug) << "MM segmentation - Slices preprocessing in parallel - End";
 
-    BOOST_LOG_TRIVIAL(debug) << "MM segmentation - Projection of painted triangles - Begin";
+    BOOST_LOG_TRIVIAL(debug) << "MM segmentation - Slicing painted triangles - Begin";
     const std::vector<float> layer_zs = get_print_object_layers_zs(layers);
     for (const ModelVolume *mv : print_object.model_object()->volumes) {
         const indexed_triangle_set_with_color mesh_with_color = mv->mm_segmentation_facets.get_all_facets_strict_with_colors(*mv);
@@ -1405,21 +1457,19 @@ std::vector<std::vector<ExPolygons>> multi_material_segmentation_by_painting(con
 
         std::vector<ColorPolygons> color_polygons_per_layer = slice_mesh(mesh_with_color, layer_zs, slicing_params);
 
-        // Project sliced ColorPolygons on sliced layers (input_expolygons).
-        tbb::parallel_for(tbb::blocked_range<size_t>(0, num_layers), [&color_projection_lines_distancer_layers, &color_polygons_per_layer, &throw_on_cancel_callback](const tbb::blocked_range<size_t> &range) {
+        tbb::parallel_for(tbb::blocked_range<size_t>(0, num_layers), [&color_polygons_per_layer, &color_polygons_lines_layers, &throw_on_cancel_callback](const tbb::blocked_range<size_t> &range) {
             for (size_t layer_idx = range.begin(); layer_idx < range.end(); ++layer_idx) {
                 throw_on_cancel_callback();
 
-                const AABBTreeLines::LinesDistancer<ColorProjectionLineWrapper> &color_projection_lines_distancer = color_projection_lines_distancer_layers[layer_idx];
-                ColorPolygons                                                   &color_polygons                   = color_polygons_per_layer[layer_idx];
+                ColorPolygons &raw_color_polygons = color_polygons_per_layer[layer_idx];
+                filter_out_small_color_polygons(raw_color_polygons, POLYGON_FILTER_MIN_AREA_SCALED, POLYGON_FILTER_MIN_OFFSET_SCALED);
 
-                filter_out_small_color_polygons(color_polygons, POLYGON_FILTER_MIN_AREA_SCALED, POLYGON_FILTER_MIN_OFFSET_SCALED);
-
-                if (color_polygons.empty())
+                if (raw_color_polygons.empty())
                     continue;
 
-                const std::vector<ColorPoints> color_polygons_points = color_polygons_to_color_points(color_polygons);
-                for (const ColorPoints &color_polygon_points : color_polygons_points) {
+                // Convert ColorPolygons into the vector of ColorPoints to perform several filtrations that are performed on points.
+                color_polygons_lines_layers[layer_idx].reserve(color_polygons_lines_layers[layer_idx].size() + raw_color_polygons.size());
+                for (const ColorPoints &color_polygon_points : color_polygons_to_color_points(raw_color_polygons)) {
                     ColorPoints color_polygon_points_filtered;
                     color_polygon_points_filtered.reserve(color_polygon_points.size());
 
@@ -1431,21 +1481,41 @@ std::vector<std::vector<ExPolygons>> multi_material_segmentation_by_painting(con
                     filter_color_of_small_segments(color_polygon_points_filtered, POLYGON_COLOR_FILTER_DISTANCE_SCALED);
                     assert(is_valid_color_polygon_points(color_polygon_points_filtered));
 
-                    for (const ColorPoint &color_pt : color_polygon_points_filtered) {
-                        auto [proj_distance, nearest_line_index, nearest_point] = color_projection_lines_distancer.distance_from_lines_extra<false>(color_pt.p);
-
-                        if (proj_distance > MM_SEGMENTATION_MAX_PROJECTION_DISTANCE_SCALED)
-                            continue;
-
-                        ColorProjectionLine &color_projection_line = *color_projection_lines_distancer.get_line(nearest_line_index).color_projection_line;
-                        const double         line_t_value          = std::clamp((nearest_point - color_projection_line.a.cast<double>()).norm() / (color_projection_line.b - color_projection_line.a).cast<double>().norm(), 0., 1.);
-
-                        color_projection_line.color_changes.emplace_back(line_t_value, color_pt.color_next);
-                    }
+                    color_polygons_lines_layers[layer_idx].emplace_back(color_points_to_color_lines(color_polygon_points_filtered));
                 }
             }
         }); // end of parallel_for
     }
+    BOOST_LOG_TRIVIAL(debug) << "MM segmentation - Slicing painted triangles - End";
+
+    if constexpr (MM_SEGMENTATION_DEBUG_FILTERED_COLOR_LINES) {
+        for (size_t layer_idx = 0; layer_idx < print_object.layers().size(); ++layer_idx) {
+            export_color_polygons_lines_to_svg(debug_out_path("mm-filtered-color-line-%d.svg", layer_idx), color_polygons_lines_layers[layer_idx], input_expolygons[layer_idx]);
+        }
+    }
+
+    // Project sliced ColorPolygons on sliced layers (input_expolygons).
+    BOOST_LOG_TRIVIAL(debug) << "MM segmentation - Projection of painted triangles - Begin";
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, num_layers), [&color_polygons_lines_layers, &input_polygons_projection_lines_layers, &throw_on_cancel_callback](const tbb::blocked_range<size_t> &range) {
+        for (size_t layer_idx = range.begin(); layer_idx < range.end(); ++layer_idx) {
+            throw_on_cancel_callback();
+
+            const AABBTreeLines::LinesDistancer<ColorProjectionLineWrapper> color_projection_lines_distancer{create_color_projection_lines_mapping(input_polygons_projection_lines_layers[layer_idx])};
+            for (const ColorLines &color_polygon : color_polygons_lines_layers[layer_idx]) {
+                for (const ColorLine &color_line : color_polygon) {
+                    auto [proj_distance, nearest_line_index, nearest_point] = color_projection_lines_distancer.distance_from_lines_extra<false>(color_line.a);
+
+                    if (proj_distance > MM_SEGMENTATION_MAX_PROJECTION_DISTANCE_SCALED)
+                        continue;
+
+                    ColorProjectionLine &color_projection_line = *color_projection_lines_distancer.get_line(nearest_line_index).color_projection_line;
+                    const double         line_t_value          = std::clamp((nearest_point - color_projection_line.a.cast<double>()).norm() / (color_projection_line.b - color_projection_line.a).cast<double>().norm(), 0., 1.);
+
+                    color_projection_line.color_changes.emplace_back(line_t_value, color_line.color);
+                }
+            }
+        }
+    }); // end of parallel_for
     BOOST_LOG_TRIVIAL(debug) << "MM segmentation - Projection of painted triangles - End";
 
     std::vector<std::vector<ExPolygons>>  segmented_regions(num_layers);
