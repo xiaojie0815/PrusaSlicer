@@ -7,7 +7,6 @@
 #include <oneapi/tbb/parallel_for.h>
 #include <boost/container_hash/hash.hpp>
 #include <utility>
-#include <unordered_set>
 #include <Eigen/Geometry>
 #include <algorithm>
 #include <array>
@@ -49,6 +48,7 @@ constexpr bool MM_SEGMENTATION_DEBUG_GRAPH                = false;
 constexpr bool MM_SEGMENTATION_DEBUG_REGIONS              = false;
 constexpr bool MM_SEGMENTATION_DEBUG_INPUT                = false;
 constexpr bool MM_SEGMENTATION_DEBUG_FILTERED_COLOR_LINES = false;
+constexpr bool MM_SEGMENTATION_DEBUG_COLOR_RANGES         = false;
 constexpr bool MM_SEGMENTATION_DEBUG_COLORIZED_POLYGONS   = false;
 constexpr bool MM_SEGMENTATION_DEBUG_TOP_BOTTOM           = false;
 
@@ -76,6 +76,8 @@ struct ColorLine {
     Point               a;
     Point               b;
     ColorPolygon::Color color;
+
+    Line line() const { return {a, b}; }
 };
 
 using ColorLines = std::vector<ColorLine>;
@@ -93,13 +95,48 @@ struct ColorChange {
 
 using ColorChanges = std::vector<ColorChange>;
 
+struct ColorProjectionRange {
+    ColorProjectionRange() = delete;
+
+    ColorProjectionRange(double from_t, double from_distance, double to_t, double to_distance, ColorPolygon::Color color)
+        : from_t(from_t), from_distance(from_distance), to_t(to_t), to_distance(to_distance), color(color)
+    {}
+
+    double              from_t        = 0.;
+    double              from_distance = 0.;
+
+    double              to_t          = 0.;
+    double              to_distance   = 0.;
+
+    ColorPolygon::Color color         = 0;
+
+    bool contains(const double t) const { return this->from_t <= t && t <= to_t; }
+
+    double distance_at(const double t) const {
+        assert(this->to_t != this->from_t);
+        return (t - this->from_t) / (this->to_t - this->from_t) * (this->to_distance - this->from_distance) + this->from_distance;
+    }
+
+    friend bool operator<(const ColorProjectionRange &lhs, const ColorProjectionRange &rhs) {
+        return lhs.from_t < rhs.from_t || (lhs.from_t == rhs.from_t && lhs.from_distance < rhs.from_distance);
+    }
+
+    friend bool operator==(const ColorProjectionRange &lhs, const ColorProjectionRange &rhs) {
+        return lhs.from_t == rhs.from_t && lhs.from_distance == rhs.from_distance && lhs.to_t == rhs.to_t && lhs.to_distance == rhs.to_distance && lhs.color == rhs.color;
+    }
+};
+
+using ColorProjectionRanges = std::vector<ColorProjectionRange>;
+
 struct ColorProjectionLine
 {
     explicit ColorProjectionLine(const Line &line) : a(line.a), b(line.b){};
 
     Point        a;
     Point        b;
-    ColorChanges color_changes;
+
+    ColorProjectionRanges color_projection_ranges;
+    ColorChanges          color_changes;
 };
 
 using ColorProjectionLines = std::vector<ColorProjectionLine>;
@@ -238,6 +275,29 @@ using ColorPoints = std::vector<ColorPoint>;
     for (const ColorLines &color_polygon_lines : color_polygons_lines) {
         for (const ColorLine &color_line : color_polygon_lines) {
             svg.draw(Line(color_line.a, color_line.b), (color_line.color < colors.size() ? colors[color_line.color] : default_color), stroke_width);
+        }
+    }
+}
+
+[[maybe_unused]] static void export_color_projection_lines_color_ranges_to_svg(const std::string &path, const std::vector<ColorProjectionLines> &color_polygons_projection_lines, const ExPolygons &lslices) {
+    const std::vector<std::string> colors        = {"blue", "cyan", "red", "orange", "pink", "yellow", "magenta", "purple", "black"};
+    const std::string              default_color = "black";
+    const coordf_t                 stroke_width  = scaled<coordf_t>(0.05);
+    const BoundingBox              bbox          = get_extents(lslices);
+
+    ::Slic3r::SVG svg(path.c_str(), bbox);
+
+    for (const ColorProjectionLines &color_polygon_projection_lines : color_polygons_projection_lines) {
+        for (const ColorProjectionLine &color_projection_line : color_polygon_projection_lines) {
+            svg.draw(Line(color_projection_line.a, color_projection_line.b), default_color, stroke_width);
+
+            for (const ColorProjectionRange &range : color_projection_line.color_projection_ranges) {
+                const Vec2d color_projection_line_vec = (color_projection_line.b - color_projection_line.a).cast<double>();
+                const Point from_pt                   = (range.from_t * color_projection_line_vec).cast<coord_t>() + color_projection_line.a;
+                const Point to_pt                     = (range.to_t * color_projection_line_vec).cast<coord_t>() + color_projection_line.a;
+
+                svg.draw(Line(from_pt, to_pt), (range.color < colors.size() ? colors[range.color] : default_color), stroke_width);
+            }
         }
     }
 }
@@ -1077,6 +1137,22 @@ ColorLines color_points_to_color_lines(const ColorPoints &color_points) {
     return color_lines_out;
 }
 
+// Create the flat vector of ColorLine from the vector of ColorLines.
+static ColorLines flatten_color_lines(const std::vector<ColorLines> &color_polygons_lines) {
+    const size_t total_color_lines_count = std::accumulate(color_polygons_lines.begin(), color_polygons_lines.end(), size_t(0),
+                                                           [](const size_t acc, const ColorLines &color_lines) {
+                                                               return acc + color_lines.size();
+                                                           });
+
+    ColorLines color_lines_out;
+    color_lines_out.reserve(total_color_lines_count);
+    for (const ColorLines &color_lines : color_polygons_lines) {
+        Slic3r::append(color_lines_out, color_lines);
+    }
+
+    return color_lines_out;
+}
+
 static std::vector<float> get_print_object_layers_zs(const SpanOfConstPtrs<Layer> &layers) {
     std::vector<float> layers_zs;
     layers_zs.reserve(layers.size());
@@ -1403,6 +1479,129 @@ static std::vector<ColorPoints> convert_color_polygons_projection_lines_to_color
     return color_polygons_points;
 }
 
+static std::optional<ColorProjectionRange> project_color_line_on_projection_line(const ColorLine &color_line, const ColorProjectionLine &projection_line, const double max_projection_distance_scaled) {
+    const Vec2d projection_line_vec = (projection_line.b - projection_line.a).cast<double>();
+    const Vec2d color_line_vec_a    = (color_line.a - projection_line.a).cast<double>();
+    const Vec2d color_line_vec_b    = (color_line.b - projection_line.a).cast<double>();
+
+    const double projection_line_length_sqr = projection_line_vec.squaredNorm();
+    if (projection_line_length_sqr == 0.)
+        return std::nullopt;
+
+    // Project both endpoints of color_line on the projection_line.
+    const double t_a_raw = color_line_vec_a.dot(projection_line_vec) / projection_line_length_sqr;
+    const double t_b_raw = color_line_vec_b.dot(projection_line_vec) / projection_line_length_sqr;
+
+    const double t_a_clamped = std::clamp(t_a_raw, 0., 1.);
+    const double t_b_clamped = std::clamp(t_b_raw, 0., 1.);
+
+    if (t_a_clamped == t_b_clamped)
+        return std::nullopt;
+
+    auto distance_to_color_line = [&projection_line_vec, &projection_line, &color_line](const double t_raw, const double t_clamped, const Vec2d &color_line_vec_pt) -> double {
+        if (0. <= t_raw && t_raw <= 1.) {
+            return (t_clamped * projection_line_vec - color_line_vec_pt).norm();
+        } else {
+            // T value is outside <0, 1>, so we calculate the distance between the clamped T value and the nearest point on the color_line.
+            // That means that we calculate the distance between one of the endpoints of the projection_line and the color_line.
+            const Point &projection_line_nearest_pt = (t_raw < 0.) ? projection_line.a : projection_line.b;
+            return line_alg::distance_to(color_line.line(), projection_line_nearest_pt);
+        }
+    };
+
+    // Calculate the distance of both endpoints of color_line to the projection_line.
+    const double color_line_a_dist = distance_to_color_line(t_a_raw, t_a_clamped, color_line_vec_a);
+    const double color_line_b_dist = distance_to_color_line(t_b_raw, t_b_clamped, color_line_vec_b);
+
+    ColorProjectionRange range = t_a_clamped < t_b_clamped ? ColorProjectionRange{t_a_clamped, color_line_a_dist, t_b_clamped, color_line_b_dist, color_line.color}
+                                                           : ColorProjectionRange{t_b_clamped, color_line_b_dist, t_a_clamped, color_line_a_dist, color_line.color};
+
+    if (range.from_distance <= max_projection_distance_scaled && range.to_distance <= max_projection_distance_scaled) {
+        // Both endpoints are close enough to the line, so we don't have to do linear interpolation.
+        return range;
+    } else if (range.from_distance > max_projection_distance_scaled && range.to_distance > max_projection_distance_scaled) {
+        // Both endpoints are too distant from the projection_line.
+        return std::nullopt;
+    }
+
+    // Calculate for which value of T we reach the distance of max_projection_distance_scaled.
+    const double t_max = (max_projection_distance_scaled - range.from_distance) / (range.to_distance - range.from_distance) * (range.to_t - range.from_t) + range.from_t;
+    if (range.from_distance > max_projection_distance_scaled) {
+        range.from_t        = t_max;
+        range.from_distance = max_projection_distance_scaled;
+    } else {
+        range.to_t        = t_max;
+        range.to_distance = max_projection_distance_scaled;
+    }
+
+    return range;
+}
+
+inline void update_color_changes_using_color_projection_ranges(ColorProjectionLine &projection_line) {
+    ColorProjectionRanges &ranges = projection_line.color_projection_ranges;
+    Slic3r::sort_remove_duplicates(ranges);
+
+    // First, calculate event points in which the nearest color could change.
+    std::vector<double> event_points;
+    for (const ColorProjectionRange &range : ranges) {
+        event_points.emplace_back(range.from_t);
+        event_points.emplace_back(range.to_t);
+    }
+
+    auto make_linef = [](const ColorProjectionRange &range) -> Linef {
+        return {Vec2d(range.from_t, range.from_distance), Vec2d(range.to_t, range.to_distance)};
+    };
+
+    for (auto curr_range_it = ranges.begin(); curr_range_it != ranges.end(); ++curr_range_it) {
+        for (auto next_range_it = std::next(curr_range_it); next_range_it != ranges.end(); ++next_range_it) {
+            if (curr_range_it->to_t == next_range_it->from_t) {
+                continue;
+            } else if (!curr_range_it->contains(next_range_it->from_t)) {
+                // Ranges are sorted based on the from_t, so when the next->from_t isn't inside the current range, we can skip all other succeeding ranges.
+                break;
+            }
+
+            Vec2d intersect_pt;
+            if (line_alg::intersection(make_linef(*curr_range_it), make_linef(*next_range_it), &intersect_pt)) {
+                event_points.emplace_back(intersect_pt.x());
+            }
+        }
+    }
+
+    Slic3r::sort_remove_duplicates(event_points);
+
+    for (size_t event_idx = 1; event_idx < event_points.size(); ++event_idx) {
+        const double range_start = event_points[event_idx - 1];
+        const double range_end   = event_points[event_idx];
+
+        double              min_area_value = std::numeric_limits<double>::max();
+        ColorPolygon::Color min_area_color = 0;
+        for (const ColorProjectionRange &range : ranges) {
+            if (!range.contains(range_start) || !range.contains(range_end))
+                continue;
+
+            // Minimize the area of the trapezoid defined by range length and distance in its endpoints.
+            const double range_area = range.distance_at(range_start) + range.distance_at(range_end);
+            if (range_area < min_area_value) {
+                min_area_value = range_area;
+                min_area_color = range.color;
+            }
+        }
+
+        if (min_area_value != std::numeric_limits<double>::max()) {
+            projection_line.color_changes.emplace_back(range_start, min_area_color);
+        }
+    }
+}
+
+static void update_color_changes_using_color_projection_ranges(std::vector<ColorProjectionLines> &polygons_projection_lines) {
+    for (ColorProjectionLines &polygon_projection_lines : polygons_projection_lines) {
+        for (ColorProjectionLine &projection_line : polygon_projection_lines) {
+            update_color_changes_using_color_projection_ranges(projection_line);
+        }
+    }
+}
+
 std::vector<std::vector<ExPolygons>> multi_material_segmentation_by_painting(const PrintObject &print_object, const std::function<void()> &throw_on_cancel_callback)
 {
     const size_t                                   num_extruders = print_object.print()->config().nozzle_diameter.size();
@@ -1500,18 +1699,41 @@ std::vector<std::vector<ExPolygons>> multi_material_segmentation_by_painting(con
         for (size_t layer_idx = range.begin(); layer_idx < range.end(); ++layer_idx) {
             throw_on_cancel_callback();
 
+            // For each ColorLine, find the nearest ColorProjectionLines and project the ColorLine on each ColorProjectionLine.
             const AABBTreeLines::LinesDistancer<ColorProjectionLineWrapper> color_projection_lines_distancer{create_color_projection_lines_mapping(input_polygons_projection_lines_layers[layer_idx])};
             for (const ColorLines &color_polygon : color_polygons_lines_layers[layer_idx]) {
                 for (const ColorLine &color_line : color_polygon) {
-                    auto [proj_distance, nearest_line_index, nearest_point] = color_projection_lines_distancer.distance_from_lines_extra<false>(color_line.a);
+                    std::vector<size_t> nearest_projection_line_indices;
+                    Slic3r::append(nearest_projection_line_indices, color_projection_lines_distancer.all_lines_in_radius(color_line.a, MM_SEGMENTATION_MAX_PROJECTION_DISTANCE_SCALED));
+                    Slic3r::append(nearest_projection_line_indices, color_projection_lines_distancer.all_lines_in_radius(color_line.b, MM_SEGMENTATION_MAX_PROJECTION_DISTANCE_SCALED));
+                    Slic3r::sort_remove_duplicates(nearest_projection_line_indices);
 
-                    if (proj_distance > MM_SEGMENTATION_MAX_PROJECTION_DISTANCE_SCALED)
-                        continue;
+                    for (size_t nearest_projection_line_idx : nearest_projection_line_indices) {
+                        ColorProjectionLine                 &color_projection_line = *color_projection_lines_distancer.get_line(nearest_projection_line_idx).color_projection_line;
+                        std::optional<ColorProjectionRange> projection              = project_color_line_on_projection_line(color_line, color_projection_line, MM_SEGMENTATION_MAX_PROJECTION_DISTANCE_SCALED);
+                        if (projection.has_value()) {
+                            color_projection_line.color_projection_ranges.emplace_back(*projection);
+                        }
+                    }
+                }
+            }
 
-                    ColorProjectionLine &color_projection_line = *color_projection_lines_distancer.get_line(nearest_line_index).color_projection_line;
-                    const double         line_t_value          = std::clamp((nearest_point - color_projection_line.a.cast<double>()).norm() / (color_projection_line.b - color_projection_line.a).cast<double>().norm(), 0., 1.);
+            // For each ColorProjectionLine, find the nearest ColorLines and project them on the ColorProjectionLine.
+            const AABBTreeLines::LinesDistancer<ColorLine> color_lines_distancer{flatten_color_lines(color_polygons_lines_layers[layer_idx])};
+            for (ColorProjectionLines &input_polygon_projection_lines : input_polygons_projection_lines_layers[layer_idx]) {
+                for (ColorProjectionLine &projection_lines : input_polygon_projection_lines) {
+                    std::vector<size_t> nearest_color_line_indices;
+                    Slic3r::append(nearest_color_line_indices, color_lines_distancer.all_lines_in_radius(projection_lines.a, MM_SEGMENTATION_MAX_PROJECTION_DISTANCE_SCALED));
+                    Slic3r::append(nearest_color_line_indices, color_lines_distancer.all_lines_in_radius(projection_lines.b, MM_SEGMENTATION_MAX_PROJECTION_DISTANCE_SCALED));
+                    Slic3r::sort_remove_duplicates(nearest_color_line_indices);
 
-                    color_projection_line.color_changes.emplace_back(line_t_value, color_line.color);
+                    for (size_t nearest_color_line_idx : nearest_color_line_indices) {
+                        const ColorLine                     &color_line = color_lines_distancer.get_line(nearest_color_line_idx);
+                        std::optional<ColorProjectionRange> projection = project_color_line_on_projection_line(color_line, projection_lines, MM_SEGMENTATION_MAX_PROJECTION_DISTANCE_SCALED);
+                        if (projection.has_value()) {
+                            projection_lines.color_projection_ranges.emplace_back(*projection);
+                        }
+                    }
                 }
             }
         }
@@ -1529,6 +1751,12 @@ std::vector<std::vector<ExPolygons>> multi_material_segmentation_by_painting(con
             throw_on_cancel_callback();
 
             std::vector<ColorProjectionLines> &input_polygons_projection_lines = input_polygons_projection_lines_layers[layer_idx];
+
+            if constexpr (MM_SEGMENTATION_DEBUG_COLOR_RANGES) {
+                export_color_projection_lines_color_ranges_to_svg(debug_out_path("mm-color-ranges-%d.svg", layer_idx), input_polygons_projection_lines, input_expolygons[layer_idx]);
+            }
+
+            update_color_changes_using_color_projection_ranges(input_polygons_projection_lines);
             filter_projected_color_points_on_polygons(input_polygons_projection_lines);
 
             const std::vector<ColorPoints>  color_polygons_points = convert_color_polygons_projection_lines_to_color_points(input_polygons_projection_lines);
