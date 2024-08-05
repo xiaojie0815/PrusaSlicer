@@ -62,11 +62,12 @@ public:
     void set_default_url(const wxString& url) { m_default_url = url; }
 
     virtual void sys_color_changed();
+
+    void set_load_default_url_on_next_error(bool val) { m_load_default_url_on_next_error = val; }
+
 protected:
 
     virtual void on_page_will_load();
-
-protected:
 
     wxWebView* m_browser { nullptr };
     bool m_load_default_url { false };
@@ -100,6 +101,7 @@ protected:
 
     bool m_load_error_page { false };
     bool m_shown { false };
+    bool m_load_default_url_on_next_error { false };
 
     std::vector<std::string> m_script_message_hadler_names;
 }; 

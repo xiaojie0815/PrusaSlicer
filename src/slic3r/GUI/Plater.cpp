@@ -6074,9 +6074,9 @@ void Plater::connect_gcode()
 */
     const Preset* selected_printer_preset = &wxGetApp().preset_bundle->printers.get_selected_preset();
 
-     boost::property_tree::ptree ptree;
+    boost::property_tree::ptree ptree;
     const std::string filename = UserAccountUtils::get_keyword_from_json(ptree, dialog_msg, "filename");
-     const std::string team_id = UserAccountUtils::get_keyword_from_json(ptree, dialog_msg, "team_id");
+    const std::string team_id = UserAccountUtils::get_keyword_from_json(ptree, dialog_msg, "team_id");
 
     std::string data_subtree = UserAccountUtils::get_print_data_from_json(dialog_msg, "data");
     if (filename.empty() || team_id.empty() || data_subtree.empty()) {
@@ -6101,7 +6101,6 @@ void Plater::connect_gcode()
     upload_job.upload_data.upload_path = boost::filesystem::path(filename);
 
     p->export_gcode(fs::path(), false, std::move(upload_job));
-
 }
 
 void Plater::send_gcode()

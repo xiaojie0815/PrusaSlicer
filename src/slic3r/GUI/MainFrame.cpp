@@ -841,6 +841,14 @@ void MainFrame::remove_connect_webview_tab()
     m_connect_webview->logout();
 }
 
+void MainFrame::show_connect_tab(const wxString& url)
+{
+    assert(m_connect_webview_added);
+    m_tabpanel->SetSelection(m_tabpanel->FindPage(m_connect_webview));
+    m_connect_webview->set_load_default_url_on_next_error(true);
+    m_connect_webview->load_url(url);
+}
+
 void MainFrame::show_printer_webview_tab(DynamicPrintConfig* dpc)
 {
     // if physical printer is selected

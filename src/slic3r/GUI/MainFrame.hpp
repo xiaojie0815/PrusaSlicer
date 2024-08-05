@@ -216,6 +216,7 @@ public:
 
     void    add_connect_webview_tab();
     void    remove_connect_webview_tab();
+    void    show_connect_tab(const wxString &url);
 
     void    show_printer_webview_tab(DynamicPrintConfig* dpc);
 

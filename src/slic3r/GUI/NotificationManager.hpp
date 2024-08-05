@@ -236,6 +236,7 @@ public:
 	void set_upload_job_notification_comp_on_100(int id, bool comp);
 	void set_upload_job_notification_completed(int id);
 	void set_upload_job_notification_completed_with_warning(int id);
+    void set_upload_job_notification_hypertext(int i, std::function<bool(wxEvtHandler*)> callback);
 	void upload_job_notification_show_canceled(int id, const std::string& filename, const std::string& host);
 	void upload_job_notification_show_error(int id, const std::string& filename, const std::string& host);
 	// Download App progress
@@ -601,6 +602,7 @@ private:
 				set_percentage(percentage);
 		}
 		void				set_percentage(float percent) override;
+        bool                on_text_click() override;
 		void				cancel() { m_uj_state = UploadJobState::PB_CANCELLED; m_has_cancel_button = false; }
 		void				error()  { m_uj_state = UploadJobState::PB_ERROR;     m_has_cancel_button = false; init(); }
 		bool				compare_job_id(const int other_id) const { return m_job_id == other_id; }
@@ -611,6 +613,12 @@ private:
 		void				set_complete_on_100(bool val) { m_complete_on_100 = val; }
 		void                complete();
 		void                complete_with_warning();
+        void                set_hypertext_override(std::function<bool(wxEvtHandler *)> callback) 
+        { 
+            m_hypertext_override = true;  
+            m_callback_override = callback;
+            init();
+        }
 	protected:
 		void        init() override;
 		void		count_spaces() override;
@@ -643,6 +651,9 @@ private:
 		bool				m_more_hypertext_used { false };
 		// When m_complete_on_100 is set to false - percent >= 1 wont switch to PB_COMPLETED state.
 		bool				m_complete_on_100 { true };
+
+        bool                             m_hypertext_override { false };
+        std::function<bool(wxEvtHandler *)>     m_callback_override;
 	};
 
 	class SlicingProgressNotification : public ProgressBarNotification

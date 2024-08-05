@@ -203,7 +203,12 @@ void WebViewPanel::on_idle(wxIdleEvent& WXUNUSED(evt))
 
         if (m_shown && m_load_error_page) {
             m_load_error_page = false;
-            load_url(GUI::format_wxstr("file://%1%/web/connection_failed.html", boost::filesystem::path(resources_dir()).generic_string()));
+            if (m_load_default_url_on_next_error) {
+                m_load_default_url_on_next_error = false;
+                load_url(m_default_url);
+            } else { 
+                load_url(GUI::format_wxstr("file://%1%/web/connection_failed.html", boost::filesystem::path(resources_dir()).generic_string()));
+            }
         }
     }
 #ifdef DEBUG_URL_PANEL
@@ -783,6 +788,9 @@ void ConnectWebViewPanel::on_script_message(wxWebViewEvent& evt)
 }
 void ConnectWebViewPanel::on_navigation_request(wxWebViewEvent &evt) 
 {
+#ifdef DEBUG_URL_PANEL
+    m_url->SetValue(evt.GetURL());
+#endif
     BOOST_LOG_TRIVIAL(debug) << "Navigation requested to: " << into_u8(evt.GetURL());
     if (evt.GetURL() == m_default_url) {
         m_reached_default_url = true;
