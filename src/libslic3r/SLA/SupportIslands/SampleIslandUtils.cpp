@@ -47,7 +47,7 @@ std::vector<Slic3r::Vec2f> SampleIslandUtils::sample_expolygon(
     std::vector<Vec2f> result;
     result.reserve(points.size());
     std::transform(points.begin(), points.end(), std::back_inserter(result), 
-        [](const Point &p) { return unscale(p).cast<float>(); });
+        [](const Point &p)->Vec2f { return unscale(p).cast<float>(); });
 
     return result;
 }
