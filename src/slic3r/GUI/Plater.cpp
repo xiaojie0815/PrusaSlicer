@@ -3040,14 +3040,9 @@ bool Plater::priv::warnings_dialog()
 		return true;
 	std::string text = _u8L("There are active warnings concerning sliced models:") + "\n";
 	for (auto const& it : current_critical_warnings) {
-        size_t next_n = it.first.message.find_first_of('\n', 0);
-		text += "\n";
-		if (next_n != std::string::npos) 
-			text += it.first.message.substr(0, next_n);
-		else
-			text += it.first.message;
+		text += "\n\n";
+	    text += it.first.message;
 	}
-	//MessageDialog msg_wingow(this->q, from_u8(text), wxString(SLIC3R_APP_NAME " ") + _L("generated warnings"), wxOK);
     // Changed to InfoDialog so it can show hyperlinks
     InfoDialog msg_wingow(this->q, format_wxstr("%1% %2%", SLIC3R_APP_NAME, _L("generated warnings")), from_u8(text), true);
 	const auto res = msg_wingow.ShowModal();
