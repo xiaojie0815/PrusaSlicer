@@ -57,8 +57,8 @@ public:
     
     // Keep data for one area(ExPlygon) on the layer
     struct Structure {
-        Structure(MyLayer &layer, const ExPolygon& poly, const BoundingBox &bbox, const Vec2f &centroid, float area, float h) :
-            layer(&layer), polygon(&poly), bbox(bbox), centroid(centroid), area(area), zlevel(h)
+        Structure(MyLayer &layer, const ExPolygon& poly, const BoundingBox &bbox, const Vec2f &centroid, float area) :
+            layer(&layer), polygon(&poly), bbox(bbox), centroid(centroid), area(area)
 #ifdef SLA_SUPPORTPOINTGEN_DEBUG
             , unique_id(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()))
 #endif /* SLA_SUPPORTPOINTGEN_DEBUG */
@@ -70,7 +70,6 @@ public:
         const BoundingBox bbox;
         const Vec2f centroid = Vec2f::Zero();
         const float area = 0.f;
-        float zlevel = 0;
         // How well is this ExPolygon held to the print base?
         // Positive number, the higher the better.
         float supports_force_this_layer     = 0.f;

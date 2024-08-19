@@ -146,19 +146,13 @@ static std::vector<SupportPointGenerator::MyLayer> make_layers(
 
         SupportPointGenerator::MyLayer &layer   = layers[layer_id];
         const ExPolygons &              islands = slices[layer_id];
-        // FIXME WTF?
-        // It is used only for support point Z coordinate.
-        // Possibly some kind of big foot compensation ??
-        const float height = (layer_id > 2 ?
-                                  heights[layer_id - 3] :
-                                  heights[0] - (heights[1] - heights[0]));
         layer.islands.reserve(islands.size());
         for (const ExPolygon &island : islands) {
             float area = float(island.area() * SCALING_FACTOR * SCALING_FACTOR);
             if (area >= pixel_area)
                 // FIXME this is not a correct centroid of a polygon with holes.
                 layer.islands.emplace_back(layer, island, get_extents(island.contour),
-                                           unscaled<float>(island.contour.centroid()), area, height);
+                                           unscaled<float>(island.contour.centroid()), area);
         }
     }, 32 /*gransize*/);
 
@@ -617,7 +611,10 @@ void SupportPointGenerator::uniformly_cover(const ExPolygons& islands, Structure
         poisson_samples.erase(poisson_samples.begin() + poisson_samples_target, poisson_samples.end());
     }
     for (const Vec2f &pt : poisson_samples) {
-        m_output.emplace_back(float(pt(0)), float(pt(1)), structure.zlevel, m_config.head_diameter/2.f, flags & icfIsNew);
+        m_output.emplace_back(
+            float(pt(0)), float(pt(1)), structure.layer->print_z/*structure.zlevel*/, m_config.head_diameter / 2.f,
+            flags & icfIsNew
+        );
         structure.supports_force_this_layer += m_config.support_force();
         grid3d.insert(pt, &structure);
     }
