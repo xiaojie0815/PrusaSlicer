@@ -147,6 +147,8 @@ static std::vector<SupportPointGenerator::MyLayer> make_layers(
         SupportPointGenerator::MyLayer &layer   = layers[layer_id];
         const ExPolygons &              islands = slices[layer_id];
         // FIXME WTF?
+        // It is used only for support point Z coordinate.
+        // Possibly some kind of big foot compensation ??
         const float height = (layer_id > 2 ?
                                   heights[layer_id - 3] :
                                   heights[0] - (heights[1] - heights[0]));

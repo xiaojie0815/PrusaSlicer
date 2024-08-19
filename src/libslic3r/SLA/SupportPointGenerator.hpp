@@ -55,6 +55,7 @@ public:
     
     struct MyLayer;
     
+    // Keep data for one area(ExPlygon) on the layer
     struct Structure {
         Structure(MyLayer &layer, const ExPolygon& poly, const BoundingBox &bbox, const Vec2f &centroid, float area, float h) :
             layer(&layer), polygon(&poly), bbox(bbox), centroid(centroid), area(area), zlevel(h)
@@ -62,7 +63,9 @@ public:
             , unique_id(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()))
 #endif /* SLA_SUPPORTPOINTGEN_DEBUG */
         {}
+        // Parent layer - with all ExPolygons in layer + layer_height
         MyLayer *layer;
+        // Source ExPolygon
         const ExPolygon* polygon = nullptr;
         const BoundingBox bbox;
         const Vec2f centroid = Vec2f::Zero();
@@ -143,8 +146,10 @@ public:
     
     struct MyLayer {
         MyLayer(const size_t layer_id, coordf_t print_z) : layer_id(layer_id), print_z(print_z) {}
+        // index into heights + slices
         size_t                  layer_id;
-        coordf_t                print_z;
+        // Absolute distance from Zero - copy value from heights<float>
+        coordf_t print_z; // [in mm]
         std::vector<Structure>  islands;
     };
     
