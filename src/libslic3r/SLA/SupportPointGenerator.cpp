@@ -122,7 +122,7 @@ void SupportPointGenerator::project_onto_mesh(std::vector<sla::SupportPoint>& po
 
 static std::vector<SupportPointGenerator::MyLayer> make_layers(
     const std::vector<ExPolygons>& slices, const std::vector<float>& heights,
-    std::function<void(void)> throw_on_cancel)
+    std::function<void(void)> throw_on_cancel, const sla::SupportPointGenerator::Config& config)
 {
     assert(slices.size() == heights.size());
 
@@ -132,13 +132,8 @@ static std::vector<SupportPointGenerator::MyLayer> make_layers(
     for (size_t i = 0; i < slices.size(); ++ i)
         layers.emplace_back(i, heights[i]);
 
-    // FIXME: calculate actual pixel area from printer config:
-    //const float pixel_area = pow(wxGetApp().preset_bundle->project_config.option<ConfigOptionFloat>("display_width") / wxGetApp().preset_bundle->project_config.option<ConfigOptionInt>("display_pixels_x"), 2.f); //
-    // Minimal island Area to print - TODO: Should be modifiable from UI
-    const float pixel_area = pow(0.047f, 2.f);
-
     execution::for_each(ex_tbb, size_t(0), layers.size(),
-        [&layers, &slices, pixel_area, throw_on_cancel](size_t layer_id)
+        [&layers, &slices, min_area = config.minimal_island_area, throw_on_cancel](size_t layer_id)
     {
         if ((layer_id % 8) == 0)
             // Don't call the following function too often as it flushes
@@ -150,10 +145,12 @@ static std::vector<SupportPointGenerator::MyLayer> make_layers(
         layer.islands.reserve(islands.size());
         for (const ExPolygon &island : islands) {
             float area = float(island.area() * SCALING_FACTOR * SCALING_FACTOR);
-            if (area >= pixel_area)
-                // FIXME this is not a correct centroid of a polygon with holes.
-                // But suction of uncured resin is still there
-                layer.islands.emplace_back(layer, island, get_extents(island.contour), area);
+
+            // Skip too small islands (non-printable)
+            if (area < min_area)
+                continue;
+                        
+            layer.islands.emplace_back(layer, island, get_extents(island.contour), area);
         }
     }, 32 /*gransize*/);
 
@@ -236,7 +233,7 @@ void SupportPointGenerator::process(const std::vector<ExPolygons>& slices, const
     std::vector<std::pair<ExPolygon, coord_t>> islands;
 #endif /* SLA_SUPPORTPOINTGEN_DEBUG */
 
-    std::vector<SupportPointGenerator::MyLayer> layers = make_layers(slices, heights, m_throw_on_cancel);
+    std::vector<SupportPointGenerator::MyLayer> layers = make_layers(slices, heights, m_throw_on_cancel, m_config);
 
     PointGrid3D point_grid;
     point_grid.cell_size = Vec3f(10.f, 10.f, 10.f);

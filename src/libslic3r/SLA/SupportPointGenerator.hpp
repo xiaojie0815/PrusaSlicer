@@ -43,6 +43,11 @@ public:
         // Originally calibrated to 7.7f, reduced density by Tamas to 70% which is 11.1 (7.7 / 0.7) to adjust for new algorithm changes in tm_suppt_gen_improve
         inline float support_force() const { return 11.1f / density_relative; } // a force one point can support       (arbitrary force unit)
         inline float tear_pressure() const { return 1.f; }  // pressure that the display exerts    (the force unit per mm2)
+
+        // FIXME: calculate actual pixel area from printer config:
+        //const float pixel_area = pow(wxGetApp().preset_bundle->project_config.option<ConfigOptionFloat>("display_width") / wxGetApp().preset_bundle->project_config.option<ConfigOptionInt>("display_pixels_x"), 2.f); //
+        // Minimal island Area to print - TODO: Should be modifiable from UI
+        const float minimal_island_area = pow(0.047f, 2.f); // [in mm^2] pixel_area
     };
     
     SupportPointGenerator(const AABBMesh& emesh, const std::vector<ExPolygons>& slices,
