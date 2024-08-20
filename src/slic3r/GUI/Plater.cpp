@@ -921,6 +921,7 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
             this->notification_manager->close_notification_of_type(NotificationType::UserAccountID);
             this->notification_manager->push_notification(NotificationType::UserAccountID, NotificationManager::NotificationLevel::ImportantNotificationLevel, text);
             this->main_frame->remove_connect_webview_tab();
+            this->main_frame->remove_printables_webview_tab();
             this->main_frame->refresh_account_menu(true);
             // Update sidebar printer status
             sidebar->update_printer_presets_combobox();
@@ -946,6 +947,7 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
                     this->notification_manager->push_notification(NotificationType::UserAccountID, NotificationManager::NotificationLevel::ImportantNotificationLevel, text);
                 }
                 this->main_frame->add_connect_webview_tab();
+                this->main_frame->add_printables_webview_tab();
                 // Update User name in TopBar
                 this->main_frame->refresh_account_menu();
                 wxGetApp().update_wizard_login_page();
@@ -959,6 +961,7 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
                 this->notification_manager->close_notification_of_type(NotificationType::UserAccountID);
                 this->notification_manager->push_notification(NotificationType::UserAccountID, NotificationManager::NotificationLevel::WarningNotificationLevel, _u8L("Failed to connect to Prusa Account."));
                 this->main_frame->remove_connect_webview_tab();
+                this->main_frame->remove_printables_webview_tab();
                 // Update User name in TopBar
                 this->main_frame->refresh_account_menu(true);
                 // Update sidebar printer status
@@ -972,6 +975,7 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
             this->notification_manager->close_notification_of_type(NotificationType::UserAccountID);
             this->notification_manager->push_notification(NotificationType::UserAccountID, NotificationManager::NotificationLevel::WarningNotificationLevel, _u8L("Failed to connect to Prusa Account."));
             this->main_frame->remove_connect_webview_tab();
+            this->main_frame->remove_printables_webview_tab();
             // Update User name in TopBar
             this->main_frame->refresh_account_menu(true);
             // Update sidebar printer status

@@ -803,6 +803,7 @@ void MainFrame::create_preset_tabs()
     
     m_connect_webview = new ConnectWebViewPanel(m_tabpanel);
     m_printer_webview = new PrinterWebViewPanel(m_tabpanel, L"");
+    m_printables_webview = new WebViewPanel(m_tabpanel, GUI::from_u8("https://www.printables.com"), { "_prusaSlicer" });
     // new created tabs have to be hidden by default
     m_connect_webview->Hide();
     m_printer_webview->Hide();
@@ -847,6 +848,33 @@ void MainFrame::show_connect_tab(const wxString& url)
     m_tabpanel->SetSelection(m_tabpanel->FindPage(m_connect_webview));
     m_connect_webview->set_load_default_url_on_next_error(true);
     m_connect_webview->load_url(url);
+}
+
+void MainFrame::add_printables_webview_tab()
+{
+    if (m_printables_webview_added) {
+        return;
+    }
+
+    int n = m_tabpanel->FindPage(m_connect_webview) + 1;
+    wxWindow* page = m_printables_webview;
+    const wxString text(L"Printables");
+    const std::string bmp_name = "";
+    bool bSelect = false;
+    m_tabpanel->InsertNewPage(n, page, text, bmp_name, bSelect);
+    m_printables_webview->load_default_url_delayed();
+    m_printables_webview_added = true;
+}
+void MainFrame::remove_printables_webview_tab()
+{
+    if (!m_printables_webview_added) {
+        return;
+    }
+    int n = m_tabpanel->FindPage(m_printables_webview);
+    if (m_tabpanel->GetSelection() == n)
+        m_tabpanel->SetSelection(0);
+    m_tabpanel->RemovePage(size_t(n));
+    m_printables_webview_added = false;
 }
 
 void MainFrame::show_printer_webview_tab(DynamicPrintConfig* dpc)

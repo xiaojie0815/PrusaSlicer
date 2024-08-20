@@ -47,6 +47,7 @@ class PreferencesDialog;
 class GalleryDialog;
 class ConnectWebViewPanel; 
 class PrinterWebViewPanel;
+class WebViewPanel;
 
 enum QuickSlice
 {
@@ -98,10 +99,12 @@ class MainFrame : public DPIFrame
     size_t      m_last_selected_tab;
     Search::OptionsSearcher m_searcher;
 
-    ConnectWebViewPanel* m_connect_webview{ nullptr };
-    bool                 m_connect_webview_added{ false };
-    PrinterWebViewPanel* m_printer_webview{ nullptr };
-    bool                 m_printer_webview_added{ false };
+    ConnectWebViewPanel*    m_connect_webview{ nullptr };
+    bool                    m_connect_webview_added{ false };
+    WebViewPanel*           m_printables_webview{ nullptr };
+    bool                    m_printables_webview_added{ false };
+    PrinterWebViewPanel*    m_printer_webview{ nullptr };
+    bool                    m_printer_webview_added{ false };
 
     std::string     get_base_name(const wxString &full_name, const char *extension = nullptr) const;
     std::string     get_dir_name(const wxString &full_name) const;
@@ -217,6 +220,9 @@ public:
     void    add_connect_webview_tab();
     void    remove_connect_webview_tab();
     void    show_connect_tab(const wxString &url);
+
+    void    add_printables_webview_tab();
+    void    remove_printables_webview_tab();
 
     void    show_printer_webview_tab(DynamicPrintConfig* dpc);
 
