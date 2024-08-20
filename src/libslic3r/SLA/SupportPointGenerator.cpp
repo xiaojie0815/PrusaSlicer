@@ -134,10 +134,11 @@ static std::vector<SupportPointGenerator::MyLayer> make_layers(
 
     // FIXME: calculate actual pixel area from printer config:
     //const float pixel_area = pow(wxGetApp().preset_bundle->project_config.option<ConfigOptionFloat>("display_width") / wxGetApp().preset_bundle->project_config.option<ConfigOptionInt>("display_pixels_x"), 2.f); //
+    // Minimal island Area to print - TODO: Should be modifiable from UI
     const float pixel_area = pow(0.047f, 2.f);
 
     execution::for_each(ex_tbb, size_t(0), layers.size(),
-        [&layers, &slices, &heights, pixel_area, throw_on_cancel](size_t layer_id)
+        [&layers, &slices, pixel_area, throw_on_cancel](size_t layer_id)
     {
         if ((layer_id % 8) == 0)
             // Don't call the following function too often as it flushes
@@ -151,8 +152,8 @@ static std::vector<SupportPointGenerator::MyLayer> make_layers(
             float area = float(island.area() * SCALING_FACTOR * SCALING_FACTOR);
             if (area >= pixel_area)
                 // FIXME this is not a correct centroid of a polygon with holes.
-                layer.islands.emplace_back(layer, island, get_extents(island.contour),
-                                           unscaled<float>(island.contour.centroid()), area);
+                // But suction of uncured resin is still there
+                layer.islands.emplace_back(layer, island, get_extents(island.contour), area);
         }
     }, 32 /*gransize*/);
 
@@ -181,6 +182,7 @@ static std::vector<SupportPointGenerator::MyLayer> make_layers(
               }
           }
           if (! top.islands_below.empty()) {
+              // Why only polygons?? (some sort of speed up?)
               Polygons bottom_polygons = top.polygons_below();
               top.overhangs = diff_ex(*top.polygon, bottom_polygons);
               if (! top.overhangs.empty()) {
@@ -204,6 +206,8 @@ static std::vector<SupportPointGenerator::MyLayer> make_layers(
                   top.overhangs_slopes = intersection_ex(*top.polygon, overh_mask);
 
                   top.overhangs_area = 0.f;
+
+                  // Sort overhangs by area
                   std::vector<std::pair<ExPolygon*, float>> expolys_with_areas;
                   for (ExPolygon &ex : top.overhangs) {
                       float area = float(ex.area());
@@ -255,8 +259,9 @@ void SupportPointGenerator::process(const std::vector<ExPolygons>& slices, const
                 //float centroids_dist = (bottom.centroid - top.centroid).norm();
                 // Penalization resulting from centroid offset:
 //                  bottom.supports_force *= std::min(1.f, 1.f - std::min(1.f, (1600.f * layer_height) * centroids_dist * centroids_dist / bottom.area));
-                float &support_force = support_force_bottom[&bottom - layer_bottom->islands.data()];
-//FIXME this condition does not reflect a bifurcation into a one large island and one tiny island well, it incorrectly resets the support force to zero.
+                size_t bottom_island_index = &bottom - layer_bottom->islands.data();
+                float &support_force = support_force_bottom[bottom_island_index];
+                //FIXME this condition does not reflect a bifurcation into a one large island and one tiny island well, it incorrectly resets the support force to zero.
 // One should rather work with the overlap area vs overhang area.
 //                support_force *= std::min(1.f, 1.f - std::min(1.f, 0.1f * centroids_dist * centroids_dist / bottom.area));
                 // Penalization resulting from increasing polygon area:
@@ -276,7 +281,7 @@ void SupportPointGenerator::process(const std::vector<ExPolygons>& slices, const
         // Now iterate over all polygons and append new points if needed.
         for (Structure &s : layer_top->islands) {
             // Penalization resulting from large diff from the last layer:
-            s.supports_force_inherited /= std::max(1.f, 0.17f * (s.overhangs_area) / s.area);
+            s.supports_force_inherited /= std::max(1.f, 0.17f * s.overhangs_area / s.area);
 
             add_support_points(s, point_grid);
         }
@@ -292,10 +297,7 @@ void SupportPointGenerator::add_support_points(SupportPointGenerator::Structure 
 {
     // Select each type of surface (overrhang, dangling, slope), derive the support
     // force deficit for it and call uniformly conver with the right params
-
-    float tp      = m_config.tear_pressure();
-    float current = s.supports_force_total();
-
+    float tp = m_config.tear_pressure();
     if (s.islands_below.empty()) {
         // completely new island - needs support no doubt
         // deficit is full, there is nothing below that would hold this island
@@ -309,7 +311,7 @@ void SupportPointGenerator::add_support_points(SupportPointGenerator::Structure 
 
     auto areafn = [](double sum, auto &p) { return sum + p.area() * SCALING_FACTOR * SCALING_FACTOR; };
 
-    current = s.supports_force_total();
+    float current = s.supports_force_total();
     if (! s.dangling_areas.empty()) {
         // Let's see if there's anything that overlaps enough to need supports:
         // What we now have in polygons needs support, regardless of what the forces are, so we can add them.

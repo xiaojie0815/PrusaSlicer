@@ -55,10 +55,10 @@ public:
     
     struct MyLayer;
     
-    // Keep data for one area(ExPlygon) on the layer
+    // Keep data for one area(ExPlygon) on the layer(on slice Expolygons)
     struct Structure {
-        Structure(MyLayer &layer, const ExPolygon& poly, const BoundingBox &bbox, const Vec2f &centroid, float area) :
-            layer(&layer), polygon(&poly), bbox(bbox), centroid(centroid), area(area)
+        Structure(MyLayer &layer, const ExPolygon& poly, const BoundingBox &bbox, float area) :
+            layer(&layer), polygon(&poly), bbox(bbox), area(area)
 #ifdef SLA_SUPPORTPOINTGEN_DEBUG
             , unique_id(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()))
 #endif /* SLA_SUPPORTPOINTGEN_DEBUG */
@@ -67,9 +67,11 @@ public:
         MyLayer *layer;
         // Source ExPolygon
         const ExPolygon* polygon = nullptr;
+        // Cache bounding box of polygon
         const BoundingBox bbox;
-        const Vec2f centroid = Vec2f::Zero();
+        // area of polygon [in mm^2] without holes
         const float area = 0.f;
+
         // How well is this ExPolygon held to the print base?
         // Positive number, the higher the better.
         float supports_force_this_layer     = 0.f;
@@ -96,7 +98,7 @@ public:
 #endif
         // Overhangs, that are dangling considerably.
         ExPolygons                              dangling_areas;
-        // Complete overhands.
+        // Complete overhangs.
         ExPolygons                              overhangs;
         // Overhangs, where the surface must slope.
         ExPolygons                              overhangs_slopes;
@@ -217,6 +219,7 @@ public:
 private:
     std::vector<SupportPoint> m_output;
     
+    // Configuration
     SupportPointGenerator::Config m_config;
     
     void process(const std::vector<ExPolygons>& slices, const std::vector<float>& heights);
