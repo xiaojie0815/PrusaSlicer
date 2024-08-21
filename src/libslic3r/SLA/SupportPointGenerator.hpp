@@ -35,14 +35,13 @@ namespace Slic3r { namespace sla {
 
 class SupportPointGenerator {
 public:
-    struct Config {
+    struct Config final {
         float density_relative {1.f};
         float minimal_distance {1.f};
         float head_diameter {0.4f};
 
         // Originally calibrated to 7.7f, reduced density by Tamas to 70% which is 11.1 (7.7 / 0.7) to adjust for new algorithm changes in tm_suppt_gen_improve
         inline float support_force() const { return 11.1f / density_relative; } // a force one point can support       (arbitrary force unit)
-        inline float tear_pressure() const { return 1.f; }  // pressure that the display exerts    (the force unit per mm2)
 
         // FIXME: calculate actual pixel area from printer config:
         //const float pixel_area = pow(wxGetApp().preset_bundle->project_config.option<ConfigOptionFloat>("display_width") / wxGetApp().preset_bundle->project_config.option<ConfigOptionInt>("display_pixels_x"), 2.f); //
@@ -107,7 +106,8 @@ public:
         ExPolygons                              overhangs;
         // Overhangs, where the surface must slope.
         ExPolygons                              overhangs_slopes;
-        float                                   overhangs_area = 0.f;
+        // Sum of all overhang areas from structure
+        float                                   overhangs_area = 0.f; // [in mm^2]
         
         bool overlaps(const Structure &rhs) const { 
             return this->bbox.overlap(rhs.bbox) && this->polygon->overlaps(*rhs.polygon);

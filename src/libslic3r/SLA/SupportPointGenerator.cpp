@@ -241,18 +241,19 @@ void SupportPointGenerator::process(const std::vector<ExPolygons>& slices, const
     double increment = 100.0 / layers.size();
     double status    = 0;
 
+    std::vector<float> support_force_bottom;
     for (unsigned int layer_id = 0; layer_id < layers.size(); ++ layer_id) {
+        bool is_first_layer = layer_id == 0;
         SupportPointGenerator::MyLayer *layer_top     = &layers[layer_id];
-        SupportPointGenerator::MyLayer *layer_bottom  = (layer_id > 0) ? &layers[layer_id - 1] : nullptr;
-        std::vector<float>        support_force_bottom;
-        if (layer_bottom != nullptr) {
-            support_force_bottom.assign(layer_bottom->islands.size(), 0.f);
-            for (size_t i = 0; i < layer_bottom->islands.size(); ++ i)
+        SupportPointGenerator::MyLayer *layer_bottom  = (!is_first_layer) ? &layers[layer_id - 1] : nullptr;
+        if (!is_first_layer) {
+            support_force_bottom.resize(layer_bottom->islands.size());
+            for (size_t i = 0; i < layer_bottom->islands.size(); ++i)
                 support_force_bottom[i] = layer_bottom->islands[i].supports_force_total();
         }
-        for (Structure &top : layer_top->islands)
-            for (Structure::Link &bottom_link : top.islands_below) {
-                Structure &bottom = *bottom_link.island;
+        for (const Structure &top : layer_top->islands)
+            for (const Structure::Link &bottom_link : top.islands_below) {
+                const Structure &bottom = *bottom_link.island;
                 //float centroids_dist = (bottom.centroid - top.centroid).norm();
                 // Penalization resulting from centroid offset:
 //                  bottom.supports_force *= std::min(1.f, 1.f - std::min(1.f, (1600.f * layer_height) * centroids_dist * centroids_dist / bottom.area));
@@ -265,7 +266,7 @@ void SupportPointGenerator::process(const std::vector<ExPolygons>& slices, const
                 support_force *= std::min(1.f, 20.f * bottom.area / top.area);
             }
         // Let's assign proper support force to each of them:
-        if (layer_id > 0) {
+        if (!is_first_layer) {
             for (Structure &below : layer_bottom->islands) {
                 float below_support_force = support_force_bottom[&below - layer_bottom->islands.data()];
                 float above_overlap_area = 0.f;
@@ -294,16 +295,15 @@ void SupportPointGenerator::add_support_points(SupportPointGenerator::Structure 
 {
     // Select each type of surface (overrhang, dangling, slope), derive the support
     // force deficit for it and call uniformly conver with the right params
-    float tp = m_config.tear_pressure();
     if (s.islands_below.empty()) {
         // completely new island - needs support no doubt
         // deficit is full, there is nothing below that would hold this island
-        uniformly_cover({ *s.polygon }, s, s.area * tp, grid3d, IslandCoverageFlags(icfIsNew | icfWithBoundary) );
+        uniformly_cover({ *s.polygon }, s, s.area, grid3d, IslandCoverageFlags(icfIsNew | icfWithBoundary) );
         return;
     }
 
     if (! s.overhangs.empty()) {
-        uniformly_cover(s.overhangs, s, s.overhangs_area * tp, grid3d);
+        uniformly_cover(s.overhangs, s, s.overhangs_area, grid3d);
     }
 
     auto areafn = [](double sum, auto &p) { return sum + p.area() * SCALING_FACTOR * SCALING_FACTOR; };
@@ -313,14 +313,24 @@ void SupportPointGenerator::add_support_points(SupportPointGenerator::Structure 
         // Let's see if there's anything that overlaps enough to need supports:
         // What we now have in polygons needs support, regardless of what the forces are, so we can add them.
 
-        double a = std::accumulate(s.dangling_areas.begin(), s.dangling_areas.end(), 0., areafn);
-        uniformly_cover(s.dangling_areas, s, a * tp - a * current * s.area, grid3d, icfWithBoundary);
+        // Before Tamas changes
+        // a * tp - current * .09f *std::sqrt(1. - a / s.area)
+
+        // just befor
+        // a * ( 1 - current * s.area);
+
+        double sum_of_dangling_area = std::accumulate(s.dangling_areas.begin(), s.dangling_areas.end(), 0., areafn);
+        double dangling_ratio = sum_of_dangling_area / s.area;
+        float deficit = current * .09f * dangling_ratio;
+        //uniformly_cover(s.dangling_areas, s, deficit, grid3d, icfWithBoundary);
     }
 
     current = s.supports_force_total();
     if (! s.overhangs_slopes.empty()) {
-        double a = std::accumulate(s.overhangs_slopes.begin(), s.overhangs_slopes.end(), 0., areafn);
-        uniformly_cover(s.overhangs_slopes, s, a * tp - a * current / s.area, grid3d, icfWithBoundary);
+        double sum_of_overhang_area = std::accumulate(s.overhangs_slopes.begin(), s.overhangs_slopes.end(), 0., areafn);
+        double overhang_ratio = sum_of_overhang_area / s.area;
+        float deficit = current * .0015f * overhang_ratio;
+        //uniformly_cover(s.overhangs_slopes, s, deficit, grid3d, icfWithBoundary);
     }
 }
 
@@ -559,7 +569,7 @@ void SupportPointGenerator::uniformly_cover(const ExPolygons& islands, Structure
     // Number of newly added points.
     const size_t poisson_samples_target = size_t(ceil(support_force_deficit / m_config.support_force()));
 
-    const float density_horizontal = m_config.tear_pressure() / m_config.support_force();
+    const float density_horizontal = 1. / m_config.support_force();
     //FIXME why?
     float poisson_radius		= std::max(m_config.minimal_distance, 1.f / (5.f * density_horizontal));
 //    const float poisson_radius     = 1.f / (15.f * density_horizontal);

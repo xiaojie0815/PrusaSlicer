@@ -64,7 +64,7 @@ TEST_CASE("Overhanging horizontal surface should be supported", "[SupGen]") {
     double mm2 = width * depth;
 
     REQUIRE(!pts.empty());
-    REQUIRE(pts.size() * cfg.support_force() > mm2 * cfg.tear_pressure());
+    REQUIRE(pts.size() * cfg.support_force() > mm2);
     REQUIRE(min_point_distance(pts) >= cfg.minimal_distance);
 }
 
@@ -97,7 +97,7 @@ TEST_CASE("Overhanging edge should be supported", "[SupGen]") {
                      return line_alg::distance_to(overh, Vec3d{pt.pos.cast<double>()}) < 1.;
                  });
 
-    REQUIRE(overh_pts.size() * cfg.support_force() > overh.length() * cfg.tear_pressure());
+    REQUIRE(overh_pts.size() * cfg.support_force() > overh.length());
     double ddiff = min_point_distance(pts) - cfg.minimal_distance;
     REQUIRE(ddiff > - 0.1 * cfg.minimal_distance);
 }
