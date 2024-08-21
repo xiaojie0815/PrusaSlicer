@@ -1458,6 +1458,7 @@ void TabPrint::build()
 
         optgroup = page->new_optgroup(L("Advanced"));
         optgroup->append_single_option_line("seam_position", category_path + "seam-position");
+        optgroup->append_single_option_line("seam_gap_distance", category_path + "seam-gap-distance");
         optgroup->append_single_option_line("staggered_inner_seams", category_path + "staggered-inner-seams");
 
         optgroup->append_single_option_line("scarf_seam_placement", category_path + "scarf-seam-placement");
@@ -1968,6 +1969,9 @@ std::vector<std::pair<std::string, std::vector<std::string>>> filament_overrides
     {"Retraction when tool is disabled", {
         "filament_retract_length_toolchange",
         "filament_retract_restart_extra_toolchange"
+    }},
+    {"Seams", {
+        "filament_seam_gap_distance"
     }}
 };
 

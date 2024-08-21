@@ -2654,6 +2654,17 @@ void PrintConfigDef::init_fff_params()
     def->mode = comAdvanced;
     def->set_default_value(new ConfigOptionFloats { 0. });
 
+    def = this->add("seam_gap_distance", coFloatOrPercent);
+    def->label = L("Seam gap distance");
+    def->tooltip = L("The distance between the endpoints of a closed loop perimeter. "
+                   "Positive values will shorten and interrupt the loop slightly to reduce the seam. "
+                   "Negative values will extend the loop, causing the endpoints to overlap slightly. "
+                   "When percents are used, the distance is derived from the nozzle diameter. "
+                   "Set to zero to disable this feature.");
+    def->sidetext = L("mm or %");
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionFloatOrPercent{ 15., true });
+
     def = this->add("seam_position", coEnum);
     def->label = L("Seam position");
     def->category = L("Layers and Perimeters");
@@ -3775,9 +3786,9 @@ void PrintConfigDef::init_fff_params()
         auto it_opt = options.find(opt_key);
         assert(it_opt != options.end());
         def = this->add_nullable(std::string("filament_") + opt_key, it_opt->second.type);
-        def->label 		= it_opt->second.label;
+        def->label      = it_opt->second.label;
         def->full_label = it_opt->second.full_label;
-        def->tooltip 	= it_opt->second.tooltip;
+        def->tooltip    = it_opt->second.tooltip;
         def->sidetext   = it_opt->second.sidetext;
         def->mode       = it_opt->second.mode;
         switch (def->type) {
@@ -3785,6 +3796,44 @@ void PrintConfigDef::init_fff_params()
         case coPercents : def->set_default_value(new ConfigOptionPercentsNullable(static_cast<const ConfigOptionPercents*>(it_opt->second.default_value.get())->values)); break;
         case coBools    : def->set_default_value(new ConfigOptionBoolsNullable   (static_cast<const ConfigOptionBools*   >(it_opt->second.default_value.get())->values)); break;
         default: assert(false);
+        }
+    }
+
+    // Declare values for filament profile, overriding printer's profile.
+    for (const char *opt_key : {
+        // Floats or Percents
+        "seam_gap_distance"}) {
+
+        auto it_opt = options.find(opt_key);
+        assert(it_opt != options.end());
+
+        switch (it_opt->second.type) {
+            case coFloatOrPercent: {
+                def = this->add_nullable(std::string("filament_") + opt_key, coFloatsOrPercents);
+                break;
+            }
+            default: {
+                assert(false);
+                break;
+            }
+        }
+
+        def->label      = it_opt->second.label;
+        def->full_label = it_opt->second.full_label;
+        def->tooltip    = it_opt->second.tooltip;
+        def->sidetext   = it_opt->second.sidetext;
+        def->mode       = it_opt->second.mode;
+
+        switch (def->type) {
+            case coFloatsOrPercents: {
+                const auto &default_value = *static_cast<const ConfigOptionFloatOrPercent *>(it_opt->second.default_value.get());
+                def->set_default_value(new ConfigOptionFloatsOrPercentsNullable{{default_value.value, default_value.percent}});
+                break;
+            }
+            default: {
+                assert(false);
+                break;
+            }
         }
     }
 }
