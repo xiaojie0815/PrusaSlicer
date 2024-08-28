@@ -178,8 +178,8 @@ private:
 
         bool        adjustable_flow       = false;
 
-        void        update_end_position(const float *position_end);
-        void        update_end_position(const float *position_start, const float *position_end, float t);
+        void        update_end_position(const float *position_end, const bool *position_provided_original);
+        void        update_end_position(const float *position_start, const float *position_end, float t, const bool *position_provided_original);
     };
 
     using GCodeLines = std::vector<GCodeLine>;
