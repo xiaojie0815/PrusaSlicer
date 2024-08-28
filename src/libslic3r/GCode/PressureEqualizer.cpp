@@ -329,8 +329,6 @@ bool PressureEqualizer::process_line(const char *line, const char *line_end, GCo
         {
             // G0, G1: A FFF 3D printer does not make a difference between the two.
             buf.adjustable_flow = this->opened_extrude_set_speed_block;
-            buf.extrude_set_speed_tag = found_extrude_set_speed_tag;
-            buf.extrude_end_tag = found_extrude_end_tag;
             float new_pos[5];
             memcpy(new_pos, m_current_pos, sizeof(float)*5);
             bool  changed[5] = { false, false, false, false, false };
@@ -482,6 +480,30 @@ bool PressureEqualizer::process_line(const char *line, const char *line_end, GCo
     return true;
 }
 
+void PressureEqualizer::GCodeLine::update_end_position(const float *position_end)
+{
+    assert(position_end != nullptr);
+    if (position_end == nullptr)
+        return;
+
+    for (int i = 0; i < 4; ++i) {
+        this->pos_end[i]      = position_end[i];
+        this->pos_provided[i] = true;
+    }
+}
+
+void PressureEqualizer::GCodeLine::update_end_position(const float *position_start, const float *position_end, const float t)
+{
+    assert(position_start != nullptr && position_end != nullptr);
+    if (position_start == nullptr || position_end == nullptr)
+        return;
+
+    for (size_t i = 0; i < 4; ++i) {
+        this->pos_end[i]      = position_start[i] + (position_end[i] - position_start[i]) * t;
+        this->pos_provided[i] = true;
+    }
+}
+
 void PressureEqualizer::output_gcode_line(const size_t line_idx)
 {
     GCodeLine &line = m_gcode_lines[line_idx];
@@ -548,15 +570,11 @@ void PressureEqualizer::output_gcode_line(const size_t line_idx)
                 float t = l_acc / l;
                 for (int i = 0; i < 4; ++ i) {
                     pos_end[i] = pos_start[i] + (pos_end[i] - pos_start[i]) * t;
-                    line.pos_provided[i] = true;
                 }
             } else {
                 // Emit the steady feed rate segment.
-                float t = l_steady / l;
-                for (int i = 0; i < 4; ++ i) {
-                    line.pos_end[i] = pos_start[i] + (pos_end[i] - pos_start[i]) * t;
-                    line.pos_provided[i] = true;
-                }
+                const float t = l_steady / l;
+                line.update_end_position(pos_start, pos_end, t);
                 push_line_to_output(line_idx, pos_start[4], comment);
                 comment = nullptr;
 
@@ -569,29 +587,23 @@ void PressureEqualizer::output_gcode_line(const size_t line_idx)
                 pos_start[4] = new_pos_start_feedrate;
             }
         }
+
         // Split the segment into pieces.
         for (size_t i = 1; i < nSegments; ++ i) {
-            float t = float(i) / float(nSegments);
-            for (size_t j = 0; j < 4; ++ j) {
-                line.pos_end[j] = pos_start[j] + (pos_end[j] - pos_start[j]) * t;
-                line.pos_provided[j] = true;
-            }
+            const float t = float(i) / float(nSegments);
+            line.update_end_position(pos_start, pos_end, t);
+
             // Interpolate the feed rate at the center of the segment.
             push_line_to_output(line_idx, pos_start[4] + (pos_end[4] - pos_start[4]) * (float(i) - 0.5f) / float(nSegments), comment);
             comment = nullptr;
             memcpy(line.pos_start, line.pos_end, sizeof(float)*5);
         }
+
         if (l_steady > 0.f && accelerating) {
-            for (int i = 0; i < 4; ++ i) {
-                line.pos_end[i] = pos_end2[i];
-                line.pos_provided[i] = true;
-            }
+            line.update_end_position(pos_end2);
             push_line_to_output(line_idx, pos_end[4], comment);
         } else {
-            for (int i = 0; i < 4; ++ i) {
-                line.pos_end[i] = pos_end[i];
-                line.pos_provided[i] = true;
-            }
+            line.update_end_position(pos_end);
             push_line_to_output(line_idx, pos_end[4], comment);
         }
     }
