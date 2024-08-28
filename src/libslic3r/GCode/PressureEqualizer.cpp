@@ -41,6 +41,11 @@ static constexpr int max_look_back_limit = 128;
 // Lines where some extruder pressure will remain (so we should equalize between these small travels).
 static constexpr double max_ignored_gap_between_extruding_segments = 3.;
 
+// Minimum feedrate change that will be emitted into the G-code.
+// Changes below this value will not be emitted into the G-code to filter out tiny changes
+// of feedrate and reduce the size of the G-code.
+static constexpr float min_emitted_feedrate_change = 0.20f * 60.f;
+
 PressureEqualizer::PressureEqualizer(const Slic3r::GCodeConfig &config) : m_use_relative_e_distances(config.use_relative_e_distances.value)
 {
     // Preallocate some data, so that output_buffer.data() will return an empty string.
@@ -493,21 +498,27 @@ void PressureEqualizer::output_gcode_line(const size_t line_idx)
         comment = nullptr;
 
     // Emit the line with lowered extrusion rates.
-    float l = line.dist_xyz();
-    if (auto nSegments = size_t(ceil(l / max_segment_length)); nSegments == 1) { // Just update this segment.
+    const float l              = line.dist_xyz();
+    const float feedrate_start = line.volumetric_extrusion_rate_start * line.feedrate() / line.volumetric_extrusion_rate;
+    const float feedrate_end   = line.volumetric_extrusion_rate_end   * line.feedrate() / line.volumetric_extrusion_rate;
+    const float feedrate_avg   = 0.5f * (feedrate_start + feedrate_end);
+    if (std::abs(feedrate_avg - line.pos_end[4]) <= min_emitted_feedrate_change) {
+        // The average feedrate is close to the original feedrate, so we emit the line with the original feedrate.
+        push_line_to_output(line_idx, line.pos_end[4], comment);
+    } else if (auto nSegments = size_t(ceil(l / max_segment_length)); nSegments == 1) { // Just update this segment.
         push_line_to_output(line_idx, line.feedrate() * line.volumetric_correction_avg(), comment);
     } else {
         bool accelerating = line.volumetric_extrusion_rate_start < line.volumetric_extrusion_rate_end;
         // Update the initial and final feed rate values.
-        line.pos_start[4] = line.volumetric_extrusion_rate_start * line.pos_end[4] / line.volumetric_extrusion_rate;
-        line.pos_end  [4] = line.volumetric_extrusion_rate_end   * line.pos_end[4] / line.volumetric_extrusion_rate;
-        float feed_avg = 0.5f * (line.pos_start[4] + line.pos_end[4]);
+        line.pos_start[4] = feedrate_start;
+        line.pos_end  [4] = feedrate_end;
+
         // Limiting volumetric extrusion rate slope for this segment.
         float max_volumetric_extrusion_rate_slope = accelerating ? line.max_volumetric_extrusion_rate_slope_positive :
                                                                    line.max_volumetric_extrusion_rate_slope_negative;
         // Total time for the segment, corrected for the possibly lowered volumetric feed rate,
         // if accelerating / decelerating over the complete segment.
-        float t_total = line.dist_xyz() / feed_avg;
+        float t_total = line.dist_xyz() / feedrate_avg;
         // Time of the acceleration / deceleration part of the segment, if accelerating / decelerating
         // with the maximum volumetric extrusion rate slope.
         float t_acc    = 0.5f * (line.volumetric_extrusion_rate_start + line.volumetric_extrusion_rate_end) / max_volumetric_extrusion_rate_slope;
@@ -515,7 +526,7 @@ void PressureEqualizer::output_gcode_line(const size_t line_idx)
         float l_steady = 0.f;
         if (t_acc < t_total) {
             // One may achieve higher print speeds if part of the segment is not speed limited.
-            l_acc    = t_acc * feed_avg;
+            l_acc    = t_acc * feedrate_avg;
             l_steady = l - l_acc;
             if (l_steady < 0.5f * max_segment_length) {
                 l_acc    = l;
@@ -523,6 +534,7 @@ void PressureEqualizer::output_gcode_line(const size_t line_idx)
             } else
                 nSegments = size_t(ceil(l_acc / max_segment_length));
         }
+
         float pos_start[5];
         float pos_end[5];
         float pos_end2[4];
