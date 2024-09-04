@@ -9,6 +9,7 @@
 
 #include <boost/algorithm/string.hpp>
 #include <boost/log/trivial.hpp>
+#include <curl/curl.h>
 
 namespace Slic3r {
 namespace GUI {
@@ -72,6 +73,21 @@ std::string filename_from_url(const std::string& url)
 		return std::string();
 	return std::string(url_plain.begin() + slash + 1, url_plain.end());
 }
+std::string unescape_url(const std::string& unescaped)
+{
+	std::string ret_val;
+	CURL* curl = curl_easy_init();
+	if (curl) {
+		int decodelen;
+		char* decoded = curl_easy_unescape(curl, unescaped.c_str(), unescaped.size(), &decodelen);
+		if (decoded) {
+			ret_val = std::string(decoded);
+			curl_free(decoded);
+		}
+		curl_easy_cleanup(curl);
+	}
+	return ret_val;
+}
 }
 
 Download::Download(int ID, std::string url, wxEvtHandler* evt_handler, const boost::filesystem::path& dest_folder)
@@ -133,23 +149,18 @@ void Downloader::start_download(const std::string& full_url)
 {
 	assert(m_initialized);
 	
-	// TODO: There is a misterious slash appearing in recieved msg on windows
-#ifdef _WIN32
-	if (!boost::starts_with(full_url, "prusaslicer://open/?file=")) {
-#else
-    if (!boost::starts_with(full_url, "prusaslicer://open?file=")) {
-#endif
-		BOOST_LOG_TRIVIAL(error) << "Could not start download due to wrong URL: " << full_url;
-		// TODO: show error?
+    std::string escaped_url = unescape_url(full_url);
+    if (boost::starts_with(escaped_url, "prusaslicer://open?file=")) {
+        escaped_url = escaped_url.substr(24);
+    }else if (boost::starts_with(escaped_url, "prusaslicer://open/?file=")) {
+        escaped_url = escaped_url.substr(25);
+    } else {
+        BOOST_LOG_TRIVIAL(error) << "Could not start download due to wrong URL: " << full_url;
 		return;
-	}
+    }
+    
     size_t id = get_next_id();
-    // TODO: still same mistery 
-#ifdef _WIN32
-    std::string escaped_url = FileGet::escape_url(full_url.substr(25));
-#else
-    std::string escaped_url = FileGet::escape_url(full_url.substr(24));
-#endif
+
 	if (!boost::starts_with(escaped_url, "https://") || !FileGet::is_subdomain(escaped_url, "printables.com")) {
 		std::string msg = format(_L("Download won't start. Download URL doesn't point to https://printables.com : %1%"), escaped_url);
 		BOOST_LOG_TRIVIAL(error) << msg;

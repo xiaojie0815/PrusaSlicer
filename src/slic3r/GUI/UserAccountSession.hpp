@@ -30,6 +30,7 @@ wxDECLARE_EVENT(EVT_UA_FAIL, UserAccountFailEvent); // Soft fail - clears only a
 wxDECLARE_EVENT(EVT_UA_RESET, UserAccountFailEvent); // Hard fail - clears all
 wxDECLARE_EVENT(EVT_UA_PRUSACONNECT_PRINTER_DATA_FAIL, UserAccountFailEvent); // Failed to get data for printer to select, soft fail, action does not repeat
 wxDECLARE_EVENT(EVT_UA_REFRESH_TIME, UserAccountTimeEvent);
+wxDECLARE_EVENT(EVT_UA_ENQUEUED_REFRESH, SimpleEvent);
 
 typedef std::function<void(const std::string& body)> UserActionSuccessFn;
 typedef std::function<void(const std::string& body)> UserActionFailFn;

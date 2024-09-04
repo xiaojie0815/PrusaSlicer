@@ -103,7 +103,6 @@
 #include "WifiConfigDialog.hpp"
 #include "UserAccount.hpp"
 #include "UserAccountUtils.hpp"
-#include "WebViewDialog.hpp"
 #include "LoginDialog.hpp" // IWYU pragma: keep
 #include "PresetArchiveDatabase.hpp"
 
@@ -4111,6 +4110,12 @@ void GUI_App::handle_connect_request_printer_select_inner(const std::string & ms
 void GUI_App::show_printer_webview_tab()
 {
     mainframe->show_printer_webview_tab(preset_bundle->physical_printers.get_selected_printer_config());
+}
+
+void GUI_App::printables_request(const std::string& url)
+{
+    this->mainframe->select_tab(size_t(0));
+    start_download(url);
 }
 
 

@@ -47,7 +47,7 @@ class PreferencesDialog;
 class GalleryDialog;
 class ConnectWebViewPanel; 
 class PrinterWebViewPanel;
-class WebViewPanel;
+class PrintablesWebViewPanel;
 
 enum QuickSlice
 {
@@ -101,7 +101,7 @@ class MainFrame : public DPIFrame
 
     ConnectWebViewPanel*    m_connect_webview{ nullptr };
     bool                    m_connect_webview_added{ false };
-    WebViewPanel*           m_printables_webview{ nullptr };
+    PrintablesWebViewPanel* m_printables_webview{ nullptr };
     bool                    m_printables_webview_added{ false };
     PrinterWebViewPanel*    m_printer_webview{ nullptr };
     bool                    m_printer_webview_added{ false };
@@ -126,6 +126,9 @@ class MainFrame : public DPIFrame
     bool can_delete() const;
     bool can_delete_all() const;
     bool can_reslice() const;
+
+    void    add_connect_webview_tab();
+    void    remove_connect_webview_tab();
 
     // MenuBar items changeable in respect to printer technology 
     enum MenuItems
@@ -217,8 +220,10 @@ public:
     void        add_to_recent_projects(const wxString& filename);
     void        technology_changed();
 
-    void    add_connect_webview_tab();
-    void    remove_connect_webview_tab();
+    void    on_account_login(const std::string& token);
+    void    on_account_will_refresh();
+    void    on_account_did_refresh(const std::string& token);
+    void    on_account_logout();
     void    show_connect_tab(const wxString &url);
 
     void    add_printables_webview_tab();

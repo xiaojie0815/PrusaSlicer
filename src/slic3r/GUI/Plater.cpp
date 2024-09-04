@@ -915,13 +915,16 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
         this->q->Bind(EVT_OPEN_EXTERNAL_LOGIN_WIZARD, open_external_login);
         this->q->Bind(EVT_OPEN_EXTERNAL_LOGIN, open_external_login);
     
+        //    void    on_account_login(const std::string& token);
+        // void    on_account_will_refresh();
+        // void    on_account_did_refresh(const std::string& token);
+        // void    on_account_logout();
         this->q->Bind(EVT_UA_LOGGEDOUT, [this](UserAccountSuccessEvent& evt) {
             user_account->clear();
             std::string text = _u8L("Logged out from Prusa Account.");
             this->notification_manager->close_notification_of_type(NotificationType::UserAccountID);
             this->notification_manager->push_notification(NotificationType::UserAccountID, NotificationManager::NotificationLevel::ImportantNotificationLevel, text);
-            this->main_frame->remove_connect_webview_tab();
-            this->main_frame->remove_printables_webview_tab();
+            this->main_frame->on_account_logout();
             this->main_frame->refresh_account_menu(true);
             // Update sidebar printer status
             sidebar->update_printer_presets_combobox();
@@ -938,16 +941,19 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
             std::string who = user_account->get_username();
             std::string username;
             if (user_account->on_user_id_success(evt.data, username)) {
-                // Do not show notification on refresh.
                 if (who != username) {
+                    // show notification only on login (not refresh).
                     std::string text = format(_u8L("Logged to Prusa Account as %1%."), username);
                     // login notification
                     this->notification_manager->close_notification_of_type(NotificationType::UserAccountID);
                     // show connect tab
                     this->notification_manager->push_notification(NotificationType::UserAccountID, NotificationManager::NotificationLevel::ImportantNotificationLevel, text);
+                    
+                    this->main_frame->on_account_login(user_account->get_access_token());
+                } else {
+                    // refresh do different operations than on_account_login
+                    this->main_frame->on_account_did_refresh(user_account->get_access_token());
                 }
-                this->main_frame->add_connect_webview_tab();
-                this->main_frame->add_printables_webview_tab();
                 // Update User name in TopBar
                 this->main_frame->refresh_account_menu();
                 wxGetApp().update_wizard_login_page();
@@ -960,8 +966,7 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
                 user_account->clear();
                 this->notification_manager->close_notification_of_type(NotificationType::UserAccountID);
                 this->notification_manager->push_notification(NotificationType::UserAccountID, NotificationManager::NotificationLevel::WarningNotificationLevel, _u8L("Failed to connect to Prusa Account."));
-                this->main_frame->remove_connect_webview_tab();
-                this->main_frame->remove_printables_webview_tab();
+                this->main_frame->on_account_logout();
                 // Update User name in TopBar
                 this->main_frame->refresh_account_menu(true);
                 // Update sidebar printer status
@@ -974,8 +979,7 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
             user_account->clear();
             this->notification_manager->close_notification_of_type(NotificationType::UserAccountID);
             this->notification_manager->push_notification(NotificationType::UserAccountID, NotificationManager::NotificationLevel::WarningNotificationLevel, _u8L("Failed to connect to Prusa Account."));
-            this->main_frame->remove_connect_webview_tab();
-            this->main_frame->remove_printables_webview_tab();
+            this->main_frame->on_account_logout();
             // Update User name in TopBar
             this->main_frame->refresh_account_menu(true);
             // Update sidebar printer status
@@ -1036,7 +1040,10 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
 
         this->q->Bind(EVT_UA_REFRESH_TIME, [this](UserAccountTimeEvent& evt) {
             this->user_account->set_refresh_time(evt.data);
-            });        
+        });  
+        this->q->Bind(EVT_UA_ENQUEUED_REFRESH, [this](SimpleEvent& evt) {
+             this->main_frame->on_account_will_refresh();
+        });  
     }
 
 	wxGetApp().other_instance_message_handler()->init(this->q);

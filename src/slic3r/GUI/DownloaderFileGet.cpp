@@ -23,21 +23,6 @@ namespace GUI {
 const size_t DOWNLOAD_MAX_CHUNK_SIZE	= 10 * 1024 * 1024;
 const size_t DOWNLOAD_SIZE_LIMIT		= 1024 * 1024 * 1024;
 
-std::string FileGet::escape_url(const std::string& unescaped)
-{
-	std::string ret_val;
-	CURL* curl = curl_easy_init();
-	if (curl) {
-		int decodelen;
-		char* decoded = curl_easy_unescape(curl, unescaped.c_str(), unescaped.size(), &decodelen);
-		if (decoded) {
-			ret_val = std::string(decoded);
-			curl_free(decoded);
-		}
-		curl_easy_cleanup(curl);
-	}
-	return ret_val;
-}
 bool FileGet::is_subdomain(const std::string& url, const std::string& domain)
 {
 	// domain should be f.e. printables.com (.com including)

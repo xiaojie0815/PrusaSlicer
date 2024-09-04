@@ -30,6 +30,8 @@ public:
     bool webdev_enabled() const { return m_webdev_enabled; }
     void set_webdev_enabled(bool enabled) { m_webdev_enabled = enabled; }
 
+    const std::string& printables_url() const { return m_printables_url; }
+
     static ServiceConfig& instance();
 private:
     std::string m_connect_url;
@@ -37,6 +39,7 @@ private:
     std::string m_account_client_id;
     std::string m_media_url;
     std::string m_preset_repo_url;
+    std::string m_printables_url;
     bool m_webdev_enabled{false};
 };
 

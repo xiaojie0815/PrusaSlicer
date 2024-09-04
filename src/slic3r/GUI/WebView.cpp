@@ -1,6 +1,9 @@
 #include "WebView.hpp"
 #include "slic3r/GUI/GUI_App.hpp"
 #include "slic3r/GUI/GUI.hpp"
+#include "slic3r/GUI/format.hpp"
+
+#include "libslic3r/Platform.hpp"
 
 #include <wx/uri.h>
 #include <wx/webview.h>
@@ -21,9 +24,9 @@ wxWebView* WebView::CreateWebView(wxWindow * parent, const wxString& url, const 
     
     if (webView) {
         wxString correct_url = url.empty() ? wxString("") : wxURI(url).BuildURI();
-
+        wxString user_agent = Slic3r::GUI::format_wxstr("%1%/%2% (%3%)",SLIC3R_APP_FULL_NAME, SLIC3R_VERSION, Slic3r::platform_to_string(Slic3r::platform()));
 #ifdef __WIN32__
-        webView->SetUserAgent(SLIC3R_APP_FULL_NAME);
+        webView->SetUserAgent(user_agent);
         webView->Create(parent, wxID_ANY, correct_url, wxDefaultPosition, wxDefaultSize);
         //We register the wxfs:// protocol for testing purposes
         //webView->RegisterHandler(wxSharedPtr<wxWebViewHandler>(new wxWebViewArchiveHandler("wxfs")));
@@ -35,7 +38,7 @@ wxWebView* WebView::CreateWebView(wxWindow * parent, const wxString& url, const 
         // And the memory: file system
         //webView->RegisterHandler(wxSharedPtr<wxWebViewHandler>(new wxWebViewFSHandler("memory")));
         webView->Create(parent, wxID_ANY, correct_url, wxDefaultPosition, wxDefaultSize);
-        webView->SetUserAgent(wxString::FromUTF8(SLIC3R_APP_FULL_NAME));
+        webView->SetUserAgent(user_agent);
 #endif
 #ifndef __WIN32__
         Slic3r::GUI::wxGetApp().CallAfter([message_handlers, webView] {
@@ -57,5 +60,3 @@ wxWebView* WebView::CreateWebView(wxWindow * parent, const wxString& url, const 
     }
     return webView;
 }
-
-
