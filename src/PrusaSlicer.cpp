@@ -751,6 +751,11 @@ int CLI::run(int argc, char **argv)
         params.load_configs = load_configs;
         params.extra_config = std::move(m_extra_config);
         params.input_files  = std::move(m_input_files);
+        if (has_config_from_profiles && params.input_files.empty()) {
+            params.selected_presets = Slic3r::GUI::CLISelectedProfiles{ m_config.opt_string("print-profile"),
+                                                                        m_config.opt_string("printer-profile") ,
+                                                                        m_config.option<ConfigOptionStrings>("material-profile")->values };
+        }
         params.start_as_gcodeviewer = start_as_gcodeviewer;
         params.start_downloader = start_downloader;
         params.download_url = download_url;

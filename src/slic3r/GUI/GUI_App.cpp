@@ -817,6 +817,26 @@ void GUI_App::post_init()
         }
         if (! this->init_params->extra_config.empty())
             this->mainframe->load_config(this->init_params->extra_config);
+
+        if (this->init_params->selected_presets.has_valid_data()) {
+            if (Tab* printer_tab = get_tab(Preset::TYPE_PRINTER))
+                printer_tab->select_preset(this->init_params->selected_presets.printer);
+
+            const bool is_fff = preset_bundle->printers.get_selected_preset().printer_technology() == ptFFF;
+            if (Tab* print_tab = get_tab(is_fff ? Preset::TYPE_PRINT : Preset::TYPE_SLA_PRINT))
+                print_tab->select_preset(this->init_params->selected_presets.print);
+
+            if (Tab* print_tab = get_tab(is_fff ? Preset::TYPE_FILAMENT : Preset::TYPE_SLA_MATERIAL)) {
+                const auto& materials = this->init_params->selected_presets.materials;
+                print_tab->select_preset(materials[0]);
+
+                if (is_fff && materials.size() > 1) {
+                    for (size_t idx = 1; idx < materials.size(); idx++)
+                        preset_bundle->set_filament_preset(idx, materials[idx]);
+                    sidebar().update_all_filament_comboboxes();
+                }
+            }
+        }
     }
 
     // show "Did you know" notification
