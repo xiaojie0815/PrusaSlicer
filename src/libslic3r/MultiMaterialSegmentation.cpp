@@ -1602,6 +1602,15 @@ static void update_color_changes_using_color_projection_ranges(std::vector<Color
     }
 }
 
+static indexed_triangle_set_with_color extract_mesh_with_color(const ModelVolume &volume) {
+    if (const int volume_extruder_id = volume.extruder_id(); !volume.is_mm_painted() && volume_extruder_id >= 0) {
+        const TriangleMesh &mesh = volume.mesh();
+        return {mesh.its.indices, mesh.its.vertices, std::vector<uint8_t>(mesh.its.indices.size(), uint8_t(volume_extruder_id))};
+    }
+
+    return volume.mm_segmentation_facets.get_all_facets_strict_with_colors(volume);
+}
+
 std::vector<std::vector<ExPolygons>> multi_material_segmentation_by_painting(const PrintObject &print_object, const std::function<void()> &throw_on_cancel_callback)
 {
     const size_t                                   num_extruders = print_object.print()->config().nozzle_diameter.size();
@@ -1650,7 +1659,7 @@ std::vector<std::vector<ExPolygons>> multi_material_segmentation_by_painting(con
     BOOST_LOG_TRIVIAL(debug) << "MM segmentation - Slicing painted triangles - Begin";
     const std::vector<float> layer_zs = get_print_object_layers_zs(layers);
     for (const ModelVolume *mv : print_object.model_object()->volumes) {
-        const indexed_triangle_set_with_color mesh_with_color = mv->mm_segmentation_facets.get_all_facets_strict_with_colors(*mv);
+        const indexed_triangle_set_with_color mesh_with_color = extract_mesh_with_color(*mv);
         const Transform3d                     trafo           = print_object.trafo_centered() * mv->get_matrix();
         const MeshSlicingParams               slicing_params{trafo};
 

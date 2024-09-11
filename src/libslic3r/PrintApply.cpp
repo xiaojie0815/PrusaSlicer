@@ -1403,17 +1403,19 @@ Print::ApplyStatus Print::apply(const Model &model, DynamicPrintConfig new_full_
             print_object_regions->ref_cnt_inc();
         }
         std::vector<unsigned int> painting_extruders;
-        if (const auto &volumes = print_object.model_object()->volumes;
-            num_extruders > 1 &&
-            std::find_if(volumes.begin(), volumes.end(), [](const ModelVolume *v) { return ! v->mm_segmentation_facets.empty(); }) != volumes.end()) {
-
+        if (const auto &volumes = print_object.model_object()->volumes; num_extruders > 1 && print_object.model_object()->is_mm_painted()) {
             std::array<bool, static_cast<size_t>(TriangleStateType::Count)> used_facet_states{};
             for (const ModelVolume *volume : volumes) {
-                const std::vector<bool> &volume_used_facet_states = volume->mm_segmentation_facets.get_data().used_states;
+                if (volume->is_mm_painted()) {
+                    const std::vector<bool> &volume_used_facet_states = volume->mm_segmentation_facets.get_data().used_states;
 
-                assert(volume_used_facet_states.size() == used_facet_states.size());
-                for (size_t state_idx = 0; state_idx < std::min(volume_used_facet_states.size(), used_facet_states.size()); ++state_idx)
-                    used_facet_states[state_idx] |= volume_used_facet_states[state_idx];
+                    assert(volume_used_facet_states.size() == used_facet_states.size());
+                    for (size_t state_idx = 0; state_idx < std::min(volume_used_facet_states.size(), used_facet_states.size()); ++state_idx) {
+                        used_facet_states[state_idx] |= volume_used_facet_states[state_idx];
+                    }
+                } else if (const int volume_extruder_id = volume->extruder_id(); volume_extruder_id >= 0) {
+                    used_facet_states[volume_extruder_id] |= true;
+                }
             }
 
             for (size_t state_idx = static_cast<size_t>(TriangleStateType::Extruder1); state_idx < used_facet_states.size(); ++state_idx) {
