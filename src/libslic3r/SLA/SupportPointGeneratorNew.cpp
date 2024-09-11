@@ -1,677 +1,382 @@
-///|/ Copyright (c) Prusa Research 2019 - 2023 Tomáš Mészáros @tamasmeszaros, Vojtěch Bubník @bubnikv, Lukáš Matěna @lukasmatena
+///|/ Copyright (c) Prusa Research 2024 Filip Sykala @Jony01
 ///|/
 ///|/ PrusaSlicer is released under the terms of the AGPLv3 or higher
 ///|/
-#include <random>
-#include <cstdlib>
-#include <limits>
-#include <numeric>
-#include <algorithm>
-#include <cassert>
 
-#include "SupportPointGenerator.hpp"
-#include "libslic3r/Execution/ExecutionTBB.hpp"
-#include "libslic3r/Geometry/ConvexHull.hpp"
-#include "libslic3r/Model.hpp"
-#include "libslic3r/ExPolygon.hpp"
-#include "libslic3r/Point.hpp"
-#include "libslic3r/ClipperUtils.hpp"
-#include "libslic3r/Tesselate.hpp"
-#include "libslic3r/MinAreaBoundingBox.hpp"
-#include "libslic3r/libslic3r.h"
-#include "libslic3r/AABBMesh.hpp"
+#include "SupportPointGeneratorNew.hpp"
+
+#include <unordered_map> // point grid
+
+#include "libslic3r/Execution/ExecutionTBB.hpp" // parallel preparation of data for sampling
 #include "libslic3r/Execution/Execution.hpp"
-#include "libslic3r/SLA/SupportPoint.hpp"
-#include "libslic3r/BoundingBox.hpp"
 
-namespace Slic3r {
-namespace sla {
+using namespace Slic3r;
+using namespace Slic3r::sla;
 
-/*float SupportPointGenerator::approximate_geodesic_distance(const Vec3d& p1, const Vec3d& p2, Vec3d& n1, Vec3d& n2)
+namespace {
+
+/// <summary>
+/// Struct to store support points in 2d grid to faster search for nearest support points
+/// </summary>
+class Grid2D
 {
-    n1.normalize();
-    n2.normalize();
+    coord_t m_cell_size; // Squar: x and y are same
+    coord_t m_cell_size_half;
+    using Key = Point;
+    using Grid = std::unordered_multimap<Key, SupportPoint>;
+    Grid m_grid;
 
-    Vec3d v = (p2-p1);
-    v.normalize();
+public:
+    /// <summary>
+    /// Set cell size for grid
+    /// </summary>
+    /// <param name="cell_size">Granularity of stored points
+    /// Must be bigger than maximal used radius</param>
+    explicit Grid2D(const coord_t &cell_size)
+        : m_cell_size(cell_size), m_cell_size_half(cell_size / 2) {}
 
-    float c1 = n1.dot(v);
-    float c2 = n2.dot(v);
-    float result = pow(p1(0)-p2(0), 2) + pow(p1(1)-p2(1), 2) + pow(p1(2)-p2(2), 2);
-    // Check for division by zero:
-    if(fabs(c1 - c2) > 0.0001)
-        result *= (asin(c1) - asin(c2)) / (c1 - c2);
-    return result;
+    Key cell_id(const Point &point) const {
+        return Key(point.x() / m_cell_size, point.y() / m_cell_size);
+    }
+
+    void add(SupportPoint &&point) {
+        m_grid.emplace(cell_id(point.position_on_layer), std::move(point));
+    }
+
+    using CheckFnc = std::function<bool(const SupportPoint &, const Point&)>;
+    bool exist_true_in_4cell_neighbor(const Point &pos, const CheckFnc& fnc) const {
+        Key key = cell_id(pos);
+        if (exist_true_for_cell(key, pos, fnc)) return true;
+        Point un_cell_pos(
+            key.x() * m_cell_size + m_cell_size_half, 
+            key.y() * m_cell_size + m_cell_size_half );
+        Key key2(
+            (un_cell_pos.x() > pos.x()) ? key.x() + 1 : key.x() - 1,
+            (un_cell_pos.y() > pos.y()) ? key.y() + 1 : key.y() - 1);
+        if (exist_true_for_cell(key2, pos, fnc)) return true;
+        if (exist_true_for_cell({key.x(), key2.y()}, pos, fnc)) return true;
+        if (exist_true_for_cell({key2.x(), key.y()}, pos, fnc)) return true;
+        return false;
+    }
+
+    void merge(Grid2D &&grid) {
+        // support to merge only grid with same size
+        assert(m_cell_size == grid.m_cell_size);
+        m_grid.merge(std::move(grid.m_grid));
+    }
+
+    SupportPoints get_points() const { 
+        SupportPoints result;
+        result.reserve(m_grid.size());
+        for (const auto& [key, support] : m_grid)
+            result.push_back(support);
+        return result;
+    }
+private:
+    bool exist_true_for_cell(const Key &key, const Point &pos, const CheckFnc& fnc) const{
+        auto [begin_it, end_it] = m_grid.equal_range(key);
+        for (Grid::const_iterator it = begin_it; it != end_it; ++it) {
+            const SupportPoint &support_point = it->second;
+            if (fnc(support_point, pos))
+                return true;
+        }
+        return false;
+    }
+};
+
+/// <summary>
+/// Intersection of line segment and circle
+/// </summary>
+/// <param name="p1">Line segment point A, Point lay inside circle</param>
+/// <param name="p2">Line segment point B, Point lay outside or on circle</param>
+/// <param name="cnt">Circle center point</param>
+/// <param name="r2">squared value of Circle Radius (r2 = r*r)</param>
+/// <returns>Intersection point</returns>
+Point intersection(const Point &p1, const Point &p2, const Point &cnt, double r2) {
+    // Vector from p1 to p2
+    Vec2d dp_d((p2 - p1).cast<double>());
+    // Vector from circle center to p1
+    Vec2d f_d((p1 - cnt).cast<double>());
+
+    double a = dp_d.squaredNorm();
+    double b = 2 * (f_d.x() * dp_d.x() + f_d.y() * dp_d.y());
+    double c = f_d.squaredNorm() - r2;
+
+    // Discriminant of the quadratic equation
+    double discriminant = b * b - 4 * a * c;
+
+    // No intersection if discriminant is negative
+    assert(discriminant > 0);
+    if (discriminant < 0)
+        return {}; // No intersection
+
+    // Calculate the two possible values of t (parametric parameter)
+    discriminant = sqrt(discriminant);
+    double t1 = (-b - discriminant) / (2 * a);
+
+    // Check for valid intersection points within the line segment
+    if (t1 >= 0 && t1 <= 1) {
+        return {p1.x() + t1 * dp_d.x(), p1.y() + t1 * dp_d.y()};
+    }
+
+    // should not be in use
+    double t2 = (-b + discriminant) / (2 * a);
+    if (t2 >= 0 && t2 <= 1 && t1 != t2) {
+        return {p1.x() + t2 * dp_d.x(), p1.y() + t2 * dp_d.y()};
+    }
+    return {};
 }
 
+/// <summary>
+/// Uniformly sample Polygon,
+/// Use first point and each next point is first crosing radius from last added
+/// </summary>
+/// <param name="p">Polygon to sample</param>
+/// <param name="dist2">Squared distance for sampling</param>
+/// <returns>Uniformly distributed points laying on input polygon
+/// with exception of first and last point(they are closer than dist2)</returns>
+Slic3r::Points sample(const Polygon &p, double dist2) {
+    if (p.empty())
+        return {};
 
-float SupportPointGenerator::get_required_density(float angle) const
-{
-    // calculation would be density_0 * cos(angle). To provide one more degree of freedom, we will scale the angle
-    // to get the user-set density for 45 deg. So it ends up as density_0 * cos(K * angle).
-    float K = 4.f * float(acos(m_config.density_at_45/m_config.density_at_horizontal) / M_PI);
-    return std::max(0.f, float(m_config.density_at_horizontal * cos(K*angle)));
+    Slic3r::Points r;
+    r.push_back(p.front());
+    const Point *prev_pt = nullptr;
+    for (size_t prev_i = 0; prev_i < p.size(); prev_i++) {
+        size_t curr_i = (prev_i != p.size() - 1) ? prev_i + 1 : 0;
+        const Point &pt = p.points[curr_i];
+        double p_dist2 = (r.back() - pt).cast<double>().squaredNorm();
+        while (p_dist2 > dist2) { // line segment goes out of radius
+            if (prev_pt == nullptr)
+                prev_pt = &p.points[prev_i];
+            r.push_back(intersection(*prev_pt, pt, r.back(), dist2));
+            p_dist2 = (r.back() - pt).cast<double>().squaredNorm();
+            prev_pt = &r.back();
+        }
+        prev_pt = nullptr;
+    }
+    return r;
 }
 
-float SupportPointGenerator::distance_limit(float angle) const
-{
-    return 1./(2.4*get_required_density(angle));
-}*/
-
-SupportPointGenerator::SupportPointGenerator(
-        const AABBMesh &emesh,
-        const std::vector<ExPolygons> &slices,
-        const std::vector<float> &     heights,
-        const Config &                 config,
-        std::function<void(void)> throw_on_cancel,
-        std::function<void(int)>  statusfn)
-    : m_config(config)
-    , m_emesh(emesh)
-    , m_throw_on_cancel(throw_on_cancel)
-    , m_statusfn(statusfn)
-{
-    std::random_device rd;
-    m_rng.seed(rd());
-    execute(slices, heights);
+coord_t get_supported_radius(const SupportPoint &p, float z_distance, const SupportPointGeneratorConfig &config
+) {
+    // TODO: calculate support radius
+    return scale_(5.);
 }
 
-void SupportPointGenerator::execute(const std::vector<ExPolygons> &slices,
-                                    const std::vector<float> &     heights)
-{
-    process(slices, heights);
-    project_onto_mesh(m_output);
+void sample_part(
+    const LayerPart &part,
+    size_t layer_id,
+    const SupportPointGeneratorData &data,
+    const SupportPointGeneratorConfig &config,
+    std::vector<Grid2D> &grids,
+    std::vector<Grid2D> &prev_grids
+) {
+    // NOTE: first layer do not have prev part
+    assert(layer_id != 0);
+
+    const Layers &layers = data.layers;
+    const LayerParts &prev_layer_parts = layers[layer_id - 1].parts;
+    const LayerParts::const_iterator &prev_part_it = part.prev_parts.front().part_it;
+    size_t index_of_prev_part = prev_part_it - prev_layer_parts.begin();
+    if (prev_part_it->next_parts.size() == 1) {
+        grids.push_back(std::move(prev_grids[index_of_prev_part]));
+    } else { // Need a copy there are multiple parts above previus one
+        grids.push_back(prev_grids[index_of_prev_part]); // copy
+    }
+    // current part grid
+    Grid2D &part_grid = grids.back();
+
+    // merge other grid in case of multiple previous parts
+    for (size_t i = 1; i < part.prev_parts.size(); ++i) {
+        const LayerParts::const_iterator &prev_part_it = part.prev_parts[i].part_it;
+        size_t index_of_prev_part = prev_part_it - prev_layer_parts.begin();
+        if (prev_part_it->next_parts.size() == 1) {
+            part_grid.merge(std::move(prev_grids[index_of_prev_part]));
+        } else { // Need a copy there are multiple parts above previus one
+            Grid2D grid_ = prev_grids[index_of_prev_part]; // copy
+            part_grid.merge(std::move(grid_));
+        }
+    }
+
+    float part_height = data.heights[layer_id];
+    Grid2D::CheckFnc is_supported = [part_height, &config]
+    (const SupportPoint &support_point, const Point &p) -> bool {
+        float diff_height = part_height - support_point.z_height;
+        coord_t r_ = get_supported_radius(support_point, diff_height, config);
+        Point dp = support_point.position_on_layer - p;
+        if (std::abs(dp.x()) > r_) return false;
+        if (std::abs(dp.y()) > r_) return false;
+        double r2 = static_cast<double>(r_);
+        r2 *= r2;
+        return dp.cast<double>().squaredNorm() < r2;
+    };
+
+    // check distance to nearest support points from grid
+    float maximal_radius = scale_(5.f);
+    for (const Point &p : part.samples) {
+        if (!part_grid.exist_true_in_4cell_neighbor(p, is_supported)) {
+            // not supported sample, soo create new support point
+            part_grid.add(SupportPoint{
+                /* head_front_radius */ 0.4,
+                SupportPointType::slope,
+                &part,
+                /* position_on_layer */ p,
+                part_height,
+                /* direction_to_mass */ Point(1,0)
+                });
+        }    
+    }
 }
 
-void SupportPointGenerator::project_onto_mesh(std::vector<sla::SupportPoint>& points) const
-{
-    // The function  makes sure that all the points are really exactly placed on the mesh.
-
-    // Use a reasonable granularity to account for the worker thread synchronization cost.
-    static constexpr size_t gransize = 64;
-
-    execution::for_each(ex_tbb, size_t(0), points.size(), [this, &points](size_t idx)
-    {
-        if ((idx % 16) == 0)
-            // Don't call the following function too often as it flushes CPU write caches due to synchronization primitves.
-            m_throw_on_cancel();
-
-        Vec3f& p = points[idx].pos;
-        // Project the point upward and downward and choose the closer intersection with the mesh.
-        AABBMesh::hit_result hit_up   = m_emesh.query_ray_hit(p.cast<double>(), Vec3d(0., 0., 1.));
-        AABBMesh::hit_result hit_down = m_emesh.query_ray_hit(p.cast<double>(), Vec3d(0., 0., -1.));
-
-        bool up   = hit_up.is_hit();
-        bool down = hit_down.is_hit();
-
-        if (!up && !down)
-            return;
-
-        AABBMesh::hit_result& hit = (!down || (hit_up.distance() < hit_down.distance())) ? hit_up : hit_down;
-        p = p + (hit.distance() * hit.direction()).cast<float>();
-    }, gransize);
+Points uniformly_sample(const ExPolygon &island, const SupportPointGeneratorConfig &cfg) {
+    // TODO: Implement it
+    return Points{island.contour.centroid()};
 }
 
-static std::vector<SupportPointGenerator::MyLayer> make_layers(
-    const std::vector<ExPolygons>& slices, const std::vector<float>& heights,
-    std::function<void(void)> throw_on_cancel, const sla::SupportPointGenerator::Config& config)
-{
+Grid2D support_island(const LayerPart &part, float part_z, const SupportPointGeneratorConfig &cfg) {
+    // Maximal radius of supported area of one support point
+    double max_support_radius = 10.; // cfg.cell_size;
+
+    // maximal radius of support
+    coord_t cell_size = scale_(max_support_radius);
+
+    Grid2D part_grid(cell_size);
+    Points pts = uniformly_sample(*part.shape, cfg);
+    for (const Point &pt : pts)
+        part_grid.add(SupportPoint{
+            /* head_front_radius */ 0.4,
+            SupportPointType::island,
+            &part,
+            /* position_on_layer */ pt,
+            part_z,
+            /* direction_to_mass */ Point(0,0) // from bottom
+        });
+}
+
+}; 
+
+SupportPointGeneratorData Slic3r::sla::prepare_generator_data(
+    std::vector<ExPolygons> &&slices,
+    std::vector<float> &&heights,
+    ThrowOnCancel throw_on_cancel,
+    StatusFunction statusfn
+) {
+    // check input
+    assert(!slices.empty());
     assert(slices.size() == heights.size());
+    if (slices.empty() || slices.size() != heights.size())
+        return SupportPointGeneratorData{};
+
+    // Move input into result
+    SupportPointGeneratorData result;
+    result.slices = std::move(slices);
+    result.heights = std::move(heights);
 
     // Allocate empty layers.
-    std::vector<SupportPointGenerator::MyLayer> layers;
-    layers.reserve(slices.size());
-    for (size_t i = 0; i < slices.size(); ++ i)
-        layers.emplace_back(i, heights[i]);
+    result.layers = Layers(result.slices.size(), {});
 
-    execution::for_each(ex_tbb, size_t(0), layers.size(),
-        [&layers, &slices, min_area = config.minimal_island_area, throw_on_cancel](size_t layer_id)
-    {
+    // Generate Extents and SampleLayers
+    execution::for_each(ex_tbb, size_t(0), result.slices.size(),
+        [&result, throw_on_cancel](size_t layer_id) {
         if ((layer_id % 8) == 0)
             // Don't call the following function too often as it flushes
             // CPU write caches due to synchronization primitves.
             throw_on_cancel();
 
-        SupportPointGenerator::MyLayer &layer   = layers[layer_id];
-        const ExPolygons &              islands = slices[layer_id];
-        layer.islands.reserve(islands.size());
-        for (const ExPolygon &island : islands) {
-            float area = float(island.area() * SCALING_FACTOR * SCALING_FACTOR);
+        const double sample_distance_in_mm = scale_(2);
+        const double sample_distance_in_mm2 = sample_distance_in_mm * sample_distance_in_mm;
 
-            // Skip too small islands (non-printable)
-            if (area < min_area)
-                continue;
-                        
-            layer.islands.emplace_back(layer, island, get_extents(island.contour), area);
-        }
+        Layer &layer = result.layers[layer_id];
+        const ExPolygons &islands = result.slices[layer_id];
+        layer.parts.reserve(islands.size());
+        for (const ExPolygon &island : islands)                        
+            layer.parts.push_back(LayerPart{
+                &island, 
+                get_extents(island.contour), 
+                sample(island.contour, sample_distance_in_mm2)
+            });
+        
     }, 32 /*gransize*/);
 
-    // Calculate overlap of successive layers. Link overlapping islands.
-    execution::for_each(ex_tbb, size_t(1), layers.size(),
-                      [&layers, &heights, throw_on_cancel] (size_t layer_id)
-    {
-      if ((layer_id % 2) == 0)
-          // Don't call the following function too often as it flushes CPU write caches due to synchronization primitves.
-          throw_on_cancel();
-      SupportPointGenerator::MyLayer &layer_above = layers[layer_id];
-      SupportPointGenerator::MyLayer &layer_below = layers[layer_id - 1];
-      //FIXME WTF?
-      const float layer_height = (layer_id!=0 ? heights[layer_id]-heights[layer_id-1] : heights[0]);
-      const float safe_angle = 35.f * (float(M_PI)/180.f); // smaller number - less supports
-      const float between_layers_offset = scaled<float>(layer_height * std::tan(safe_angle));
-      const float slope_angle = 75.f * (float(M_PI)/180.f); // smaller number - less supports
-      const float slope_offset = scaled<float>(layer_height * std::tan(slope_angle));
-      //FIXME This has a quadratic time complexity, it will be excessively slow for many tiny islands.
-      for (SupportPointGenerator::Structure &top : layer_above.islands) {
-          for (SupportPointGenerator::Structure &bottom : layer_below.islands) {
-              float overlap_area = top.overlap_area(bottom);
-              if (overlap_area > 0) {
-                  top.islands_below.emplace_back(&bottom, overlap_area);
-                  bottom.islands_above.emplace_back(&top, overlap_area);
-              }
-          }
-          if (! top.islands_below.empty()) {
-              // Why only polygons?? (some sort of speed up?)
-              Polygons bottom_polygons = top.polygons_below();
-              top.overhangs = diff_ex(*top.polygon, bottom_polygons);
-              if (! top.overhangs.empty()) {
+    // Link parts by intersections
+    execution::for_each(ex_tbb, size_t(1), result.slices.size(),
+                      [&result, throw_on_cancel] (size_t layer_id) {
+        if ((layer_id % 2) == 0)
+            // Don't call the following function too often as it flushes CPU write caches due to synchronization primitves.
+            throw_on_cancel();
 
-                  // Produce 2 bands around the island, a safe band for dangling overhangs
-                  // and an unsafe band for sloped overhangs.
-                  // These masks include the original island
-                  auto dangl_mask = expand(bottom_polygons, between_layers_offset, ClipperLib::jtSquare);
-                  auto overh_mask = expand(bottom_polygons, slope_offset, ClipperLib::jtSquare);
+        LayerParts &parts_above = result.layers[layer_id].parts;
+        LayerParts &parts_below = result.layers[layer_id-1].parts;
+        for (auto it_above = parts_above.begin(); it_above < parts_above.end(); ++it_above) {
+            for (auto it_below = parts_below.begin(); it_below < parts_below.end(); ++it_below) {
+                // Improve: do some sort of parts + skip some of them
+                if (!it_above->shape_extent.overlap(it_below->shape_extent))
+                    continue; // no bounding box overlap
 
-                  // Absolutely hopeless overhangs are those outside the unsafe band
-                  top.overhangs = diff_ex(*top.polygon, overh_mask);
+                // Improve: test could be done faster way
+                Polygons polys = intersection(*it_above->shape, *it_below->shape);
+                if (polys.empty())
+                    continue; // no intersection
 
-                  // Now cut out the supported core from the safe band
-                  // and cut the safe band from the unsafe band to get distinct
-                  // zones.
-                  overh_mask = diff(overh_mask, dangl_mask);
-                  dangl_mask = diff(dangl_mask, bottom_polygons);
+                // TODO: check minimal intersection!
 
-                  top.dangling_areas = intersection_ex(*top.polygon, dangl_mask);
-                  top.overhangs_slopes = intersection_ex(*top.polygon, overh_mask);
-
-                  top.overhangs_area = 0.f;
-
-                  // Sort overhangs by area
-                  std::vector<std::pair<ExPolygon*, float>> expolys_with_areas;
-                  for (ExPolygon &ex : top.overhangs) {
-                      float area = float(ex.area());
-                      expolys_with_areas.emplace_back(&ex, area);
-                      top.overhangs_area += area;
-                  }
-                  std::sort(expolys_with_areas.begin(), expolys_with_areas.end(),
-                            [](const std::pair<ExPolygon*, float> &p1, const std::pair<ExPolygon*, float> &p2)
-                            { return p1.second > p2.second; });
-                  ExPolygons overhangs_sorted;
-                  for (auto &p : expolys_with_areas)
-                      overhangs_sorted.emplace_back(std::move(*p.first));
-                  top.overhangs = std::move(overhangs_sorted);
-                  top.overhangs_area *= float(SCALING_FACTOR * SCALING_FACTOR);
-              }
-          }
-      }
+                it_above->prev_parts.emplace_back(PartLink{it_below});
+                it_below->next_parts.emplace_back(PartLink{it_above});
+            }
+        }
     }, 8 /* gransize */);
-
-    return layers;
+    return result;
 }
 
-void SupportPointGenerator::process(const std::vector<ExPolygons>& slices, const std::vector<float>& heights)
-{
-#ifdef SLA_SUPPORTPOINTGEN_DEBUG
-    std::vector<std::pair<ExPolygon, coord_t>> islands;
-#endif /* SLA_SUPPORTPOINTGEN_DEBUG */
+SupportPoints Slic3r::sla::generate_support_points(
+    const SupportPointGeneratorData &data,
+    const SupportPointGeneratorConfig &config,
+    ThrowOnCancel throw_on_cancel,
+    StatusFunction statusfn
+){
+    const Layers &layers = data.layers;
+    double increment = 100.0 / static_cast<double>(layers.size());
+    double status = 0; // current progress
+    int status_int = 0; 
 
-    std::vector<SupportPointGenerator::MyLayer> layers = make_layers(slices, heights, m_throw_on_cancel, m_config);
+    SupportPoints result;
+    std::vector<Grid2D> prev_grids; // same count as previous layer item size
+    for (size_t layer_id = 0; layer_id < layers.size(); ++layer_id) {
+        const Layer &layer = layers[layer_id];
 
-    PointGrid3D point_grid;
-    point_grid.cell_size = Vec3f(10.f, 10.f, 10.f);
-
-    double increment = 100.0 / layers.size();
-    double status    = 0;
-
-    std::vector<float> support_force_bottom;
-    for (unsigned int layer_id = 0; layer_id < layers.size(); ++ layer_id) {
-        bool is_first_layer = layer_id == 0;
-        SupportPointGenerator::MyLayer *layer_top     = &layers[layer_id];
-        SupportPointGenerator::MyLayer *layer_bottom  = (!is_first_layer) ? &layers[layer_id - 1] : nullptr;
-        if (!is_first_layer) {
-            support_force_bottom.resize(layer_bottom->islands.size());
-            for (size_t i = 0; i < layer_bottom->islands.size(); ++i)
-                support_force_bottom[i] = layer_bottom->islands[i].supports_force_total();
-        }
-        for (const Structure &top : layer_top->islands)
-            for (const Structure::Link &bottom_link : top.islands_below) {
-                const Structure &bottom = *bottom_link.island;
-                //float centroids_dist = (bottom.centroid - top.centroid).norm();
-                // Penalization resulting from centroid offset:
-//                  bottom.supports_force *= std::min(1.f, 1.f - std::min(1.f, (1600.f * layer_height) * centroids_dist * centroids_dist / bottom.area));
-                size_t bottom_island_index = &bottom - layer_bottom->islands.data();
-                float &support_force = support_force_bottom[bottom_island_index];
-                //FIXME this condition does not reflect a bifurcation into a one large island and one tiny island well, it incorrectly resets the support force to zero.
-// One should rather work with the overlap area vs overhang area.
-//                support_force *= std::min(1.f, 1.f - std::min(1.f, 0.1f * centroids_dist * centroids_dist / bottom.area));
-                // Penalization resulting from increasing polygon area:
-                support_force *= std::min(1.f, 20.f * bottom.area / top.area);
-            }
-        // Let's assign proper support force to each of them:
-        if (!is_first_layer) {
-            for (Structure &below : layer_bottom->islands) {
-                float below_support_force = support_force_bottom[&below - layer_bottom->islands.data()];
-                float above_overlap_area = 0.f;
-                for (Structure::Link &above_link : below.islands_above)
-                    above_overlap_area += above_link.overlap_area;
-                for (Structure::Link &above_link : below.islands_above)
-                    above_link.island->supports_force_inherited += below_support_force * above_link.overlap_area / above_overlap_area;
-            }
-        }
-        // Now iterate over all polygons and append new points if needed.
-        for (Structure &s : layer_top->islands) {
-            // Penalization resulting from large diff from the last layer:
-            s.supports_force_inherited /= std::max(1.f, 0.17f * s.overhangs_area / s.area);
-
-            add_support_points(s, point_grid);
-        }
-
-        m_throw_on_cancel();
-
-        status += increment;
-        m_statusfn(int(std::round(status)));
-    }
-}
-
-void SupportPointGenerator::add_support_points(SupportPointGenerator::Structure &s, SupportPointGenerator::PointGrid3D &grid3d)
-{
-    // Select each type of surface (overrhang, dangling, slope), derive the support
-    // force deficit for it and call uniformly conver with the right params
-    if (s.islands_below.empty()) {
-        // completely new island - needs support no doubt
-        // deficit is full, there is nothing below that would hold this island
-        uniformly_cover({ *s.polygon }, s, s.area, grid3d, IslandCoverageFlags(icfIsNew | icfWithBoundary) );
-        return;
-    }
-
-    if (! s.overhangs.empty()) {
-        uniformly_cover(s.overhangs, s, s.overhangs_area, grid3d);
-    }
-
-    auto areafn = [](double sum, auto &p) { return sum + p.area() * SCALING_FACTOR * SCALING_FACTOR; };
-
-    float current = s.supports_force_total();
-    if (! s.dangling_areas.empty()) {
-        // Let's see if there's anything that overlaps enough to need supports:
-        // What we now have in polygons needs support, regardless of what the forces are, so we can add them.
-
-        // Before Tamas changes
-        // a * tp - current * .09f *std::sqrt(1. - a / s.area)
-
-        // just befor
-        // a * ( 1 - current * s.area);
-
-        double sum_of_dangling_area = std::accumulate(s.dangling_areas.begin(), s.dangling_areas.end(), 0., areafn);
-        double dangling_ratio = sum_of_dangling_area / s.area;
-        float deficit = current * .09f * dangling_ratio;
-        //uniformly_cover(s.dangling_areas, s, deficit, grid3d, icfWithBoundary);
-    }
-
-    current = s.supports_force_total();
-    if (! s.overhangs_slopes.empty()) {
-        double sum_of_overhang_area = std::accumulate(s.overhangs_slopes.begin(), s.overhangs_slopes.end(), 0., areafn);
-        double overhang_ratio = sum_of_overhang_area / s.area;
-        float deficit = current * .0015f * overhang_ratio;
-        //uniformly_cover(s.overhangs_slopes, s, deficit, grid3d, icfWithBoundary);
-    }
-}
-
-std::vector<Vec2f> sample_expolygon(const ExPolygon &expoly, float samples_per_mm2, std::mt19937 &rng)
-{
-    // Triangulate the polygon with holes into triplets of 3D points.
-    std::vector<Vec2f> triangles = Slic3r::triangulate_expolygon_2f(expoly);
-
-    std::vector<Vec2f> out;
-    if (! triangles.empty())
-    {
-        // Calculate area of each triangle.
-        auto   areas = reserve_vector<float>(triangles.size() / 3);
-        double aback = 0.;
-        for (size_t i = 0; i < triangles.size(); ) {
-            const Vec2f &a  = triangles[i ++];
-            const Vec2f  v1 = triangles[i ++] - a;
-            const Vec2f  v2 = triangles[i ++] - a;
-
-            // Prefix sum of the areas.
-            areas.emplace_back(aback + 0.5f * std::abs(cross2(v1, v2)));
-            aback = areas.back();
-        }
-
-        size_t num_samples = size_t(ceil(areas.back() * samples_per_mm2));
-        std::uniform_real_distribution<> random_triangle(0., double(areas.back()));
-        std::uniform_real_distribution<> random_float(0., 1.);
-        for (size_t i = 0; i < num_samples; ++ i) {
-            double r = random_triangle(rng);
-            size_t idx_triangle = std::min<size_t>(std::upper_bound(areas.begin(), areas.end(), (float)r) - areas.begin(), areas.size() - 1) * 3;
-            // Select a random point on the triangle.
-            const Vec2f &a = triangles[idx_triangle ++];
-            const Vec2f &b = triangles[idx_triangle++];
-            const Vec2f &c = triangles[idx_triangle];
-#if 1
-            // https://www.cs.princeton.edu/~funk/tog02.pdf
-            // page 814, formula 1.
-            double u = float(std::sqrt(random_float(rng)));
-            double v = float(random_float(rng));
-            out.emplace_back(a * (1.f - u) + b * (u * (1.f - v)) + c * (v * u));
-#else
-            // Greg Turk, Graphics Gems
-            // https://devsplorer.wordpress.com/2019/08/07/find-a-random-point-on-a-plane-using-barycentric-coordinates-in-unity/
-            double u = float(random_float(rng));
-            double v = float(random_float(rng));
-            if (u + v >= 1.f) {
-              u = 1.f - u;
-              v = 1.f - v;
-            }
-            out.emplace_back(a + u * (b - a) + v * (c - a));
-#endif
-        }
-    }
-    return out;
-}
-
-
-std::vector<Vec2f> sample_expolygon(const ExPolygons &expolys, float samples_per_mm2, std::mt19937 &rng)
-{
-    std::vector<Vec2f> out;
-    for (const ExPolygon &expoly : expolys)
-        append(out, sample_expolygon(expoly, samples_per_mm2, rng));
-
-    return out;
-}
-
-void sample_expolygon_boundary(const ExPolygon &   expoly,
-                               float               samples_per_mm,
-                               std::vector<Vec2f> &out,
-                               std::mt19937 &      /*rng*/)
-{
-    double  point_stepping_scaled = scale_(1.f) / samples_per_mm;
-    for (size_t i_contour = 0; i_contour <= expoly.holes.size(); ++ i_contour) {
-        const Polygon &contour = (i_contour == 0) ? expoly.contour :
-                                                    expoly.holes[i_contour - 1];
-
-        const Points pts = contour.equally_spaced_points(point_stepping_scaled);
-        for (size_t i = 0; i < pts.size(); ++ i)
-            out.emplace_back(unscale<float>(pts[i].x()),
-                             unscale<float>(pts[i].y()));
-    }
-}
-
-std::vector<Vec2f> sample_expolygon_with_boundary(const ExPolygon &expoly, float samples_per_mm2, float samples_per_mm_boundary, std::mt19937 &rng)
-{
-    std::vector<Vec2f> out = sample_expolygon(expoly, samples_per_mm2, rng);
-    sample_expolygon_boundary(expoly, samples_per_mm_boundary, out, rng);
-    return out;
-}
-
-std::vector<Vec2f> sample_expolygon_with_boundary(const ExPolygons &expolys, float samples_per_mm2, float samples_per_mm_boundary, std::mt19937 &rng)
-{
-    std::vector<Vec2f> out;
-    for (const ExPolygon &expoly : expolys)
-        append(out, sample_expolygon_with_boundary(expoly, samples_per_mm2, samples_per_mm_boundary, rng));
-    return out;
-}
-
-template<typename REFUSE_FUNCTION>
-static inline std::vector<Vec2f> poisson_disk_from_samples(const std::vector<Vec2f> &raw_samples, float radius, REFUSE_FUNCTION refuse_function)
-{
-    Vec2f corner_min(std::numeric_limits<float>::max(), std::numeric_limits<float>::max());
-    for (const Vec2f &pt : raw_samples) {
-        corner_min.x() = std::min(corner_min.x(), pt.x());
-        corner_min.y() = std::min(corner_min.y(), pt.y());
-    }
-
-    // Assign the raw samples to grid cells, sort the grid cells lexicographically.
-    struct RawSample
-    {
-        Vec2f coord;
-        Vec2i cell_id;
-        RawSample(const Vec2f &crd = {}, const Vec2i &id = {}): coord{crd}, cell_id{id} {}
-    };
-
-    auto raw_samples_sorted = reserve_vector<RawSample>(raw_samples.size());
-    for (const Vec2f &pt : raw_samples)
-        raw_samples_sorted.emplace_back(pt, ((pt - corner_min) / radius).cast<int>());
-
-    std::sort(raw_samples_sorted.begin(), raw_samples_sorted.end(), [](const RawSample &lhs, const RawSample &rhs)
-        { return lhs.cell_id.x() < rhs.cell_id.x() || (lhs.cell_id.x() == rhs.cell_id.x() && lhs.cell_id.y() < rhs.cell_id.y()); });
-
-    struct PoissonDiskGridEntry {
-        // Resulting output sample points for this cell:
-        enum {
-            max_positions = 4
-        };
-        Vec2f   poisson_samples[max_positions];
-        int     num_poisson_samples = 0;
-
-        // Index into raw_samples:
-        int     first_sample_idx;
-        int     sample_cnt;
-    };
-
-    struct CellIDHash {
-        std::size_t operator()(const Vec2i &cell_id) const {
-            return std::hash<int>()(cell_id.x()) ^ std::hash<int>()(cell_id.y() * 593);
-        }
-    };
-
-    // Map from cell IDs to hash_data.  Each hash_data points to the range in raw_samples corresponding to that cell.
-    // (We could just store the samples in hash_data.  This implementation is an artifact of the reference paper, which
-    // is optimizing for GPU acceleration that we haven't implemented currently.)
-    typedef std::unordered_map<Vec2i, PoissonDiskGridEntry, CellIDHash> Cells;
-    Cells cells;
-    {
-        typename Cells::iterator last_cell_id_it;
-        Vec2i           last_cell_id(-1, -1);
-        for (size_t i = 0; i < raw_samples_sorted.size(); ++ i) {
-            const RawSample &sample = raw_samples_sorted[i];
-            if (sample.cell_id == last_cell_id) {
-                // This sample is in the same cell as the previous, so just increase the count.  Cells are
-                // always contiguous, since we've sorted raw_samples_sorted by cell ID.
-                ++ last_cell_id_it->second.sample_cnt;
+        std::vector<Grid2D> grids;
+        grids.reserve(layer.parts.size());
+        
+        for (const LayerPart &part : layer.parts) {
+            if (part.prev_parts.empty()) {
+                // new island - needs support no doubt
+                float part_z = data.heights[layer_id];
+                grids.push_back(support_island(part, part_z, config));
             } else {
-                // This is a new cell.
-                PoissonDiskGridEntry data;
-                data.first_sample_idx = int(i);
-                data.sample_cnt       = 1;
-                auto result     = cells.insert({sample.cell_id, data});
-                last_cell_id    = sample.cell_id;
-                last_cell_id_it = result.first;
+                sample_part(part, layer_id, data, config, grids, prev_grids);
+            }
+
+            // collect result from grid of top part
+            if (part.next_parts.empty()) {
+                const Grid2D &part_grid = grids.back();
+                SupportPoints sps = part_grid.get_points();
+                result.insert(result.end(), 
+                    std::make_move_iterator(sps.begin()),
+                    std::make_move_iterator(sps.end()));
             }
         }
-    }
+        prev_grids = std::move(grids);
 
-    const int   max_trials = 5;
-    const float radius_squared = radius * radius;
-    for (int trial = 0; trial < max_trials; ++ trial) {
-        // Create sample points for each entry in cells.
-        for (auto &it : cells) {
-            const Vec2i          &cell_id   = it.first;
-            PoissonDiskGridEntry &cell_data = it.second;
-            // This cell's raw sample points start at first_sample_idx.  On trial 0, try the first one. On trial 1, try first_sample_idx + 1.
-            int next_sample_idx = cell_data.first_sample_idx + trial;
-            if (trial >= cell_data.sample_cnt)
-                // There are no more points to try for this cell.
-                continue;
-            const RawSample &candidate = raw_samples_sorted[next_sample_idx];
-            // See if this point conflicts with any other points in this cell, or with any points in
-            // neighboring cells.  Note that it's possible to have more than one point in the same cell.
-            bool conflict = refuse_function(candidate.coord);
-            for (int i = -1; i < 2 && ! conflict; ++ i) {
-                for (int j = -1; j < 2; ++ j) {
-                    const auto &it_neighbor = cells.find(cell_id + Vec2i(i, j));
-                    if (it_neighbor != cells.end()) {
-                        const PoissonDiskGridEntry &neighbor = it_neighbor->second;
-                        for (int i_sample = 0; i_sample < neighbor.num_poisson_samples; ++ i_sample)
-                            if ((neighbor.poisson_samples[i_sample] - candidate.coord).squaredNorm() < radius_squared) {
-                                conflict = true;
-                                break;
-                            }
-                    }
-                }
-            }
-            if (! conflict) {
-                // Store the new sample.
-                assert(cell_data.num_poisson_samples < cell_data.max_positions);
-                if (cell_data.num_poisson_samples < cell_data.max_positions)
-                    cell_data.poisson_samples[cell_data.num_poisson_samples ++] = candidate.coord;
-            }
-        }
-    }
+        throw_on_cancel();
 
-    // Copy the results to the output.
-    std::vector<Vec2f> out;
-    for (const auto& it : cells)
-        for (int i = 0; i < it.second.num_poisson_samples; ++ i)
-            out.emplace_back(it.second.poisson_samples[i]);
-    return out;
+        int old_status_int = status_int;
+        status += increment;
+        status_int = static_cast<int>(std::round(status));
+        if (old_status_int < status_int)
+            statusfn(status_int);
+    }
+    return result;
 }
 
 
-void SupportPointGenerator::uniformly_cover(const ExPolygons& islands, Structure& structure, float deficit, PointGrid3D &grid3d, IslandCoverageFlags flags)
-{
-    //int num_of_points = std::max(1, (int)((island.area()*pow(SCALING_FACTOR, 2) * m_config.tear_pressure)/m_config.support_force));
-
-    float support_force_deficit = deficit;
-//    auto bb = get_extents(islands);
-
-    if (flags & icfIsNew) {
-        auto chull = Geometry::convex_hull(islands);
-        auto rotbox = MinAreaBoundigBox{chull, MinAreaBoundigBox::pcConvex};
-        Vec2d bbdim = {unscaled(rotbox.width()), unscaled(rotbox.height())};
-
-        if (bbdim.x() > bbdim.y()) std::swap(bbdim.x(), bbdim.y());
-        double aspectr = bbdim.y() / bbdim.x();
-
-        support_force_deficit *= (1 + aspectr / 2.);
-    }
-
-    if (support_force_deficit < 0)
-        return;
-
-    // Number of newly added points.
-    const size_t poisson_samples_target = size_t(ceil(support_force_deficit / m_config.support_force()));
-
-    const float density_horizontal = 1. / m_config.support_force();
-    //FIXME why?
-    float poisson_radius		= std::max(m_config.minimal_distance, 1.f / (5.f * density_horizontal));
-//    const float poisson_radius     = 1.f / (15.f * density_horizontal);
-    const float samples_per_mm2 = 30.f / (float(M_PI) * poisson_radius * poisson_radius);
-    // Minimum distance between samples, in 3D space.
-//    float min_spacing			= poisson_radius / 3.f;
-    float min_spacing			= poisson_radius;
-
-    //FIXME share the random generator. The random generator may be not so cheap to initialize, also we don't want the random generator to be restarted for each polygon.
-
-    std::vector<Vec2f> raw_samples =
-        flags & icfWithBoundary ?
-            sample_expolygon_with_boundary(islands, samples_per_mm2,
-                                           5.f / poisson_radius, m_rng) :
-            sample_expolygon(islands, samples_per_mm2, m_rng);
-
-    std::vector<Vec2f>  poisson_samples;
-    for (size_t iter = 0; iter < 4; ++ iter) {
-        poisson_samples = poisson_disk_from_samples(raw_samples, poisson_radius,
-            [&structure, &grid3d, min_spacing](const Vec2f &pos) {
-                return grid3d.collides_with(pos, structure.layer->print_z, min_spacing);
-            });
-        if (poisson_samples.size() >= poisson_samples_target || m_config.minimal_distance > poisson_radius-EPSILON)
-            break;
-        float coeff = 0.5f;
-        if (poisson_samples.size() * 2 > poisson_samples_target)
-            coeff = float(poisson_samples.size()) / float(poisson_samples_target);
-        poisson_radius = std::max(m_config.minimal_distance, poisson_radius * coeff);
-        min_spacing    = std::max(m_config.minimal_distance, min_spacing * coeff);
-    }
-
-#ifdef SLA_SUPPORTPOINTGEN_DEBUG
-    {
-        static int irun = 0;
-        Slic3r::SVG svg(debug_out_path("SLA_supports-uniformly_cover-%d.svg", irun ++), get_extents(islands));
-        for (const ExPolygon &island : islands)
-            svg.draw(island);
-        for (const Vec2f &pt : raw_samples)
-            svg.draw(Point(scale_(pt.x()), scale_(pt.y())), "red");
-        for (const Vec2f &pt : poisson_samples)
-            svg.draw(Point(scale_(pt.x()), scale_(pt.y())), "blue");
-    }
-#endif /* NDEBUG */
-
-//    assert(! poisson_samples.empty());
-    if (poisson_samples_target < poisson_samples.size()) {
-        std::shuffle(poisson_samples.begin(), poisson_samples.end(), m_rng);
-        poisson_samples.erase(poisson_samples.begin() + poisson_samples_target, poisson_samples.end());
-    }
-    for (const Vec2f &pt : poisson_samples) {
-        m_output.emplace_back(
-            float(pt(0)), float(pt(1)), structure.layer->print_z/*structure.zlevel*/, m_config.head_diameter / 2.f,
-            flags & icfIsNew
-        );
-        structure.supports_force_this_layer += m_config.support_force();
-        grid3d.insert(pt, &structure);
-    }
-}
-
-
-void remove_bottom_points(std::vector<SupportPoint> &pts, float lvl)
-{
-    // get iterator to the reorganized vector end
-    auto endit = std::remove_if(pts.begin(), pts.end(), [lvl]
-                                (const sla::SupportPoint &sp) {
-        return sp.pos.z() <= lvl;
-    });
-
-    // erase all elements after the new end
-    pts.erase(endit, pts.end());
-}
-
-#ifdef SLA_SUPPORTPOINTGEN_DEBUG
-void SupportPointGenerator::output_structures(const std::vector<Structure>& structures)
-{
-    for (unsigned int i=0 ; i<structures.size(); ++i) {
-        std::stringstream ss;
-        ss << structures[i].unique_id.count() << "_" << std::setw(10) << std::setfill('0') << 1000 + (int)structures[i].height/1000 << ".png";
-        output_expolygons(std::vector<ExPolygon>{*structures[i].polygon}, ss.str());
-    }
-}
-
-void SupportPointGenerator::output_expolygons(const ExPolygons& expolys, const std::string &filename)
-{
-    BoundingBox bb(Point(-30000000, -30000000), Point(30000000, 30000000));
-    Slic3r::SVG svg_cummulative(filename, bb);
-    for (size_t i = 0; i < expolys.size(); ++ i) {
-        /*Slic3r::SVG svg("single"+std::to_string(i)+".svg", bb);
-        svg.draw(expolys[i]);
-        svg.draw_outline(expolys[i].contour, "black", scale_(0.05));
-        svg.draw_outline(expolys[i].holes, "blue", scale_(0.05));
-        svg.Close();*/
-
-        svg_cummulative.draw(expolys[i]);
-        svg_cummulative.draw_outline(expolys[i].contour, "black", scale_(0.05));
-        svg_cummulative.draw_outline(expolys[i].holes, "blue", scale_(0.05));
-    }
-}
-#endif
-
-SupportPoints transformed_support_points(const ModelObject &mo,
-                                         const Transform3d &trafo)
-{
-    auto spts = mo.sla_support_points;
-    Transform3f tr = trafo.cast<float>();
-    for (sla::SupportPoint& suppt : spts) {
-        suppt.pos = tr * suppt.pos;
-    }
-
-    return spts;
-}
-
-} // namespace sla
-} // namespace Slic3r
