@@ -1420,20 +1420,21 @@ namespace Slic3r {
 
                 if (version == 0) {
                     for (unsigned int i=0; i<object_data_points.size(); i+=3)
-                    sla_support_points.emplace_back(float(std::atof(object_data_points[i+0].c_str())),
+                    sla_support_points.push_back(sla::SupportPoint{Vec3f(
+                                                    float(std::atof(object_data_points[i+0].c_str())),
                                                     float(std::atof(object_data_points[i+1].c_str())),
-													float(std::atof(object_data_points[i+2].c_str())),
-                                                    0.4f,
-                                                    false);
+													float(std::atof(object_data_points[i+2].c_str()))),
+                                                    0.4f});
                 }
                 if (version == 1) {
                     for (unsigned int i=0; i<object_data_points.size(); i+=5)
-                    sla_support_points.emplace_back(float(std::atof(object_data_points[i+0].c_str())),
+                    sla_support_points.push_back(sla::SupportPoint{Vec3f(
+                                                    float(std::atof(object_data_points[i+0].c_str())),
                                                     float(std::atof(object_data_points[i+1].c_str())),
-                                                    float(std::atof(object_data_points[i+2].c_str())),
-                                                    float(std::atof(object_data_points[i+3].c_str())),
+                                                    float(std::atof(object_data_points[i+2].c_str()))),
+                                                    float(std::atof(object_data_points[i+3].c_str()))});
 													//FIXME storing boolean as 0 / 1 and importing it as float.
-                                                    std::abs(std::atof(object_data_points[i+4].c_str()) - 1.) < EPSILON);
+                                                    //std::abs(std::atof(object_data_points[i+4].c_str()) - 1.) < EPSILON);
                 }
 
                 if (!sla_support_points.empty())
@@ -3542,7 +3543,7 @@ namespace Slic3r {
 
                 // Store the layer height profile as a single space separated list.
                 for (size_t i = 0; i < sla_support_points.size(); ++i) {
-                    sprintf(buffer, (i==0 ? "%f %f %f %f %f" : " %f %f %f %f %f"),  sla_support_points[i].pos(0), sla_support_points[i].pos(1), sla_support_points[i].pos(2), sla_support_points[i].head_front_radius, (float)sla_support_points[i].is_new_island);
+                    sprintf(buffer, (i==0 ? "%f %f %f %f %f" : " %f %f %f %f %f"),  sla_support_points[i].pos(0), sla_support_points[i].pos(1), sla_support_points[i].pos(2), sla_support_points[i].head_front_radius, (float)(sla_support_points[i].is_island()));
                     out += buffer;
                 }
                 out += "\n";

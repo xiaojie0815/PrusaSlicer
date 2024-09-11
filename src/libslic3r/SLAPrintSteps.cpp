@@ -51,7 +51,6 @@
 #include "libslic3r/SLA/Hollowing.hpp"
 #include "libslic3r/SLA/JobController.hpp"
 #include "libslic3r/SLA/RasterBase.hpp"
-#include "libslic3r/SLA/SupportPoint.hpp"
 #include "libslic3r/SLA/SupportTree.hpp"
 #include "libslic3r/SLA/SupportTreeStrategies.hpp"
 #include "libslic3r/SLAPrint.hpp"
@@ -632,24 +631,20 @@ void SLAPrint::Steps::support_points(SLAPrintObject &po)
     // we will do the autoplacement. Otherwise we will just blindly copy the
     // frontend data into the backend cache.
     if (mo.sla_points_status != sla::PointsStatus::UserModified) {
-
-        // calculate heights of slices (slices are calculated already)
-        const std::vector<float>& heights = po.m_model_height_levels;
-
         throw_if_canceled();
-        sla::SupportPointGenerator::Config config;
+        sla::SupportPointGeneratorConfig config;
         const SLAPrintObjectConfig& cfg = po.config();
 
         // the density config value is in percents:
         config.density_relative = float(cfg.support_points_density_relative / 100.f);
-        config.minimal_distance = float(cfg.support_points_minimal_distance);
+        
         switch (cfg.support_tree_type) {
         case sla::SupportTreeType::Default:
         case sla::SupportTreeType::Organic:
-            config.head_diameter = float(cfg.support_head_front_diameter);
+            config.head_diameter = {float(cfg.support_head_front_diameter), .0};
             break;
         case sla::SupportTreeType::Branching:
-            config.head_diameter = float(cfg.branchingsupport_head_front_diameter);
+            config.head_diameter = {float(cfg.branchingsupport_head_front_diameter), .0};
             break;
         }
 
@@ -666,12 +661,29 @@ void SLAPrint::Steps::support_points(SLAPrintObject &po)
 
         // Construction of this object does the calculation.
         throw_if_canceled();
-        sla::SupportPointGenerator auto_supports(
-            po.m_supportdata->input.emesh, po.get_model_slices(),
-            heights, config, [this]() { throw_if_canceled(); }, statuscb);
 
-        // Now let's extract the result.
-        std::vector<sla::SupportPoint>& points = auto_supports.output();
+        // TODO: filter small unprintable islands in slices
+        // (Island with area smaller than 1 pixel was skipped in support generator)
+
+        std::vector<ExPolygons> slices = po.get_model_slices(); // copy
+        std::vector<float> heights = po.m_model_height_levels; // copy
+        sla::ThrowOnCancel cancel = [this]() { throw_if_canceled(); };
+        sla::StatusFunction status = statuscb;
+        sla::SupportPointGeneratorData data = 
+            sla::prepare_generator_data(std::move(slices), std::move(heights), cancel, status);
+
+        sla::LayerSupportPoints layer_support_points = 
+            sla::generate_support_points(data, config, cancel, status);
+
+        const AABBMesh& emesh = po.m_supportdata->input.emesh;
+        // Maximal move of support point to mesh surface,
+        // no more than height of layer
+        assert(po.m_model_height_levels.size() > 1);
+        double allowed_move = (po.m_model_height_levels[1] - po.m_model_height_levels[0]) +
+            std::numeric_limits<float>::epsilon();
+        sla::SupportPoints support_points = 
+            sla::move_on_mesh_surface(layer_support_points, emesh, allowed_move, cancel);
+
         throw_if_canceled();
 
         MeshSlicingParamsEx params;
@@ -691,9 +703,9 @@ void SLAPrint::Steps::support_points(SLAPrintObject &po)
                           });
 
         SuppPtMask mask{blockers, enforcers, po.config().support_enforcers_only.getBool()};
-        filter_support_points_by_modifiers(points, mask, po.m_model_height_levels);
+        filter_support_points_by_modifiers(support_points, mask, po.m_model_height_levels);
 
-        po.m_supportdata->input.pts = points;
+        po.m_supportdata->input.pts = support_points;
 
         BOOST_LOG_TRIVIAL(debug)
             << "Automatic support points: "
@@ -717,10 +729,17 @@ void SLAPrint::Steps::support_tree(SLAPrintObject &po)
     // If the zero elevation mode is engaged, we have to filter out all the
     // points that are on the bottom of the object
     if (is_zero_elevation(po.config())) {
-        remove_bottom_points(po.m_supportdata->input.pts,
-                             float(
-                                 po.m_supportdata->input.zoffset +
-                                 EPSILON));
+        // remove_bottom_points
+        std::vector<sla::SupportPoint> &pts = po.m_supportdata->input.pts;
+        float lvl(po.m_supportdata->input.zoffset + EPSILON); 
+
+        // get iterator to the reorganized vector end
+        auto endit = std::remove_if(pts.begin(), pts.end(), 
+            [lvl](const sla::SupportPoint &sp) {
+                return sp.pos.z() <= lvl; });
+
+        // erase all elements after the new end
+        pts.erase(endit, pts.end());
     }
 
     po.m_supportdata->input.cfg = make_support_cfg(po.m_config);
