@@ -39,7 +39,12 @@ public:
         : m_cell_size(cell_size), m_cell_size_half(cell_size / 2) {}
 
     Key cell_id(const Point &point) const {
-        return Key(point.x() / m_cell_size, point.y() / m_cell_size);
+        Key::coord_type x = point.x() / m_cell_size;
+        Key::coord_type y = point.y() / m_cell_size;
+        // correction around zero => -1 / 5 = 0
+        if (point.x() < 0) --x; 
+        if (point.y() < 0) --y;
+        return Key{x, y};
     }
 
     void add(LayerSupportPoint &&point) {
