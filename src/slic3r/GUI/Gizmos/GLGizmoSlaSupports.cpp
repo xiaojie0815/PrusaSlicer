@@ -1148,7 +1148,7 @@ void GLGizmoSlaSupports::auto_generate()
 
     if (mo->sla_points_status != sla::PointsStatus::UserModified || m_normal_cache.empty() || dlg.ShowModal() == wxID_YES) {
         Plater::TakeSnapshot snapshot(wxGetApp().plater(), _L("Autogenerate support points"));
-        wxGetApp().CallAfter([this]() { reslice_until_step(slaposPad); });
+        wxGetApp().CallAfter([this]() { reslice_until_step(slaposSupportPoints); });
         mo->sla_points_status = sla::PointsStatus::Generating;
     }
 }
