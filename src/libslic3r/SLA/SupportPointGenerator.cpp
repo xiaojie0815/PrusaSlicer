@@ -135,37 +135,6 @@ Point intersection(const Point &p1, const Point &p2, const Point &cnt, double r2
     return {};
 }
 
-/// <summary>
-/// Uniformly sample Polygon,
-/// Use first point and each next point is first crosing radius from last added
-/// </summary>
-/// <param name="p">Polygon to sample</param>
-/// <param name="dist2">Squared distance for sampling</param>
-/// <returns>Uniformly distributed points laying on input polygon
-/// with exception of first and last point(they are closer than dist2)</returns>
-Slic3r::Points sample(const Polygon &p, double dist2) {
-    if (p.empty())
-        return {};
-
-    Slic3r::Points r;
-    r.push_back(p.front());
-    const Point *prev_pt = nullptr;
-    for (size_t prev_i = 0; prev_i < p.size(); prev_i++) {
-        size_t curr_i = (prev_i != p.size() - 1) ? prev_i + 1 : 0;
-        const Point &pt = p.points[curr_i];
-        double p_dist2 = (r.back() - pt).cast<double>().squaredNorm();
-        while (p_dist2 > dist2) { // line segment goes out of radius
-            if (prev_pt == nullptr)
-                prev_pt = &p.points[prev_i];
-            r.push_back(intersection(*prev_pt, pt, r.back(), dist2));
-            p_dist2 = (r.back() - pt).cast<double>().squaredNorm();
-            prev_pt = &r.back();
-        }
-        prev_pt = nullptr;
-    }
-    return r;
-}
-
 coord_t get_supported_radius(const LayerSupportPoint &p, float z_distance, const SupportPointGeneratorConfig &config
 ) {
     // TODO: calculate support radius
@@ -265,7 +234,157 @@ Grid2D support_island(const LayerPart &part, float part_z, const SupportPointGen
     return part_grid;
 }
 
-}; 
+/// <summary>
+/// Copy parts from link to output
+/// </summary>
+/// <param name="part_links">Links between part of mesh</param>
+/// <returns>Collected polygons from links</returns>
+Polygons get_polygons(const PartLinks& part_links) {
+    size_t cnt = 0;
+    for (const PartLink &part_link : part_links)
+        cnt += 1 + part_link.part_it->shape->holes.size();
+
+    Polygons out;
+    out.reserve(cnt);
+    for (const PartLink &part_link : part_links) {
+        const ExPolygon &shape = *part_link.part_it->shape;
+        out.emplace_back(shape.contour);
+        append(out, shape.holes);
+    }
+    return out;
+}
+
+/// <summary>
+/// Uniformly sample Polyline,
+/// Use first point and each next point is first crosing radius from last added
+/// </summary>
+/// <param name="b">Begin of polyline points to sample</param>
+/// <param name="e">End of polyline points to sample</param>
+/// <param name="dist2">Squared distance for sampling</param>
+/// <returns>Uniformly distributed points laying on input polygon
+/// with exception of first and last point(they are closer than dist2)</returns>
+Slic3r::Points sample(Points::const_iterator b, Points::const_iterator e, double dist2) {
+    assert(e-b >= 2);
+    if (e - b < 2)
+        return {}; // at least one line(2 points)
+
+    // IMPROVE1: start of sampling e.g. center of Polyline
+    // IMPROVE2: Random offset(To remove align of point between slices)
+    // IMPROVE3: Sample small overhangs with memory for last sample(OR in center)
+    Slic3r::Points r;
+    r.push_back(*b);
+
+    Points::const_iterator prev_pt = e;
+    for (Points::const_iterator it = b; it+1 < e; ++it){        
+        const Point &pt = *(it+1);
+        double p_dist2 = (r.back() - pt).cast<double>().squaredNorm();
+        while (p_dist2 > dist2) { // line segment goes out of radius
+            if (prev_pt == e)
+                prev_pt = it;
+            r.push_back(intersection(*prev_pt, pt, r.back(), dist2));
+            p_dist2 = (r.back() - pt).cast<double>().squaredNorm();
+            prev_pt = r.end()-1; // r.back()
+        }
+        prev_pt = e;
+    }
+    return r;
+}
+
+bool contain_point(const Point &p, const Points &sorted_points) {
+    auto it = std::lower_bound(sorted_points.begin(), sorted_points.end(), p);
+    if (it == sorted_points.end())
+        return false;
+    ++it; // next point should be same as searched
+    if (it == sorted_points.end())
+        return false;
+    return it->x() == p.x() && it->y() == p.y();
+};
+
+bool exist_same_points(const ExPolygon &shape, const Points& prev_points) {
+    auto shape_points = to_points(shape);
+    return shape_points.end() !=
+        std::find_if(shape_points.begin(), shape_points.end(), [&prev_points](const Point &p) {
+            return contain_point(p, prev_points);
+        });
+}
+
+Points sample_overhangs(const LayerPart& part, double dist2) {
+    const ExPolygon &shape = *part.shape;
+
+    // Collect previous expolygons by links collected in loop before    
+    Polygons prev_polygons = get_polygons(part.prev_parts);
+    assert(!prev_polygons.empty());
+    ExPolygons overhangs = diff_ex(shape, prev_polygons);    
+    if (overhangs.empty()) // above part is smaller in whole contour
+        return {};
+    
+    Points prev_points = to_points(prev_polygons);
+    std::sort(prev_points.begin(), prev_points.end());
+
+    // TODO: solve case when shape and prev points has same point
+    assert(!exist_same_points(shape, prev_points));
+        
+    auto sample_overhang = [&prev_points, dist2](const Polygon &polygon, Points &samples) {
+        const Points &pts = polygon.points;
+        // first point which is not part of shape
+        Points::const_iterator first_bad = pts.end();
+        Points::const_iterator start_it = pts.end();
+        for (auto it = pts.begin(); it != pts.end(); ++it) {
+            const Point &p = *it;
+            if (contain_point(p, prev_points)) {
+                if (first_bad == pts.end()) {
+                    // remember begining
+                    first_bad = it;
+                }
+                if (start_it != pts.end()) {
+                    // finish sampling
+                    append(samples, sample(start_it, it, dist2));
+                    // prepare for new start
+                    start_it = pts.end();
+                }
+            } else if (start_it == pts.end()) {
+                start_it = it;
+            }
+        }
+
+        // sample last segment
+        if (start_it == pts.end()) { // tail is without points
+            if (first_bad != pts.begin()) // only begining
+                append(samples, sample(pts.begin(), first_bad, dist2));
+        } else { // tail contain points
+            if (first_bad == pts.begin()) { // only tail
+                append(samples, sample(start_it, pts.end(), dist2));
+            } else if (start_it == pts.begin()) { // whole polygon is overhang
+                assert(first_bad == pts.end());
+                Points pts2 = pts; // copy
+                pts2.push_back(pts.front());
+                append(samples, sample(pts2.begin(), pts2.end(), dist2));
+            } else { // need connect begining and tail
+                Points pts2;
+                pts2.reserve((pts.end() - start_it) + 
+                             (first_bad - pts.begin()));
+                for (auto it = start_it; it < pts.end(); ++it)
+                    pts2.push_back(*it);
+                for (auto it = pts.begin(); it < first_bad; ++it)
+                    pts2.push_back(*it);
+                append(samples, sample(pts2.begin(), pts2.end(), dist2));
+            }
+        }
+    };
+
+    Points samples;
+    for (const ExPolygon &overhang : overhangs) {
+        sample_overhang(overhang.contour, samples);
+        for (const Polygon &hole : overhang.holes) {            
+            sample_overhang(hole, samples);
+        }
+    }
+    return samples;
+}
+
+} // namespace
+
+#include "libslic3r/Execution/ExecutionSeq.hpp"
 
 SupportPointGeneratorData Slic3r::sla::prepare_generator_data(
     std::vector<ExPolygons> &&slices,
@@ -295,24 +414,24 @@ SupportPointGeneratorData Slic3r::sla::prepare_generator_data(
             // CPU write caches due to synchronization primitves.
             throw_on_cancel();
 
-        const double sample_distance_in_mm = scale_(2);
-        const double sample_distance_in_mm2 = sample_distance_in_mm * sample_distance_in_mm;
-
         Layer &layer = result.layers[layer_id];
         const ExPolygons &islands = result.slices[layer_id];
         layer.parts.reserve(islands.size());
-        for (const ExPolygon &island : islands)                        
+        for (const ExPolygon &island : islands) {
             layer.parts.push_back(LayerPart{
                 &island, 
-                get_extents(island.contour), 
-                sample(island.contour, sample_distance_in_mm2)
+                get_extents(island.contour)
+                // sample - only hangout part of expolygon could be known after linking
             });
-        
+        }        
     }, 32 /*gransize*/);
 
+    const double sample_distance_in_mm = scale_(2);
+    const double sample_distance_in_mm2 = sample_distance_in_mm * sample_distance_in_mm;
+
     // Link parts by intersections
-    execution::for_each(ex_tbb, size_t(1), result.slices.size(),
-                      [&result, throw_on_cancel] (size_t layer_id) {
+    execution::for_each(ex_seq, size_t(1), result.slices.size(),
+    [&result, sample_distance_in_mm2, throw_on_cancel](size_t layer_id) {
         if ((layer_id % 2) == 0)
             // Don't call the following function too often as it flushes CPU write caches due to synchronization primitves.
             throw_on_cancel();
@@ -335,6 +454,14 @@ SupportPointGeneratorData Slic3r::sla::prepare_generator_data(
                 it_above->prev_parts.emplace_back(PartLink{it_below});
                 it_below->next_parts.emplace_back(PartLink{it_above});
             }
+
+            if (it_above->prev_parts.empty())
+                continue;
+
+            // IMPROVE: overhangs could be calculated with Z coordninate
+            // soo one will know source shape of point and do not have to search this information
+            // Get inspiration at https://github.com/Prusa-Development/PrusaSlicerPrivate/blob/e00c46f070ec3d6fc325640b0dd10511f8acf5f7/src/libslic3r/PerimeterGenerator.cpp#L399
+            it_above->samples = sample_overhangs(*it_above, sample_distance_in_mm2);
         }
     }, 8 /* gransize */);
     return result;
