@@ -22,21 +22,24 @@ class Grid2D
     coord_t m_cell_size; // Squar: x and y are same
     coord_t m_cell_size_half;
 
-    using Key = Point;
+    using Key = Point; // scaled point
+    using Value = size_t; // index into m_supports_ptr
     struct GridHash{std::size_t operator()(const Key &cell_id) const {
         return std::hash<int>()(cell_id.x()) ^ std::hash<int>()(cell_id.y() * 593);
     }};
-    using Grid = std::unordered_multimap<Key, LayerSupportPoint, GridHash>;
+    using Grid = std::unordered_multimap<Key, Value, GridHash>;
     Grid m_grid;
-
+    // multiple grids points into same data storage of support points
+    LayerSupportPoints *m_supports_ptr;
 public:
     /// <summary>
     /// Set cell size for grid
     /// </summary>
     /// <param name="cell_size">Granularity of stored points
     /// Must be bigger than maximal used radius</param>
-    explicit Grid2D(const coord_t &cell_size)
-        : m_cell_size(cell_size), m_cell_size_half(cell_size / 2) {}
+    /// <param name="supports_ptr">Pointer on Support vector</param>
+    explicit Grid2D(const coord_t &cell_size, LayerSupportPoints* supports_ptr)
+        : m_cell_size(cell_size), m_cell_size_half(cell_size / 2), m_supports_ptr(supports_ptr) {}
 
     Key cell_id(const Point &point) const {
         Key::coord_type x = point.x() / m_cell_size;
@@ -48,11 +51,19 @@ public:
     }
 
     void add(LayerSupportPoint &&point) {
-        m_grid.emplace(cell_id(point.position_on_layer), std::move(point));
+        size_t index = m_supports_ptr->size();
+        m_supports_ptr->emplace_back(std::move(point));
+        m_grid.emplace(cell_id(point.position_on_layer), index);
     }
 
     using CheckFnc = std::function<bool(const LayerSupportPoint &, const Point&)>;
     bool exist_true_in_4cell_neighbor(const Point &pos, const CheckFnc& fnc) const {
+        // TODO: remove - test all support points without grid speed up
+        for (const auto &[key, value]: m_grid)
+            if(fnc(m_supports_ptr->at(value), pos)) 
+                return true;
+        return false;
+
         Key key = cell_id(pos);
         if (exist_true_for_cell(key, pos, fnc)) return true;
         Point un_cell_pos(
@@ -72,19 +83,11 @@ public:
         assert(m_cell_size == grid.m_cell_size);
         m_grid.merge(std::move(grid.m_grid));
     }
-
-    LayerSupportPoints get_points() const { 
-        LayerSupportPoints result;
-        result.reserve(m_grid.size());
-        for (const auto& [key, support] : m_grid)
-            result.push_back(support);
-        return result;
-    }
 private:
     bool exist_true_for_cell(const Key &key, const Point &pos, const CheckFnc& fnc) const{
         auto [begin_it, end_it] = m_grid.equal_range(key);
         for (Grid::const_iterator it = begin_it; it != end_it; ++it) {
-            const LayerSupportPoint &support_point = it->second;
+            const LayerSupportPoint &support_point = m_supports_ptr->at(it->second);
             if (fnc(support_point, pos))
                 return true;
         }
@@ -135,34 +138,25 @@ Point intersection(const Point &p1, const Point &p2, const Point &cnt, double r2
     return {};
 }
 
-coord_t get_supported_radius(const LayerSupportPoint &p, float z_distance, const SupportPointGeneratorConfig &config
-) {
-    // TODO: calculate support radius
-    return scale_(5.);
-}
-
-void sample_part(
+/// <summary>
+/// Move grid from previous layer to current one
+/// for given part
+/// </summary>
+/// <param name="prev_layer_parts">Grids generated in previous layer</param>
+/// <param name="part">Current layer part to process</param>
+/// <param name="prev_grids">Grids which will be moved to current grid</param>
+/// <returns>Grid for given part</returns>
+Grid2D create_part_grid(
+    const LayerParts &prev_layer_parts,
     const LayerPart &part,
-    size_t layer_id,
-    const SupportPointGeneratorData &data,
-    const SupportPointGeneratorConfig &config,
-    std::vector<Grid2D> &grids,
     std::vector<Grid2D> &prev_grids
 ) {
-    // NOTE: first layer do not have prev part
-    assert(layer_id != 0);
-
-    const Layers &layers = data.layers;
-    const LayerParts &prev_layer_parts = layers[layer_id - 1].parts;
     const LayerParts::const_iterator &prev_part_it = part.prev_parts.front().part_it;
     size_t index_of_prev_part = prev_part_it - prev_layer_parts.begin();
-    if (prev_part_it->next_parts.size() == 1) {
-        grids.push_back(std::move(prev_grids[index_of_prev_part]));
-    } else { // Need a copy there are multiple parts above previus one
-        grids.push_back(prev_grids[index_of_prev_part]); // copy
-    }
-    // current part grid
-    Grid2D &part_grid = grids.back();
+    Grid2D part_grid = (prev_part_it->next_parts.size() == 1)?
+        std::move(prev_grids[index_of_prev_part]) :
+        // Need a copy there are multiple parts above previus one
+        prev_grids[index_of_prev_part]; // copy    
 
     // merge other grid in case of multiple previous parts
     for (size_t i = 1; i < part.prev_parts.size(); ++i) {
@@ -175,16 +169,32 @@ void sample_part(
             part_grid.merge(std::move(grid_));
         }
     }
+    return part_grid;
+}
 
-    float part_z = data.heights[layer_id];
-    Grid2D::CheckFnc is_supported = [part_z, &config]
+/// <summary>
+/// Add support point to part_grid when it is neccessary
+/// </summary>
+/// <param name="part">Current part - keep samples</param>
+/// <param name="config">Configuration to sample</param>
+/// <param name="part_grid">Keep previous sampled suppport points</param>
+/// <param name="part_z">current z coordinate of part</param>
+void support_part_overhangs(
+    const LayerPart &part,
+    const SupportPointGeneratorConfig &config,
+    Grid2D &part_grid,
+    float part_z
+) {
+    Grid2D::CheckFnc is_supported = []
     (const LayerSupportPoint &support_point, const Point &p) -> bool {
-        float diff_height = part_z - support_point.pos.z();
-        coord_t r_ = get_supported_radius(support_point, diff_height, config);
+        // Debug visualization of all sampled outline
+        //return false;
+
+        coord_t r = support_point.current_radius;
         Point dp = support_point.position_on_layer - p;
-        if (std::abs(dp.x()) > r_) return false;
-        if (std::abs(dp.y()) > r_) return false;
-        double r2 = static_cast<double>(r_);
+        if (std::abs(dp.x()) > r) return false;
+        if (std::abs(dp.y()) > r) return false;
+        double r2 = static_cast<double>(r);
         r2 *= r2;
         return dp.cast<double>().squaredNorm() < r2;
     };
@@ -201,7 +211,9 @@ void sample_part(
                     SupportPointType::slope
                 },
                 /* position_on_layer */ p,
-                /* direction_to_mass */ Point(1,0)
+                /* direction_to_mass */ Point(1,0), // TODO: change direction
+                /* radius_curve_index */ 0,
+                /* current_radius */ static_cast<coord_t>(scale_(config.support_curve.front().x()))
                 });
         }    
     }
@@ -212,14 +224,16 @@ Points uniformly_sample(const ExPolygon &island, const SupportPointGeneratorConf
     return Points{island.contour.centroid()};
 }
 
-Grid2D support_island(const LayerPart &part, float part_z, const SupportPointGeneratorConfig &cfg) {
-    // Maximal radius of supported area of one support point
-    double max_support_radius = 10.; // cfg.cell_size;
-
-    // maximal radius of support
-    coord_t cell_size = scale_(max_support_radius);
-
-    Grid2D part_grid(cell_size);
+/// <summary>
+/// Sample part as Island
+/// Result store to grid
+/// </summary>
+/// <param name="part">Island to support</param>
+/// <param name="part_grid">OUT place to store new supports</param>
+/// <param name="part_z">z coordinate of part</param>
+/// <param name="cfg"></param>
+void support_island(const LayerPart &part, Grid2D& part_grid, float part_z,
+    const SupportPointGeneratorConfig &cfg) {
     Points pts = uniformly_sample(*part.shape, cfg);
     for (const Point &pt : pts)
         part_grid.add(LayerSupportPoint{
@@ -229,9 +243,10 @@ Grid2D support_island(const LayerPart &part, float part_z, const SupportPointGen
                 SupportPointType::island
             },
             /* position_on_layer */ pt,
-            /* direction_to_mass */ Point(0,0) // direction from bottom
+            /* direction_to_mass */ Point(0,0), // direction from bottom
+            /* radius_curve_index */ 0,
+            /* current_radius */ static_cast<coord_t>(scale_(cfg.support_curve.front().x()))
         });
-    return part_grid;
 }
 
 /// <summary>
@@ -274,18 +289,19 @@ Slic3r::Points sample(Points::const_iterator b, Points::const_iterator e, double
     Slic3r::Points r;
     r.push_back(*b);
 
-    Points::const_iterator prev_pt = e;
+    //Points::const_iterator prev_pt = e;
+    const Point *prev_pt = nullptr;
     for (Points::const_iterator it = b; it+1 < e; ++it){        
         const Point &pt = *(it+1);
         double p_dist2 = (r.back() - pt).cast<double>().squaredNorm();
         while (p_dist2 > dist2) { // line segment goes out of radius
-            if (prev_pt == e)
-                prev_pt = it;
+            if (prev_pt == nullptr)
+                prev_pt = &(*it);
             r.push_back(intersection(*prev_pt, pt, r.back(), dist2));
             p_dist2 = (r.back() - pt).cast<double>().squaredNorm();
-            prev_pt = r.end()-1; // r.back()
+            prev_pt = &r.back();
         }
-        prev_pt = e;
+        prev_pt = nullptr;
     }
     return r;
 }
@@ -382,13 +398,43 @@ Points sample_overhangs(const LayerPart& part, double dist2) {
     return samples;
 }
 
+
+void prepare_supports_for_layer(LayerSupportPoints &supports, float layer_z, 
+    const SupportPointGeneratorConfig &config) {
+    const std::vector<Vec2f>& curve = config.support_curve;
+    // calculate support area for each support point as radius
+    // IMPROVE: use some offsets of previous supported island
+    for (LayerSupportPoint &support : supports) {
+        size_t &index = support.radius_curve_index;
+        if (index + 1 >= curve.size())
+            continue; // already contain maximal radius
+
+        // find current segment
+        float diff_z = layer_z - support.pos.z();
+        while ((index + 1) < curve.size() && diff_z > curve[index + 1].y())
+            ++index;
+
+        if ((index+1) >= curve.size()) {
+            // set maximal radius
+            support.current_radius = static_cast<coord_t>(scale_(curve.back().x()));
+            continue;
+        }
+        // interpolate radius on input curve
+        Vec2f a = curve[index];
+        Vec2f b = curve[index+1];
+        assert(a.y() <= diff_z && diff_z <= b.y());
+        float t = (diff_z - a.y()) / (b.y() - a.y());
+        assert(0 <= t && t <= 1);
+        support.current_radius = static_cast<coord_t>(scale_(a.x() + t * (b.x() - a.x())));
+    }
+}
 } // namespace
 
 #include "libslic3r/Execution/ExecutionSeq.hpp"
 
 SupportPointGeneratorData Slic3r::sla::prepare_generator_data(
     std::vector<ExPolygons> &&slices,
-    std::vector<float> &&heights,
+    const std::vector<float> &heights,
     ThrowOnCancel throw_on_cancel,
     StatusFunction statusfn
 ) {
@@ -401,20 +447,20 @@ SupportPointGeneratorData Slic3r::sla::prepare_generator_data(
     // Move input into result
     SupportPointGeneratorData result;
     result.slices = std::move(slices);
-    result.heights = std::move(heights);
 
     // Allocate empty layers.
     result.layers = Layers(result.slices.size(), {});
 
     // Generate Extents and SampleLayers
     execution::for_each(ex_tbb, size_t(0), result.slices.size(),
-        [&result, throw_on_cancel](size_t layer_id) {
+        [&result, &heights, throw_on_cancel](size_t layer_id) {
         if ((layer_id % 8) == 0)
             // Don't call the following function too often as it flushes
             // CPU write caches due to synchronization primitves.
             throw_on_cancel();
 
         Layer &layer = result.layers[layer_id];
+        layer.print_z = heights[layer_id]; // copy
         const ExPolygons &islands = result.slices[layer_id];
         layer.parts.reserve(islands.size());
         for (const ExPolygon &island : islands) {
@@ -467,6 +513,42 @@ SupportPointGeneratorData Slic3r::sla::prepare_generator_data(
     return result;
 }
 
+#include "libslic3r/NSVGUtils.hpp"
+#include "libslic3r/Utils.hpp"
+std::vector<Vec2f> load_curve_from_file() {
+    std::string filePath = Slic3r::resources_dir() + "/data/sla_support.svg";
+    EmbossShape::SvgFile svg_file{filePath};
+    NSVGimage *image = init_image(svg_file);
+    
+    for (NSVGshape *shape_ptr = image->shapes; shape_ptr != NULL; shape_ptr = shape_ptr->next) {
+        const NSVGshape &shape = *shape_ptr;
+        if (!(shape.flags & NSVG_FLAGS_VISIBLE)) continue; // is visible
+        if (shape.fill.type != NSVG_PAINT_NONE) continue; // is not used fill
+        if (shape.stroke.type == NSVG_PAINT_NONE) continue; // exist stroke
+        if (shape.strokeWidth < 1e-5f) continue; // is visible stroke width
+        if (shape.stroke.color != 4278190261) continue; // is red
+
+        // use only first path
+        const NSVGpath *path = shape.paths;
+        size_t count_points = path->npts;
+        assert(count_points > 1);
+        --count_points;
+        std::vector<Vec2f> points;
+        points.reserve(count_points/3+1);
+        points.push_back({path->pts[0], path->pts[1]});
+        for (size_t i = 0; i < count_points; i += 3) {
+            const float *p = &path->pts[i * 2];
+            points.push_back({p[6], p[7]});
+        }
+        assert(points.size() >= 2);
+        return points;
+    }
+
+    // red curve line is not found
+    assert(false);
+    return {};
+}
+
 LayerSupportPoints Slic3r::sla::generate_support_points(
     const SupportPointGeneratorData &data,
     const SupportPointGeneratorConfig &config,
@@ -478,30 +560,41 @@ LayerSupportPoints Slic3r::sla::generate_support_points(
     double status = 0; // current progress
     int status_int = 0; 
 
+    // Hack to set curve for testing
+    if (config.support_curve.empty())
+        const_cast<SupportPointGeneratorConfig &>(config).support_curve = load_curve_from_file();
+    
+    // Maximal radius of supported area of one support point
+    double max_support_radius = config.support_curve.back().x(); // cfg.cell_size;
+    // maximal radius of support
+    coord_t cell_size = scale_(2*max_support_radius);
+
+    // Storage for support points used by grid
     LayerSupportPoints result;
+
+    // grid index == part in layer index
     std::vector<Grid2D> prev_grids; // same count as previous layer item size
     for (size_t layer_id = 0; layer_id < layers.size(); ++layer_id) {
         const Layer &layer = layers[layer_id];
 
+        prepare_supports_for_layer(result, layer.print_z, config);
+
+        // grid index == part in layer index
         std::vector<Grid2D> grids;
         grids.reserve(layer.parts.size());
         
         for (const LayerPart &part : layer.parts) {
             if (part.prev_parts.empty()) {
+                // only island add new grid
+                grids.emplace_back(cell_size, &result);
                 // new island - needs support no doubt
-                float part_z = data.heights[layer_id];
-                grids.push_back(support_island(part, part_z, config));
+                support_island(part, grids.back(), layer.print_z, config);
             } else {
-                sample_part(part, layer_id, data, config, grids, prev_grids);
-            }
-
-            // collect result from grid of top part
-            if (part.next_parts.empty()) {
-                const Grid2D &part_grid = grids.back();
-                LayerSupportPoints sps = part_grid.get_points();
-                result.insert(result.end(), 
-                    std::make_move_iterator(sps.begin()),
-                    std::make_move_iterator(sps.end()));
+                // first layer should have empty prev_part
+                assert(layer_id != 0);
+                const LayerParts &prev_layer_parts = layers[layer_id - 1].parts;
+                grids.push_back(create_part_grid(prev_layer_parts, part, prev_grids));
+                support_part_overhangs(part, config, grids.back(), layer.print_z);
             }
         }
         prev_grids = std::move(grids);

@@ -40,6 +40,12 @@ struct SupportPointGeneratorConfig{
     // Minimal island Area to print - TODO: Should be modifiable from UI
     // !! Filter should be out of sampling algorithm !!
     float minimal_island_area = pow(0.047f, 2.f); // [in mm^2] pixel_area
+
+    // maximal distance to nearest support point(define radiuses per layer)
+    // x axis .. mean distance on layer(XY)
+    // y axis .. mean difference of height(Z)
+    // Points of lines [in mm]
+    std::vector<Vec2f> support_curve;
 };
 
 struct LayerPart; // forward decl.
@@ -93,6 +99,15 @@ struct LayerSupportPoint: public SupportPoint
     // used as ray to positioning 3d point on mesh surface
     // Island has direction [0,0] - should be placed on surface from bottom
     Point direction_to_mass;
+
+    // index into curve to faster found radius for current layer
+    size_t radius_curve_index = 0;
+    coord_t current_radius = 0; // [in scaled mm]
+
+    // information whether support point is active in current investigated layer
+    // Flagged false when no part on layer in Radius 'r' around support point
+    // Tool to support overlapped overhang area multiple times
+    bool active_in_part = true;
 };
 using LayerSupportPoints = std::vector<LayerSupportPoint>;
 
@@ -106,8 +121,7 @@ struct Layer
     size_t layer_id;
 
     // Absolute distance from Zero - copy value from heights<float>
-    // [[deprecated]] Use index to layers insted of adress from item
-    double print_z; // [in mm]
+    float print_z; // [in mm]
 
     // data for one expolygon
     LayerParts parts;
@@ -122,10 +136,10 @@ struct SupportPointGeneratorData
 {
     // Input slices of mesh
     std::vector<ExPolygons> slices;
-    // Same size as slices
-    std::vector<float> heights;
 
-    // link to slices
+    // Keep information about layer and its height
+    // and connection between layers for its part
+    // NOTE: contain links into slices
     Layers layers;
 };
 
@@ -147,7 +161,7 @@ using StatusFunction= std::function<void(int)>;
 /// <returns>Data prepared for generate support points</returns>
 SupportPointGeneratorData prepare_generator_data(
     std::vector<ExPolygons> &&slices,
-    std::vector<float> &&heights,
+    const std::vector<float> &heights,
     ThrowOnCancel throw_on_cancel,
     StatusFunction statusfn
 );

@@ -678,45 +678,47 @@ RENDER_AGAIN:
     else { // not in editing mode:
         m_imgui->disabled_begin(!is_input_enabled());
 
-        ImGui::AlignTextToFramePadding();
-        ImGuiPureWrap::text(m_desc.at("minimal_distance"));
-        ImGui::SameLine(settings_sliders_left);
-        ImGui::PushItemWidth(window_width - settings_sliders_left);
+        ImGui::Text("Distribution depends on './resources/data/sla_support.svg'\ninstruction for edit are in file");
 
-        std::vector<const ConfigOption*> opts = get_config_options({"support_points_density_relative", "support_points_minimal_distance"});
-        float density = static_cast<const ConfigOptionInt*>(opts[0])->value;
-        float minimal_point_distance = static_cast<const ConfigOptionFloat*>(opts[1])->value;
+        //ImGui::AlignTextToFramePadding();
+        //ImGuiPureWrap::text(m_desc.at("minimal_distance"));
+        //ImGui::SameLine(settings_sliders_left);
+        //ImGui::PushItemWidth(window_width - settings_sliders_left);
 
-        m_imgui->slider_float("##minimal_point_distance", &minimal_point_distance, 0.f, 20.f, "%.f mm");
-        bool slider_clicked = m_imgui->get_last_slider_status().clicked; // someone clicked the slider
-        bool slider_edited = m_imgui->get_last_slider_status().edited; // someone is dragging the slider
-        bool slider_released = m_imgui->get_last_slider_status().deactivated_after_edit; // someone has just released the slider
+        //std::vector<const ConfigOption*> opts = get_config_options({"support_points_density_relative", "support_points_minimal_distance"});
+        //float density = static_cast<const ConfigOptionInt*>(opts[0])->value;
+        //float minimal_point_distance = static_cast<const ConfigOptionFloat*>(opts[1])->value;
 
-        ImGui::AlignTextToFramePadding();
-        ImGuiPureWrap::text(m_desc.at("points_density"));
-        ImGui::SameLine(settings_sliders_left);
+        //m_imgui->slider_float("##minimal_point_distance", &minimal_point_distance, 0.f, 20.f, "%.f mm");
+        //bool slider_clicked = m_imgui->get_last_slider_status().clicked; // someone clicked the slider
+        //bool slider_edited = m_imgui->get_last_slider_status().edited; // someone is dragging the slider
+        //bool slider_released = m_imgui->get_last_slider_status().deactivated_after_edit; // someone has just released the slider
 
-        m_imgui->slider_float("##points_density", &density, 0.f, 200.f, "%.f %%");
-        slider_clicked |= m_imgui->get_last_slider_status().clicked;
-        slider_edited |= m_imgui->get_last_slider_status().edited;
-        slider_released |= m_imgui->get_last_slider_status().deactivated_after_edit;
+        //ImGui::AlignTextToFramePadding();
+        //ImGuiPureWrap::text(m_desc.at("points_density"));
+        //ImGui::SameLine(settings_sliders_left);
 
-        if (slider_clicked) { // stash the values of the settings so we know what to revert to after undo
-            m_minimal_point_distance_stash = minimal_point_distance;
-            m_density_stash = density;
-        }
-        if (slider_edited) {
-            mo->config.set("support_points_minimal_distance", minimal_point_distance);
-            mo->config.set("support_points_density_relative", (int)density);
-        }
-        if (slider_released) {
-            mo->config.set("support_points_minimal_distance", m_minimal_point_distance_stash);
-            mo->config.set("support_points_density_relative", (int)m_density_stash);
-            Plater::TakeSnapshot snapshot(wxGetApp().plater(), _L("Support parameter change"));
-            mo->config.set("support_points_minimal_distance", minimal_point_distance);
-            mo->config.set("support_points_density_relative", (int)density);
-            wxGetApp().obj_list()->update_and_show_object_settings_item();
-        }
+        //m_imgui->slider_float("##points_density", &density, 0.f, 200.f, "%.f %%");
+        //slider_clicked |= m_imgui->get_last_slider_status().clicked;
+        //slider_edited |= m_imgui->get_last_slider_status().edited;
+        //slider_released |= m_imgui->get_last_slider_status().deactivated_after_edit;
+
+        //if (slider_clicked) { // stash the values of the settings so we know what to revert to after undo
+        //    m_minimal_point_distance_stash = minimal_point_distance;
+        //    m_density_stash = density;
+        //}
+        //if (slider_edited) {
+        //    mo->config.set("support_points_minimal_distance", minimal_point_distance);
+        //    mo->config.set("support_points_density_relative", (int)density);
+        //}
+        //if (slider_released) {
+        //    mo->config.set("support_points_minimal_distance", m_minimal_point_distance_stash);
+        //    mo->config.set("support_points_density_relative", (int)m_density_stash);
+        //    Plater::TakeSnapshot snapshot(wxGetApp().plater(), _L("Support parameter change"));
+        //    mo->config.set("support_points_minimal_distance", minimal_point_distance);
+        //    mo->config.set("support_points_density_relative", (int)density);
+        //    wxGetApp().obj_list()->update_and_show_object_settings_item();
+        //}
 
         bool generate = ImGuiPureWrap::button(m_desc.at("auto_generate"));
 
