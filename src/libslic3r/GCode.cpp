@@ -2284,7 +2284,7 @@ namespace GCode {
 
 std::pair<GCode::SmoothPath, std::size_t> split_with_seam(
     const ExtrusionLoop &loop,
-    const std::variant<Point, Seams::Scarf::Scarf> &seam,
+    const boost::variant<Point, Seams::Scarf::Scarf> &seam,
     const bool flipped,
     const GCode::SmoothPathCache &smooth_path_cache,
     const double scaled_resolution,
@@ -2293,21 +2293,18 @@ std::pair<GCode::SmoothPath, std::size_t> split_with_seam(
     if (loop.paths.empty() || loop.paths.front().empty()) {
         return {SmoothPath{}, 0};
     }
-    if (std::holds_alternative<Point>(seam)) {
-        const auto seam_point = std::get<Point>(seam);
-
+    if (const auto seam_point{boost::get<Point>(&seam)}; seam_point != nullptr) {
         return {
             smooth_path_cache.resolve_or_fit_split_with_seam(
-                loop, flipped, scaled_resolution, seam_point, seam_point_merge_distance_threshold
+                loop, flipped, scaled_resolution, *seam_point, seam_point_merge_distance_threshold
             ),
             0};
-    } else if (std::holds_alternative<Seams::Scarf::Scarf>(seam)) {
-        const auto scarf{std::get<Seams::Scarf::Scarf>(seam)};
+    } else if (const auto scarf{boost::get<Seams::Scarf::Scarf>(&seam)}; scarf != nullptr) {
         ExtrusionPaths paths{loop.paths};
         const auto apply_smoothing{[&](tcb::span<const ExtrusionPath> paths){
             return smooth_path_cache.resolve_or_fit(paths, false, scaled<double>(0.0015));
         }};
-        return Seams::Scarf::add_scarf_seam(std::move(paths), scarf, apply_smoothing, flipped);
+        return Seams::Scarf::add_scarf_seam(std::move(paths), *scarf, apply_smoothing, flipped);
     } else {
         throw std::runtime_error{"Unknown seam type!"};
     }
@@ -2347,7 +2344,7 @@ struct SmoothPathGenerator
                 previous_position ? previous_position->local_point : Point::Zero()};
 
             if (!config.spiral_vase && loop->role().is_perimeter() && layer != nullptr && region != nullptr) {
-                std::variant<Point, Seams::Scarf::Scarf> seam{
+                boost::variant<Point, Seams::Scarf::Scarf> seam{
                     this->seam_placer
                         .place_seam(layer, region, *loop, extrusion_reference.flipped(), previous_point)};
                 std::tie(result, wipe_offset) = split_with_seam(

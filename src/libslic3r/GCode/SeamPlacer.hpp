@@ -54,7 +54,7 @@ public:
         const std::function<void(void)> &throw_if_canceled
     );
 
-    std::variant<Point, Scarf::Scarf> place_seam(
+    boost::variant<Point, Scarf::Scarf> place_seam(
         const Layer *layer, const PrintRegion *region, const ExtrusionLoop &loop, const bool flipped, const Point &last_pos
     ) const;
 

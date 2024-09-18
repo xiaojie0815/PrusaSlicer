@@ -235,7 +235,7 @@ SeamChoice to_seam_choice(
     return result;
 }
 
-std::variant<Point, Scarf::Scarf> finalize_seam_position(
+boost::variant<Point, Scarf::Scarf> finalize_seam_position(
     const ExtrusionLoop &loop,
     const PrintRegion *region,
     SeamChoice seam_choice,
@@ -403,7 +403,7 @@ int get_perimeter_count(const Layer *layer){
     return count;
 }
 
-std::variant<Point, Scarf::Scarf> Placer::place_seam(
+boost::variant<Point, Scarf::Scarf> Placer::place_seam(
     const Layer *layer, const PrintRegion *region, const ExtrusionLoop &loop, const bool flipped, const Point &last_pos
 ) const {
     const PrintObject *po = layer->object();
