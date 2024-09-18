@@ -18,6 +18,10 @@ namespace {
 /// </summary>
 class NearPoints
 {
+    /// <summary>
+    /// Structure made for KDTree as function to 
+    /// acess support point coordinate by index into global support point storage
+    /// </summary>
     struct PointAccessor {
         // multiple trees points into same data storage of all support points
         LayerSupportPoints *m_supports_ptr;
@@ -39,21 +43,50 @@ public:
     explicit NearPoints(LayerSupportPoints* supports_ptr)
         : m_points(supports_ptr), m_tree(m_points) {}
 
+    /// <summary>
+    /// Remove support points from KD-Tree which lay out of expolygons
+    /// </summary>
+    /// <param name="shapes">Define area where could be support points</param>
+    void remove_out_of(const ExPolygons &shapes) {
+        std::vector<size_t> indices = get_indices();
+        auto it = std::remove_if(indices.begin(), indices.end(), 
+            [&pts = *m_points.m_supports_ptr, &shapes](size_t point_index) {
+                const Point& p = pts.at(point_index).position_on_layer;
+                return !std::any_of(shapes.begin(), shapes.end(), 
+                    [&p](const ExPolygon &shape) {
+                        return shape.contains(p);
+                    });
+            });
+        indices.erase(it, indices.end());
+        m_tree.clear();
+        m_tree.build(indices); // consume indices
+    }
+
+    /// <summary>
+    /// Add point new support point into global storage of support points 
+    /// and pointer into tree structure of nearest points
+    /// </summary>
+    /// <param name="point">New added point</param>
     void add(LayerSupportPoint &&point) {
+        // IMPROVE: only add to existing tree, do not reconstruct tree
+        std::vector<size_t> indices = get_indices();
         LayerSupportPoints &pts = *m_points.m_supports_ptr;
         size_t index = pts.size();
         pts.emplace_back(std::move(point));
-        // IMPROVE: only add to existing tree, do not reconstruct tree
-        std::vector<size_t> indices = m_tree.get_nodes(); // copy
-        auto it = std::remove_if(indices.begin(), indices.end(), 
-            [index](size_t i) { return i >= index; });
-        indices.erase(it, indices.end());
         indices.push_back(index);
         m_tree.clear();
         m_tree.build(indices); // consume indices
     }
 
     using CheckFnc = std::function<bool(const LayerSupportPoint &, const Point&)>;
+    /// <summary>
+    /// Iterate over support points in 2d radius and search any of fnc with True.
+    /// Made for check wheather surrounding supports support current point p.
+    /// </summary>
+    /// <param name="pos">Center of search circle</param>
+    /// <param name="radius">Search circle radius</param>
+    /// <param name="fnc">Function to check supports point</param>
+    /// <returns>True wheny any of check function return true, otherwise False</returns>
     bool exist_true_in_radius(const Point &pos, coord_t radius, const CheckFnc &fnc) const {
         std::vector<size_t> point_indices = find_nearby_points(m_tree, pos, radius);
         return std::any_of(point_indices.begin(), point_indices.end(), 
@@ -62,24 +95,40 @@ public:
             });
     }
 
+    /// <summary>
+    /// Merge another tree structure into current one.
+    /// Made for connection of two mesh parts.
+    /// </summary>
+    /// <param name="near_point">Another near points</param>
     void merge(NearPoints &&near_point) {
         // need to have same global storage of support points
         assert(m_points.m_supports_ptr == near_point.m_points.m_supports_ptr);
 
         // IMPROVE: merge trees instead of rebuild
-        std::vector<size_t> indices = m_tree.get_nodes(); // copy
-        const std::vector<size_t>& indices2 = near_point.m_tree.get_nodes();
-        indices.insert(indices.end(), indices2.begin(), indices2.end());
-        auto it = std::remove_if(indices.begin(), indices.end(), 
-            [size = indices.size()](size_t i) { return i >= size; });
-        indices.erase(it, indices.end());
-        // remove duplicit indices
+        std::vector<size_t> indices = get_indices();
+        std::vector<size_t> indices2 = near_point.get_indices();
+        // merge
+        indices.insert(indices.end(),
+            std::move_iterator(indices2.begin()), 
+            std::move_iterator(indices2.end()));
+        // remove duplicit indices - Diamond case
         std::sort(indices.begin(), indices.end());
-        it = std::unique(indices.begin(), indices.end());
+        auto it = std::unique(indices.begin(), indices.end());
         indices.erase(it, indices.end());
         // rebuild tree
         m_tree.clear();
         m_tree.build(indices); // consume indices
+    }
+
+private:
+    std::vector<size_t> get_indices() const {
+        std::vector<size_t> indices = m_tree.get_nodes(); // copy
+        // nodes in tree contain "max values for size_t" on unused leaf of tree,
+        // when count of indices is not exactly power of 2
+        auto it = std::remove_if(indices.begin(), indices.end(), 
+            [max_index = m_points.m_supports_ptr->size()](size_t i) { return i >= max_index; });
+        indices.erase(it, indices.end());
+        return indices;
     }
 };
 
@@ -416,6 +465,23 @@ void prepare_supports_for_layer(LayerSupportPoints &supports, float layer_z,
         support.current_radius = static_cast<coord_t>(scale_(a.x() + t * (b.x() - a.x())));
     }
 }
+
+/// <summary>
+/// Near points do not have to contain support points out of part.
+/// Due to be able support in same area again(overhang above another overhang)
+/// Wanted Side effect, it supports thiny part of overhangs
+/// </summary>
+/// <param name="part_grid"></param>
+/// <param name="part"></param>
+void remove_supports_out_of_part(NearPoints& part_grid, const LayerPart &part) { 
+    
+    // Must be greater than surface texture and lower than self supporting area
+    // May be use maximal island distance
+    float delta = scale_(5.);
+    ExPolygons extend_shape = offset_ex(*part.shape, delta, ClipperLib::jtSquare);
+    part_grid.remove_out_of(extend_shape);
+}
+
 } // namespace
 
 #include "libslic3r/Execution/ExecutionSeq.hpp"
@@ -581,8 +647,10 @@ LayerSupportPoints Slic3r::sla::generate_support_points(
                 // first layer should have empty prev_part
                 assert(layer_id != 0);
                 const LayerParts &prev_layer_parts = layers[layer_id - 1].parts;
-                grids.push_back(create_part_grid(prev_layer_parts, part, prev_grids));
-                support_part_overhangs(part, config, grids.back(), layer.print_z, maximal_radius);
+                NearPoints part_grid = create_part_grid(prev_layer_parts, part, prev_grids);
+                remove_supports_out_of_part(part_grid, part);
+                support_part_overhangs(part, config, part_grid, layer.print_z, maximal_radius);
+                grids.push_back(std::move(part_grid));
             }
         }
         prev_grids = std::move(grids);
