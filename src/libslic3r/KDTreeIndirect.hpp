@@ -38,9 +38,10 @@ public:
     KDTreeIndirect(CoordinateFn coordinate, std::vector<size_t> indices) : coordinate(coordinate) { this->build(indices); }
     KDTreeIndirect(CoordinateFn coordinate, size_t num_indices) : coordinate(coordinate) { this->build(num_indices); }
     KDTreeIndirect(KDTreeIndirect &&rhs) : m_nodes(std::move(rhs.m_nodes)), coordinate(std::move(rhs.coordinate)) {}
+    KDTreeIndirect(const KDTreeIndirect &rhs) : m_nodes(rhs.m_nodes), coordinate(rhs.coordinate) {}
     KDTreeIndirect& operator=(KDTreeIndirect &&rhs) { m_nodes = std::move(rhs.m_nodes); coordinate = std::move(rhs.coordinate); return *this; }
     void clear() { m_nodes.clear(); }
-
+    const std::vector<size_t> &get_nodes() const { return m_nodes; } 
     void build(size_t num_indices)
     {
         std::vector<size_t> indices;

@@ -5,93 +5,81 @@
 
 #include "SupportPointGenerator.hpp"
 
-#include <unordered_map> // point grid
-
 #include "libslic3r/Execution/ExecutionTBB.hpp" // parallel preparation of data for sampling
 #include "libslic3r/Execution/Execution.hpp"
+#include "libslic3r/KDTreeIndirect.hpp"
 
 using namespace Slic3r;
 using namespace Slic3r::sla;
 
 namespace {
 /// <summary>
-/// Struct to store support points in 2d grid to faster search for nearest support points
+/// Struct to store support points in KD tree to fast search for nearest ones.
 /// </summary>
-class Grid2D
+class NearPoints
 {
-    coord_t m_cell_size; // Squar: x and y are same
-    coord_t m_cell_size_half;
+    struct PointAccessor {
+        // multiple trees points into same data storage of all support points
+        LayerSupportPoints *m_supports_ptr;
+        explicit PointAccessor(LayerSupportPoints *supports_ptr) : m_supports_ptr(supports_ptr) {}
+        // accessor to coordinate for kd tree
+        const coord_t &operator()(size_t idx, size_t dimension) const {
+            return m_supports_ptr->at(idx).position_on_layer[dimension];
+        }
+    };
 
-    using Key = Point; // scaled point
-    using Value = size_t; // index into m_supports_ptr
-    struct GridHash{std::size_t operator()(const Key &cell_id) const {
-        return std::hash<int>()(cell_id.x()) ^ std::hash<int>()(cell_id.y() * 593);
-    }};
-    using Grid = std::unordered_multimap<Key, Value, GridHash>;
-    Grid m_grid;
-    // multiple grids points into same data storage of support points
-    LayerSupportPoints *m_supports_ptr;
+    PointAccessor m_points;
+    using Tree = KDTreeIndirect<2, coord_t, PointAccessor>;
+    Tree m_tree;
 public:
     /// <summary>
-    /// Set cell size for grid
+    /// Constructor get pointer on the global storage of support points
     /// </summary>
-    /// <param name="cell_size">Granularity of stored points
-    /// Must be bigger than maximal used radius</param>
     /// <param name="supports_ptr">Pointer on Support vector</param>
-    explicit Grid2D(const coord_t &cell_size, LayerSupportPoints* supports_ptr)
-        : m_cell_size(cell_size), m_cell_size_half(cell_size / 2), m_supports_ptr(supports_ptr) {}
-
-    Key cell_id(const Point &point) const {
-        Key::coord_type x = point.x() / m_cell_size;
-        Key::coord_type y = point.y() / m_cell_size;
-        // correction around zero => -1 / 5 = 0
-        if (point.x() < 0) --x; 
-        if (point.y() < 0) --y;
-        return Key{x, y};
-    }
+    explicit NearPoints(LayerSupportPoints* supports_ptr)
+        : m_points(supports_ptr), m_tree(m_points) {}
 
     void add(LayerSupportPoint &&point) {
-        size_t index = m_supports_ptr->size();
-        m_supports_ptr->emplace_back(std::move(point));
-        m_grid.emplace(cell_id(point.position_on_layer), index);
+        LayerSupportPoints &pts = *m_points.m_supports_ptr;
+        size_t index = pts.size();
+        pts.emplace_back(std::move(point));
+        // IMPROVE: only add to existing tree, do not reconstruct tree
+        std::vector<size_t> indices = m_tree.get_nodes(); // copy
+        auto it = std::remove_if(indices.begin(), indices.end(), 
+            [index](size_t i) { return i >= index; });
+        indices.erase(it, indices.end());
+        indices.push_back(index);
+        m_tree.clear();
+        m_tree.build(indices); // consume indices
     }
 
     using CheckFnc = std::function<bool(const LayerSupportPoint &, const Point&)>;
-    bool exist_true_in_4cell_neighbor(const Point &pos, const CheckFnc& fnc) const {
-        // TODO: remove - test all support points without grid speed up
-        for (const auto &[key, value]: m_grid)
-            if(fnc(m_supports_ptr->at(value), pos)) 
-                return true;
-        return false;
-
-        Key key = cell_id(pos);
-        if (exist_true_for_cell(key, pos, fnc)) return true;
-        Point un_cell_pos(
-            key.x() * m_cell_size + m_cell_size_half, 
-            key.y() * m_cell_size + m_cell_size_half );
-        Key key2(
-            (un_cell_pos.x() > pos.x()) ? key.x() + 1 : key.x() - 1,
-            (un_cell_pos.y() > pos.y()) ? key.y() + 1 : key.y() - 1);
-        if (exist_true_for_cell(key2, pos, fnc)) return true;
-        if (exist_true_for_cell({key.x(), key2.y()}, pos, fnc)) return true;
-        if (exist_true_for_cell({key2.x(), key.y()}, pos, fnc)) return true;
-        return false;
+    bool exist_true_in_radius(const Point &pos, coord_t radius, const CheckFnc &fnc) const {
+        std::vector<size_t> point_indices = find_nearby_points(m_tree, pos, radius);
+        return std::any_of(point_indices.begin(), point_indices.end(), 
+            [&points = *m_points.m_supports_ptr, &pos, &fnc](size_t point_index){
+                return fnc(points.at(point_index), pos);
+            });
     }
 
-    void merge(Grid2D &&grid) {
-        // support to merge only grid with same size
-        assert(m_cell_size == grid.m_cell_size);
-        m_grid.merge(std::move(grid.m_grid));
-    }
-private:
-    bool exist_true_for_cell(const Key &key, const Point &pos, const CheckFnc& fnc) const{
-        auto [begin_it, end_it] = m_grid.equal_range(key);
-        for (Grid::const_iterator it = begin_it; it != end_it; ++it) {
-            const LayerSupportPoint &support_point = m_supports_ptr->at(it->second);
-            if (fnc(support_point, pos))
-                return true;
-        }
-        return false;
+    void merge(NearPoints &&near_point) {
+        // need to have same global storage of support points
+        assert(m_points.m_supports_ptr == near_point.m_points.m_supports_ptr);
+
+        // IMPROVE: merge trees instead of rebuild
+        std::vector<size_t> indices = m_tree.get_nodes(); // copy
+        const std::vector<size_t>& indices2 = near_point.m_tree.get_nodes();
+        indices.insert(indices.end(), indices2.begin(), indices2.end());
+        auto it = std::remove_if(indices.begin(), indices.end(), 
+            [size = indices.size()](size_t i) { return i >= size; });
+        indices.erase(it, indices.end());
+        // remove duplicit indices
+        std::sort(indices.begin(), indices.end());
+        it = std::unique(indices.begin(), indices.end());
+        indices.erase(it, indices.end());
+        // rebuild tree
+        m_tree.clear();
+        m_tree.build(indices); // consume indices
     }
 };
 
@@ -146,14 +134,14 @@ Point intersection(const Point &p1, const Point &p2, const Point &cnt, double r2
 /// <param name="part">Current layer part to process</param>
 /// <param name="prev_grids">Grids which will be moved to current grid</param>
 /// <returns>Grid for given part</returns>
-Grid2D create_part_grid(
+NearPoints create_part_grid(
     const LayerParts &prev_layer_parts,
     const LayerPart &part,
-    std::vector<Grid2D> &prev_grids
+    std::vector<NearPoints> &prev_grids
 ) {
     const LayerParts::const_iterator &prev_part_it = part.prev_parts.front().part_it;
     size_t index_of_prev_part = prev_part_it - prev_layer_parts.begin();
-    Grid2D part_grid = (prev_part_it->next_parts.size() == 1)?
+    NearPoints part_grid = (prev_part_it->next_parts.size() == 1)?
         std::move(prev_grids[index_of_prev_part]) :
         // Need a copy there are multiple parts above previus one
         prev_grids[index_of_prev_part]; // copy    
@@ -165,7 +153,7 @@ Grid2D create_part_grid(
         if (prev_part_it->next_parts.size() == 1) {
             part_grid.merge(std::move(prev_grids[index_of_prev_part]));
         } else { // Need a copy there are multiple parts above previus one
-            Grid2D grid_ = prev_grids[index_of_prev_part]; // copy
+            NearPoints grid_ = prev_grids[index_of_prev_part]; // copy
             part_grid.merge(std::move(grid_));
         }
     }
@@ -179,13 +167,15 @@ Grid2D create_part_grid(
 /// <param name="config">Configuration to sample</param>
 /// <param name="part_grid">Keep previous sampled suppport points</param>
 /// <param name="part_z">current z coordinate of part</param>
+/// <param name="maximal_radius">Max distance to seach support for sample</param>
 void support_part_overhangs(
     const LayerPart &part,
     const SupportPointGeneratorConfig &config,
-    Grid2D &part_grid,
-    float part_z
+    NearPoints &part_grid,
+    float part_z,
+    coord_t maximal_radius
 ) {
-    Grid2D::CheckFnc is_supported = []
+    NearPoints::CheckFnc is_supported = []
     (const LayerSupportPoint &support_point, const Point &p) -> bool {
         // Debug visualization of all sampled outline
         //return false;
@@ -199,10 +189,8 @@ void support_part_overhangs(
         return dp.cast<double>().squaredNorm() < r2;
     };
 
-    // check distance to nearest support points from grid
-    float maximal_radius = scale_(5.f);
     for (const Point &p : part.samples) {
-        if (!part_grid.exist_true_in_4cell_neighbor(p, is_supported)) {
+        if (!part_grid.exist_true_in_radius(p, maximal_radius, is_supported)) {
             // not supported sample, soo create new support point
             part_grid.add(LayerSupportPoint{
                 SupportPoint{
@@ -232,7 +220,7 @@ Points uniformly_sample(const ExPolygon &island, const SupportPointGeneratorConf
 /// <param name="part_grid">OUT place to store new supports</param>
 /// <param name="part_z">z coordinate of part</param>
 /// <param name="cfg"></param>
-void support_island(const LayerPart &part, Grid2D& part_grid, float part_z,
+void support_island(const LayerPart &part, NearPoints& part_grid, float part_z,
     const SupportPointGeneratorConfig &cfg) {
     Points pts = uniformly_sample(*part.shape, cfg);
     for (const Point &pt : pts)
@@ -565,28 +553,28 @@ LayerSupportPoints Slic3r::sla::generate_support_points(
         const_cast<SupportPointGeneratorConfig &>(config).support_curve = load_curve_from_file();
     
     // Maximal radius of supported area of one support point
-    double max_support_radius = config.support_curve.back().x(); // cfg.cell_size;
-    // maximal radius of support
-    coord_t cell_size = scale_(2*max_support_radius);
+    double max_support_radius = config.support_curve.back().x();
+    // check distance to nearest support points from grid
+    coord_t maximal_radius = static_cast<coord_t>(scale_(max_support_radius));
 
     // Storage for support points used by grid
     LayerSupportPoints result;
 
     // grid index == part in layer index
-    std::vector<Grid2D> prev_grids; // same count as previous layer item size
+    std::vector<NearPoints> prev_grids; // same count as previous layer item size
     for (size_t layer_id = 0; layer_id < layers.size(); ++layer_id) {
         const Layer &layer = layers[layer_id];
 
         prepare_supports_for_layer(result, layer.print_z, config);
 
         // grid index == part in layer index
-        std::vector<Grid2D> grids;
+        std::vector<NearPoints> grids;
         grids.reserve(layer.parts.size());
         
         for (const LayerPart &part : layer.parts) {
             if (part.prev_parts.empty()) {
                 // only island add new grid
-                grids.emplace_back(cell_size, &result);
+                grids.emplace_back(&result);
                 // new island - needs support no doubt
                 support_island(part, grids.back(), layer.print_z, config);
             } else {
@@ -594,7 +582,7 @@ LayerSupportPoints Slic3r::sla::generate_support_points(
                 assert(layer_id != 0);
                 const LayerParts &prev_layer_parts = layers[layer_id - 1].parts;
                 grids.push_back(create_part_grid(prev_layer_parts, part, prev_grids));
-                support_part_overhangs(part, config, grids.back(), layer.print_z);
+                support_part_overhangs(part, config, grids.back(), layer.print_z, maximal_radius);
             }
         }
         prev_grids = std::move(grids);
