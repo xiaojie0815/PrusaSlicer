@@ -10,7 +10,7 @@
 #include "VectorUtils.hpp"
 #include "LineUtils.hpp"
 #include "PointUtils.hpp"
-
+#include "libslic3r/Geometry/Voronoi.hpp"
 #include <libslic3r/Geometry/VoronoiVisualUtils.hpp>
 
 #include <libslic3r/ClipperUtils.hpp> // allign
@@ -388,9 +388,14 @@ std::vector<std::set<const VoronoiGraph::Node *>> create_circles_sets(
 }
 
 Slic3r::Points SampleIslandUtils::to_points(const SupportIslandPoints &support_points)
-{ 
-    std::function<Point(const std::unique_ptr<SupportIslandPoint> &)> transform_func = &SupportIslandPoint::point;
-    return VectorUtils::transform(support_points, transform_func);
+{
+    Points result;
+    result.reserve(support_points.size());
+    std::transform(support_points.begin(), support_points.end(), std::back_inserter(result), 
+        [](const std::unique_ptr<SupportIslandPoint> &p) { return p->point; });
+    return result;
+    //std::function<Point(const std::unique_ptr<SupportIslandPoint> &)> transform_func = &SupportIslandPoint::point;
+    //return VectorUtils::transform(support_points, transform_func);
 }
 
 std::vector<Slic3r::Vec2f> SampleIslandUtils::to_points_f(const SupportIslandPoints &support_points)
@@ -471,7 +476,7 @@ coord_t SampleIslandUtils::align_once(SupportIslandPoints &samples,
 #endif // SLA_SAMPLE_ISLAND_UTILS_STORE_ALIGN_ONCE_TO_SVG
 
     // create voronoi diagram with points
-    construct_voronoi(points.begin(), points.end(), &vd);
+    vd.construct_voronoi(points.begin(), points.end());
 #ifdef SLA_SAMPLE_ISLAND_UTILS_STORE_ALIGNE_VD_TO_SVG
     static int vd_counter = 0;
     BoundingBox bbox(island);

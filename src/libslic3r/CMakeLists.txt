@@ -1,4 +1,4 @@
-#/|/ Copyright (c) Prusa Research 2018 - 2023 Tom� M�sz�ros @tamasmeszaros, Oleksandra Iushchenko @YuSanka, Enrico Turri @enricoturri1966, Vojt�ch Bubn�k @bubnikv, Pavel Miku� @Godrak, Luk� Hejl @hejllukas, Luk� Mat�na @lukasmatena, Filip Sykala @Jony01, David Koc�k @kocikdav, Vojt�ch Kr�l @vojtechkral
+#/|/ Copyright (c) Prusa Research 2018 - 2023 Tomáš Mészáros @tamasmeszaros, Oleksandra Iushchenko @YuSanka, Enrico Turri @enricoturri1966, Vojtěch Bubník @bubnikv, Pavel Mikuš @Godrak, Lukáš Hejl @hejllukas, Lukáš Matěna @lukasmatena, Filip Sykala @Jony01, David Kocík @kocikdav, Vojtěch Král @vojtechkral
 #/|/ Copyright (c) BambuStudio 2023 manch1n @manch1n
 #/|/ Copyright (c) 2023 Mimoja @Mimoja
 #/|/ Copyright (c) 2022 ole00 @ole00
@@ -458,12 +458,27 @@ set(SLIC3R_SOURCES
     SLA/SupportIslands/ExpandNeighbor.cpp
     SLA/SupportIslands/ExpandNeighbor.hpp
     SLA/SupportIslands/IStackFunction.hpp
+    SLA/SupportIslands/LineUtils.cpp
+    SLA/SupportIslands/LineUtils.hpp
     SLA/SupportIslands/NodeDataWithResult.hpp
+    SLA/SupportIslands/Parabola.hpp
+    SLA/SupportIslands/ParabolaUtils.cpp
+    SLA/SupportIslands/ParabolaUtils.hpp
+    SLA/SupportIslands/PointUtils.cpp
+    SLA/SupportIslands/PointUtils.hpp
+    SLA/SupportIslands/PolygonUtils.cpp
+    SLA/SupportIslands/PolygonUtils.hpp
     SLA/SupportIslands/PostProcessNeighbor.cpp
     SLA/SupportIslands/PostProcessNeighbor.hpp
     SLA/SupportIslands/PostProcessNeighbors.cpp
     SLA/SupportIslands/PostProcessNeighbors.hpp
     SLA/SupportIslands/SampleConfig.hpp
+    SLA/SupportIslands/SampleConfigFactory.hpp
+    SLA/SupportIslands/SampleIslandUtils.cpp
+    SLA/SupportIslands/SampleIslandUtils.hpp
+    SLA/SupportIslands/SupportIslandPoint.cpp
+    SLA/SupportIslands/SupportIslandPoint.hpp
+    SLA/SupportIslands/VectorUtils.hpp
     SLA/SupportIslands/VoronoiGraph.hpp
     SLA/SupportIslands/VoronoiGraphUtils.cpp
     SLA/SupportIslands/VoronoiGraphUtils.hpp

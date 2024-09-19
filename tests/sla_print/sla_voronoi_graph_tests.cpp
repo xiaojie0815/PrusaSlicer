@@ -36,7 +36,7 @@ TEST_CASE("Convert coordinate datatype", "[Voronoi]")
 void check(Slic3r::Points points, double max_distance) {
     using VD = Slic3r::Geometry::VoronoiDiagram;
     VD             vd;
-    construct_voronoi(points.begin(), points.end(), &vd);    
+    vd.construct_voronoi(points.begin(), points.end());    
     double max_area = M_PI * max_distance*max_distance; // circle = Pi * r^2
     for (const VD::cell_type &cell : vd.cells()) {
         Slic3r::Polygon polygon = VoronoiGraphUtils::to_polygon(cell, points, max_distance);

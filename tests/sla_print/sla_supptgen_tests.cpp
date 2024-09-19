@@ -491,7 +491,7 @@ TEST_CASE("Sampling speed test on FrogLegs", "[hide], [VoronoiSkeleton]")
     using VD = Slic3r::Geometry::VoronoiDiagram;
     VD    vd;
     Lines lines = to_lines(frog_leg);
-    construct_voronoi(lines.begin(), lines.end(), &vd);
+    vd.construct_voronoi(lines.begin(), lines.end());
     Slic3r::Voronoi::annotate_inside_outside(vd, lines);
     
     for (int i = 0; i < 100; ++i) {
@@ -513,7 +513,7 @@ TEST_CASE("Speed align", "[hide], [VoronoiSkeleton]")
     using VD = Slic3r::Geometry::VoronoiDiagram;
     VD    vd;
     Lines lines = to_lines(island);
-    construct_voronoi(lines.begin(), lines.end(), &vd);
+    vd.construct_voronoi(lines.begin(), lines.end());
     Slic3r::Voronoi::annotate_inside_outside(vd, lines);
     VoronoiGraph::ExPath longest_path;
     VoronoiGraph skeleton = VoronoiGraphUtils::create_skeleton(vd, lines);
@@ -604,8 +604,8 @@ TEST_CASE("Small islands should be supported in center", "[SupGen], [VoronoiSkel
 std::vector<Vec2f> sample_old(const ExPolygon &island)
 {
     // Create the support point generator
-    static TriangleMesh                       mesh;
-    static sla::IndexedMesh                   emesh{mesh};
+    static TriangleMesh mesh;
+    static AABBMesh emesh(mesh);
     static sla::SupportPointGenerator::Config autogencfg;
     //autogencfg.minimal_distance = 8.f;
     static sla::SupportPointGenerator generator{emesh, autogencfg, [] {}, [](int) {}};
@@ -616,7 +616,7 @@ std::vector<Vec2f> sample_old(const ExPolygon &island)
     coordf_t print_z = 11.f;
     SupportPointGenerator::MyLayer layer(layer_id, print_z);
     ExPolygon                      poly = island;
-    BoundingBox                    bbox(island);
+    BoundingBox                    bbox(island.contour.points);
     Vec2f                          centroid;
     float                          area = island.area();
     float                                 h    = 17.f;
@@ -653,7 +653,7 @@ std::vector<Vec2f> sample_filip(const ExPolygon &island)
 void store_sample(const std::vector<Vec2f> &samples, const ExPolygon& island)
 { 
     static int counter = 0;
-    BoundingBox bb(island);
+    BoundingBox bb(island.contour.points);
     SVG svg(("sample_"+std::to_string(counter++)+".svg").c_str(), bb); 
 
     double mm = scale_(1);

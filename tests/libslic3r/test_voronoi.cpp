@@ -2304,7 +2304,7 @@ TEST_CASE("bad vertex cause overflow of data type precisin when use VD result", 
 
     using VD      = Slic3r::Geometry::VoronoiDiagram;
     VD vd;
-    construct_voronoi(points.begin(), points.end(), &vd);
+    vd.construct_voronoi(points.begin(), points.end());
 
     // edge between source index 0 and 1 has bad vertex
     size_t bad_index0 = 0;

@@ -1,9 +1,9 @@
-///|/ Copyright (c) Prusa Research 2016 - 2023 Vojt�ch Bubn�k @bubnikv, Enrico Turri @enricoturri1966, Tom� M�sz�ros @tamasmeszaros, Luk� Mat�na @lukasmatena, Filip Sykala @Jony01, Luk� Hejl @hejllukas
+///|/ Copyright (c) Prusa Research 2016 - 2023 Vojtěch Bubník @bubnikv, Enrico Turri @enricoturri1966, Tomáš Mészáros @tamasmeszaros, Lukáš Matěna @lukasmatena, Filip Sykala @Jony01, Lukáš Hejl @hejllukas
 ///|/ Copyright (c) 2017 Eyal Soha @eyal0
 ///|/ Copyright (c) Slic3r 2013 - 2016 Alessandro Ranellucci @alranel
 ///|/
 ///|/ ported from lib/Slic3r/Geometry.pm:
-///|/ Copyright (c) Prusa Research 2017 - 2022 Vojt�ch Bubn�k @bubnikv
+///|/ Copyright (c) Prusa Research 2017 - 2022 Vojtěch Bubník @bubnikv
 ///|/ Copyright (c) Slic3r 2011 - 2015 Alessandro Ranellucci @alranel
 ///|/ Copyright (c) 2013 Jose Luis Perez Diez
 ///|/ Copyright (c) 2013 Anders Sundman
