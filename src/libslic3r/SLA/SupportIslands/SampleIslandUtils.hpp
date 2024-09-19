@@ -304,7 +304,8 @@ private:
     /// <param name="config">Parameters for sampling, 
     /// minimal_support_distance - search distance in VD
     /// max_distance - for fix new_start</param>
-    static void create_sample_center_end(
+    /// <returns>True when add point into result otherwise false</returns>
+    static bool create_sample_center_end(
         const VoronoiGraph::Position &position,
         SupportIslandPoints &         results,
         CenterStarts &                new_starts,
@@ -341,7 +342,7 @@ public :
     /// <param name="tiny_done">Already sampled node sets. Filled only node inside field imediate after change</param>
     /// <param name="lines">Source lines for VG --> outline of island.</param>
     /// <param name="config">Containe Minimal width in field and sample distance for center line</param>
-    static void sample_field(VoronoiGraph::Position &field_start,
+    static void sample_field(const VoronoiGraph::Position &field_start,
                              SupportIslandPoints &   points,
                              CenterStarts &          center_starts,
                              std::set<const VoronoiGraph::Node *> &done,

@@ -17,10 +17,9 @@ public:
     static SampleConfig create(const SupportPointGenerator::Config &config)
     {
         coord_t head_diameter = scale_(config.head_diameter);
-        coord_t min_distance  = scale_(config.minimal_distance);
+        coord_t min_distance = head_diameter/2 + scale_(config.minimal_distance);
         coord_t max_distance  = 3 * min_distance;
-        coord_t sample_multiplicator = 10; // allign is made by selecting from samples
-
+        coord_t sample_multiplicator = 8; // allign is made by selecting from samples
 
         // TODO: find valid params !!!!
         SampleConfig result;

@@ -922,6 +922,8 @@ Slic3r::Point VoronoiGraphUtils::create_edge_point(const VD::edge_type *edge,
     return Point(v0->x() + dir.x(), v0->y() + dir.y());
 }
 
+// NOTE: Heuristic is bad -> Width is not linear on edge e.g. VD of hexagon
+// Solution: Edge has to know width changes.
 VoronoiGraph::Position VoronoiGraphUtils::get_position_with_width(
     const VoronoiGraph::Node::Neighbor *neighbor, coord_t width, const Slic3r::Lines &lines)
 {
@@ -1164,10 +1166,70 @@ coord_t VoronoiGraphUtils::get_max_width(const VoronoiGraph::Node *node)
     return max;
 }
 
-bool VoronoiGraphUtils::is_last_neighbor(
-    const VoronoiGraph::Node::Neighbor *neighbor)
-{
-    return (neighbor->node->neighbors.size() == 1);
+// START use instead of is_last_neighbor
+bool VoronoiGraphUtils::ends_in_distanace(const VoronoiGraph::Position &position, coord_t max_distance) {
+    const VoronoiGraph::Node *node = position.neighbor->node;
+    coord_t rest_distance = max_distance - position.calc_rest_distance();
+    if (rest_distance < 0)
+        return false;
+
+    // speed up - end of gpraph is no need investigate further
+    if (node->neighbors.size() == 1)
+        return true;
+
+    // Already processed nodes
+    std::set<const VoronoiGraph::Node *> done;
+    done.insert(get_twin_node(*position.neighbor));
+
+    struct Next{
+        const VoronoiGraph::Node *node;
+        coord_t rest_distance;
+    };
+    // sorted by distance from position from biggest
+    std::vector<Next> process_queue;
+    do {
+        done.insert(node);
+        for (const VoronoiGraph::Node::Neighbor &neighbor: node->neighbors){
+            const VoronoiGraph::Node *neighbor_node = neighbor.node;
+            // Check whether node is already done
+            // Nodes are processed from closer to position 
+            // soo done neighbor have to has bigger rest_distance
+            if (done.find(neighbor_node) != done.end())
+                // node is already explore
+                continue;
+
+            coord_t neighbor_rest = rest_distance - static_cast<coord_t>(neighbor.length());
+            if (neighbor_rest < 0)
+                // exist node far than max distance
+                return false;
+
+            // speed up - end of gpraph is no need to add to the process queue
+            if (neighbor_node->neighbors.size() == 1)
+                continue;
+
+            // check whether exist in queue this node with farer path and fix it
+            auto it = std::find_if(process_queue.begin(), process_queue.end(), 
+                [neighbor_node](const Next &n) { return n.node == neighbor_node;});
+            if (it == process_queue.end()){
+                process_queue.emplace_back(Next{neighbor_node, neighbor_rest});
+            } else if (it->rest_distance < neighbor_rest) {
+                // found shorter path to node
+                it->rest_distance = neighbor_rest;
+            }
+        }
+
+        if (process_queue.empty())
+            return true;
+
+        // find biggest rest distance -> closest to input position
+        auto next = std::max_element(process_queue.begin(), process_queue.end(), 
+            [](const Next& n1, const Next& n2){
+                return n1.rest_distance < n2.rest_distance;
+            });
+        rest_distance = next->rest_distance;
+        node = next->node;
+        process_queue.erase(next); // process queue pop
+    } while (true);    
 }
 
 void VoronoiGraphUtils::for_neighbor_at_distance(

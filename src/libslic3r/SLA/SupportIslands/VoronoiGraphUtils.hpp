@@ -448,11 +448,12 @@ public:
     static coord_t get_max_width(const VoronoiGraph::Node *node);
 
     /// <summary>
-    /// Check if neighbor is end of VG
+    /// Check wheather VG ends in smaller distance than given one
     /// </summary>
-    /// <param name="neighbor">Neighbor to test</param>
-    /// <returns>True when neighbor node has only one neighbor</returns>
-    static bool is_last_neighbor(const VoronoiGraph::Node::Neighbor *neighbor);
+    /// <param name="position">Position in direction to checked end</param>
+    /// <param name="max_distance">distance to explore</param>
+    /// <returns>True when there is only smaller VD path to edge</returns>
+    static bool ends_in_distanace(const VoronoiGraph::Position &position, coord_t max_distance);
 
     /// <summary>
     /// only line created VG

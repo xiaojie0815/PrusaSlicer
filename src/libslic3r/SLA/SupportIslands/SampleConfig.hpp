@@ -70,7 +70,12 @@ struct SampleConfig
     coord_t outline_sample_distance = 2; 
 
     // Maximal distance over Voronoi diagram edges to find closest point during aligning Support point
-    coord_t max_align_distance = 0.;
+    coord_t max_align_distance = 0; // [nano meter]
+
+    // There is no need to calculate with precisse island
+    // NOTE: Slice of Cylinder bottom has tip of trinagles on contour
+    // (neighbor coordinate - create issue in voronoi)
+    double simplification_tolerance = 1e4; // [nm] 
 };
 } // namespace Slic3r::sla
 #endif // slic3r_SLA_SuppotstIslands_SampleConfig_hpp_
