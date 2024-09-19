@@ -196,10 +196,10 @@ const SeamPerimeterChoice &choose_closest_seam(
 }
 
 std::pair<std::size_t, Vec2d> project_to_extrusion_loop(
-    const SeamChoice &seam_choice, const Perimeters::Perimeter &perimeter, const Linesf &loop_lines
+    const SeamChoice &seam_choice,
+    const Perimeters::Perimeter &perimeter,
+    const AABBTreeLines::LinesDistancer<Linef> &distancer
 ) {
-    const AABBTreeLines::LinesDistancer<Linef> distancer{loop_lines};
-
     const bool is_at_vertex{seam_choice.previous_index == seam_choice.next_index};
     const Vec2d edge{
         perimeter.positions[seam_choice.next_index] -
@@ -250,9 +250,10 @@ boost::variant<Point, Scarf::Scarf> finalize_seam_position(
     const ExPolygon perimeter_polygon{Geometry::scaled(perimeter.positions)};
     const Linesf perimeter_lines{to_unscaled_linesf({perimeter_polygon})};
     const Linesf loop_lines{to_unscaled_linesf({ExPolygon{loop_polygon}})};
+    const AABBTreeLines::LinesDistancer<Linef> distancer{loop_lines};
 
     auto [loop_line_index, loop_point]{
-        project_to_extrusion_loop(seam_choice, perimeter, loop_lines)};
+        project_to_extrusion_loop(seam_choice, perimeter, distancer)};
 
     const Geometry::Direction1D offset_direction{
         flipped ? Geometry::Direction1D::forward : Geometry::Direction1D::backward};
@@ -264,14 +265,14 @@ boost::variant<Point, Scarf::Scarf> finalize_seam_position(
 
         const double staggering_offset{depth};
 
-        std::optional<Geometry::PointOnLine> staggered_point{Geometry::offset_along_loop_lines(
+        std::optional<Geometry::PointOnLine> staggered_point{Geometry::offset_along_lines(
             loop_point, seam_choice.previous_index, perimeter_lines, staggering_offset,
             offset_direction
         )};
 
         if (staggered_point) {
             seam_choice = to_seam_choice(*staggered_point, perimeter);
-            std::tie(loop_line_index, loop_point) = project_to_extrusion_loop(seam_choice, perimeter, loop_lines);
+            std::tie(loop_line_index, loop_point) = project_to_extrusion_loop(seam_choice, perimeter, distancer);
         }
     }
 
@@ -290,41 +291,57 @@ boost::variant<Point, Scarf::Scarf> finalize_seam_position(
 
     if (place_scarf_seam) {
         Scarf::Scarf scarf{};
-        scarf.length = region->config().scarf_seam_length;
         scarf.entire_loop = region->config().scarf_seam_entire_loop;
         scarf.max_segment_length = region->config().scarf_seam_max_segment_length;
         scarf.start_height = region->config().scarf_seam_start_height.get_abs_value(1.0);
 
-        if (loop.role() == ExtrusionRole::Perimeter) { // Inner perimeter
-            const double offset{scarf.entire_loop ? 0 : scarf.length};
-
-            const ExPolygons shrank_polygons{shrink_ex({perimeter_polygon}, scaled(loop_width / 2.0))};
-            if (shrank_polygons.empty()) {
-                return scaled(loop_point);
-            }
-            const std::optional<Geometry::PointOnLine> outter_scarf_start_point{Geometry::offset_along_loop_lines(
-                seam_choice.position, seam_choice.previous_index, to_unscaled_linesf({shrank_polygons.front()}), offset, offset_direction
-            )};
-            if (!outter_scarf_start_point) {
-                return scaled(loop_point);
-            }
-
-            const auto [end_point_previous_index, end_point]{project_to_extrusion_loop(
-                to_seam_choice(*outter_scarf_start_point, perimeter), perimeter, loop_lines
-            )};
-
-            if (!region->config().scarf_seam_on_inner_perimeters) {
-                return scaled(end_point);
-            }
-
-            scarf.end_point = scaled(end_point);
-            scarf.end_point_previous_index = end_point_previous_index;
-        } else { // Outter perimeter
-            scarf.end_point = scaled(loop_point);
-            scarf.end_point_previous_index = loop_line_index;
+        const double offset{scarf.entire_loop ? 0.0 : region->config().scarf_seam_length.value};
+        const std::optional<Geometry::PointOnLine> outter_scarf_start_point{Geometry::offset_along_lines(
+            seam_choice.position,
+            seam_choice.previous_index,
+            perimeter_lines,
+            offset,
+            offset_direction
+        )};
+        if (!outter_scarf_start_point) {
+            return scaled(loop_point);
         }
 
-        return scarf;
+        if (loop.role() != ExtrusionRole::Perimeter) { // Outter perimeter
+            scarf.start_point = scaled(project_to_extrusion_loop(
+                to_seam_choice(*outter_scarf_start_point, perimeter),
+                perimeter,
+                distancer
+            ).second);
+            scarf.end_point = scaled(loop_point);
+            scarf.end_point_previous_index = loop_line_index;
+            return scarf;
+        } else {
+            if (!region->config().scarf_seam_on_inner_perimeters) {
+                return scaled(outter_scarf_start_point->point);
+            }
+
+            const std::optional<Geometry::PointOnLine> inner_scarf_start_point{Geometry::offset_along_lines(
+                outter_scarf_start_point->point,
+                outter_scarf_start_point->line_index,
+                perimeter_lines,
+                offset,
+                offset_direction
+            )};
+
+            if (!inner_scarf_start_point) {
+                return scaled(outter_scarf_start_point->point);
+            }
+
+            scarf.start_point = scaled(project_to_extrusion_loop(
+                to_seam_choice(*inner_scarf_start_point, perimeter),
+                perimeter,
+                distancer
+            ).second);
+            scarf.end_point = scaled(outter_scarf_start_point->point);
+            scarf.end_point_previous_index = outter_scarf_start_point->line_index;
+            return scarf;
+        }
     }
 
     return scaled(loop_point);

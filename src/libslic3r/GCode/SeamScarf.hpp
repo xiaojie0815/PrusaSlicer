@@ -13,12 +13,12 @@ namespace Slic3r::Seams::Scarf {
 
 struct Scarf
 {
+    Point start_point;
     Point end_point;
     std::size_t end_point_previous_index{};
-    double length{};
     double max_segment_length{};
     bool entire_loop{};
-    double start_height;
+    double start_height{};
 };
 
 using SmoothingFunction = std::function<GCode::SmoothPath(tcb::span<const ExtrusionPath>)>;
@@ -72,6 +72,12 @@ GCode::SmoothPath elevate_scarf(
 );
 
 std::optional<PathPoint> get_point_offset_from_end(const ExtrusionPaths &paths, const double length);
+
+std::optional<PathPoint> find_path_point_from_end(
+    const ExtrusionPaths &paths,
+    const Point &point,
+    const double tolerance
+);
 } // namespace Impl
 
 std::pair<GCode::SmoothPath, std::size_t> add_scarf_seam(

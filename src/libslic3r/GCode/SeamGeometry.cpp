@@ -441,7 +441,7 @@ Polygon to_polygon(const ExtrusionLoop &loop) {
     return Polygon{loop_points};
 }
 
-std::optional<PointOnLine> offset_along_loop_lines(
+std::optional<PointOnLine> offset_along_lines(
     const Vec2d &point,
     const std::size_t loop_line_index,
     const Linesf &loop_lines,

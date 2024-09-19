@@ -231,6 +231,32 @@ TEST_CASE("Get point offset from the path end", "[Seams][Scarf]") {
     CHECK(result->path_index == 1);
 }
 
+TEST_CASE("Find point on path from the path end", "[Seams][Scarf]") {
+    using Seams::Scarf::Impl::get_point_offset_from_end;
+
+    const Points points{
+        Point::new_scale(0, 0),
+        Point::new_scale(1, 0),
+        Point::new_scale(2, 0),
+        Point::new_scale(3, 0),
+        Point::new_scale(4, 0),
+    };
+    const ExtrusionPaths paths{
+        {{points[0], points[1]}, {}},
+        {{points[1], points[2]}, {}},
+        {{points[2], points[3], points[4]}, {}},
+    };
+
+    const auto point{Point::new_scale(3.4, 0)};
+
+    std::optional<PathPoint> result{Seams::Scarf::Impl::find_path_point_from_end(paths, point, scaled(1e-2))};
+
+    REQUIRE(result);
+    CHECK(result->point == point);
+    CHECK(result->previous_point_on_path_index == 1);
+    CHECK(result->path_index == 2);
+}
+
 TEST_CASE("Add scarf seam", "[Seams][Scarf]") {
     using Seams::Scarf::add_scarf_seam;
     using Seams::Scarf::Impl::convert_to_smooth;
@@ -247,29 +273,28 @@ TEST_CASE("Add scarf seam", "[Seams][Scarf]") {
     const ExtrusionPaths paths{
         {Polyline{points}, {}},
     };
+
     Scarf scarf{};
+    scarf.start_point = Point::new_scale(0.5, 0);
     scarf.end_point = Point::new_scale(1, 0.5);
     scarf.start_height = 0.2;
-    scarf.length = 1.0;
     scarf.max_segment_length = 0.1;
     scarf.end_point_previous_index = 1;
     scarf.entire_loop = false;
-
-    const auto start_point{Point::new_scale(0.5, 0)};
 
     const auto [path, wipe_offset]{add_scarf_seam(ExtrusionPaths{paths}, scarf, convert_to_smooth, false)};
 
     REQUIRE(path.size() == 4);
     CHECK(wipe_offset == 1);
 
-    REQUIRE(path.back().path.size() >= scarf.length / scarf.max_segment_length);
+    REQUIRE(path.back().path.size() >= 1.0 / scarf.max_segment_length);
     CHECK(path.back().path.back().point == scarf.end_point);
-    CHECK(path.back().path.front().point == start_point);
+    CHECK(path.back().path.front().point == scarf.start_point);
     CHECK(path.back().path.back().e_fraction == Approx(0));
 
-    REQUIRE(path.front().path.size() >= scarf.length / scarf.max_segment_length);
+    REQUIRE(path.front().path.size() >= 1.0 / scarf.max_segment_length);
     CHECK(path.front().path.back().point == scarf.end_point);
-    CHECK(path.front().path.front().point == start_point);
+    CHECK(path.front().path.front().point == scarf.start_point);
     CHECK(path.front().path.front().e_fraction == Approx(0));
     CHECK(path.front().path.front().height_fraction == Approx(scarf.start_height));
 

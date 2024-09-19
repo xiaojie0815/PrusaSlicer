@@ -229,6 +229,41 @@ GCode::SmoothPath elevate_scarf(
     return first_segment;
 }
 
+bool is_on_line(const Point &point, const Line &line, const double tolerance) {
+    return line.distance_to_squared(point) < tolerance * tolerance;
+}
+
+std::optional<PathPoint> find_path_point_from_end(
+    const ExtrusionPaths &paths,
+    const Point &point,
+    const double tolerance
+) {
+    if (paths.empty()) {
+        return std::nullopt;
+    }
+    for (int path_index{static_cast<int>(paths.size() - 1)}; path_index >= 0; --path_index) {
+        const ExtrusionPath &path{paths[path_index]};
+        if (path.polyline.size() < 2) {
+            throw std::runtime_error(
+                "Invalid path: less than two points: " + std::to_string(path.size()) + "!"
+            );
+        }
+        for (int point_index{static_cast<int>(path.polyline.size() - 2)}; point_index >= 0;
+             --point_index) {
+            const Point &previous_point{path.polyline[point_index + 1]};
+            const Point &current_point{path.polyline[point_index]};
+            const Line line{previous_point, current_point};
+            if (is_on_line(point, line, tolerance)) {
+                return PathPoint{
+                    point,
+                    static_cast<size_t>(path_index), static_cast<size_t>(point_index)
+                };
+            }
+        }
+    }
+    return std::nullopt;
+}
+
 std::optional<PathPoint> get_point_offset_from_end(const ExtrusionPaths &paths, const double length) {
     double distance{0.0};
 
@@ -307,7 +342,8 @@ std::pair<GCode::SmoothPath, std::size_t> add_scarf_seam(
 
     std::optional<Impl::PathPoint> start_point;
     if (!scarf.entire_loop) {
-        start_point = Impl::get_point_offset_from_end(paths, scaled(scarf.length));
+        const double tolerance{scaled(1e-2 /* mm */)};
+        start_point = Impl::find_path_point_from_end(paths, scarf.start_point, tolerance);
     }
     if (!start_point) {
         start_point = Impl::PathPoint{

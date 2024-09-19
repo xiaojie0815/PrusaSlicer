@@ -152,7 +152,7 @@ const Linesf lines{to_unscaled_linesf({ExPolygon{
 }})};
 
 TEST_CASE("Offset along loop lines forward", "[Seams][SeamGeometry]") {
-    const std::optional<Seams::Geometry::PointOnLine> result{Seams::Geometry::offset_along_loop_lines(
+    const std::optional<Seams::Geometry::PointOnLine> result{Seams::Geometry::offset_along_lines(
         {0.5, 0.0}, 0, lines, 3.9, Seams::Geometry::Direction1D::forward
     )};
     REQUIRE(result);
@@ -162,7 +162,7 @@ TEST_CASE("Offset along loop lines forward", "[Seams][SeamGeometry]") {
 }
 
 TEST_CASE("Offset along loop lines backward", "[Seams][SeamGeometry]") {
-    const std::optional<Seams::Geometry::PointOnLine> result{Seams::Geometry::offset_along_loop_lines(
+    const std::optional<Seams::Geometry::PointOnLine> result{Seams::Geometry::offset_along_lines(
         {1.0, 0.5}, 1, lines, 1.8, Seams::Geometry::Direction1D::backward
     )};
     REQUIRE(result);
