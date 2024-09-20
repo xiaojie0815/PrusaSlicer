@@ -289,6 +289,10 @@ boost::variant<Point, Scarf::Scarf> finalize_seam_position(
         place_scarf_seam = false;
     }
 
+    if (region->config().scarf_seam_length.value <= std::numeric_limits<double>::epsilon()) {
+        place_scarf_seam = false;
+    }
+
     if (place_scarf_seam) {
         Scarf::Scarf scarf{};
         scarf.entire_loop = region->config().scarf_seam_entire_loop;
@@ -317,20 +321,43 @@ boost::variant<Point, Scarf::Scarf> finalize_seam_position(
             scarf.end_point_previous_index = loop_line_index;
             return scarf;
         } else {
+            Geometry::PointOnLine inner_scarf_end_point{
+                *outter_scarf_start_point
+            };
+
+            if (region->config().external_perimeters_first.value) {
+                const auto external_first_offset_direction{
+                    offset_direction == Geometry::Direction1D::forward ?
+                    Geometry::Direction1D::backward :
+                    Geometry::Direction1D::forward
+                };
+                if (auto result{Geometry::offset_along_lines(
+                    seam_choice.position,
+                    seam_choice.previous_index,
+                    perimeter_lines,
+                    offset,
+                    external_first_offset_direction
+                )}) {
+                    inner_scarf_end_point = *result;
+                } else {
+                    return scaled(seam_choice.position);
+                }
+            }
+
             if (!region->config().scarf_seam_on_inner_perimeters) {
-                return scaled(outter_scarf_start_point->point);
+                return scaled(inner_scarf_end_point.point);
             }
 
             const std::optional<Geometry::PointOnLine> inner_scarf_start_point{Geometry::offset_along_lines(
-                outter_scarf_start_point->point,
-                outter_scarf_start_point->line_index,
+                inner_scarf_end_point.point,
+                inner_scarf_end_point.line_index,
                 perimeter_lines,
                 offset,
                 offset_direction
             )};
 
             if (!inner_scarf_start_point) {
-                return scaled(outter_scarf_start_point->point);
+                return scaled(inner_scarf_end_point.point);
             }
 
             scarf.start_point = scaled(project_to_extrusion_loop(
@@ -338,8 +365,14 @@ boost::variant<Point, Scarf::Scarf> finalize_seam_position(
                 perimeter,
                 distancer
             ).second);
-            scarf.end_point = scaled(outter_scarf_start_point->point);
-            scarf.end_point_previous_index = outter_scarf_start_point->line_index;
+
+            const auto [end_point_previous_index, end_point]{project_to_extrusion_loop(
+                to_seam_choice(inner_scarf_end_point, perimeter),
+                perimeter,
+                distancer
+            )};
+            scarf.end_point = scaled(end_point);
+            scarf.end_point_previous_index = end_point_previous_index;
             return scarf;
         }
     }
