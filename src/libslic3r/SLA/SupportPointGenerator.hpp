@@ -116,10 +116,6 @@ using LayerSupportPoints = std::vector<LayerSupportPoint>;
 /// </summary>
 struct Layer
 {
-    // index into parent Layesr + heights + slices 
-    // [[deprecated]] Use index to layers insted of adress from item
-    size_t layer_id;
-
     // Absolute distance from Zero - copy value from heights<float>
     float print_z; // [in mm]
 

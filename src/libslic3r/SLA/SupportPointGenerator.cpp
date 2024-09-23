@@ -503,7 +503,7 @@ SupportPointGeneratorData Slic3r::sla::prepare_generator_data(
     result.slices = std::move(slices);
 
     // Allocate empty layers.
-    result.layers = Layers(result.slices.size(), {});
+    result.layers = Layers(result.slices.size());
 
     // Generate Extents and SampleLayers
     execution::for_each(ex_tbb, size_t(0), result.slices.size(),
