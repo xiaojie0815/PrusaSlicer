@@ -154,7 +154,7 @@ Point intersection(const Point &p1, const Point &p2, const Point &cnt, double r2
     double discriminant = b * b - 4 * a * c;
 
     // No intersection if discriminant is negative
-    assert(discriminant > 0);
+    assert(discriminant >= 0);
     if (discriminant < 0)
         return {}; // No intersection
 
@@ -573,7 +573,11 @@ std::vector<Vec2f> load_curve_from_file() {
     std::string filePath = Slic3r::resources_dir() + "/data/sla_support.svg";
     EmbossShape::SvgFile svg_file{filePath};
     NSVGimage *image = init_image(svg_file);
-    
+    if (image == nullptr) {
+        // In test is not known resource_dir!
+        // File is not located soo return DEFAULT permanent radius 5mm is returned
+        return {Vec2f{5.f,.0f}, Vec2f{5.f, 1.f}};
+    }
     for (NSVGshape *shape_ptr = image->shapes; shape_ptr != NULL; shape_ptr = shape_ptr->next) {
         const NSVGshape &shape = *shape_ptr;
         if (!(shape.flags & NSVG_FLAGS_VISIBLE)) continue; // is visible
