@@ -195,6 +195,8 @@ set(SLIC3R_SOURCES
     GCode/SeamRandom.hpp
     GCode/SeamPainting.cpp
     GCode/SeamPainting.hpp
+    GCode/SeamScarf.cpp
+    GCode/SeamScarf.hpp
     GCode/ModelVisibility.cpp
     GCode/ModelVisibility.hpp
     GCode/SmoothPath.cpp

@@ -143,6 +143,12 @@ enum SeamPosition {
     spRandom, spNearest, spAligned, spRear
 };
 
+enum class ScarfSeamPlacement {
+    nowhere,
+    countours,
+    everywhere
+};
+
 enum SLAMaterial {
     slamTough,
     slamFlex,
@@ -244,6 +250,7 @@ CONFIG_OPTION_ENUM_DECLARE_STATIC_MAPS(SupportMaterialPattern)
 CONFIG_OPTION_ENUM_DECLARE_STATIC_MAPS(SupportMaterialStyle)
 CONFIG_OPTION_ENUM_DECLARE_STATIC_MAPS(SupportMaterialInterfacePattern)
 CONFIG_OPTION_ENUM_DECLARE_STATIC_MAPS(SeamPosition)
+CONFIG_OPTION_ENUM_DECLARE_STATIC_MAPS(ScarfSeamPlacement)
 CONFIG_OPTION_ENUM_DECLARE_STATIC_MAPS(SLADisplayOrientation)
 CONFIG_OPTION_ENUM_DECLARE_STATIC_MAPS(SLAPillarConnectionMode)
 CONFIG_OPTION_ENUM_DECLARE_STATIC_MAPS(SLASupportTreeType)
@@ -732,6 +739,14 @@ PRINT_CONFIG_CLASS_DEFINE(
     // Single perimeter.
     ((ConfigOptionEnum<TopOnePerimeterType>, top_one_perimeter_type))
     ((ConfigOptionBool,                 only_one_perimeter_first_layer))
+
+    ((ConfigOptionEnum<ScarfSeamPlacement>, scarf_seam_placement))
+    ((ConfigOptionBool,                     scarf_seam_only_on_smooth))
+    ((ConfigOptionPercent,                  scarf_seam_start_height))
+    ((ConfigOptionBool,                     scarf_seam_entire_loop))
+    ((ConfigOptionFloat,                    scarf_seam_length))
+    ((ConfigOptionFloat,                    scarf_seam_max_segment_length))
+    ((ConfigOptionBool,                     scarf_seam_on_inner_perimeters))
 )
 
 PRINT_CONFIG_CLASS_DEFINE(

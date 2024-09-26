@@ -193,7 +193,16 @@ static const t_config_enum_values s_keys_map_SeamPosition {
     { "aligned",        spAligned },
     { "rear",           spRear }
 };
+
 CONFIG_OPTION_ENUM_DEFINE_STATIC_MAPS(SeamPosition)
+
+static const t_config_enum_values s_keys_map_ScarfSeamPlacement {
+    { "nowhere",        static_cast<int>(ScarfSeamPlacement::nowhere) },
+    { "contours",       static_cast<int>(ScarfSeamPlacement::countours) },
+    { "everywhere",     static_cast<int>(ScarfSeamPlacement::everywhere) }
+};
+
+CONFIG_OPTION_ENUM_DEFINE_STATIC_MAPS(ScarfSeamPlacement)
 
 static const t_config_enum_values s_keys_map_SLADisplayOrientation = {
     { "landscape",      sladoLandscape},
@@ -2642,6 +2651,66 @@ void PrintConfigDef::init_fff_params()
     def->label = L("Staggered inner seams");
     // TRN PrintSettings: "Staggered inner seams"
     def->tooltip = L("This option causes the inner seams to be shifted backwards based on their depth, forming a zigzag pattern.");
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionBool(false));
+
+    def = this->add("scarf_seam_placement", coEnum);
+    def->label = L("Scarf joint placement");
+    def->category = L("Layers and Perimeters");
+    def->tooltip = L("Where to place scarf joint seam.");
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionEnum<ScarfSeamPlacement>(ScarfSeamPlacement::nowhere));
+    def->set_enum<ScarfSeamPlacement>({
+        { "nowhere", L("Nowhere") },
+        { "contours", L("Contours") },
+        { "everywhere", L("Everywhere") }
+    });
+
+    def = this->add("scarf_seam_only_on_smooth", coBool);
+    def->label = L("Scarf joint only on smooth perimeters");
+    def->category = L("Layers and Perimeters");
+    def->tooltip = L("Only use the scarf joint when the perimeter is smooth.");
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionBool(true));
+
+    def = this->add("scarf_seam_start_height", coPercent);
+    def->label = L("Scarf start height");
+    def->category = L("Layers and Perimeters");
+    def->tooltip = L("Start height of the scarf joint specified as fraction of the current layer height.");
+    def->sidetext = L(" %");
+    def->min = 0;
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionPercent(0));
+
+    def = this->add("scarf_seam_entire_loop", coBool);
+    def->label = L("Scarf joint around entire perimeter");
+    def->category = L("Layers and Perimeters");
+    def->tooltip = L("Extend the scarf around entire length of the perimeter.");
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionBool(false));
+
+    def = this->add("scarf_seam_length", coFloat);
+    def->label = L("Scarf joint length");
+    def->category = L("Layers and Perimeters");
+    def->tooltip = L("Length of the scarf joint.");
+    def->sidetext = L("mm");
+    def->min = 0;
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionFloat(20));
+
+    def = this->add("scarf_seam_max_segment_length", coFloat);
+    def->label = L("Max scarf joint segment length");
+    def->category = L("Layers and Perimeters");
+    def->tooltip = L("Maximal length of any scarf joint segment.");
+    def->sidetext = L("mm");
+    def->min = 0.15;
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionFloat(1.0));
+
+    def = this->add("scarf_seam_on_inner_perimeters", coBool);
+    def->label = L("Scarf joint on inner perimeters");
+    def->category = L("Layers and Perimeters");
+    def->tooltip = L("Use scarf joint on inner perimeters.");
     def->mode = comAdvanced;
     def->set_default_value(new ConfigOptionBool(false));
 
