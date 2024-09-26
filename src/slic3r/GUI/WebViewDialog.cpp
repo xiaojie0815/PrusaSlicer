@@ -436,11 +436,12 @@ PrinterPickWebViewDialog::PrinterPickWebViewDialog(wxWindow* parent, std::string
     : WebViewDialog(parent
         , GUI::from_u8(Utils::ServiceConfig::instance().connect_select_printer_url())
         , _L("Choose a printer")
-        , wxSize(std::max(parent->GetClientSize().x / 2, 100 * wxGetApp().em_unit()), std::max(parent->GetClientSize().y / 2, 50 * wxGetApp().em_unit()))
+        , wxSize(std::max(parent->GetClientSize().x / 4 * 3, 150 * wxGetApp().em_unit()), std::max(parent->GetClientSize().y / 6 * 5, 100 * wxGetApp().em_unit()))
         ,{"_prusaSlicer"}
         , "connect_loading")
     , m_ret_val(ret_val)
 {
+    SetMinSize(wxSize(std::max(parent->GetClientSize().x / 2, 100 * wxGetApp().em_unit()), std::max(parent->GetClientSize().y / 2, 50 * wxGetApp().em_unit())));
     Centre();
 }
 void PrinterPickWebViewDialog::on_show(wxShowEvent& evt)

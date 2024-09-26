@@ -8,7 +8,7 @@
 #include <wx/dialog.h>
 #include <wx/window.h>
 
-#define DEBUG_URL_PANEL
+//#define DEBUG_URL_PANEL
 
 namespace Slic3r::GUI {
 class ConnectRequestHandler
