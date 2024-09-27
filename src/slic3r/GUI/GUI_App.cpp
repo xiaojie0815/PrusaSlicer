@@ -857,7 +857,7 @@ void GUI_App::post_init()
         CallAfter([this] {
             // preset_updater->sync downloads profile updates and than via event checks updates and incompatible presets. We need to run it on startup.
             // start before cw so it is canceled by cw if needed?
-            this->preset_updater->sync(preset_bundle, this, std::move(plater()->get_preset_archive_database()->get_selected_archive_repositories()));
+            this->preset_updater->sync(preset_bundle, this, plater()->get_preset_archive_database()->get_selected_archive_repositories());
             bool cw_showed = this->config_wizard_startup();
             if (! cw_showed) {
                 // The CallAfter is needed as well, without it, GL extensions did not show.

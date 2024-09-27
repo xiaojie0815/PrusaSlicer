@@ -21,7 +21,7 @@ namespace pt = boost::property_tree;
 namespace Slic3r {
 namespace
 {
-std::string escape_string(const std::string& unescaped)
+/*std::string escape_string(const std::string& unescaped)
 {
     std::string ret_val;
     CURL* curl = curl_easy_init();
@@ -45,7 +45,7 @@ std::string escape_path_by_element(const boost::filesystem::path& path)
         parent = parent.parent_path();
     }
     return ret_val;
-}
+}*/
 
 boost::optional<std::string> get_error_message_from_response_body(const std::string& body)
 {

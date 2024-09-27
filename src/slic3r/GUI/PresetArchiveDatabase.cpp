@@ -118,7 +118,7 @@ void delete_path_recursive(const fs::path& path)
 			fs::remove(path);
 		}
 	}
-	catch (const std::exception& e) {
+	catch (const std::exception&) {
 		BOOST_LOG_TRIVIAL(error) << "Failed to delete files at: " << path;
 	}
 }
@@ -152,25 +152,6 @@ bool extract_local_archive_repository( ArchiveRepository::RepositoryManifest& ma
 		return false;
 	}
 	return true;
-}
-
-void deserialize_string(const std::string& opt, std::vector<std::string>& result)
-{
-	std::string val;
-	for (size_t i = 0; i < opt.length(); i++) {
-		if (std::isspace(opt[i])) {
-			continue;
-		}
-		if (opt[i] != ';') {
-			val += opt[i];
-		}
-		else {
-			result.emplace_back(std::move(val));
-		}
-	}
-	if (!val.empty()) {
-		result.emplace_back(std::move(val));
-	}
 }
 
 std::string escape_string(const std::string& unescaped)
@@ -326,7 +307,6 @@ void LocalArchiveRepository::do_extract()
 //-------------------------------------PresetArchiveDatabase-------------------------------------------------------------------------------------------------------------------------
 
 PresetArchiveDatabase::PresetArchiveDatabase(AppConfig* app_config, wxEvtHandler* evt_handler)
-	: p_evt_handler(evt_handler)
 {
 	// 
 	boost::system::error_code ec;
@@ -382,7 +362,7 @@ bool PresetArchiveDatabase::set_selected_repositories(const std::vector<std::str
 bool PresetArchiveDatabase::extract_archives_with_check(std::string &msg)
 {
     extract_local_archives();
-    for (const std::pair<std::string, bool>& pair : m_selected_repositories_uuid) {
+    for (const std::pair<const std::string, bool>& pair : m_selected_repositories_uuid) {
         if (!pair.second) {
             continue;
         }

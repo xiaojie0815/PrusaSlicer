@@ -2703,7 +2703,7 @@ void PrintConfigDef::init_fff_params()
     def->category = L("Layers and Perimeters");
     def->tooltip = L("Maximal length of any scarf joint segment.");
     def->sidetext = L("mm");
-    def->min = 0.15;
+    def->min = 0.15f;
     def->mode = comAdvanced;
     def->set_default_value(new ConfigOptionFloat(1.0));
 

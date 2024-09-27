@@ -96,7 +96,6 @@ private:
     bool                                    m_remember_session { true }; // if default is true, on every login Remember me will be checked.
 
     wxTimer*                                m_token_timer;
-    wxEvtHandler*                           m_timer_evt_handler;
     std::time_t                             m_next_token_refresh_at{0};
 
     void wakeup_session_thread();

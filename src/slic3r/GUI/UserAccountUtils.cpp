@@ -26,7 +26,7 @@ std::string parse_tree_for_param(const pt::ptree& tree, const std::string& param
     return {};
 }
 
-void parse_tree_for_param_vector(
+/*void parse_tree_for_param_vector(
 const pt::ptree &tree, const std::string& param, std::vector<std::string>& results) {
     for (const auto &section : tree) {
         if (section.first == param) {
@@ -35,7 +35,7 @@ const pt::ptree &tree, const std::string& param, std::vector<std::string>& resul
             parse_tree_for_param_vector(section.second, param, results);
         }
     }
-}
+}*/
 
 pt::ptree parse_tree_for_subtree(const pt::ptree& tree, const std::string& param) {
     for (const auto &section : tree) {
@@ -324,7 +324,6 @@ std::string get_print_data_from_json(const std::string& json, const std::string&
     size_t end_of_sub = json.find('}', end_of_filename_data);
     if (end_of_sub == std::string::npos)
         return {};
-    size_t size = json.size();
     std::string result = json.substr(start_of_sub, start_of_filename_data - start_of_sub + 1);
     result += "%1%";
     result += json.substr(end_of_filename_data, end_of_sub - end_of_filename_data);
