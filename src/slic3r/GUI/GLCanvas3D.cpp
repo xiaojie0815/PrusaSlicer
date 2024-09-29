@@ -2224,39 +2224,29 @@ void GLCanvas3D::render()
         // This is just temporary pipe to export data to the separate arrange algorithm
         // and importing the result back. TESTING ONLY !!!
         ImGui::Begin("TESTING ONLY (arrange)");
-        static bool decimation = true;
-        static bool precision_high = false;
-        static bool assumptions = false;
-        static int  object_group_size = 4;
-        static bool delete_files = true;
-        static std::string printer_file = "printer_geometry.mk4.txt";
-        ImGui::Checkbox("Decimation", &decimation);
-        ImGui::Checkbox("Precision", &precision_high);
-        ImGui::Checkbox("Assumptions", &assumptions);
-        ImGui::InputInt("Group size", &object_group_size);
-        wxGetApp().imgui()->disabled_begin(true);
-        ImGui::InputText("Printer file", printer_file.data(), printer_file.size());
-        wxGetApp().imgui()->disabled_end();
-        ImGui::Separator();
-        ImGui::Checkbox("Delete files after use", &delete_files);
-
-        std::stringstream ss;
-        ss << "./sequential_prusa"
-           << " --decimation=" << (decimation ? "yes" : "no")
-           << " --precision="  << (precision_high ? "high" : "low")
-           << " --assumptions=" << (assumptions ? "yes" : "no")
-           << " --object-group-size=" << object_group_size
-            << " --printer-file=" << printer_file
-           << " --interactive=no";
-        ImGui::Text((std::string("Command: '") + ss.str() + "'").c_str());
-
-
-        if (ImGui::Button("Do external arrange")) {
-            export_run_and_import_arrange_data(wxGetApp().plater()->model(), ss.str(), delete_files);
+       if (ImGui::Button("Do sequential arrange")) {
+            arrange_model_sequential(wxGetApp().plater()->model());
             reload_scene(true, true);
             wxGetApp().obj_list()->update_after_undo_redo();
         }
-        ImGui::End();
+       
+       static auto time_start = std::chrono::high_resolution_clock::now();
+       auto time_now = std::chrono::high_resolution_clock::now();
+       int time_limit_s = 1;
+       static bool last_res = 0;
+       bool valid = std::chrono::duration_cast<std::chrono::seconds>(time_now - time_start).count() < time_limit_s;
+
+       ImGui::Text("");
+       ImGui::Separator();
+       ImGui::Text("");
+       if (ImGui::Button("Test:")) {
+           last_res = check_seq_printability(wxGetApp().plater()->model());
+           time_start = std::chrono::high_resolution_clock::now();
+       }
+       ImGui::SameLine();
+       ImGui::TextColored((valid && last_res ? ImVec4(0.,1.,0.,1.) : (valid ? ImVec4(1.,0.,0.,1.) : ImVec4(0.5,.5,0.5,1.))) , "\u25a0");
+       ImGui::Text("(So far, multiple beds are not accounted for.)");
+       ImGui::End();
     }
 
 
