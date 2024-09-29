@@ -1,0 +1,7 @@
+echo "#ifndef __SEQ_VERSION_HPP__"
+echo "#define __SEQ_VERSION_HPP__"
+echo ""
+echo ""
+echo "#define SEQ_SEQUENTIAL_BUILD "\"`cat ./SEQUENTIAL-Prusa/include/seq_step`\"
+echo ""
+echo "#endif /* __SEQ_VERSION_HPP__ */"

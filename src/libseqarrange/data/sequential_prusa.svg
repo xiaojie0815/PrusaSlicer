@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.0//EN" "http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd">
+<svg height="2000" width="2000" xmlns="http://www.w3.org/2000/svg" xmlns:svg="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+   <marker id="endArrow" markerHeight="8" markerUnits="strokeWidth" markerWidth="10" orient="auto" refX="1" refY="5" viewBox="0 0 10 10">
+      <polyline fill="darkblue" points="0,0 10,5 0,10 1,5" />
+   </marker>
+<rect fill='white' stroke='none' x='0' y='0' width='2000.000000' height='2000.000000'/>
+   <path d="M 87.5 967.5 -87.5 967.5 -107.5 987.5 -107.5 1132.5 107.5 1132.5 107.5 987.5 z" style="fill: lightgrey; stroke: black; stroke-width: 0.000000; fill-type: evenodd"  fill-opacity="1.000000" />
+   <path d="M -102.5 1127.5 102.5 1127.5 102.5 992.5 82.5 972.5 -82.5 972.5 -102.5 992.5 z" style="fill: lightgrey; stroke: black; stroke-width: 0.000000; fill-type: evenodd"  fill-opacity="1.000000" />
+   <path d="M 270 750 -90 750 -110 770 -110 1235 290 1235 290 770 z" style="fill: lightgrey; stroke: black; stroke-width: 0.000000; fill-type: evenodd"  fill-opacity="1.000000" />
+   <path d="M 275 870 -285 870 -305 890 -305 1355 295 1355 295 890 z" style="fill: lightgrey; stroke: black; stroke-width: 0.000000; fill-type: evenodd"  fill-opacity="1.000000" />
+   <path d="M 84.5 1195 84.5 1030 -95 1030 -95 1195 z" style="fill: lightgrey; stroke: black; stroke-width: 0.000000; fill-type: evenodd"  fill-opacity="1.000000" />
+   <path d="M -1855 1200 1855 1200 1855 1050 -1855 1050 z" style="fill: lightgrey; stroke: black; stroke-width: 0.000000; fill-type: evenodd"  fill-opacity="1.000000" />
+   <path d="M -165 2880 150 2880 150 1225 -165 1225 z" style="fill: lightgrey; stroke: black; stroke-width: 0.000000; fill-type: evenodd"  fill-opacity="1.000000" />
+   <path d="M -165 2880 1355 2880 1355 1440 -165 1440 z" style="fill: lightgrey; stroke: black; stroke-width: 0.000000; fill-type: evenodd"  fill-opacity="1.000000" />
+</svg>
