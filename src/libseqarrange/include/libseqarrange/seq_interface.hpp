@@ -18,9 +18,6 @@
 #include "libslic3r/Polygon.hpp"
 #include "libslic3r/Geometry/ConvexHull.hpp"
 
-#include "seq_defs.hpp"
-
-
 /*----------------------------------------------------------------*/
 
 using namespace Slic3r;
@@ -96,7 +93,7 @@ struct SolverConfiguration
     // Setting printer type is obsolete, will be removed    
     PrinterType printer_type;
     
-    string optimization_timeout;    
+    std::string optimization_timeout;    
 };
 
     

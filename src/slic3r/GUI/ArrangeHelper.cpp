@@ -5,7 +5,7 @@
 
 #include <string>
 
-#include "libseqarrange/include/seq_interface.hpp"
+#include "libseqarrange/seq_interface.hpp"
 
 
 namespace Slic3r {

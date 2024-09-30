@@ -455,6 +455,7 @@ target_link_libraries(
     stb_dxt
     fastfloat
     boost_headeronly
+    libseqarrange
 )
 
 if (MSVC)
