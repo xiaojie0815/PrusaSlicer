@@ -16,7 +16,7 @@
 /*----------------------------------------------------------------*/
 
 #include "libslic3r/Polygon.hpp"
-#include "libslic3r/ConvexHull.hpp"
+#include "libslic3r/Geometry/ConvexHull.hpp"
 
 #include "seq_defs.hpp"
 
@@ -43,7 +43,7 @@ struct PrinterGeometry
     std::set<coord_t> convex_heights;
     std::set<coord_t> box_heights;
     
-    std::map<coord_t, std::vector<Polygon> > extruder_slices;
+    std::map<coord_t, std::vector<Slic3r::Polygon> > extruder_slices;
 };
 
     
@@ -106,7 +106,7 @@ struct ObjectToPrint
 {
     int id = 0;
     coord_t total_height = 0;
-    std::vector<std::pair<coord_t, Polygon>> pgns_at_height;
+    std::vector<std::pair<coord_t, Slic3r::Polygon>> pgns_at_height;
 };
 
 

@@ -25,7 +25,7 @@
 
 #include "libslic3r/Geometry.hpp"
 #include "libslic3r/ExPolygon.hpp"
-#include "libslic3r/ConvexHull.hpp"
+#include "libslic3r/Geometry/ConvexHull.hpp"
 
 #include <z3++.h>
 
