@@ -19,6 +19,7 @@
 #include "libslic3r/ClipperUtils.hpp"
 
 #include "seq_utilities.hpp"
+#include "seq_preprocess.hpp"
 
 
 /*----------------------------------------------------------------*/

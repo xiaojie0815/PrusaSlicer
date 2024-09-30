@@ -16,11 +16,9 @@
 /*----------------------------------------------------------------*/
 
 #include "libslic3r/Polygon.hpp"
-#include "libslic3r/Geometry/ConvexHull.hpp"
+#include "libslic3r/ConvexHull.hpp"
 
 #include "seq_defs.hpp"
-#include "seq_sequential.hpp"
-#include "seq_preprocess.hpp"
 
 
 /*----------------------------------------------------------------*/
@@ -33,14 +31,82 @@ using namespace Slic3r;
 namespace Sequential
 {
 
+
+    
+/*----------------------------------------------------------------*/
+    
+struct PrinterGeometry
+{
+    coord_t x_size;
+    coord_t y_size;
+    
+    std::set<coord_t> convex_heights;
+    std::set<coord_t> box_heights;
+    
+    std::map<coord_t, std::vector<Polygon> > extruder_slices;
+};
+
     
 /*----------------------------------------------------------------*/
 
+// Setting printer type is obsolete, will be removed
+enum PrinterType
+{
+    SEQ_PRINTER_TYPE_UNDEFINED,
+    SEQ_PRINTER_TYPE_PRUSA_MINI,    
+    SEQ_PRINTER_TYPE_PRUSA_MK3S,
+    SEQ_PRINTER_TYPE_PRUSA_MK4,
+    SEQ_PRINTER_TYPE_PRUSA_XL,    
+};
+
+
+enum DecimationPrecision
+{
+    SEQ_DECIMATION_PRECISION_UNDEFINED,
+    SEQ_DECIMATION_PRECISION_LOW,
+    SEQ_DECIMATION_PRECISION_HIGH    
+};
+    
+
+/*----------------------------------------------------------------*/    
+    
+struct SolverConfiguration
+{
+    SolverConfiguration();
+    SolverConfiguration(const PrinterGeometry &printer_geometry);
+    
+    static double convert_DecimationPrecision2Tolerance(DecimationPrecision decimation_precision);
+    void setup(const PrinterGeometry &printer_geometry);
+
+    void set_DecimationPrecision(DecimationPrecision decimation_precision);
+    void set_ObjectGroupSize(int object_group_size);
+
+    int bounding_box_size_optimization_step;
+    int minimum_X_bounding_box_size;
+    int minimum_Y_bounding_box_size;        
+    int maximum_X_bounding_box_size;
+    int maximum_Y_bounding_box_size;
+    int minimum_bounding_box_size;
+    int maximum_bounding_box_size;
+    int object_group_size;
+    int temporal_spread;
+
+    DecimationPrecision decimation_precision;
+
+    // Setting printer type is obsolete, will be removed    
+    PrinterType printer_type;
+    
+    string optimization_timeout;    
+};
+
+    
+/*----------------------------------------------------------------*/
+    
 struct ObjectToPrint
 {
     int id = 0;
     coord_t total_height = 0;
-    std::vector<std::pair<coord_t, Slic3r::Polygon>> pgns_at_height;
+    std::vector<std::pair<coord_t, Polygon>> pgns_at_height;
 };
 
 
@@ -62,7 +128,12 @@ struct ScheduledPlate {
 
 /*----------------------------------------------------------------*/
 /*
-  This is the recommended interface for testing sequential printability.
+  This is the recommended interface for checking sequential printability.
+
+  Returns true if objects are sequentially printable according to their
+  ordering in the input vector and the arrangement on the plate specified
+  by the schedule. Printable means that the extruder never hits printed
+  objects during printing. Otherwise returns false.
 
   Please see the corresponding example of usage (seq_test_interface.cpp)
 
@@ -99,7 +170,10 @@ void schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver
     
     
 /*----------------------------------------------------------------*/
-        
+/*
+  The following interface is for more internal use.
+ */
+           
 int schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver_configuration,
 				       const std::vector<ObjectToPrint> &objects_to_print,
 				       std::vector<ScheduledPlate>      &scheduled_plates);
@@ -113,10 +187,12 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration                
 				       const std::vector<std::vector<Slic3r::Polygon> > &convex_unreachable_zones,
 				       const std::vector<std::vector<Slic3r::Polygon> > &box_unreachable_zones,     
 				       std::vector<ScheduledPlate>                      &scheduled_plates);
+
     
 /*----------------------------------------------------------------*/
 
 } // namespace Sequential
+
 
 /*----------------------------------------------------------------*/
 

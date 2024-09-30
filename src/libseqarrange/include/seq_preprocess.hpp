@@ -26,6 +26,7 @@ namespace Sequential
 
 /*----------------------------------------------------------------*/
 
+const coord_t SEQ_SLICER_SCALE_FACTOR = 100000;    
 const double SEQ_POLYGON_DECIMATION_GROW_FACTOR = 1.005;
   
 

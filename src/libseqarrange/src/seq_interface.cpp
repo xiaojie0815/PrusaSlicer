@@ -22,7 +22,126 @@ namespace Sequential
 {
 
 
+    
 
+/*----------------------------------------------------------------*/
+
+const int SEQ_OBJECT_GROUP_SIZE = 4;
+    
+const int SEQ_PRUSA_MK3S_X_SIZE = 2500;
+const int SEQ_PRUSA_MK3S_Y_SIZE = 2100;    
+    
+const coord_t SEQ_PRUSA_MK3S_NOZZLE_LEVEL   = 0;
+const coord_t SEQ_PRUSA_MK3S_EXTRUDER_LEVEL = 2000000;
+const coord_t SEQ_PRUSA_MK3S_HOSE_LEVEL     = 18000000;
+const coord_t SEQ_PRUSA_MK3S_GANTRY_LEVEL   = 26000000;
+  
+const int SEQ_PRUSA_MK4_X_SIZE = 2500;
+const int SEQ_PRUSA_MK4_Y_SIZE = 2100;    
+
+// TODO: measure for true values    
+const coord_t SEQ_PRUSA_MK4_NOZZLE_LEVEL   = 0;
+const coord_t SEQ_PRUSA_MK4_EXTRUDER_LEVEL = 2000000;
+const coord_t SEQ_PRUSA_MK4_HOSE_LEVEL     = 18000000;
+const coord_t SEQ_PRUSA_MK4_GANTRY_LEVEL   = 26000000;
+
+const int SEQ_PRUSA_XL_X_SIZE = 3600;
+const int SEQ_PRUSA_XL_Y_SIZE = 3600;    
+    
+// TODO: measure for true values    
+const coord_t SEQ_PRUSA_XL_NOZZLE_LEVEL   = 0;
+const coord_t SEQ_PRUSA_XL_EXTRUDER_LEVEL = 2000000;
+const coord_t SEQ_PRUSA_XL_HOSE_LEVEL     = 18000000;
+const coord_t SEQ_PRUSA_XL_GANTRY_LEVEL   = 26000000;        
+
+    
+/*----------------------------------------------------------------*/
+    
+SolverConfiguration::SolverConfiguration()
+    : bounding_box_size_optimization_step(4)
+    , minimum_X_bounding_box_size(10)
+    , minimum_Y_bounding_box_size(10)
+    , maximum_X_bounding_box_size(SEQ_PRUSA_MK3S_X_SIZE)
+    , maximum_Y_bounding_box_size(SEQ_PRUSA_MK3S_Y_SIZE)
+    , minimum_bounding_box_size(MIN(minimum_X_bounding_box_size, minimum_Y_bounding_box_size))
+    , maximum_bounding_box_size(MAX(maximum_X_bounding_box_size, maximum_Y_bounding_box_size))
+    , object_group_size(SEQ_OBJECT_GROUP_SIZE)
+    , temporal_spread(16)
+    , decimation_precision(SEQ_DECIMATION_PRECISION_UNDEFINED)
+    , printer_type(SEQ_PRINTER_TYPE_PRUSA_MK3S)
+    , optimization_timeout(SEQ_Z3_SOLVER_TIMEOUT)
+{
+	/* nothing */
+}
+
+    
+SolverConfiguration::SolverConfiguration(const PrinterGeometry &printer_geometry)
+    : bounding_box_size_optimization_step(4)
+    , minimum_X_bounding_box_size(10)
+    , minimum_Y_bounding_box_size(10)
+    , maximum_X_bounding_box_size(printer_geometry.x_size / SEQ_SLICER_SCALE_FACTOR)
+    , maximum_Y_bounding_box_size(printer_geometry.y_size / SEQ_SLICER_SCALE_FACTOR)
+    , minimum_bounding_box_size(MIN(minimum_X_bounding_box_size, minimum_Y_bounding_box_size))
+    , maximum_bounding_box_size(MAX(maximum_X_bounding_box_size, maximum_Y_bounding_box_size))
+    , object_group_size(SEQ_OBJECT_GROUP_SIZE)
+    , temporal_spread(16)
+    , decimation_precision(SEQ_DECIMATION_PRECISION_UNDEFINED)
+    , printer_type(SEQ_PRINTER_TYPE_PRUSA_MK3S)
+    , optimization_timeout(SEQ_Z3_SOLVER_TIMEOUT)
+{
+    /* nothing */
+}
+
+    
+double SolverConfiguration::convert_DecimationPrecision2Tolerance(DecimationPrecision decimation_precision)
+{
+    switch (decimation_precision)
+    {
+    case SEQ_DECIMATION_PRECISION_UNDEFINED:
+    {
+	return SEQ_DECIMATION_TOLERANCE_VALUE_UNDEFINED;	    
+	break;
+    }
+    case SEQ_DECIMATION_PRECISION_LOW:
+    {
+	return SEQ_DECIMATION_TOLERANCE_VALUE_HIGH;
+	break;
+    }	
+    case SEQ_DECIMATION_PRECISION_HIGH:
+    {
+	return SEQ_DECIMATION_TOLERANCE_VALUE_LOW;
+	break;
+    }
+    default:
+    {
+	break;
+    }
+    }
+    return SEQ_DECIMATION_TOLERANCE_VALUE_UNDEFINED;	
+}
+
+    
+void SolverConfiguration::setup(const PrinterGeometry &printer_geometry)
+{
+    maximum_X_bounding_box_size = printer_geometry.x_size / SEQ_SLICER_SCALE_FACTOR;
+    maximum_Y_bounding_box_size = printer_geometry.y_size / SEQ_SLICER_SCALE_FACTOR;
+    minimum_bounding_box_size = MIN(minimum_X_bounding_box_size, minimum_Y_bounding_box_size);
+    maximum_bounding_box_size = MAX(maximum_X_bounding_box_size, maximum_Y_bounding_box_size);
+}
+
+    
+void SolverConfiguration::set_DecimationPrecision(DecimationPrecision _decimation_precision)
+{
+    decimation_precision = _decimation_precision;
+}
+
+    
+void SolverConfiguration::set_ObjectGroupSize(int _object_group_size)
+{
+    object_group_size = _object_group_size;
+}
+    
+    
 /*----------------------------------------------------------------*/
 
 bool check_ScheduledObjectsForSequentialPrintability(const SolverConfiguration         &solver_configuration,

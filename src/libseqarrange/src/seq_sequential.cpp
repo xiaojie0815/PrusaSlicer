@@ -8968,13 +8968,6 @@ bool optimize_SubglobalPolygonNonoverlapping(const SolverConfiguration          
 
 	    undecided.clear();
 
-	    /*
-	    for (int i = 0; i < object_group_size; ++i)
-	    {
-		undecided.push_back(curr_polygon + i);		
-	    }
-	    */
-
 	    for (int i = object_group_size - 1; i >= 0; --i)
 	    {
 		undecided.push_back(curr_polygon + i + remaining_polygon);

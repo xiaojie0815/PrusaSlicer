@@ -16,13 +16,14 @@
 
 #include "libslic3r/Polygon.hpp"
 #include "libslic3r/ExPolygon.hpp"
-#include "libslic3r/Geometry/ConvexHull.hpp"
+#include "libslic3r/ConvexHull.hpp"
 #include "libslic3r/SVG.hpp"
 
 #include <z3++.h>
 
 #include "seq_interface.hpp"
 #include "seq_utilities.hpp"
+#include "seq_preprocess.hpp"
 
 #include "seq_test_interface.hpp"
 
@@ -35,6 +36,7 @@ using namespace Sequential;
 
 /*----------------------------------------------------------------*/
 
+/*
 static bool find_and_remove(std::string& src, const std::string& key)
 {
     size_t pos = src.find(key);
@@ -44,6 +46,7 @@ static bool find_and_remove(std::string& src, const std::string& key)
     }
     return false;
 }
+*/
 
 /*
 std::vector<ObjectToPrint> load_exported_data(const std::string& filename)
@@ -332,7 +335,7 @@ int test_interface_5(void)
 
     SolverConfiguration solver_configuration;
     solver_configuration.decimation_precision = SEQ_DECIMATION_PRECISION_HIGH;
-    solver_configuration.object_group_size = 4;
+    solver_configuration.object_group_size = 4;    
 
     printf("Loading objects ...\n");    
     std::vector<ObjectToPrint> objects_to_print = load_exported_data("arrange_data_export.txt");

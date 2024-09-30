@@ -25,11 +25,13 @@
 
 #include "libslic3r/Geometry.hpp"
 #include "libslic3r/ExPolygon.hpp"
-#include "libslic3r/Geometry/ConvexHull.hpp"
+#include "libslic3r/ConvexHull.hpp"
 
 #include <z3++.h>
 
 #include "seq_defs.hpp"
+
+#include "seq_interface.hpp"
 
 
 /*----------------------------------------------------------------*/
@@ -46,9 +48,7 @@ namespace Sequential
     
 /*----------------------------------------------------------------*/
 
-const coord_t SEQ_SLICER_SCALE_FACTOR = 100000;
 const coord_t SEQ_SVG_SCALE_FACTOR    =  50000;  
-
     
 #define SEQ_INTERSECTION_REPULSION_MIN    "-0.01"
 #define SEQ_INTERSECTION_REPULSION_MAX    "1.01"
@@ -73,7 +73,7 @@ typedef std::unordered_map<string, int> string_map;
 
     
 /*----------------------------------------------------------------*/
-
+/*
 struct PrinterGeometry
 {
     coord_t x_size;
@@ -82,148 +82,10 @@ struct PrinterGeometry
     std::set<coord_t> convex_heights;
     std::set<coord_t> box_heights;
     
-    std::map<coord_t, std::vector<Slic3r::Polygon> > extruder_slices;
+    std::map<coord_t, std::vector<Polygon> > extruder_slices;
 };
-
-
-/*----------------------------------------------------------------*/
+*/
     
-enum PrinterType
-{
-    SEQ_PRINTER_TYPE_UNDEFINED,
-    SEQ_PRINTER_TYPE_PRUSA_MK3S,
-    SEQ_PRINTER_TYPE_PRUSA_MK4,
-    SEQ_PRINTER_TYPE_PRUSA_XL,    
-};
-
-
-enum DecimationPrecision
-{
-    SEQ_DECIMATION_PRECISION_UNDEFINED,
-    SEQ_DECIMATION_PRECISION_LOW,
-    SEQ_DECIMATION_PRECISION_HIGH    
-};
-
-    
-/*----------------------------------------------------------------*/
-
-const int SEQ_PRUSA_MK3S_X_SIZE = 2500;
-const int SEQ_PRUSA_MK3S_Y_SIZE = 2100;    
-    
-const coord_t SEQ_PRUSA_MK3S_NOZZLE_LEVEL   = 0;
-const coord_t SEQ_PRUSA_MK3S_EXTRUDER_LEVEL = 2000000;
-const coord_t SEQ_PRUSA_MK3S_HOSE_LEVEL     = 18000000;
-const coord_t SEQ_PRUSA_MK3S_GANTRY_LEVEL   = 26000000;
-
-    
-const int SEQ_PRUSA_MK4_X_SIZE = 2500;
-const int SEQ_PRUSA_MK4_Y_SIZE = 2100;    
-
-// TODO: measure for true values    
-const coord_t SEQ_PRUSA_MK4_NOZZLE_LEVEL   = 0;
-const coord_t SEQ_PRUSA_MK4_EXTRUDER_LEVEL = 2000000;
-const coord_t SEQ_PRUSA_MK4_HOSE_LEVEL     = 18000000;
-const coord_t SEQ_PRUSA_MK4_GANTRY_LEVEL   = 26000000;
-
-const int SEQ_PRUSA_XL_X_SIZE = 3600;
-const int SEQ_PRUSA_XL_Y_SIZE = 3600;    
-    
-// TODO: measure for true values    
-const coord_t SEQ_PRUSA_XL_NOZZLE_LEVEL   = 0;
-const coord_t SEQ_PRUSA_XL_EXTRUDER_LEVEL = 2000000;
-const coord_t SEQ_PRUSA_XL_HOSE_LEVEL     = 18000000;
-const coord_t SEQ_PRUSA_XL_GANTRY_LEVEL   = 26000000;        
-    
-
-/*----------------------------------------------------------------*/    
-    
-struct SolverConfiguration
-{
-    SolverConfiguration()
-	: bounding_box_size_optimization_step(4)
-	, minimum_X_bounding_box_size(10)
-	, minimum_Y_bounding_box_size(10)
-	, maximum_X_bounding_box_size(SEQ_PRUSA_MK3S_X_SIZE)
-	, maximum_Y_bounding_box_size(SEQ_PRUSA_MK3S_Y_SIZE)
-	, minimum_bounding_box_size(MIN(minimum_X_bounding_box_size, minimum_Y_bounding_box_size))
-	, maximum_bounding_box_size(MAX(maximum_X_bounding_box_size, maximum_Y_bounding_box_size))
-	, object_group_size(4)
-	, temporal_spread(16)
-	, decimation_precision(SEQ_DECIMATION_PRECISION_UNDEFINED)
-	, printer_type(SEQ_PRINTER_TYPE_PRUSA_MK3S)
-	, optimization_timeout(SEQ_Z3_SOLVER_TIMEOUT)
-    {
-	/* nothing */
-    }
-
-    SolverConfiguration(const PrinterGeometry &printer_geometry)
-	: bounding_box_size_optimization_step(4)
-	, minimum_X_bounding_box_size(10)
-	, minimum_Y_bounding_box_size(10)
-	, maximum_X_bounding_box_size(printer_geometry.x_size / SEQ_SLICER_SCALE_FACTOR)
-	, maximum_Y_bounding_box_size(printer_geometry.y_size / SEQ_SLICER_SCALE_FACTOR)
-	, minimum_bounding_box_size(MIN(minimum_X_bounding_box_size, minimum_Y_bounding_box_size))
-	, maximum_bounding_box_size(MAX(maximum_X_bounding_box_size, maximum_Y_bounding_box_size))
-	, object_group_size(4)
-	, temporal_spread(16)
-	, decimation_precision(SEQ_DECIMATION_PRECISION_UNDEFINED)
-	, printer_type(SEQ_PRINTER_TYPE_PRUSA_MK3S)
-	, optimization_timeout(SEQ_Z3_SOLVER_TIMEOUT)
-    {
-	/* nothing */
-    }
-
-    static double convert_DecimationPrecision2Tolerance(DecimationPrecision decimation_precision)
-    {
-	switch (decimation_precision)
-	{
-	case SEQ_DECIMATION_PRECISION_UNDEFINED:
-	{
-	    return SEQ_DECIMATION_TOLERANCE_VALUE_UNDEFINED;	    
-	    break;
-	}
-	case SEQ_DECIMATION_PRECISION_LOW:
-	{
-	    return SEQ_DECIMATION_TOLERANCE_VALUE_HIGH;
-	    break;
-	}	
-	case SEQ_DECIMATION_PRECISION_HIGH:
-	{
-	    return SEQ_DECIMATION_TOLERANCE_VALUE_LOW;
-	    break;
-	}
-	default:
-	{
-	    break;
-	}
-	}
-	return SEQ_DECIMATION_TOLERANCE_VALUE_UNDEFINED;	
-    }
-
-    void setup(const PrinterGeometry &printer_geometry)
-    {
-	maximum_X_bounding_box_size = printer_geometry.x_size / SEQ_SLICER_SCALE_FACTOR;
-	maximum_Y_bounding_box_size = printer_geometry.y_size / SEQ_SLICER_SCALE_FACTOR;
-	minimum_bounding_box_size = MIN(minimum_X_bounding_box_size, minimum_Y_bounding_box_size);
-	maximum_bounding_box_size = MAX(maximum_X_bounding_box_size, maximum_Y_bounding_box_size);
-    }
-    
-    int bounding_box_size_optimization_step;
-    int minimum_X_bounding_box_size;
-    int minimum_Y_bounding_box_size;        
-    int maximum_X_bounding_box_size;
-    int maximum_Y_bounding_box_size;
-    int minimum_bounding_box_size;
-    int maximum_bounding_box_size;
-    int object_group_size;
-    int temporal_spread;
-
-    DecimationPrecision decimation_precision;
-    PrinterType printer_type;
-    
-    string optimization_timeout;    
-};
-
 
 /*----------------------------------------------------------------*/
 

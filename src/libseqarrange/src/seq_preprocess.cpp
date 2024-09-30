@@ -653,11 +653,6 @@ void extend_PolygonBoxUnreachableZone(const SolverConfiguration          &SEQ_UN
 	{
 	    BoundingBox extruder_box = get_extents(extruder_polygons[i]);
 	
-	/*
-	coord_t extruder_box_size_x = extruder_box.max.x() - extruder_box.min.x();
-	coord_t extruder_box_size_y = extruder_box.max.y() - extruder_box.min.y();	
-	*/
-
 	    coord_t min_x = polygon_box.min.x() + extruder_box.min.x();
 	    coord_t min_y = polygon_box.min.y() + extruder_box.min.y();
 	    
@@ -703,7 +698,11 @@ void prepare_ExtruderPolygons(const SolverConfiguration                  &solver
 	    
 	    if (!check_PolygonSize(solver_configuration, SEQ_SLICER_SCALE_FACTOR, decimated_polygon))
 	    {
-		printf("Object too large to fit onto plate.\n");
+		#ifdef DEBUG
+		{
+		    printf("Object too large to fit onto plate.\n");
+		}
+		#endif
 		throw std::runtime_error("OBJECT TOO LARGE");
 	    }
 	    
@@ -892,7 +891,7 @@ double calc_PolygonArea(const Slic3r::Polygon &polygon)
 
 
 double calc_PolygonUnreachableZoneArea(const Slic3r::Polygon              &polygon,
-				      const std::vector<Slic3r::Polygon> &unreachable_polygons)
+				       const std::vector<Slic3r::Polygon> &unreachable_polygons)
 {
     Polygons overlapping_polygons;
 
@@ -945,7 +944,7 @@ double calc_PolygonArea(const std::vector<int>             &fixed,
 
 
 double calc_PolygonUnreachableZoneArea(const std::vector<Slic3r::Polygon>               &polygons,
-				      const std::vector<std::vector<Slic3r::Polygon> > &unreachable_polygons)
+				       const std::vector<std::vector<Slic3r::Polygon> > &unreachable_polygons)
 {
     assert(polygons.size() == unreachable_polygons.size());
     double area = 0;

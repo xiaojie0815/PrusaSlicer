@@ -11,7 +11,7 @@
 
 
 #include "libslic3r/Polygon.hpp"
-#include "libslic3r/Geometry/ConvexHull.hpp"
+#include "libslic3r/ConvexHull.hpp"
 #include "libslic3r/SVG.hpp"
 
 #include "seq_version.hpp"

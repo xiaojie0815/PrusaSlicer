@@ -16,7 +16,7 @@
 
 #include <vector>
 #include "libslic3r/ExPolygon.hpp"
-#include "libslic3r/Geometry/ConvexHull.hpp"
+#include "libslic3r/ConvexHull.hpp"
 #include "libslic3r/SVG.hpp"
 
 #include <z3++.h>
@@ -25,10 +25,6 @@
 #include "seq_sequential.hpp"
 
 #include "seq_test_sequential.hpp"
-
-#ifndef M_PI
-#define M_PI 3.14159
-#endif
 
 
 /*----------------------------------------------------------------*/
@@ -836,13 +832,15 @@ void test_sequential_4(void)
 
     int last_solvable_bounding_box_size = -1;
     double poly_1_pos_x, poly_1_pos_y, poly_2_pos_x, poly_2_pos_y, poly_3_pos_x, poly_3_pos_y, poly_4_pos_x, poly_4_pos_y;
+    poly_1_pos_x = poly_1_pos_y = poly_2_pos_x = poly_2_pos_y = poly_3_pos_x = poly_3_pos_y = poly_4_pos_x = poly_4_pos_y = 0.0;
+    
     double time_1_t, time_2_t, time_3_t, time_4_t;
+    time_1_t = time_2_t = time_3_t = time_4_t = -1.0;    
 
     double _poly_1_pos_x, _poly_1_pos_y, _poly_2_pos_x, _poly_2_pos_y, _poly_3_pos_x, _poly_3_pos_y, _poly_4_pos_x, _poly_4_pos_y;
+    _poly_1_pos_x = _poly_1_pos_y = _poly_2_pos_x = _poly_2_pos_y = _poly_3_pos_x = _poly_3_pos_y = _poly_4_pos_x = _poly_4_pos_y = 0.0;    
     double _time_1_t, _time_2_t, _time_3_t, _time_4_t;    
-
-    //time_1_t = time_2_t = time_3_t = time_4_t = -1.0;
-
+    _time_1_t = _time_2_t = _time_3_t = _time_4_t = -1.0;
     
     for (int bounding_box_size = 200; bounding_box_size > 10; bounding_box_size -= 4)
     {
