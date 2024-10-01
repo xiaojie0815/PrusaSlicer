@@ -92,10 +92,13 @@ public:
     Sidebar& sidebar();
     const Model& model() const;
     Model& model();
-    const Print& fff_print() const;
-    Print& fff_print();
-    const SLAPrint& sla_print() const;
-    SLAPrint& sla_print();
+    //const Print& fff_print() const;
+    //Print& fff_print();
+    //const SLAPrint& sla_print() const;
+    //SLAPrint& sla_print();
+    
+    Print& active_fff_print();
+    SLAPrint& active_sla_print();
 
     void new_project();
     void load_project();

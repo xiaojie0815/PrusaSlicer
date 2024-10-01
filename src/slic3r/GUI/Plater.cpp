@@ -241,6 +241,7 @@ enum ExportingStatus{
     EXPORTING_TO_LOCAL
 };
 
+
 // Plater / private
 struct Plater::priv
 {
@@ -252,11 +253,11 @@ struct Plater::priv
 
     // Data
     Slic3r::DynamicPrintConfig *config;        // FIXME: leak?
-    Slic3r::Print               fff_print;
-    Slic3r::SLAPrint            sla_print;
+    std::vector<std::unique_ptr<Slic3r::Print>>     fff_prints;
+    std::vector<std::unique_ptr<Slic3r::SLAPrint>> sla_prints;
     Slic3r::Model               model;
     PrinterTechnology           printer_technology = ptFFF;
-    Slic3r::GCodeProcessorResult gcode_result;
+    std::vector<Slic3r::GCodeProcessorResult> gcode_results;
 
     // GUI elements
     wxSizer* panel_sizer{ nullptr };
@@ -634,9 +635,14 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
     , collapse_toolbar(GLToolbar::Normal, "Collapse")
     , m_project_filename(wxEmptyString)
 {
-    background_process.set_fff_print(&fff_print);
-    background_process.set_sla_print(&sla_print);
-    background_process.set_gcode_result(&gcode_result);
+    for (int i = 0; i < s_multiple_beds.get_max_beds(); ++i) {
+        gcode_results.emplace_back();
+        fff_prints.emplace_back(std::make_unique<Print>());
+        sla_prints.emplace_back(std::make_unique<SLAPrint>());
+    }
+    background_process.set_fff_print(fff_prints.front().get());
+    background_process.set_sla_print(sla_prints.front().get());
+    background_process.set_gcode_result(&gcode_results.front());
     background_process.set_thumbnail_cb([this](const ThumbnailsParams& params) { return this->generate_thumbnails(params, Camera::EType::Ortho); });
     background_process.set_slicing_completed_event(EVT_SLICING_COMPLETED);
     background_process.set_finished_event(EVT_PROCESS_COMPLETED);
@@ -648,12 +654,12 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
     auto statuscb = [this](const Slic3r::PrintBase::SlicingStatus &status) {
         wxQueueEvent(this->q, new Slic3r::SlicingStatusEvent(EVT_SLICING_UPDATE, 0, status));
     };
-    fff_print.set_status_callback(statuscb);
-    sla_print.set_status_callback(statuscb);
+    std::for_each(fff_prints.begin(), fff_prints.end(), [statuscb](std::unique_ptr<Print>& p)    { p->set_status_callback(statuscb); });
+    std::for_each(sla_prints.begin(), sla_prints.end(), [statuscb](std::unique_ptr<SLAPrint>& p) { p->set_status_callback(statuscb); });
     this->q->Bind(EVT_SLICING_UPDATE, &priv::on_slicing_update, this);
 
     view3D = new View3D(q, bed, &model, config, &background_process);
-    preview = new Preview(q, bed, &model, config, &background_process, &gcode_result, [this]() { schedule_background_process(); });
+    preview = new Preview(q, bed, &model, config, &background_process, &gcode_results, [this]() { schedule_background_process(); });
 
     // set default view_toolbar icons size equal to GLGizmosManager::Default_Icons_Size
     view_toolbar.set_icons_size(GLGizmosManager::Default_Icons_Size);
@@ -1922,7 +1928,7 @@ void Plater::priv::delete_all_objects_from_model()
         view3D->enable_layers_editing(false);
 
     reset_gcode_toolpaths();
-    gcode_result.reset();
+    std::for_each(gcode_results.begin(), gcode_results.end(), [](auto& g) { g.reset(); });
 
     view3D->get_canvas3d()->reset_sequential_print_clearance();
     view3D->get_canvas3d()->reset_all_gizmos();
@@ -1955,7 +1961,7 @@ void Plater::priv::reset()
         view3D->enable_layers_editing(false);
 
     reset_gcode_toolpaths();
-    gcode_result.reset();
+    std::for_each(gcode_results.begin(), gcode_results.end(), [](auto& g) { g.reset(); });
 
     view3D->get_canvas3d()->reset_sequential_print_clearance();
 
@@ -2103,6 +2109,17 @@ void Plater::priv::process_validation_warning(const std::vector<std::string>& wa
 // Returns a bitmask of UpdateBackgroundProcessReturnState.
 unsigned int Plater::priv::update_background_process(bool force_validation, bool postpone_error_messages)
 {
+    int active_bed = s_multiple_beds.get_active_bed();
+    background_process.set_fff_print(fff_prints[active_bed].get());
+    background_process.set_sla_print(sla_prints[active_bed].get());
+    background_process.set_gcode_result(&gcode_results[active_bed]);
+    background_process.select_technology(this->printer_technology);
+    
+
+
+
+
+
     // bitmap of enum UpdateBackgroundProcessReturnState
     unsigned int return_state = 0;
 
@@ -2307,7 +2324,9 @@ bool Plater::priv::restart_background_process(unsigned int state)
          ( ((state & UPDATE_BACKGROUND_PROCESS_FORCE_RESTART) != 0 && ! this->background_process.finished()) ||
            (state & UPDATE_BACKGROUND_PROCESS_FORCE_EXPORT) != 0 ||
            (state & UPDATE_BACKGROUND_PROCESS_RESTART) != 0 ) ) {
+        
         // The print is valid and it can be started.
+
         if (this->background_process.start()) {
 			if (!show_warning_dialog)
 				on_slicing_began();
@@ -2981,17 +3000,17 @@ void Plater::priv::on_slicing_update(SlicingStatusEvent &evt)
         int warning_step = evt.status.warning_step;
         PrintStateBase::StateWithWarnings state;
         if (evt.status.flags & PrintBase::SlicingStatus::UPDATE_PRINT_STEP_WARNINGS) {
-            state = this->printer_technology == ptFFF ? 
-                this->fff_print.step_state_with_warnings(static_cast<PrintStep>(warning_step)) :
-                this->sla_print.step_state_with_warnings(static_cast<SLAPrintStep>(warning_step));
+            // LUKAS state = this->printer_technology == ptFFF ?
+                //this->fff_print.step_state_with_warnings(static_cast<PrintStep>(warning_step)) :
+                //this->sla_print.step_state_with_warnings(static_cast<SLAPrintStep>(warning_step));
         } else if (this->printer_technology == ptFFF) {
-            const PrintObject *print_object = this->fff_print.get_object(object_id);
-            if (print_object)
-                state = print_object->step_state_with_warnings(static_cast<PrintObjectStep>(warning_step));
+            //LUKAS const PrintObject *print_object = this->fff_print.get_object(object_id);
+            //if (print_object)
+            //    state = print_object->step_state_with_warnings(static_cast<PrintObjectStep>(warning_step));
         } else {
-            const SLAPrintObject *print_object = this->sla_print.get_object(object_id);
-            if (print_object)
-                state = print_object->step_state_with_warnings(static_cast<SLAPrintObjectStep>(warning_step));
+            // LUKAS const SLAPrintObject *print_object = this->sla_print.get_object(object_id);
+            // if (print_object)
+            //    state = print_object->step_state_with_warnings(static_cast<SLAPrintObjectStep>(warning_step));
         }
         // Now process state.warnings.
 		for (auto const& warning : state.warnings) {
@@ -4042,10 +4061,6 @@ void Plater::render_project_state_debug_window() const { p->render_project_state
 Sidebar&        Plater::sidebar()           { return *p->sidebar; }
 const Model&    Plater::model() const       { return p->model; }
 Model&          Plater::model()             { return p->model; }
-const Print&    Plater::fff_print() const   { return p->fff_print; }
-Print&          Plater::fff_print()         { return p->fff_print; }
-const SLAPrint& Plater::sla_print() const   { return p->sla_print; }
-SLAPrint&       Plater::sla_print()         { return p->sla_print; }
 
 bool Plater::is_project_temp() const
 {
@@ -4193,7 +4208,7 @@ void Plater::load_gcode(const wxString& filename)
     m_last_loaded_gcode = filename;
 
     // cleanup view before to start loading/processing
-    p->gcode_result.reset();
+    std::for_each(p->gcode_results.begin(), p->gcode_results.end(), [](auto& g) { g.reset(); });
     reset_gcode_toolpaths();
     p->preview->reload_print();
     p->get_current_canvas3D()->render();
@@ -4215,7 +4230,7 @@ void Plater::load_gcode(const wxString& filename)
         show_error(this, ex.what());
         return;
     }
-    p->gcode_result = std::move(processor.extract_result());
+    p->gcode_results.front() = std::move(processor.extract_result());
 
     // show results
     try
@@ -4225,7 +4240,7 @@ void Plater::load_gcode(const wxString& filename)
     catch (const std::exception&)
     {
         wxEndBusyCursor();
-        p->gcode_result.reset();
+        p->gcode_results.front().reset();
         reset_gcode_toolpaths();
         set_default_bed_shape();
         p->preview->reload_print();
@@ -5531,7 +5546,7 @@ void Plater::export_gcode(bool prefer_removable)
             start_dir,
             from_path(default_output_file.filename()),
             printer_technology() == ptFFF ? GUI::file_wildcards(FT_GCODE, ext) :
-                                            GUI::sla_wildcards(p->sla_print.printer_config().sla_archive_format.value.c_str(), ext),
+                                            GUI::sla_wildcards(p->sla_prints.front()->printer_config().sla_archive_format.value.c_str(), ext),
             wxFD_SAVE | wxFD_OVERWRITE_PROMPT
         );
         if (dlg.ShowModal() == wxID_OK) {
@@ -5648,7 +5663,7 @@ void Plater::export_stl_obj(bool extended, bool selection_only)
     auto mesh_to_export_sla = [&, this](const ModelObject& mo, int instance_id) {
         TriangleMesh mesh;
 
-        const SLAPrintObject *object = this->p->sla_print.get_print_object_by_model_object_id(mo.id());
+        const SLAPrintObject *object; // LUKAS  = this->p->sla_print.get_print_object_by_model_object_id(mo.id());
 
         if (!object || !object->get_mesh_to_print() || object->get_mesh_to_print()->empty()) {
             if (!extended)
@@ -7180,6 +7195,11 @@ wxMenu* Plater::instance_menu()         { return p->menus.instance_menu();      
 wxMenu* Plater::layer_menu()            { return p->menus.layer_menu();             }
 wxMenu* Plater::multi_selection_menu()  { return p->menus.multi_selection_menu();   }
 
+
+Print& Plater::active_fff_print() { return *p->fff_prints[s_multiple_beds.get_active_bed()]; }
+SLAPrint& Plater::active_sla_print()  { return *p->sla_prints[s_multiple_beds.get_active_bed()]; }
+
+
 SuppressBackgroundProcessingUpdate::SuppressBackgroundProcessingUpdate() :
     m_was_scheduled(wxGetApp().plater()->is_background_process_update_scheduled())
 {
@@ -7196,7 +7216,7 @@ PlaterAfterLoadAutoArrange::PlaterAfterLoadAutoArrange()
     Plater* plater = wxGetApp().plater();
     m_enabled = plater->model().objects.empty() &&
                 plater->printer_technology() == ptFFF &&
-                is_XL_printer(plater->fff_print().config());
+                is_XL_printer(plater->active_fff_print().config());
 }
 
 PlaterAfterLoadAutoArrange::~PlaterAfterLoadAutoArrange()
