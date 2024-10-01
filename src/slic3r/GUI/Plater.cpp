@@ -2841,8 +2841,12 @@ void Plater::priv::set_current_panel(wxPanel* panel)
     bool force_render = (current_panel != nullptr);
 #endif // __WXMAC__
 
-    if (current_panel == panel)
-        return;
+    if (current_panel == panel) {
+        if (! s_reload_preview_after_switching_beds)
+            return;
+        else
+            s_reload_preview_after_switching_beds = false;
+    }
 
     wxPanel* old_panel = current_panel;
     current_panel = panel;

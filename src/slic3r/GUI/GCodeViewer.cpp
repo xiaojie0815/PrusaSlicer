@@ -31,6 +31,8 @@
 #include "GUI_ObjectManipulation.hpp"
 #include "MsgDialog.hpp"
 
+#include "libslic3r/MultipleBeds.hpp"
+
 #if ENABLE_ACTUAL_SPEED_DEBUG
 #define IMGUI_DEFINE_MATH_OPERATORS
 #endif // ENABLE_ACTUAL_SPEED_DEBUG
@@ -86,7 +88,10 @@ void GCodeViewer::COG::render()
         const double inv_zoom = camera.get_inv_zoom();
         model_matrix = model_matrix * Geometry::scale_transform(inv_zoom);
     }
-    const Transform3d& view_matrix = camera.get_view_matrix();
+    
+    Transform3d view_matrix = camera.get_view_matrix();
+    view_matrix.translate(s_multiple_beds.get_bed_translation(s_multiple_beds.get_active_bed()));
+
     shader->set_uniform("view_model_matrix", view_matrix * model_matrix);
     shader->set_uniform("projection_matrix", camera.get_projection_matrix());
     const Matrix3d view_normal_matrix = view_matrix.matrix().block(0, 0, 3, 3) * model_matrix.matrix().block(0, 0, 3, 3).inverse().transpose();
@@ -233,7 +238,10 @@ void GCodeViewer::SequentialView::Marker::render()
     shader->start_using();
     shader->set_uniform("emission_factor", 0.0f);
     const Camera& camera = wxGetApp().plater()->get_camera();
-    const Transform3d& view_matrix = camera.get_view_matrix();
+    
+    Transform3d view_matrix = camera.get_view_matrix();
+    view_matrix.translate(s_multiple_beds.get_bed_translation(s_multiple_beds.get_active_bed()));
+
     float scale_factor = m_scale_factor;
     if (m_fixed_screen_size)
         scale_factor *= 10.0f * camera.get_inv_zoom();
@@ -1706,7 +1714,12 @@ void GCodeViewer::load_wipetower_shell(const Print& print)
 void GCodeViewer::render_toolpaths()
 {
     const Camera& camera = wxGetApp().plater()->get_camera();
-    const libvgcode::Mat4x4 converted_view_matrix = libvgcode::convert(static_cast<Matrix4f>(camera.get_view_matrix().matrix().cast<float>()));
+
+    Transform3d tr = camera.get_view_matrix();
+    tr.translate(s_multiple_beds.get_bed_translation(s_multiple_beds.get_active_bed()));
+    Matrix4f m = tr.matrix().cast<float>();
+
+    const libvgcode::Mat4x4 converted_view_matrix = libvgcode::convert(m);
     const libvgcode::Mat4x4 converted_projetion_matrix = libvgcode::convert(static_cast<Matrix4f>(camera.get_projection_matrix().matrix().cast<float>()));
 #if VGCODE_ENABLE_COG_AND_TOOL_MARKERS
     m_viewer.set_cog_marker_scale_factor(m_cog_marker_fixed_screen_size ? 10.0f * m_cog_marker_size * camera.get_inv_zoom() : m_cog_marker_size);
@@ -1896,7 +1909,11 @@ void GCodeViewer::render_shells()
     shader->start_using();
     shader->set_uniform("emission_factor", 0.1f);
     const Camera& camera = wxGetApp().plater()->get_camera();
-    m_shells.volumes.render(GLVolumeCollection::ERenderType::Transparent, true, camera.get_view_matrix(), camera.get_projection_matrix());
+
+    Transform3d tr = camera.get_view_matrix();
+    tr.translate(s_multiple_beds.get_bed_translation(s_multiple_beds.get_active_bed()));
+
+    m_shells.volumes.render(GLVolumeCollection::ERenderType::Transparent, true, tr, camera.get_projection_matrix());
     shader->set_uniform("emission_factor", 0.0f);
     shader->stop_using();
 }
