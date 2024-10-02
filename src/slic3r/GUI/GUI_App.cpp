@@ -75,6 +75,7 @@
 #include "GLCanvas3D.hpp"
 
 #include "../Utils/PresetUpdater.hpp"
+#include "../Utils/PresetUpdaterWrapper.hpp"
 #include "../Utils/PrintHost.hpp"
 #include "../Utils/Process.hpp"
 #include "../Utils/MacDarkMode.hpp"
@@ -847,17 +848,11 @@ void GUI_App::post_init()
     // to popup a modal dialog on start without screwing combo boxes.
     // This is ugly but I honestly found no better way to do it.
     // Neither wxShowEvent nor wxWindowCreateEvent work reliably.
-    if (this->preset_updater) { // G-Code Viewer does not initialize preset_updater.
-
-#if 0 // This code was moved to EVT_CONFIG_UPDATER_SYNC_DONE bind - after preset_updater finishes synchronization.
-        if (! this->check_updates(false))
-            // Configuration is not compatible and reconfigure was refused by the user. Application is closing.
-            return;
-#endif
+    if (this->get_preset_updater_wrapper()) { // G-Code Viewer does not initialize preset_updater.
         CallAfter([this] {
             // preset_updater->sync downloads profile updates and than via event checks updates and incompatible presets. We need to run it on startup.
             // start before cw so it is canceled by cw if needed?
-            this->preset_updater->sync(preset_bundle, this, plater()->get_preset_archive_database()->get_selected_archive_repositories());
+            this->get_preset_updater_wrapper()->sync_preset_updater(this, preset_bundle);
             bool cw_showed = this->config_wizard_startup();
             if (! cw_showed) {
                 // The CallAfter is needed as well, without it, GL extensions did not show.
@@ -900,7 +895,6 @@ GUI_App::~GUI_App()
 {
     delete app_config;
     delete preset_bundle;
-    delete preset_updater;
 }
 
 // If formatted for github, plaintext with OpenGL extensions enclosed into <details>.
@@ -1435,7 +1429,7 @@ bool GUI_App::on_init_inner()
             associate_stl_files();
 #endif // __WXMSW__
 
-        preset_updater = new PresetUpdater();
+        m_preset_updater_wrapper = std::make_unique<PresetUpdaterWrapper>();
         Bind(EVT_SLIC3R_VERSION_ONLINE, &GUI_App::on_version_read, this);
         Bind(EVT_SLIC3R_EXPERIMENTAL_VERSION_ONLINE, [this](const wxCommandEvent& evt) {
             if (this->plater_ != nullptr && (m_app_updater->get_triggered_by_user() || app_config->get("notify_release") == "all")) {
@@ -3279,47 +3273,15 @@ bool GUI_App::run_wizard(ConfigWizard::RunReason reason, ConfigWizard::StartPage
 {
     wxCHECK_MSG(mainframe != nullptr, false, "Internal error: Main frame not created / null");
 
-    // Cancel sync before starting wizard to prevent two downloads at same time.
-    preset_updater->cancel_sync();
-    // Show login dialog before wizard.
-#if 0
-    bool user_was_logged = plater()->get_user_account()->is_logged();
-    if (!user_was_logged) {
-        m_login_dialog = std::make_unique<LoginDialog>(mainframe, plater()->get_user_account());
-        m_login_dialog->ShowModal();
-        mainframe->RemoveChild(m_login_dialog.get());
-        m_login_dialog->Destroy();
-        // Destructor does not call Destroy.
-        m_login_dialog.reset();
-    }
-#endif // 0
-
-    // ConfigWizard can take some time to start. Because it is a wxWidgets window, it has to be done
-    // in UI thread, so displaying a nice modal dialog and letting the CW start in a worker thread
-    // is not an option. Let's at least show a modeless dialog before the UI thread freezes.
-    // TRN: Text showing while the ConfigWizard is loading, so the user knows something is happening.
-    auto cw_loading_dlg =  new ConfigWizardLoadingDialog(mainframe, _L("Loading Configuration Wizard..."));
-    cw_loading_dlg->CenterOnParent();
-    cw_loading_dlg->Show();
-    wxYield();
-
-    // We have to update repos
-    plater()->get_preset_archive_database()->sync_blocking();
-
-    if (reason == ConfigWizard::RunReason::RR_USER) {
-        // Since there might be new repos, we need to sync preset updater
-        const SharedArchiveRepositoryVector &repos = plater()->get_preset_archive_database()->get_selected_archive_repositories();
-        preset_updater->sync_blocking(preset_bundle, this, repos);
-        preset_updater->update_index_db();
-        // Offer update installation.
-        preset_updater->config_update(app_config->orig_version(), PresetUpdater::UpdateParams::SHOW_TEXT_BOX, repos);
-    }
-
+    // Loading of Config Wizard takes some time. 
+    // First part is to download neccessary data.
+    // That is done on worker thread while nice modal progress is shown.
+    // TRN: Progress dialog title
+    get_preset_updater_wrapper()->wizard_sync(preset_bundle, app_config->orig_version(), mainframe, reason == ConfigWizard::RunReason::RR_USER, _L("Opening Configuration Wizard"));
+    // Then the wizard itself will start and that also takes time.
+    // But for now no ui is shown until then. (Showing modal progress dialog while showing another would be a headacke)
     m_config_wizard = new ConfigWizard(mainframe);
-    cw_loading_dlg->Close();
-
     const bool res = m_config_wizard->run(reason, start_page);
-
 
     // !!! Deallocate memory after close ConfigWizard.
     // Note, that mainframe is a parent of ConfigWizard.
@@ -3541,43 +3503,24 @@ bool GUI_App::config_wizard_startup()
 
 bool GUI_App::check_updates(const bool invoked_by_user)
 {	
-     if (invoked_by_user) {
-        // do preset_updater sync so if user runs slicer for a long time, check for updates actually delivers updates.
-        // for preset_updater sync we need to sync archive database first
-        plater()->get_preset_archive_database()->sync_blocking();
-        // Now re-extract offline repos
-        std::string failed_paths;
-        if (!plater()->get_preset_archive_database()->extract_archives_with_check(failed_paths)) {
-            int cnt = std::count(failed_paths.begin(), failed_paths.end(), '\n') + 1;
-            // TRN: %1% contains paths from which loading failed. They are separated by \n, there is no \n at the end.
-            failed_paths = GUI::format(_L_PLURAL("It was not possible to extract data from %1%. The source will not be updated.",
-                "It was not possible to extract data for following local sources. They will not be updated.\n\n %1%", cnt), failed_paths);
-            show_error(nullptr, failed_paths);
-        }
-        // then its time for preset_updater sync 
-        preset_updater->sync_blocking(preset_bundle, this, plater()->get_preset_archive_database()->get_selected_archive_repositories());
-        // and then we check updates
+    PresetUpdater::UpdateResult updater_result;
+    if (invoked_by_user)
+    {
+         updater_result = get_preset_updater_wrapper()->check_updates_on_user_request(preset_bundle, app_config->orig_version(), mainframe);
+    } else {
+        updater_result = get_preset_updater_wrapper()->check_updates_on_startup( app_config->orig_version());
     }
-
-	PresetUpdater::UpdateResult updater_result;
-	try {
-        preset_updater->update_index_db();
-		updater_result = preset_updater->config_update(app_config->orig_version(), invoked_by_user ? PresetUpdater::UpdateParams::SHOW_TEXT_BOX : PresetUpdater::UpdateParams::SHOW_NOTIFICATION, plater()->get_preset_archive_database()->get_selected_archive_repositories());
-		if (updater_result == PresetUpdater::R_INCOMPAT_EXIT) {
-			mainframe->Close();
-            // Applicaiton is closing.
-            return false;
-		}
-		else if (updater_result == PresetUpdater::R_INCOMPAT_CONFIGURED) {
-            m_app_conf_exists = true;
-		}
-		else if (invoked_by_user && updater_result == PresetUpdater::R_NOOP) {
-			MsgNoUpdates dlg;
-			dlg.ShowModal();
-		}
+	if (updater_result == PresetUpdater::R_INCOMPAT_EXIT) {
+		mainframe->Close();
+        // Applicaiton is closing.
+        return false;
 	}
-	catch (const std::exception & ex) {
-		show_error(nullptr, ex.what());
+	else if (updater_result == PresetUpdater::R_INCOMPAT_CONFIGURED) {
+        m_app_conf_exists = true;
+	}
+	else if (invoked_by_user && updater_result == PresetUpdater::R_NOOP) {
+		MsgNoUpdates dlg;
+		dlg.ShowModal();
 	}
     // Applicaiton will continue.
     return true;
@@ -4151,7 +4094,7 @@ void GUI_App::handle_connect_request_printer_select(const std::string& msg)
 }
 void GUI_App::handle_connect_request_printer_select_inner(const std::string & msg)
 {
-    BOOST_LOG_TRIVIAL(debug) << "Handling web request: " << msg;
+     BOOST_LOG_TRIVIAL(debug) << "Handling web request: " << msg;
     // return to plater
     this->mainframe->select_tab(size_t(0));
     if (!select_printer_from_connect(msg)) {

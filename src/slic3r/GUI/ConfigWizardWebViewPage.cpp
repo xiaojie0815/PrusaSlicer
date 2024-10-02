@@ -132,9 +132,9 @@ void ConfigWizardWebViewPage::on_navigation_request(wxWebViewEvent &evt)
         evt.Veto();
         m_vetoed = true;
         wxPostEvent(wxGetApp().plater(), Event<std::string>(EVT_LOGIN_VIA_WIZARD, into_u8(url)));	
-    } else if (url.Find("accounts.google.com") != wxString::npos 
-        || url.Find("appleid.apple.com") != wxString::npos 
-        || url.Find("facebook.com") != wxString::npos) 
+    } else if (url.Find("accounts.google.com") != wxNOT_FOUND 
+        || url.Find("appleid.apple.com") != wxNOT_FOUND 
+        || url.Find("facebook.com") != wxNOT_FOUND) 
     {
         auto& sc = Utils::ServiceConfig::instance();
         if (!m_evt_sent && !url.starts_with(GUI::from_u8(sc.account_url()))) {

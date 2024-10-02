@@ -34,7 +34,7 @@ namespace Slic3r {
 
 class AppConfig;
 class PresetBundle;
-class PresetUpdater;
+class PresetUpdaterWrapper;
 class ModelObject;
 class PrintHostJobQueue;
 class Model;
@@ -357,11 +357,9 @@ public:
 
     AppConfig*      app_config{ nullptr };
     PresetBundle*   preset_bundle{ nullptr };
-    PresetUpdater*  preset_updater{ nullptr };
     MainFrame*      mainframe{ nullptr };
     Plater*         plater_{ nullptr };
-
-	PresetUpdater*  get_preset_updater() { return preset_updater; }
+	PresetUpdaterWrapper*  get_preset_updater_wrapper() { return m_preset_updater_wrapper.get(); }
 
     wxBookCtrlBase* tab_panel() const ;
     int             extruders_cnt() const;
@@ -468,7 +466,7 @@ private:
     std::map< ConfigMenuIDs, wxMenuItem*> m_config_menu_updatable_items;
 
     ConfigWizard* m_config_wizard {nullptr};
-    
+    std::unique_ptr<PresetUpdaterWrapper> m_preset_updater_wrapper; 
 };
 
 DECLARE_APP(GUI_App)

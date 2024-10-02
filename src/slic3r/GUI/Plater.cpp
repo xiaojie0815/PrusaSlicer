@@ -111,6 +111,7 @@
 #include "../Utils/PrintHost.hpp"
 #include "../Utils/UndoRedo.hpp"
 #include "../Utils/PresetUpdater.hpp"
+#include "../Utils/PresetUpdaterWrapper.hpp"
 #include "../Utils/Process.hpp"
 #include "RemovableDriveManager.hpp"
 #include "InstanceCheck.hpp"
@@ -272,7 +273,6 @@ struct Plater::priv
     Preview *preview;
     std::unique_ptr<NotificationManager> notification_manager;
     std::unique_ptr<UserAccount> user_account;
-    std::unique_ptr<PresetArchiveDatabase>  preset_archive_database;
     // Login dialog needs to be kept somewhere.
     // It is created inside evt Bind. But it might be closed from another event.
     LoginWebViewDialog* login_dialog { nullptr };
@@ -625,7 +625,6 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
     , sidebar(new Sidebar(q))
     , notification_manager(std::make_unique<NotificationManager>(q))
     , user_account(std::make_unique<UserAccount>(q, wxGetApp().app_config, wxGetApp().get_instance_hash_string()))
-    , preset_archive_database(std::make_unique<PresetArchiveDatabase>(wxGetApp().app_config, q))
     , m_worker{q, std::make_unique<NotificationProgressIndicator>(notification_manager.get()), "ui_worker"}
     , m_sla_import_dlg{new SLAImportDialog{q}}
     , delayed_scene_refresh(false)
@@ -791,7 +790,7 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
         this->q->Bind(EVT_EXPORT_GCODE_NOTIFICAION_CLICKED, [this](ExportGcodeNotificationClickedEvent&) { this->q->export_gcode(true); });
         this->q->Bind(EVT_PRESET_UPDATE_AVAILABLE_CLICKED, [](PresetUpdateAvailableClickedEvent&) {
             GUI_App &app = wxGetApp();
-            app.get_preset_updater()->on_update_notification_confirm(app.plater()->get_preset_archive_database()->get_selected_archive_repositories());
+            app.get_preset_updater_wrapper()->on_update_notification_confirm();
         });
         this->q->Bind(EVT_REMOVABLE_DRIVE_EJECTED, [this, q](RemovableDriveEjectEvent &evt) {
 		    if (evt.data.second) {
@@ -903,11 +902,11 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
 #endif // SLIC3R_DESKTOP_INTEGRATION                
 #endif // __linux__
             std::string service;
-            if (evt.GetString().Find(L"accounts.google.com") != wxString::npos) {
+            if (evt.GetString().Find(L"accounts.google.com") != wxNOT_FOUND) {
                 service = "google";
-            } else if (evt.GetString().Find(L"appleid.apple.com") != wxString::npos) {
+            } else if (evt.GetString().Find(L"appleid.apple.com") != wxNOT_FOUND) {
                 service  = "apple";
-            } else if (evt.GetString().Find(L"facebook.com") != wxString::npos) {
+            } else if (evt.GetString().Find(L"facebook.com") != wxNOT_FOUND) {
                 service = "facebook";
             }
             wxString url = user_account->get_login_redirect_url(service);
@@ -6994,16 +6993,6 @@ NotificationManager * Plater::get_notification_manager()
 const NotificationManager * Plater::get_notification_manager() const
 {
     return p->notification_manager.get();
-}
-
-PresetArchiveDatabase* Plater::get_preset_archive_database()
-{
-    return p->preset_archive_database.get();
-}
-
-const PresetArchiveDatabase* Plater::get_preset_archive_database() const
-{
-    return p->preset_archive_database.get();
 }
 
 UserAccount* Plater::get_user_account()

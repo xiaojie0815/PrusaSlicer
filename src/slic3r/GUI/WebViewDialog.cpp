@@ -1539,9 +1539,9 @@ void LoginWebViewDialog::on_navigation_request(wxWebViewEvent &evt)
         evt.Veto();
         m_ret_val = into_u8(url);
         EndModal(wxID_OK);
-    } else if (url.Find(L"accounts.google.com") != wxString::npos
-        || url.Find(L"appleid.apple.com") != wxString::npos
-        || url.Find(L"facebook.com") != wxString::npos) {         
+    } else if (url.Find(L"accounts.google.com") != wxNOT_FOUND
+        || url.Find(L"appleid.apple.com") != wxNOT_FOUND
+        || url.Find(L"facebook.com") != wxNOT_FOUND) {         
         auto& sc = Utils::ServiceConfig::instance();
         if (!m_evt_sent && !url.starts_with(GUI::from_u8(sc.account_url()))) {
             wxCommandEvent* evt = new wxCommandEvent(EVT_OPEN_EXTERNAL_LOGIN);

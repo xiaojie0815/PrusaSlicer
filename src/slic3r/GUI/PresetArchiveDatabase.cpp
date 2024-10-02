@@ -6,6 +6,8 @@
 #include "slic3r/GUI/GUI_App.hpp"
 #include "slic3r/GUI/Plater.hpp"
 #include "slic3r/GUI/UserAccount.hpp"
+#include "slic3r/Utils/PresetUpdaterWrapper.hpp"
+#include "slic3r/GUI/Field.hpp"
 #include "libslic3r/Utils.hpp"
 #include "libslic3r/AppConfig.hpp"
 #include "libslic3r/miniz_extension.hpp"
@@ -25,7 +27,6 @@
 namespace pt = boost::property_tree;
 namespace fs = boost::filesystem;
 namespace Slic3r {
-namespace GUI {
 
 static const char* TMP_EXTENSION = ".download";
 
@@ -191,7 +192,7 @@ void add_authorization_header(Http& http)
 
 }
 
-bool OnlineArchiveRepository::get_file_inner(const std::string& url, const fs::path& target_path) const
+bool OnlineArchiveRepository::get_file_inner(const std::string& url, const fs::path& target_path, PresetUpdaterUIStatus* ui_status) const
 {
 
 	bool res = false;
@@ -210,10 +211,9 @@ bool OnlineArchiveRepository::get_file_inner(const std::string& url, const fs::p
 			//if (cancel) { cancel = true; }
 		})
 		.on_error([&](std::string body, std::string error, unsigned http_status) {
-			BOOST_LOG_TRIVIAL(error) << format("Error getting: `%1%`: HTTP %2%, %3%",
-				url,
-				http_status,
-				body);
+			BOOST_LOG_TRIVIAL(error) << format("Error getting: `%1%`: HTTP %2%, %3%", url, http_status, body);
+             ui_status->set_error(error);
+             res = false;
 		})
 		.on_complete([&](std::string body, unsigned /* http_status */) {
 			if (body.empty()) {
@@ -225,30 +225,38 @@ bool OnlineArchiveRepository::get_file_inner(const std::string& url, const fs::p
 			fs::rename(tmp_path, target_path);
 			res = true;
 		})
-		.perform_sync();	
+        .on_retry([&](int attempt, unsigned delay) {
+            return !ui_status->on_attempt(attempt, delay);
+		})
+		.perform_sync(ui_status->get_retry_policy());	
 
 	return res;
 }
 
-bool OnlineArchiveRepository::get_archive(const fs::path& target_path) const
+bool OnlineArchiveRepository::get_archive(const fs::path& target_path, PresetUpdaterUIStatus* ui_status) const
 {
-	return get_file_inner(m_data.index_url.empty() ? m_data.url + "vendor_indices.zip" : m_data.index_url, target_path);
+	return get_file_inner(m_data.index_url.empty() ? m_data.url + "vendor_indices.zip" : m_data.index_url, target_path, ui_status);
 }
 
-bool OnlineArchiveRepository::get_file(const std::string& source_subpath, const fs::path& target_path, const std::string& repository_id) const
+bool OnlineArchiveRepository::get_file(const std::string& source_subpath, const fs::path& target_path, const std::string& repository_id, PresetUpdaterUIStatus* ui_status) const
 {
 	if (repository_id != m_data.id) {
 		BOOST_LOG_TRIVIAL(error) << "Error getting file " << source_subpath << ". The repository_id was not matching.";
 	    return false;
 	}
+    
+    ui_status->set_target(target_path.filename().string());
+    
 	const std::string escaped_source_subpath = escape_path_by_element(source_subpath);
-	return get_file_inner(m_data.url + escaped_source_subpath, target_path);
+	return get_file_inner(m_data.url + escaped_source_subpath, target_path, ui_status);
 }
 
-bool OnlineArchiveRepository::get_ini_no_id(const std::string& source_subpath, const fs::path& target_path) const
+bool OnlineArchiveRepository::get_ini_no_id(const std::string& source_subpath, const fs::path& target_path, PresetUpdaterUIStatus* ui_status) const
 {
+    ui_status->set_target(target_path.filename().string());
+    
 	const std::string escaped_source_subpath = escape_path_by_element(source_subpath);
-	return get_file_inner(m_data.url + escaped_source_subpath, target_path);
+	return get_file_inner(m_data.url + escaped_source_subpath, target_path, ui_status);
 }
 
 bool LocalArchiveRepository::get_file_inner(const fs::path& source_path, const fs::path& target_path) const
@@ -277,7 +285,7 @@ bool LocalArchiveRepository::get_file_inner(const fs::path& source_path, const f
 	return true;
 }
 
-bool LocalArchiveRepository::get_file(const std::string& source_subpath, const fs::path& target_path, const std::string& repository_id) const
+bool LocalArchiveRepository::get_file(const std::string& source_subpath, const fs::path& target_path, const std::string& repository_id, PresetUpdaterUIStatus* ui_status) const
 {
 	if (repository_id != m_data.id) {
 		BOOST_LOG_TRIVIAL(error) << "Error getting file " << source_subpath << ". The repository_id was not matching.";
@@ -285,11 +293,11 @@ bool LocalArchiveRepository::get_file(const std::string& source_subpath, const f
 	}
 	return get_file_inner(m_data.tmp_path / source_subpath, target_path);
 }
-bool LocalArchiveRepository::get_ini_no_id(const std::string& source_subpath, const fs::path& target_path) const
+bool LocalArchiveRepository::get_ini_no_id(const std::string& source_subpath, const fs::path& target_path, PresetUpdaterUIStatus* ui_status) const
 {
 	return get_file_inner(m_data.tmp_path / source_subpath, target_path);
 }
-bool LocalArchiveRepository::get_archive(const fs::path& target_path) const
+bool LocalArchiveRepository::get_archive(const fs::path& target_path, PresetUpdaterUIStatus* ui_status) const
 {
 	fs::path source_path = fs::path(m_data.tmp_path) / "vendor_indices.zip";
 	return get_file_inner(std::move(source_path), target_path);
@@ -306,10 +314,9 @@ void LocalArchiveRepository::do_extract()
 
 //-------------------------------------PresetArchiveDatabase-------------------------------------------------------------------------------------------------------------------------
 
-PresetArchiveDatabase::PresetArchiveDatabase(AppConfig* app_config, wxEvtHandler* evt_handler)
+PresetArchiveDatabase::PresetArchiveDatabase()
 {
-	// 
-	boost::system::error_code ec;
+    boost::system::error_code ec;
 	m_unq_tmp_path = fs::temp_directory_path() / fs::unique_path();
 	fs::create_directories(m_unq_tmp_path, ec);
 	assert(!ec);
@@ -362,7 +369,8 @@ bool PresetArchiveDatabase::set_selected_repositories(const std::vector<std::str
 bool PresetArchiveDatabase::extract_archives_with_check(std::string &msg)
 {
     extract_local_archives();
-    for (const std::pair<const std::string, bool>& pair : m_selected_repositories_uuid) {
+    // std::map<std::string, bool> m_selected_repositories_uuid
+    for (const auto& pair : m_selected_repositories_uuid) {
         if (!pair.second) {
             continue;
         }
@@ -868,7 +876,7 @@ std::string PresetArchiveDatabase::get_next_uuid()
 }
 
 namespace {
-bool sync_inner(std::string& manifest)
+bool sync_inner(std::string& manifest, PresetUpdaterUIStatus* ui_status)
 {
 	bool ret = false;
     std::string url = Utils::ServiceConfig::instance().preset_repo_repos_url();
@@ -878,23 +886,33 @@ bool sync_inner(std::string& manifest)
 		.timeout_max(30)
 		.on_error([&](std::string body, std::string error, unsigned http_status) {
 			BOOST_LOG_TRIVIAL(error) << "Failed to get online archive source manifests: "<< body << " ; " << error << " ; " << http_status;
+            ui_status->set_error(error);
 			ret = false;
 		})
 		.on_complete([&](std::string body, unsigned /* http_status */) {
 			manifest = body;
 			ret = true;
 		})
-		.perform_sync();
+        .on_retry([&](int attempt, unsigned delay) {
+            return !ui_status->on_attempt(attempt, delay);
+		})
+		.perform_sync(ui_status->get_retry_policy());
 	return ret;
 }
 }
 
-void PresetArchiveDatabase::sync_blocking()
+bool PresetArchiveDatabase::sync_blocking(PresetUpdaterUIStatus* ui_status)
 {
+    assert(ui_status);
 	std::string manifest;
-	if (!sync_inner(manifest))
-		return;
+    bool sync_res = false;
+    ui_status->set_target("Archive Database Mainfest");
+    sync_res = sync_inner(manifest, ui_status);
+    if (!sync_res) {
+        return false;
+    }    
 	read_server_manifest(std::move(manifest));
+    return true;
 }
 
-}} // Slic3r::GUI
+} // Slic3r
