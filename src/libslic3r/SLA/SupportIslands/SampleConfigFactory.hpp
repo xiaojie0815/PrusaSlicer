@@ -1,6 +1,7 @@
 #ifndef slic3r_SLA_SuppotstIslands_SampleConfigFactory_hpp_
 #define slic3r_SLA_SuppotstIslands_SampleConfigFactory_hpp_
 
+#include "SampleConfig.hpp"
 #include "../SupportPointGenerator.hpp"
 
 namespace Slic3r::sla {
@@ -14,16 +15,16 @@ public:
     SampleConfigFactory() = delete;
 
     // factory method to iniciate config
-    static SampleConfig create(const SupportPointGenerator::Config &config)
+    static SampleConfig create(const SupportPointGeneratorConfig &config)
     {
-        coord_t head_diameter = scale_(config.head_diameter);
-        coord_t min_distance = head_diameter/2 + scale_(config.minimal_distance);
-        coord_t max_distance  = 3 * min_distance;
-        coord_t sample_multiplicator = 8; // allign is made by selecting from samples
-
+        coord_t head_diameter = scale_((double)config.head_diameter.min);
+        coord_t minimal_distance = head_diameter * 7;
+        coord_t min_distance = head_diameter / 2 + minimal_distance;
+        coord_t max_distance = 3 * min_distance;
+        
         // TODO: find valid params !!!!
         SampleConfig result;
-        result.max_distance                  = max_distance / sample_multiplicator;
+        result.max_distance                  = max_distance;
         result.half_distance                 = result.max_distance / 2;
         result.head_radius                   = head_diameter / 2;
         result.minimal_distance_from_outline = result.head_radius;
@@ -73,7 +74,7 @@ public:
         result.min_width_for_outline_support = result.max_width_for_center_support_line - 2 * head_diameter;
         assert(result.min_width_for_outline_support <= result.max_width_for_center_support_line);
 
-        result.outline_sample_distance = result.max_distance/20;
+        result.outline_sample_distance = result.max_distance/4;
 
         // Align support points
         // TODO: propagate print resolution

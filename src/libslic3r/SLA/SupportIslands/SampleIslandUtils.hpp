@@ -25,6 +25,16 @@ public:
     SampleIslandUtils() = delete;
 
     /// <summary>
+    /// Main entry for sample island
+    /// </summary>
+    /// <param name="island">Shape of island</param>
+    /// <param name="config">Configuration for sampler</param>
+    /// <returns>List of support points</returns>
+    static SupportIslandPoints uniform_cover_island(
+        const ExPolygon &island, const SampleConfig &config
+    );
+
+    /// <summary>
     /// Uniform sample expolygon area by points inside Equilateral triangle center
     /// </summary>
     /// <param name="expoly">Input area to sample. (scaled)</param>

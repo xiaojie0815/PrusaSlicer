@@ -9,6 +9,10 @@
 #include "libslic3r/Execution/Execution.hpp"
 #include "libslic3r/KDTreeIndirect.hpp"
 
+// SupportIslands
+#include "libslic3r/SLA/SupportIslands/SampleConfigFactory.hpp"
+#include "libslic3r/SLA/SupportIslands/SampleIslandUtils.hpp"
+
 using namespace Slic3r;
 using namespace Slic3r::sla;
 
@@ -183,14 +187,14 @@ Point intersection(const Point &p1, const Point &p2, const Point &cnt, double r2
 /// <param name="part">Current layer part to process</param>
 /// <param name="prev_grids">Grids which will be moved to current grid</param>
 /// <returns>Grid for given part</returns>
-NearPoints create_part_grid(
+NearPoints create_near_points(
     const LayerParts &prev_layer_parts,
     const LayerPart &part,
     std::vector<NearPoints> &prev_grids
 ) {
     const LayerParts::const_iterator &prev_part_it = part.prev_parts.front().part_it;
     size_t index_of_prev_part = prev_part_it - prev_layer_parts.begin();
-    NearPoints part_grid = (prev_part_it->next_parts.size() == 1)?
+    NearPoints near_points = (prev_part_it->next_parts.size() == 1)?
         std::move(prev_grids[index_of_prev_part]) :
         // Need a copy there are multiple parts above previus one
         prev_grids[index_of_prev_part]; // copy    
@@ -200,27 +204,27 @@ NearPoints create_part_grid(
         const LayerParts::const_iterator &prev_part_it = part.prev_parts[i].part_it;
         size_t index_of_prev_part = prev_part_it - prev_layer_parts.begin();
         if (prev_part_it->next_parts.size() == 1) {
-            part_grid.merge(std::move(prev_grids[index_of_prev_part]));
+            near_points.merge(std::move(prev_grids[index_of_prev_part]));
         } else { // Need a copy there are multiple parts above previus one
             NearPoints grid_ = prev_grids[index_of_prev_part]; // copy
-            part_grid.merge(std::move(grid_));
+            near_points.merge(std::move(grid_));
         }
     }
-    return part_grid;
+    return near_points;
 }
 
 /// <summary>
-/// Add support point to part_grid when it is neccessary
+/// Add support point to near_points when it is neccessary
 /// </summary>
 /// <param name="part">Current part - keep samples</param>
 /// <param name="config">Configuration to sample</param>
-/// <param name="part_grid">Keep previous sampled suppport points</param>
+/// <param name="near_points">Keep previous sampled suppport points</param>
 /// <param name="part_z">current z coordinate of part</param>
 /// <param name="maximal_radius">Max distance to seach support for sample</param>
 void support_part_overhangs(
     const LayerPart &part,
     const SupportPointGeneratorConfig &config,
-    NearPoints &part_grid,
+    NearPoints &near_points,
     float part_z,
     coord_t maximal_radius
 ) {
@@ -239,9 +243,9 @@ void support_part_overhangs(
     };
 
     for (const Point &p : part.samples) {
-        if (!part_grid.exist_true_in_radius(p, maximal_radius, is_supported)) {
+        if (!near_points.exist_true_in_radius(p, maximal_radius, is_supported)) {
             // not supported sample, soo create new support point
-            part_grid.add(LayerSupportPoint{
+            near_points.add(LayerSupportPoint{
                 SupportPoint{
                     Vec3f{unscale<float>(p.x()), unscale<float>(p.y()), part_z},
                     /* head_front_radius */ 0.4f,
@@ -256,30 +260,31 @@ void support_part_overhangs(
     }
 }
 
-Points uniformly_sample(const ExPolygon &island, const SupportPointGeneratorConfig &cfg) {
-    // TODO: Implement it
-    return Points{island.contour.centroid()};
-}
-
 /// <summary>
 /// Sample part as Island
 /// Result store to grid
 /// </summary>
 /// <param name="part">Island to support</param>
-/// <param name="part_grid">OUT place to store new supports</param>
+/// <param name="near_points">OUT place to store new supports</param>
 /// <param name="part_z">z coordinate of part</param>
 /// <param name="cfg"></param>
-void support_island(const LayerPart &part, NearPoints& part_grid, float part_z,
-    const SupportPointGeneratorConfig &cfg) {
-    Points pts = uniformly_sample(*part.shape, cfg);
-    for (const Point &pt : pts)
-        part_grid.add(LayerSupportPoint{
+void support_island(const LayerPart &part, NearPoints& near_points, float part_z,
+    const SupportPointGeneratorConfig &cfg) { 
+    SampleConfig sample_cfg = SampleConfigFactory::create(cfg);
+    SupportIslandPoints samples = SampleIslandUtils::uniform_cover_island(*part.shape, sample_cfg);
+    //samples = {std::make_unique<SupportIslandPoint>(island.contour.centroid())};
+    for (const SupportIslandPointPtr &sample : samples)
+        near_points.add(LayerSupportPoint{
             SupportPoint{
-                Vec3f{unscale<float>(pt.x()), unscale<float>(pt.y()), part_z},
+                Vec3f{
+                    unscale<float>(sample->point.x()), 
+                    unscale<float>(sample->point.y()), 
+                    part_z
+                },
                 /* head_front_radius */ 0.4f,
                 SupportPointType::island
             },
-            /* position_on_layer */ pt,
+            /* position_on_layer */ sample->point,
             /* direction_to_mass */ Point(0,0), // direction from bottom
             /* radius_curve_index */ 0,
             /* current_radius */ static_cast<coord_t>(scale_(cfg.support_curve.front().x()))
@@ -471,15 +476,15 @@ void prepare_supports_for_layer(LayerSupportPoints &supports, float layer_z,
 /// Due to be able support in same area again(overhang above another overhang)
 /// Wanted Side effect, it supports thiny part of overhangs
 /// </summary>
-/// <param name="part_grid"></param>
+/// <param name="near_points"></param>
 /// <param name="part"></param>
-void remove_supports_out_of_part(NearPoints& part_grid, const LayerPart &part) { 
+void remove_supports_out_of_part(NearPoints& near_points, const LayerPart &part) { 
     
     // Must be greater than surface texture and lower than self supporting area
     // May be use maximal island distance
     float delta = scale_(5.);
     ExPolygons extend_shape = offset_ex(*part.shape, delta, ClipperLib::jtSquare);
-    part_grid.remove_out_of(extend_shape);
+    near_points.remove_out_of(extend_shape);
 }
 
 } // namespace
@@ -651,10 +656,10 @@ LayerSupportPoints Slic3r::sla::generate_support_points(
                 // first layer should have empty prev_part
                 assert(layer_id != 0);
                 const LayerParts &prev_layer_parts = layers[layer_id - 1].parts;
-                NearPoints part_grid = create_part_grid(prev_layer_parts, part, prev_grids);
-                remove_supports_out_of_part(part_grid, part);
-                support_part_overhangs(part, config, part_grid, layer.print_z, maximal_radius);
-                grids.push_back(std::move(part_grid));
+                NearPoints near_points = create_near_points(prev_layer_parts, part, prev_grids);
+                remove_supports_out_of_part(near_points, part);
+                support_part_overhangs(part, config, near_points, layer.print_z, maximal_radius);
+                grids.push_back(std::move(near_points));
             }
         }
         prev_grids = std::move(grids);
