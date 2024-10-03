@@ -67,7 +67,7 @@ SolverConfiguration::SolverConfiguration()
     , maximum_bounding_box_size(MAX(maximum_X_bounding_box_size, maximum_Y_bounding_box_size))
     , object_group_size(SEQ_OBJECT_GROUP_SIZE)
     , temporal_spread(16)
-    , decimation_precision(SEQ_DECIMATION_PRECISION_UNDEFINED)
+    , decimation_precision(SEQ_DECIMATION_PRECISION_LOW)
     , printer_type(SEQ_PRINTER_TYPE_PRUSA_MK3S)
     , optimization_timeout(SEQ_Z3_SOLVER_TIMEOUT)
 {
@@ -85,7 +85,7 @@ SolverConfiguration::SolverConfiguration(const PrinterGeometry &printer_geometry
     , maximum_bounding_box_size(MAX(maximum_X_bounding_box_size, maximum_Y_bounding_box_size))
     , object_group_size(SEQ_OBJECT_GROUP_SIZE)
     , temporal_spread(16)
-    , decimation_precision(SEQ_DECIMATION_PRECISION_UNDEFINED)
+    , decimation_precision(SEQ_DECIMATION_PRECISION_LOW)
     , printer_type(SEQ_PRINTER_TYPE_PRUSA_MK3S)
     , optimization_timeout(SEQ_Z3_SOLVER_TIMEOUT)
 {
@@ -174,7 +174,8 @@ bool check_ScheduledObjectsForSequentialPrintability(const SolverConfiguration  
 				 convex_level_polygons,
 				 box_level_polygons,
 				 extruder_convex_level_polygons,
-				 extruder_box_level_polygons);
+				 extruder_box_level_polygons,
+				 false);
 
 	prepare_ObjectPolygons(solver_configuration,
 			       convex_level_polygons,
@@ -324,7 +325,8 @@ void schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver
 				 convex_level_polygons,
 				 box_level_polygons,
 				 extruder_convex_level_polygons,
-				 extruder_box_level_polygons);
+				 extruder_box_level_polygons,
+				 true);
 
 	prepare_ObjectPolygons(solver_configuration,
 			       convex_level_polygons,
@@ -551,7 +553,8 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver_
 		{
 		    decimate_PolygonForSequentialSolver(solver_configuration,
 							objects_to_print[i].pgns_at_height[j].second,
-							decimated_polygon);
+							decimated_polygon,
+							true);
 		}
 		else
 		{
@@ -977,7 +980,8 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration                
 		{
 		    decimate_PolygonForSequentialSolver(solver_configuration,
 							objects_to_print[i].pgns_at_height[j].second,
-							decimated_polygon);
+							decimated_polygon,
+							true);
 		}
 		else
 		{

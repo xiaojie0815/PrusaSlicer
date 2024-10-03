@@ -255,7 +255,8 @@ int solve_SequentialPrint(const CommandParameters &command_parameters)
 			}
 			decimate_PolygonForSequentialSolver(solver_configuration,
 							    objects_to_print[i].pgns_at_height[j].second,
-							    decimated_polygon);
+							    decimated_polygon,
+							    true);
 		    }
 		    else
 		    {
@@ -327,7 +328,8 @@ int solve_SequentialPrint(const CommandParameters &command_parameters)
 				     convex_level_polygons,
 				     box_level_polygons,
 				     extruder_convex_level_polygons,
-				     extruder_box_level_polygons);
+				     extruder_box_level_polygons,
+				     true);
 
 	    prepare_ObjectPolygons(solver_configuration,
 				   convex_level_polygons,

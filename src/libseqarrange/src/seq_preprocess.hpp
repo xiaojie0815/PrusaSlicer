@@ -136,13 +136,17 @@ void transform_UpsideDown(const SolverConfiguration &solver_configuration,
     
 /*----------------------------------------------------------------*/
 
+void grow_PolygonForContainedness(coord_t center_x, coord_t center_y, Slic3r::Polygon &polygon);
+    
 void decimate_PolygonForSequentialSolver(const SolverConfiguration &solver_configuration,
 					 const Slic3r::Polygon     &polygon,
-					 Slic3r::Polygon           &scale_down_polygon);
+					 Slic3r::Polygon           &scale_down_polygon,
+					 bool                       extra_safety);
 
-void decimate_PolygonForSequentialSolver(double                     DP_tolerance,
-					 const Slic3r::Polygon     &polygon,
-					 Slic3r::Polygon           &decimated_polygon);
+void decimate_PolygonForSequentialSolver(double                 DP_tolerance,
+					 const Slic3r::Polygon &polygon,
+					 Slic3r::Polygon       &decimated_polygon,
+					 bool                   extra_safety);
 
 void extend_PolygonConvexUnreachableZone(const SolverConfiguration          &solver_configuration,
 					 const Slic3r::Polygon              &polygon,
@@ -165,7 +169,8 @@ void prepare_ExtruderPolygons(const SolverConfiguration                  &solver
 			      std::vector<Slic3r::Polygon>               &convex_level_polygons,
 			      std::vector<Slic3r::Polygon>               &box_level_polygons,
 			      std::vector<std::vector<Slic3r::Polygon> > &extruder_convex_level_polygons,
-			      std::vector<std::vector<Slic3r::Polygon> > &extruder_box_level_polygons);
+			      std::vector<std::vector<Slic3r::Polygon> > &extruder_box_level_polygons,
+			      bool                                        extra_safety);
 
 void prepare_ObjectPolygons(const SolverConfiguration                        &solver_configuration,
 			    const std::vector<Slic3r::Polygon>               &convex_level_polygons,

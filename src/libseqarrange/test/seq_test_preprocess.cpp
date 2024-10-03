@@ -844,7 +844,8 @@ void test_preprocess_5(void)
 	
 	decimate_PolygonForSequentialSolver(solver_configuration,
 					    PRUSA_PART_POLYGONS[i],
-					    simplified_polygon);	
+					    simplified_polygon,
+					    false);	
 	/*
 	scaleDown_PolygonForSequentialSolver(solver_configuration, PRUSA_PART_POLYGONS[i], scale_down_polygon);
 	polygons.push_back(scale_down_polygon);
@@ -900,7 +901,8 @@ void test_preprocess_6(void)
 	Polygon decimated_polygon;
 	decimate_PolygonForSequentialSolver(solver_configuration,
 					    PRUSA_PART_POLYGONS[i],
-					    decimated_polygon);		
+					    decimated_polygon,
+					    false);		
 	
 	Polygon scale_down_polygon;
 	scaleDown_PolygonForSequentialSolver(decimated_polygon, scale_down_polygon);

@@ -371,7 +371,7 @@ void scaleDown_PolygonForSequentialSolver(coord_t                scale_factor,
 					  const Slic3r::Polygon &polygon,
 					  Slic3r::Polygon       &scale_down_polygon)
 {
-    for (int i = 0; i < polygon.points.size(); ++i)
+    for (unsigned int i = 0; i < polygon.points.size(); ++i)
     {
 	scale_down_polygon.points.insert(scale_down_polygon.points.begin() + i, Point(polygon.points[i].x() / scale_factor, polygon.points[i].y() / scale_factor));
     }
@@ -383,7 +383,7 @@ Slic3r::Polygon scaleDown_PolygonForSequentialSolver(coord_t scale_factor, const
 {
     Slic3r::Polygon scale_down_polygon;
 	
-    for (int i = 0; i < polygon.points.size(); ++i)
+    for (unsigned int i = 0; i < polygon.points.size(); ++i)
     {
 	scale_down_polygon.points.insert(scale_down_polygon.points.begin() + i, Point(polygon.points[i].x() / scale_factor, polygon.points[i].y() / scale_factor));
     }
@@ -441,7 +441,7 @@ Slic3r::Polygon scaleUp_PolygonForSlicer(coord_t scale_factor, const Slic3r::Pol
 {
     Slic3r::Polygon poly = polygon;
 
-    for (int i = 0; i < poly.points.size(); ++i)
+    for (unsigned int i = 0; i < poly.points.size(); ++i)
     {
 	poly.points[i] = Slic3r::Point(poly.points[i].x() * scale_factor, poly.points[i].y() * scale_factor);
     }
@@ -460,7 +460,7 @@ Slic3r::Polygon scaleUp_PolygonForSlicer(coord_t scale_factor, const Polygon &po
 {
     Slic3r::Polygon poly = polygon;
 
-    for (int i = 0; i < poly.points.size(); ++i)
+    for (unsigned int i = 0; i < poly.points.size(); ++i)
     {	
 	poly.points[i] = Point(poly.points[i].x() * scale_factor + x_pos * scale_factor,
 			       poly.points[i].y() * scale_factor + y_pos * scale_factor);
@@ -474,7 +474,7 @@ void ground_PolygonByBoundingBox(Slic3r::Polygon &polygon)
 {    
     BoundingBox polygon_box = get_extents(polygon);
 
-    for (int i = 0; i < polygon.points.size(); ++i)
+    for (unsigned int i = 0; i < polygon.points.size(); ++i)
     {
 	polygon.points[i] -= polygon_box.min;
     }    
@@ -484,7 +484,7 @@ void ground_PolygonByBoundingBox(Slic3r::Polygon &polygon)
 void ground_PolygonByFirstPoint(Slic3r::Polygon &polygon)
 {
     Point first = polygon.points[0];
-    for (int i = 0; i < polygon.points.size(); ++i)
+    for (unsigned int i = 0; i < polygon.points.size(); ++i)
     {
 	polygon.points[i] -= first;
     }    
@@ -501,7 +501,7 @@ void shift_Polygon(Slic3r::Polygon &polygon, coord_t x_offset, coord_t y_offset)
 
 void shift_Polygon(Slic3r::Polygon &polygon, const Slic3r::Point &offset)
 {
-    for (int i = 0; i < polygon.points.size(); ++i)
+    for (unsigned int i = 0; i < polygon.points.size(); ++i)
     {
 	polygon.points[i] += offset;
     }           
@@ -520,7 +520,7 @@ Polygon transform_UpsideDown(const SolverConfiguration &solver_configuration, co
 {
     Polygon poly = polygon;
 
-    for (int i = 0; i < poly.points.size(); ++i)
+    for (unsigned int i = 0; i < poly.points.size(); ++i)
     {	
 	poly.points[i] = Point(poly.points[i].x(),
 			       (coord_t)(solver_configuration.maximum_Y_bounding_box_size * scale_factor - poly.points[i].y()));
@@ -545,47 +545,59 @@ void transform_UpsideDown(const SolverConfiguration &solver_configuration, coord
 
 /*----------------------------------------------------------------*/
 
-void decimate_PolygonForSequentialSolver(const SolverConfiguration &solver_configuration,
-					 const Slic3r::Polygon     &polygon,
-					 Slic3r::Polygon           &decimated_polygon)
+void grow_PolygonForContainedness(coord_t center_x, coord_t center_y, Slic3r::Polygon &polygon)
 {
-    double DP_tolerance = SolverConfiguration::convert_DecimationPrecision2Tolerance(solver_configuration.decimation_precision);
-
-    decimate_PolygonForSequentialSolver(DP_tolerance, polygon, decimated_polygon);
+    for (unsigned int i = 0; i < polygon.points.size(); ++i)
+    {
+	polygon.points[i] *= SEQ_POLYGON_DECIMATION_GROW_FACTOR;
+    }
+    
+    BoundingBox polygon_box = get_extents(polygon);
+    
+    coord_t shift_x = ((polygon_box.min.x() + polygon_box.max.x()) / 2) - center_x;
+    coord_t shift_y = ((polygon_box.min.y() + polygon_box.max.y()) / 2) - center_y;
+    
+    for (unsigned int i = 0; i < polygon.points.size(); ++i)
+    {
+	polygon.points[i] -= Point(shift_x, shift_y);
+    }    
 }
 
 
-void decimate_PolygonForSequentialSolver(double                     DP_tolerance,
+void decimate_PolygonForSequentialSolver(const SolverConfiguration &solver_configuration,
 					 const Slic3r::Polygon     &polygon,
-					 Slic3r::Polygon           &decimated_polygon)
+					 Slic3r::Polygon           &decimated_polygon,
+					 bool                       extra_safety)
+{
+    double DP_tolerance = SolverConfiguration::convert_DecimationPrecision2Tolerance(solver_configuration.decimation_precision);
+
+    decimate_PolygonForSequentialSolver(DP_tolerance, polygon, decimated_polygon, extra_safety);
+}
+
+    
+void decimate_PolygonForSequentialSolver(double                 DP_tolerance,
+					 const Slic3r::Polygon &polygon,
+					 Slic3r::Polygon       &decimated_polygon,
+					 bool                   extra_safety)
 {
     decimated_polygon = polygon;
     decimated_polygon.make_counter_clockwise();
 
     decimated_polygon.douglas_peucker(DP_tolerance);
+
+    BoundingBox polygon_box = get_extents(polygon);
+    
+    coord_t center_x = (polygon_box.min.x() + polygon_box.max.x()) / 2;
+    coord_t center_y = (polygon_box.min.y() + polygon_box.max.y()) / 2;
     
     if (decimated_polygon.points.size() >= 4)
     {
 	while (true)
 	{
-	    for (int i = 0; i < decimated_polygon.points.size(); ++i)
-	    {
-		decimated_polygon.points[i] *= SEQ_POLYGON_DECIMATION_GROW_FACTOR;
-	    }
-	    
-	    BoundingBox polygon_box = get_extents(polygon);
-	    BoundingBox decimated_polygon_box = get_extents(decimated_polygon);
-	    
-	    coord_t shift_x = ((decimated_polygon_box.min.x() + decimated_polygon_box.max.x()) / 2) - ((polygon_box.min.x() + polygon_box.max.x()) / 2);
-	    coord_t shift_y = ((decimated_polygon_box.min.y() + decimated_polygon_box.max.y()) / 2) - ((polygon_box.min.y() + polygon_box.max.y()) / 2);
-	    
-	    for (int i = 0; i < decimated_polygon.points.size(); ++i)
-	    {
-		decimated_polygon.points[i] -= Point(shift_x, shift_y);
-	    }
+	    grow_PolygonForContainedness(center_x, center_y, decimated_polygon);
 	    	    
 	    bool contains = true;
-	    for (int i = 0; i < polygon.points.size(); ++i)
+	    for (unsigned int i = 0; i < polygon.points.size(); ++i)
 	    {
 		if (!decimated_polygon.contains(polygon.points[i]))
 		{
@@ -596,6 +608,10 @@ void decimate_PolygonForSequentialSolver(double                     DP_tolerance
 	    
 	    if (contains)
 	    {
+		if (extra_safety)
+		{
+		    grow_PolygonForContainedness(center_x, center_y, decimated_polygon);
+		}
 		break;
 	    }
 	}
@@ -627,11 +643,11 @@ void extend_PolygonConvexUnreachableZone(const SolverConfiguration          &SEQ
     {
 	Slic3r::ClipperLib::Paths paths;
 	
-	for (int i = 0; i < extruder_polygons.size(); ++i)
+	for (unsigned int i = 0; i < extruder_polygons.size(); ++i)
 	{
 	    ClipperLib::MinkowskiSum(extruder_polygons[i].points, polygon.points, paths, true);
 	    
-	    for (int j = 0; j < paths.size(); ++j)
+	    for (unsigned int j = 0; j < paths.size(); ++j)
 	    {
 		unreachable_polygons.push_back(Polygon(paths[j]));
 	    }
@@ -649,7 +665,7 @@ void extend_PolygonBoxUnreachableZone(const SolverConfiguration          &SEQ_UN
     {
 	BoundingBox polygon_box = get_extents(polygon);
     
-	for (int i = 0; i < extruder_polygons.size(); ++i)
+	for (unsigned int i = 0; i < extruder_polygons.size(); ++i)
 	{
 	    BoundingBox extruder_box = get_extents(extruder_polygons[i]);
 	
@@ -674,9 +690,10 @@ void prepare_ExtruderPolygons(const SolverConfiguration                  &solver
 			      std::vector<Slic3r::Polygon>               &convex_level_polygons,
 			      std::vector<Slic3r::Polygon>               &box_level_polygons,
 			      std::vector<std::vector<Slic3r::Polygon> > &extruder_convex_level_polygons,
-			      std::vector<std::vector<Slic3r::Polygon> > &extruder_box_level_polygons)
+			      std::vector<std::vector<Slic3r::Polygon> > &extruder_box_level_polygons,
+			      bool                                        extra_safety)
 {
-    for (int j = 0; j < object_to_print.pgns_at_height.size(); ++j)
+    for (unsigned int j = 0; j < object_to_print.pgns_at_height.size(); ++j)
     {    
 	coord_t height = object_to_print.pgns_at_height[j].first;
 
@@ -688,7 +705,8 @@ void prepare_ExtruderPolygons(const SolverConfiguration                  &solver
 	    {
 		decimate_PolygonForSequentialSolver(solver_configuration,
 						    object_to_print.pgns_at_height[j].second,
-						    decimated_polygon);
+						    decimated_polygon,
+						    extra_safety);
 	    }
 	    else
 	    {
@@ -763,7 +781,7 @@ void prepare_UnreachableZonePolygons(const SolverConfiguration                  
 {
     std::vector<Slic3r::Polygon> scaled_unreachable_polygons;
     
-    for (int i = 0; i < extruder_convex_level_polygons.size(); ++i)
+    for (unsigned int i = 0; i < extruder_convex_level_polygons.size(); ++i)
     {
 	extend_PolygonConvexUnreachableZone(solver_configuration,
 					    polygon,
@@ -771,7 +789,7 @@ void prepare_UnreachableZonePolygons(const SolverConfiguration                  
 					    scaled_unreachable_polygons);
     }
 
-    for (int i = 0; i < extruder_box_level_polygons.size(); ++i)
+    for (unsigned int i = 0; i < extruder_box_level_polygons.size(); ++i)
     {
 	extend_PolygonBoxUnreachableZone(solver_configuration,
 					 polygon,
@@ -779,7 +797,7 @@ void prepare_UnreachableZonePolygons(const SolverConfiguration                  
 					 scaled_unreachable_polygons);	
     }
 
-    for (int i = 0; i < scaled_unreachable_polygons.size(); ++i)
+    for (unsigned int i = 0; i < scaled_unreachable_polygons.size(); ++i)
     {
 	Polygon scale_down_polygon;
 	
@@ -801,7 +819,7 @@ void prepare_UnreachableZonePolygons(const SolverConfiguration                  
     std::vector<Slic3r::Polygon> scaled_unreachable_polygons;
     assert(extruder_convex_level_polygons.size() == convex_level_polygons.size());
     
-    for (int i = 0; i < extruder_convex_level_polygons.size(); ++i)
+    for (unsigned int i = 0; i < extruder_convex_level_polygons.size(); ++i)
     {
 	extend_PolygonConvexUnreachableZone(solver_configuration,
 					   convex_level_polygons[i],
@@ -811,7 +829,7 @@ void prepare_UnreachableZonePolygons(const SolverConfiguration                  
 
     assert(extruder_box_level_polygons.size() == box_level_polygons.size());
     
-    for (int i = 0; i < extruder_box_level_polygons.size(); ++i)
+    for (unsigned int i = 0; i < extruder_box_level_polygons.size(); ++i)
     {
 	extend_PolygonBoxUnreachableZone(solver_configuration,
 					box_level_polygons[i],
@@ -819,7 +837,7 @@ void prepare_UnreachableZonePolygons(const SolverConfiguration                  
 					scaled_unreachable_polygons);	
     }
 
-    for (int i = 0; i < scaled_unreachable_polygons.size(); ++i)
+    for (unsigned int i = 0; i < scaled_unreachable_polygons.size(); ++i)
     {
 	Polygon scale_down_polygon;
 	
@@ -930,11 +948,11 @@ double calc_PolygonArea(const std::vector<int>             &fixed,
 {
     double area = 0;
 
-    for (int i = 0; i < fixed.size(); ++i)
+    for (unsigned int i = 0; i < fixed.size(); ++i)
     {
 	area += calc_PolygonArea(polygons[i]);
     }
-    for (int i = 0; i < undecided.size(); ++i)
+    for (unsigned int i = 0; i < undecided.size(); ++i)
     {
 	area += calc_PolygonArea(polygons[i]);
     }
@@ -949,7 +967,7 @@ double calc_PolygonUnreachableZoneArea(const std::vector<Slic3r::Polygon>       
     assert(polygons.size() == unreachable_polygons.size());
     double area = 0;
     
-    for (int i = 0; i < polygons.size(); ++i)
+    for (unsigned int i = 0; i < polygons.size(); ++i)
     {
 	area += calc_PolygonUnreachableZoneArea(polygons[i], unreachable_polygons[i]);
     }

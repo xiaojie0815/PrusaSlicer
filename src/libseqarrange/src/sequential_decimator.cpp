@@ -189,7 +189,8 @@ int decimate_Polygons(const CommandParameters &command_parameters)
 
 		decimate_PolygonForSequentialSolver(command_parameters.tolerance,
 						    objects_to_print[i].pgns_at_height[j].second,
-						    decimated_polygon);
+						    decimated_polygon,
+						    false);
 
 		decimated_polygons.push_back(decimated_polygon);
 	    }	    
