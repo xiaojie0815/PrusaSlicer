@@ -17,6 +17,8 @@
 
 #include "libslic3r/SLA/SupportPointGenerator.hpp"
 
+#include "VoronoiDiagramCGAL.hpp" // aligning of points
+
 // comment definition of NDEBUG to enable assert()
 //#define NDEBUG
 
@@ -25,7 +27,7 @@
 //#define SLA_SAMPLE_ISLAND_UTILS_STORE_FIELD_TO_SVG
 //#define SLA_SAMPLE_ISLAND_UTILS_STORE_ALIGNED_TO_SVG
 
-//#define SLA_SAMPLE_ISLAND_UTILS_STORE_ALIGN_ONCE_TO_SVG_PATH "C:/data/temp/Align_once_<<COUNTER>>.svg"
+//#define SLA_SAMPLE_ISLAND_UTILS_STORE_ALIGN_ONCE_TO_SVG_PATH "C:/data/temp/align_once/iter_<<COUNTER>>.svg"
 //#define SLA_SAMPLE_ISLAND_UTILS_DEBUG_CELL_DISTANCE_PATH "C:/data/temp/island_cell.svg"
 
 #include <cassert>
@@ -532,7 +534,7 @@ coord_t SampleIslandUtils::align_once(
     // IMPROVE2: add filter for create cell polygon only for moveable samples
     Slic3r::Points points = SampleIslandUtils::to_points(samples);
     
-    Polygons cell_polygons = //* 
+    Polygons cell_polygons = /* 
         create_voronoi_cells_boost
     /*/
         create_voronoi_cells_cgal
@@ -578,19 +580,26 @@ coord_t SampleIslandUtils::align_once(
         // IMPROVE: add intersection polygon with expolygon
         Polygons intersections = Slic3r::intersection(island, ExPolygon(cell_polygon));
         const Polygon *island_cell = nullptr;
-        for (const Polygon &intersection : intersections) {
-            if (intersection.contains(sample->point)) {
-                island_cell = &intersection;
-                break;
+        if (intersections.size() == 1) {
+            island_cell = &intersections.front();
+            // intersection island and cell made by suppot point
+            // must generate polygon containing initial source for voronoi cell
+            // otherwise it is invalid voronoi diagram
+            assert(island_cell->contains(sample->point));
+        } else {
+            for (const Polygon &intersection : intersections) {
+                if (intersection.contains(sample->point)) {
+                    island_cell = &intersection;
+                    break;
+                }
             }
+            // intersection island and cell made by suppot point 
+            // must generate polygon containing initial source for voronoi cell
+            // otherwise it is invalid voronoi diagram
+            assert(island_cell != nullptr);
+            if (island_cell == nullptr)
+                continue;
         }
-
-        // intersection island and cell made by suppot point 
-        // must generate polygon containing initial source for voronoi cell
-        // otherwise it is invalid voronoi diagram
-        assert(island_cell != nullptr);
-        if (island_cell == nullptr)
-            continue;
 
         // new aligned position for sample
         Point island_cell_center = island_cell->centroid();
