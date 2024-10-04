@@ -50,9 +50,11 @@ Slic3r::Point to_point(const Site_2 &s) {
 Slic3r::Line create_line_between_points(
     const Point &point1, const Point &point2, double maximal_distance
 ) {
-    Point middle = (point1 + point2) / 2;
+    Point middle = point1/2 + point2/2;
     Point diff = point1 - point2; // direction from point2 to point1
     coord_t manhatn_distance = abs(diff.x()) + abs(diff.y());
+    // alligned points should not be too close
+    assert(manhatn_distance >= 1);
     // it is not neccesary to know exact distance 
     // One need to know minimal distance between points.
     // worst case is diagonal: sqrt(2*(0.5 * manhatn_distance)^2) = 
@@ -63,6 +65,60 @@ Slic3r::Line create_line_between_points(
 }
 
 /// <summary>
+/// Crop line which is no too far away(compare to maximal_distance) from v1(or v2)
+/// </summary>
+/// <param name="a"></param>
+/// <param name="b"></param>
+/// <param name="v1"></param>
+/// <param name="v2"></param>
+/// <param name="maximal_distance"></param>
+/// <returns></returns>
+std::optional<Slic3r::Line> crop_line(
+    const Point_2 &a, const Point_2 &b, 
+    const Point &v1, const Point &v2, double maximal_distance
+) {
+    Point diff = v1 - v2;
+    Point dir(-diff.y(), diff.x());
+    coord_t abs_x = abs(dir.x());
+    coord_t abs_y = abs(dir.y());
+    Point middle = v1 / 2 + v2 / 2;
+
+    double a_t, b_t; // [units is size of dir]
+    if (abs_x > abs_y) {
+        a_t = (a.x() - middle.x()) / (double) dir.x();
+        b_t = (b.x() - middle.x()) / (double) dir.x();
+    } else {
+        a_t = (a.y() - middle.y()) / (double) dir.y();
+        b_t = (b.y() - middle.y()) / (double) dir.y();
+    }
+
+    // calculate approx distance from middle point to detect too far from middle
+    coord_t manhatn_distance = abs_x + abs_y;
+    // alligned points should not be too close
+    assert(manhatn_distance >= 1);
+    double min_distance = manhatn_distance * .7;
+    double a_dist = a_t * min_distance;
+    double b_dist = b_t * min_distance;
+
+    double scale = maximal_distance / min_distance;
+    Line l(to_point(a), to_point(b));
+    if (a_dist > maximal_distance) {
+        if (b_dist > maximal_distance)
+            return {}; // out of range
+        l.a = middle + (scale * dir.cast<double>()).cast<coord_t>();
+    } else if (a_dist < -maximal_distance) {
+        if (b_dist < -maximal_distance)
+            return {}; // out of range
+        l.a = middle - (scale * dir.cast<double>()).cast<coord_t>();
+    }
+    if (b_dist > maximal_distance) {
+        l.b = middle + (scale * dir.cast<double>()).cast<coord_t>();
+    } else if (b_dist < -maximal_distance)
+        l.b = middle - (scale * dir.cast<double>()).cast<coord_t>();
+    return l;
+}
+
+/// <summary>
 /// Crop ray to line which is no too far away(compare to maximal_distance) from v1(or v2)
 /// </summary>
 /// <param name="p">ray start</param>
@@ -70,41 +126,41 @@ Slic3r::Line create_line_between_points(
 /// <param name="v2"></param>
 /// <param name="maximal_distance">Limits for line</param>
 /// <returns></returns>
-std::optional<Slic3r::Line> crop_ray(const Point_2 &p, const Point_2 &v1, const Point_2 &v2, double maximal_distance) {
+std::optional<Slic3r::Line> crop_ray(const Point_2 &ray_point, const Point &v1, const Point &v2, double maximal_distance) {
     assert(maximal_distance > 0);
-    Vec2d ray_point = to_point_d(p);
-    Vec2d ray_dir(v1.y() - v2.y(), v2.x() - v1.x());
+    Point diff = v2 - v1;
+    Point ray_dir(-diff.y(), diff.x());
 
     // bounds are similar as for line between points
-    Vec2d middle = (to_point_d(v1) + to_point_d(v2)) / 2;
-    double abs_x = abs(ray_dir.x());
-    double abs_y = abs(ray_dir.y());
-    double manhatn_dist = abs_x + abs_y; // maximal distance
+    Point middle = v1/2 + v2/2;
+    coord_t abs_x = abs(ray_dir.x());
+    coord_t abs_y = abs(ray_dir.y());
+    coord_t manhatn_dist = abs_x + abs_y; // maximal distance
 
     // alligned points should not be too close
-    assert(manhatn_dist <= 1e-5);
+    assert(manhatn_dist >= 1);
         
     double min_distance = manhatn_dist * .7;
     assert(min_distance > 0);
-    double scale = maximal_distance / min_distance;
     
+    // count of dir from ray point to middle
     double middle_t = (abs_x > abs_y) ?
         // use x coor
-        (middle.x() - ray_point.x()) / ray_dir.x() :
+        (middle.x() - ray_point.x()) / (double) ray_dir.x() :
         // use y coor
-        (middle.y() - ray_point.y()) / ray_dir.y();
-
+        (middle.y() - ray_point.y()) / (double) ray_dir.y();
+    
     // minimal distance from ray point to middle point
     double min_middle_dist = middle_t * min_distance;
-    if (min_middle_dist < -2 * maximal_distance)
+    if (min_middle_dist < -maximal_distance)
         // ray start out of area of interest
         return {};
 
-    if (min_middle_dist > 2 * maximal_distance)
-        // move ray start close to middle
-        ray_point = middle - ray_dir * scale;
-
-    return Line(ray_point.cast<coord_t>(), (middle + ray_dir * scale).cast<coord_t>());
+    double scale = maximal_distance / min_distance;
+    Point side_dir = (ray_dir.cast<double>() * scale).cast<coord_t>();
+    return Line(min_middle_dist > maximal_distance? 
+            (middle - side_dir) : to_point(ray_point), 
+        middle + side_dir);
 }
 
 std::optional<Slic3r::Line> to_line(
@@ -115,37 +171,31 @@ std::optional<Slic3r::Line> to_line(
     if (!edge->is_valid())
         return {};
 
-    auto crop_ray = [&maximal_distance](const Point_2 &p, const Point_2 &v1, const Point_2 &v2)
-        -> std::optional<Slic3r::Line> {        
-        Vec2d ray_point = to_point_d(p);
-        Vec2d dir(v1.y() - v2.y(), v2.x() - v1.x());
-        Linef ray(ray_point, ray_point + dir);
-        auto seg_opt = LineUtils::crop_half_ray(ray, to_point(v1), maximal_distance);
-        if (!seg_opt.has_value())
-            return {};
-        return Line(seg_opt->a.cast<coord_t>(), seg_opt->b.cast<coord_t>());
-    };
-
     if (edge->has_source()) {
         // source point of edge
         if (edge->has_target()) { // Line segment
             assert(edge->is_segment());
-            return Line(
-                to_point(edge->source()->point()),
-                to_point(edge->target()->point()));
+            return crop_line(
+                edge->source()->point(),
+                edge->target()->point(),
+                to_point(edge->up()->point()),
+                to_point(edge->down()->point()),
+                maximal_distance);
         } else { // ray from source
             assert(edge->is_ray());
             return crop_ray(
                 edge->source()->point(), 
-                edge->up()->point(),
-                edge->down()->point());
+                to_point(edge->up()->point()),
+                to_point(edge->down()->point()),
+                maximal_distance);
         }
     } else if (edge->has_target()) { // ray from target
         assert(edge->is_ray());
         return crop_ray(
             edge->target()->point(), 
-            edge->down()->point(), 
-            edge->up()->point());
+            to_point(edge->down()->point()), 
+            to_point(edge->up()->point()),
+            maximal_distance);
     } 
     // infinite line between points
     assert(edge->is_bisector());
@@ -156,7 +206,7 @@ std::optional<Slic3r::Line> to_line(
     );
 }
 
-}
+} // namespace
 
 Polygons Slic3r::sla::create_voronoi_cells_cgal(const Points &points, coord_t max_distance) {
     assert(points.size() > 1);
@@ -217,6 +267,23 @@ Polygons Slic3r::sla::create_voronoi_cells_cgal(const Points &points, coord_t ma
         if (lines.size() > 1)
             LineUtils::sort_CCW(lines, origin);
 
+
+        //Slic3r::SVG
+        //    svg("C:/data/temp/CGAL_VD_face.svg",
+        //        {origin - Point(max_distance, max_distance),
+        //         origin + Point(max_distance, max_distance)});
+        //svg.draw(lines, "green");
+        //do {
+        //    if (ec->has_source())
+        //        svg.draw(to_point(ec->source()->point()));
+        //    if (ec->has_target())
+        //        svg.draw(to_point(ec->target()->point()));
+        //    if (ec->is_segment())
+        //        svg.draw(Line(to_point(ec->source()->point()), to_point(ec->target()->point())));
+        //} while (++ec != ec_start);
+        //svg.draw(origin, "red");
+        //svg.Close();
+
         // preccission to decide when not connect neighbor points
         double min_distance = max_distance / 1000.;
         size_t count_point = 6; // count added points
@@ -224,7 +291,6 @@ Polygons Slic3r::sla::create_voronoi_cells_cgal(const Points &points, coord_t ma
         cells[index] =
             VoronoiGraphUtils::to_polygon(lines, origin, max_distance, min_distance, count_point);
     }
-
     // Point_2 p;
     // Locate_result lr = vd.locate(p); // Could locate face of VD - potentionaly could iterate input points
     return cells;

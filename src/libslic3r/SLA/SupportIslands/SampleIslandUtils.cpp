@@ -23,9 +23,9 @@
 //#define NDEBUG
 
 //#define SLA_SAMPLE_ISLAND_UTILS_STORE_VORONOI_GRAPH_TO_SVG
-//#define SLA_SAMPLE_ISLAND_UTILS_STORE_INITIAL_SAMPLE_POSITION_TO_SVG
+//#define SLA_SAMPLE_ISLAND_UTILS_STORE_INITIAL_SAMPLE_POSITION_TO_SVG_PATH "C:/data/temp/initial_sample_positions.svg"
 //#define SLA_SAMPLE_ISLAND_UTILS_STORE_FIELD_TO_SVG
-//#define SLA_SAMPLE_ISLAND_UTILS_STORE_ALIGNED_TO_SVG
+#define SLA_SAMPLE_ISLAND_UTILS_STORE_ALIGNED_TO_SVG_PATH "C:/data/temp/align/island_<<COUNTER>>.svg"
 
 //#define SLA_SAMPLE_ISLAND_UTILS_STORE_ALIGN_ONCE_TO_SVG_PATH "C:/data/temp/align_once/iter_<<COUNTER>>.svg"
 //#define SLA_SAMPLE_ISLAND_UTILS_DEBUG_CELL_DISTANCE_PATH "C:/data/temp/island_cell.svg"
@@ -36,6 +36,17 @@ using namespace Slic3r;
 using namespace Slic3r::sla;
 
 namespace {
+std::string replace_first(
+    std::string s,
+    const std::string& toReplace,
+    const std::string& replaceWith
+) {
+    std::size_t pos = s.find(toReplace);
+    if (pos == std::string::npos) return s;
+    s.replace(pos, toReplace.length(), replaceWith);
+    return s;
+}
+
 const ExPolygon &get_expolygon_with_biggest_contour(const ExPolygons &expolygons) {
     assert(!expolygons.empty());
     const ExPolygon *biggest = &expolygons.front();
@@ -476,16 +487,17 @@ void SampleIslandUtils::align_samples(SupportIslandPoints &samples,
         if (max_move < config.minimal_move) break;
     }
 
-#ifdef SLA_SAMPLE_ISLAND_UTILS_STORE_ALIGNED_TO_SVG
+#ifdef SLA_SAMPLE_ISLAND_UTILS_STORE_ALIGNED_TO_SVG_PATH
     static int  counter = 0;
-    SVG svg(("aligned_" + std::to_string(counter++) + ".svg").c_str(),BoundingBox(island.contour.points));
+    SVG svg(replace_first(SLA_SAMPLE_ISLAND_UTILS_STORE_ALIGNED_TO_SVG_PATH, 
+        "<<COUNTER>>", std::to_string(counter++)).c_str(),BoundingBox(island.contour.points));
     svg.draw(island);
     draw(svg, samples, config.head_radius);
     svg.Close();
     std::cout << "Align use " << config.count_iteration - count_iteration
             << " iteration and finish with precision " << unscale(max_move,0)[0] <<
             " mm" << std::endl;
-#endif
+#endif // SLA_SAMPLE_ISLAND_UTILS_STORE_ALIGNED_TO_SVG_PATH
     
 }
 
@@ -499,17 +511,6 @@ Polygons create_voronoi_cells_boost(const Points &points, coord_t max_distance) 
     for (const VD::cell_type &cell : vd.cells())
         cells[cell.source_index()] = VoronoiGraphUtils::to_polygon(cell, points, max_distance);
     return cells;
-}
-
-std::string replace_first(
-    std::string s,
-    const std::string& toReplace,
-    const std::string& replaceWith
-) {
-    std::size_t pos = s.find(toReplace);
-    if (pos == std::string::npos) return s;
-    s.replace(pos, toReplace.length(), replaceWith);
-    return s;
 }
 
 bool is_points_in_distance(const Slic3r::Point & p,
@@ -989,15 +990,14 @@ SupportIslandPoints SampleIslandUtils::sample_voronoi_graph(
 
     SupportIslandPoints points = sample_expath(longest_path, lines, config);
 
-#ifdef SLA_SAMPLE_ISLAND_UTILS_STORE_INITIAL_SAMPLE_POSITION_TO_SVG
+#ifdef SLA_SAMPLE_ISLAND_UTILS_STORE_INITIAL_SAMPLE_POSITION_TO_SVG_PATH
     {
-        static int counter = 0;
-        SVG svg("initial_sample_positions" + std::to_string(counter++) + ".svg",
+        SVG svg(SLA_SAMPLE_ISLAND_UTILS_STORE_INITIAL_SAMPLE_POSITION_TO_SVG_PATH,
                 LineUtils::create_bounding_box(lines));
         svg.draw(lines, "gray", config.head_radius/ 10);
         draw(svg, points, config.head_radius, "black", true);
     }
-#endif // SLA_SAMPLE_ISLAND_UTILS_STORE_INITIAL_SAMPLE_POSITION_TO_SVG
+#endif // SLA_SAMPLE_ISLAND_UTILS_STORE_INITIAL_SAMPLE_POSITION_TO_SVG_PATH
     return points;
 }
 
@@ -1935,7 +1935,7 @@ bool SampleIslandUtils::is_visualization_disabled()
 #ifdef SLA_SAMPLE_ISLAND_UTILS_STORE_VORONOI_GRAPH_TO_SVG
     return false;
 #endif
-#ifdef SLA_SAMPLE_ISLAND_UTILS_STORE_INITIAL_SAMPLE_POSITION_TO_SVG
+#ifdef SLA_SAMPLE_ISLAND_UTILS_STORE_INITIAL_SAMPLE_POSITION_TO_SVG_PATH
     return false;
 #endif
 #ifdef SLA_SAMPLE_ISLAND_UTILS_STORE_FIELD_TO_SVG
@@ -1944,7 +1944,7 @@ bool SampleIslandUtils::is_visualization_disabled()
 #ifdef SLA_SAMPLE_ISLAND_UTILS_STORE_ALIGN_ONCE_TO_SVG_PATH
     return false;
 #endif
-#ifdef SLA_SAMPLE_ISLAND_UTILS_STORE_ALIGNED_TO_SVG
+#ifdef SLA_SAMPLE_ISLAND_UTILS_STORE_ALIGNED_TO_SVG_PATH
     return false;
 #endif
     return true;

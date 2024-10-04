@@ -78,8 +78,9 @@ public:
 
         // Align support points
         // TODO: propagate print resolution
-        result.minimal_move = 10000.;// [in nanometers --> 0.01mm ], devide from print resolution to quater pixel
-        result.count_iteration = 100; // speed VS precission
+        result.minimal_move = scale_(0.1); // 0.1 mm is enough
+        // [in nanometers --> 0.01mm ], devide from print resolution to quater pixel is too strict
+        result.count_iteration = 50; // speed VS precission
         result.max_align_distance = result.max_distance / 2;
 
         return result;
