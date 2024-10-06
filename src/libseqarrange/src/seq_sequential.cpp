@@ -8954,7 +8954,7 @@ void augment_TemporalSpread(const SolverConfiguration &solver_configuration,
 	sorted_polygons[dec_values_T[decided_polygons[i]].as_double()] = decided_polygons[i];
     }
     
-    int time = SEQ_GROUND_PRESENCE_TIME;
+    int time = SEQ_GROUND_PRESENCE_TIME + 2 * solver_configuration.temporal_spread * solver_configuration.object_group_size;
 
     for (const auto& sorted_polygon: sorted_polygons)
     {
