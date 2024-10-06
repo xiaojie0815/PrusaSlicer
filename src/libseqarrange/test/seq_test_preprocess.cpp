@@ -51,7 +51,7 @@ Polygon scale_UP(const Polygon &polygon)
 {
     Polygon poly = polygon;
 
-    for (int i = 0; i < poly.points.size(); ++i)
+    for (unsigned int i = 0; i < poly.points.size(); ++i)
     {
 	poly.points[i] = Point(poly.points[i].x() * SCALE_FACTOR, poly.points[i].y() * SCALE_FACTOR);
     }
@@ -64,7 +64,7 @@ Polygon scale_UP(const Polygon &polygon, double x_pos, double y_pos)
 {
     Polygon poly = polygon;
 
-    for (int i = 0; i < poly.points.size(); ++i)
+    for (unsigned int i = 0; i < poly.points.size(); ++i)
     {	
 	poly.points[i] = Point(poly.points[i].x() * SCALE_FACTOR + x_pos * SCALE_FACTOR,
 			       poly.points[i].y() * SCALE_FACTOR + y_pos * SCALE_FACTOR);
@@ -85,14 +85,14 @@ void test_preprocess_1(void)
     SolverConfiguration solver_configuration;    
 
     start = clock();
-    for (int i = 0; i < PRUSA_PART_POLYGONS.size(); ++i)
+    for (unsigned int i = 0; i < PRUSA_PART_POLYGONS.size(); ++i)
     {
 	Polygon scale_down_polygon;
 	scaleDown_PolygonForSequentialSolver(PRUSA_PART_POLYGONS[i], scale_down_polygon);       
 	test_polygons.push_back(scale_down_polygon);
     }
 
-    for (int i = 0; i < test_polygons.size(); ++i)
+    for (unsigned int i = 0; i < test_polygons.size(); ++i)
     {
 	SVG preview_svg("preprocess_test_1.svg");
 	Polygon display_polygon = scale_UP(test_polygons[i], 1000, 1000);
@@ -122,7 +122,7 @@ void test_preprocess_2(void)
     vector<Polygon> polygons;
     vector<Polygon> unreachable_polygons;
     
-    for (int i = 0; i < PRUSA_PART_POLYGONS.size(); ++i)
+    for (unsigned int i = 0; i < PRUSA_PART_POLYGONS.size(); ++i)
     {
 	Polygon scale_down_polygon;
 	scaleDown_PolygonForSequentialSolver(PRUSA_PART_POLYGONS[i], scale_down_polygon);
@@ -164,12 +164,12 @@ void test_preprocess_2(void)
 	if (optimized)
 	{
 	    printf("Polygon positions:\n");
-	    for (int i = 0; i < decided_polygons.size(); ++i)
+	    for (unsigned int i = 0; i < decided_polygons.size(); ++i)
 	    {
 		printf("  [%d] %.3f, %.3f (%.3f)\n", decided_polygons[i], poly_positions_X[decided_polygons[i]].as_double(), poly_positions_Y[decided_polygons[i]].as_double(), times_T[decided_polygons[i]].as_double());
 	    }
 	    printf("Remaining polygons: %ld\n", remaining_polygons.size());
-	    for (int i = 0; i < remaining_polygons.size(); ++i)
+	    for (unsigned int i = 0; i < remaining_polygons.size(); ++i)
 	    {
 		printf("  %d\n", remaining_polygons[i]);
 	    }
@@ -178,7 +178,7 @@ void test_preprocess_2(void)
 
 	    if (!unreachable_polygons.empty())
 	    {
-		for (int i = 0; i < decided_polygons.size(); ++i)
+		for (unsigned int i = 0; i < decided_polygons.size(); ++i)
 		{
 		    /*
 		    printf("----> %.3f,%.3f\n", poly_positions_X[decided_polygons[i]].as_double(), poly_positions_Y[decided_polygons[i]].as_double());		    
@@ -203,7 +203,7 @@ void test_preprocess_2(void)
 		}
 	    }	    
 
-	    for (int i = 0; i < decided_polygons.size(); ++i)
+	    for (unsigned int i = 0; i < decided_polygons.size(); ++i)
 	    {
 		Polygon display_polygon = scale_UP(polygons[decided_polygons[i]],
 						   poly_positions_X[decided_polygons[i]].as_double(),
@@ -295,11 +295,11 @@ void test_preprocess_2(void)
 	vector<Polygon> next_polygons;
 	vector<Polygon> next_unreachable_polygons;
 
-	for (int i = 0; i < polygon_index_map.size(); ++i)
+	for (unsigned int i = 0; i < polygon_index_map.size(); ++i)
 	{
 	    printf("  %d\n", polygon_index_map[i]);
 	}
-	for (int i = 0; i < remaining_polygons.size(); ++i)
+	for (unsigned int i = 0; i < remaining_polygons.size(); ++i)
 	{
 	    next_polygons.push_back(polygons[remaining_polygons[i]]);	    	    
 	    next_unreachable_polygons.push_back(unreachable_polygons[remaining_polygons[i]]);
@@ -663,12 +663,12 @@ void test_preprocess_4(void)
 	if (optimized)
 	{
 	    printf("Polygon positions:\n");
-	    for (int i = 0; i < decided_polygons.size(); ++i)
+	    for (unsigned int i = 0; i < decided_polygons.size(); ++i)
 	    {
 		printf("  [%d] %.3f, %.3f (%.3f)\n", decided_polygons[i], poly_positions_X[decided_polygons[i]].as_double(), poly_positions_Y[decided_polygons[i]].as_double(), times_T[decided_polygons[i]].as_double());
 	    }
 	    printf("Remaining polygons: %ld\n", remaining_polygons.size());
-	    for (int i = 0; i < remaining_polygons.size(); ++i)
+	    for (unsigned int i = 0; i < remaining_polygons.size(); ++i)
 	    {
 		printf("  %d\n", remaining_polygons[i]);
 	    }
@@ -677,7 +677,7 @@ void test_preprocess_4(void)
 
 	    if (!unreachable_polygons.empty())
 	    {
-		for (int i = 0; i < decided_polygons.size(); ++i)
+		for (unsigned int i = 0; i < decided_polygons.size(); ++i)
 		{
 		    /*
 		    printf("----> %.3f,%.3f\n", poly_positions_X[decided_polygons[i]].as_double(), poly_positions_Y[decided_polygons[i]].as_double());		    
@@ -702,7 +702,7 @@ void test_preprocess_4(void)
 		}
 	    }	    
 
-	    for (int i = 0; i < decided_polygons.size(); ++i)
+	    for (unsigned int i = 0; i < decided_polygons.size(); ++i)
 	    {
 		Polygon display_polygon = scale_UP(polygons[decided_polygons[i]],
 						   poly_positions_X[decided_polygons[i]].as_double(),
@@ -794,11 +794,11 @@ void test_preprocess_4(void)
 	vector<Polygon> next_polygons;
 	vector<vector<Polygon> > next_unreachable_polygons;
 
-	for (int i = 0; i < polygon_index_map.size(); ++i)
+	for (unsigned int i = 0; i < polygon_index_map.size(); ++i)
 	{
 	    printf("  %d\n", polygon_index_map[i]);
 	}
-	for (int i = 0; i < remaining_polygons.size(); ++i)
+	for (unsigned int i = 0; i < remaining_polygons.size(); ++i)
 	{
 	    next_polygons.push_back(polygons[remaining_polygons[i]]);	    	    
 	    next_unreachable_polygons.push_back(unreachable_polygons[remaining_polygons[i]]);
@@ -838,7 +838,7 @@ void test_preprocess_5(void)
     std::vector<Slic3r::Polygon> polygons;
     std::vector<std::vector<Slic3r::Polygon> > unreachable_polygons;
     
-    for (int i = 0; i < PRUSA_PART_POLYGONS.size(); ++i)
+    for (unsigned int i = 0; i < PRUSA_PART_POLYGONS.size(); ++i)
     {
 	Polygon simplified_polygon;
 	
@@ -896,7 +896,7 @@ void test_preprocess_6(void)
 
     std::vector<Slic3r::Polygon> polygons;
     std::vector<std::vector<Slic3r::Polygon> > unreachable_polygons;
-    for (int i = 0; i < PRUSA_PART_POLYGONS.size(); ++i)
+    for (unsigned int i = 0; i < PRUSA_PART_POLYGONS.size(); ++i)
     {
 	Polygon decimated_polygon;
 	decimate_PolygonForSequentialSolver(solver_configuration,
@@ -958,12 +958,12 @@ void test_preprocess_6(void)
 	if (optimized)
 	{
 	    printf("Polygon positions:\n");
-	    for (int i = 0; i < decided_polygons.size(); ++i)
+	    for (unsigned int i = 0; i < decided_polygons.size(); ++i)
 	    {
 		printf("  [%d] %.3f, %.3f (%.3f)\n", decided_polygons[i], poly_positions_X[decided_polygons[i]].as_double(), poly_positions_Y[decided_polygons[i]].as_double(), times_T[decided_polygons[i]].as_double());
 	    }
 	    printf("Remaining polygons: %ld\n", remaining_polygons.size());
-	    for (int i = 0; i < remaining_polygons.size(); ++i)
+	    for (unsigned int i = 0; i < remaining_polygons.size(); ++i)
 	    {
 		printf("  %d\n", remaining_polygons[i]);
 	    }
@@ -972,7 +972,7 @@ void test_preprocess_6(void)
 
 	    if (!unreachable_polygons.empty())
 	    {
-		for (int i = 0; i < decided_polygons.size(); ++i)
+		for (unsigned int i = 0; i < decided_polygons.size(); ++i)
 		{
 		    /*
 		    printf("----> %.3f,%.3f\n", poly_positions_X[decided_polygons[i]].as_double(), poly_positions_Y[decided_polygons[i]].as_double());		    
@@ -997,7 +997,7 @@ void test_preprocess_6(void)
 		}
 	    }	    
 
-	    for (int i = 0; i < decided_polygons.size(); ++i)
+	    for (unsigned int i = 0; i < decided_polygons.size(); ++i)
 	    {
 		Polygon display_polygon = scale_UP(polygons[decided_polygons[i]],
 						   poly_positions_X[decided_polygons[i]].as_double(),
@@ -1089,11 +1089,11 @@ void test_preprocess_6(void)
 	vector<Polygon> next_polygons;
 	vector<vector<Polygon> > next_unreachable_polygons;
 
-	for (int i = 0; i < polygon_index_map.size(); ++i)
+	for (unsigned int i = 0; i < polygon_index_map.size(); ++i)
 	{
 	    printf("  %d\n", polygon_index_map[i]);
 	}
-	for (int i = 0; i < remaining_polygons.size(); ++i)
+	for (unsigned int i = 0; i < remaining_polygons.size(); ++i)
 	{
 	    next_polygons.push_back(polygons[remaining_polygons[i]]);	    	    
 	    next_unreachable_polygons.push_back(unreachable_polygons[remaining_polygons[i]]);
