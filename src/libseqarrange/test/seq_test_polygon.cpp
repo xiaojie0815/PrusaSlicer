@@ -51,7 +51,7 @@ void test_polygon_1(void)
 
     Polygon polygon_1 = {{-1000000, -1000000}, {1000000, -1000000}, {1000000, 1000000}, {-1000000, 1000000} };
 
-    for (int i = 0; i < polygon_1.size(); ++i)
+    for (usingned int i = 0; i < polygon_1.size(); ++i)
     {
 	Point point = polygon_1[i];
 	printf("%d,%d\n", point.x(), point.y());
@@ -72,14 +72,14 @@ void test_polygon_2(void)
 	const Polygon &polygon_1 = PRUSA_PART_POLYGONS[k];
 	Polygon hull_1 = convex_hull(polygon_1);
 	
-	for (int i = 0; i < polygon_1.size(); ++i)
+	for (usingned int i = 0; i < polygon_1.size(); ++i)
 	{
 	    const Point &point = polygon_1[i];
 	    printf("poly %d: %d,%d\n", i, point.x(), point.y());
 	}
 	printf("\n");
 	
-	for (int i = 0; i < hull_1.size(); ++i)
+	for (usingned int i = 0; i < hull_1.size(); ++i)
 	{
 	    const Point &point = hull_1[i];
 	    printf("hull %d: %d,%d\n", i, point.x(), point.y());
@@ -154,7 +154,7 @@ void test_polygon_3(void)
     z3::expr_vector Y_positions(z_context);
     z3::expr_vector T_parameters(z_context);    
     
-    for (int i = 0; i < line_count; ++i)
+    for (usingned int i = 0; i < line_count; ++i)
     {
 	printf("i:%d\n", i);
 	string name = "x_pos-" + to_string(i);
@@ -163,7 +163,7 @@ void test_polygon_3(void)
 	X_positions.push_back(expr(z_context.real_const(name.c_str())));
     }
 
-    for (int i = 0; i < line_count; ++i)
+    for (usingned int i = 0; i < line_count; ++i)
     {
 	string name = "y_pos-" + to_string(i);
 	printf("name: %s\n", name.c_str());
@@ -171,7 +171,7 @@ void test_polygon_3(void)
 	Y_positions.push_back(expr(z_context.real_const(name.c_str())));
     }
 
-    for (int i = 0; i < line_count; ++i)
+    for (usingned int i = 0; i < line_count; ++i)
     {
 	string name = "t_par-" + to_string(i);
 	printf("name: %s\n", name.c_str());
@@ -240,7 +240,7 @@ void test_polygon_3(void)
     finish = clock();    
 
     printf("Printing interpretation:\n");    
-    for (int i = 0; i < z_model.size(); ++i)
+    for (usingned usingned int i = 0; i < z_model.size(); ++i)
     {
 	printf("Variable:%s  ", z_model[i].name().str().c_str());
 	
@@ -380,7 +380,7 @@ void test_polygon_4(void)
     finish = clock();    
 
     printf("Printing interpretation:\n");    
-    for (int i = 0; i < z_model.size(); ++i)
+    for (usingned int i = 0; i < z_model.size(); ++i)
     {
 	printf("Variable:%s  ", z_model[i].name().str().c_str());
 	
@@ -521,7 +521,7 @@ void test_polygon_5(void)
     finish = clock();    
 
     printf("Printing interpretation:\n");    
-    for (int i = 0; i < z_model.size(); ++i)
+    for (usingned int i = 0; i < z_model.size(); ++i)
     {
 	printf("Variable:%s  ", z_model[i].name().str().c_str());
 	
@@ -642,7 +642,7 @@ void test_polygon_6(void)
     finish = clock();    
 
     printf("Printing interpretation:\n");    
-    for (int i = 0; i < z_model.size(); ++i)
+    for (usingned int i = 0; i < z_model.size(); ++i)
     {
 	printf("Variable:%s  ", z_model[i].name().str().c_str());
 	
@@ -723,7 +723,7 @@ void test_polygon_7(void)
 	Y_positions.push_back(expr(z_context.real_const(name.c_str())));
     }
 
-    for (int i = 0; i < polygon_1.points.size(); ++i)
+    for (usingned int i = 0; i < polygon_1.points.size(); ++i)
     {
 	string name = "t1_par-" + to_string(i);
 	printf("name: %s\n", name.c_str());
@@ -731,7 +731,7 @@ void test_polygon_7(void)
 	T1_parameters.push_back(expr(z_context.real_const(name.c_str())));	
     }
 
-    for (int i = 0; i < polygon_2.points.size(); ++i)
+    for (usingned int i = 0; i < polygon_2.points.size(); ++i)
     {
 	string name = "t2_par-" + to_string(i);
 	printf("name: %s\n", name.c_str());
@@ -792,7 +792,7 @@ void test_polygon_7(void)
     double poly_1_pos_x, poly_1_pos_y, poly_2_pos_x, poly_2_pos_y;
     
     printf("Printing interpretation:\n");    
-    for (int i = 0; i < z_model.size(); ++i)
+    for (usingned int i = 0; i < z_model.size(); ++i)
     {
 	printf("Variable:%s  ", z_model[i].name().str().c_str());
 	
@@ -874,7 +874,7 @@ Polygon scale_UP(const Polygon &polygon)
 {
     Polygon poly = polygon;
 
-    for (int i = 0; i < poly.points.size(); ++i)
+    for (usingned int i = 0; i < poly.points.size(); ++i)
     {
 	poly.points[i] = Point(poly.points[i].x() * SCALE_FACTOR, poly.points[i].y() * SCALE_FACTOR);
     }
@@ -887,7 +887,7 @@ Polygon scale_UP(const Polygon &polygon, double x_pos, double y_pos)
 {
     Polygon poly = polygon;
 
-    for (int i = 0; i < poly.points.size(); ++i)
+    for (usingned int i = 0; i < poly.points.size(); ++i)
     {
 	poly.points[i] = Point(poly.points[i].x() * SCALE_FACTOR + x_pos * SCALE_FACTOR, poly.points[i].y() * SCALE_FACTOR + y_pos * SCALE_FACTOR);
     }
@@ -931,7 +931,7 @@ void test_polygon_8(void)
 	Y_positions.push_back(expr(z_context.real_const(name.c_str())));
     }
 
-    for (int i = 0; i < polygon_1.points.size(); ++i)
+    for (usingned int i = 0; i < polygon_1.points.size(); ++i)
     {
 	string name = "t1_par-" + to_string(i);
 	printf("name: %s\n", name.c_str());
@@ -939,7 +939,7 @@ void test_polygon_8(void)
 	T1_parameters.push_back(expr(z_context.real_const(name.c_str())));	
     }
 
-    for (int i = 0; i < polygon_2.points.size(); ++i)
+    for (usingned int i = 0; i < polygon_2.points.size(); ++i)
     {
 	string name = "t2_par-" + to_string(i);
 	printf("name: %s\n", name.c_str());
@@ -947,7 +947,7 @@ void test_polygon_8(void)
 	T2_parameters.push_back(expr(z_context.real_const(name.c_str())));	
     }
 
-    for (int i = 0; i < polygon_3.points.size(); ++i)
+    for (usingned int i = 0; i < polygon_3.points.size(); ++i)
     {
 	string name = "t3_par-" + to_string(i);
 	printf("name: %s\n", name.c_str());
@@ -1102,7 +1102,7 @@ void test_polygon_8(void)
 	    cout << z_model << "\n";
     
 	    printf("Printing interpretation:\n");    
-	    for (int i = 0; i < z_model.size(); ++i)
+	    for (usingned int i = 0; i < z_model.size(); ++i)
 	    {
 		printf("Variable:%s  ", z_model[i].name().str().c_str());
 		
@@ -1232,7 +1232,7 @@ void test_polygon_9(void)
 	Y_positions.push_back(expr(z_context.real_const(name.c_str())));
     }
 
-    for (int i = 0; i < polygon_1.points.size(); ++i)
+    for (usingned int i = 0; i < polygon_1.points.size(); ++i)
     {
 	string name = "t1_par-" + to_string(i);
 	printf("name: %s\n", name.c_str());
@@ -1240,7 +1240,7 @@ void test_polygon_9(void)
 	T1_parameters.push_back(expr(z_context.real_const(name.c_str())));	
     }
 
-    for (int i = 0; i < polygon_2.points.size(); ++i)
+    for (usingned int i = 0; i < polygon_2.points.size(); ++i)
     {
 	string name = "t2_par-" + to_string(i);
 	printf("name: %s\n", name.c_str());
@@ -1248,7 +1248,7 @@ void test_polygon_9(void)
 	T2_parameters.push_back(expr(z_context.real_const(name.c_str())));	
     }
 
-    for (int i = 0; i < polygon_3.points.size(); ++i)
+    for (usingned int i = 0; i < polygon_3.points.size(); ++i)
     {
 	string name = "t3_par-" + to_string(i);
 	printf("name: %s\n", name.c_str());
@@ -1399,7 +1399,7 @@ void test_polygon_9(void)
 	    cout << z_model << "\n";
     
 	    printf("Printing interpretation:\n");    
-	    for (int i = 0; i < z_model.size(); ++i)
+	    for (usingned int i = 0; i < z_model.size(); ++i)
 	    {
 		printf("Variable:%s  ", z_model[i].name().str().c_str());
 		
@@ -1532,7 +1532,7 @@ void test_polygon_10(void)
 	Y_positions.push_back(expr(z_context.real_const(name.c_str())));
     }
 
-    for (int i = 0; i < polygon_1.points.size(); ++i)
+    for (usingned int i = 0; i < polygon_1.points.size(); ++i)
     {
 	string name = "t1_par-" + to_string(i);
 	printf("name: %s\n", name.c_str());
@@ -1540,7 +1540,7 @@ void test_polygon_10(void)
 	T1_parameters.push_back(expr(z_context.real_const(name.c_str())));	
     }
 
-    for (int i = 0; i < polygon_2.points.size(); ++i)
+    for (usingned int i = 0; i < polygon_2.points.size(); ++i)
     {
 	string name = "t2_par-" + to_string(i);
 	printf("name: %s\n", name.c_str());
@@ -1548,7 +1548,7 @@ void test_polygon_10(void)
 	T2_parameters.push_back(expr(z_context.real_const(name.c_str())));	
     }
 
-    for (int i = 0; i < polygon_3.points.size(); ++i)
+    for (usingned int i = 0; i < polygon_3.points.size(); ++i)
     {
 	string name = "t3_par-" + to_string(i);
 	printf("name: %s\n", name.c_str());
@@ -1556,7 +1556,7 @@ void test_polygon_10(void)
 	T3_parameters.push_back(expr(z_context.real_const(name.c_str())));	
     }
 
-    for (int i = 0; i < polygon_4.points.size(); ++i)
+    for (usingned int i = 0; i < polygon_4.points.size(); ++i)
     {
 	string name = "t4_par-" + to_string(i);
 	printf("name: %s\n", name.c_str());
@@ -1718,7 +1718,7 @@ void test_polygon_10(void)
 	    cout << z_model << "\n";
     
 	    printf("Printing interpretation:\n");    
-	    for (int i = 0; i < z_model.size(); ++i)
+	    for (usingned int i = 0; i < z_model.size(); ++i)
 	    {
 		printf("Variable:%s  ", z_model[i].name().str().c_str());
 		
@@ -1866,7 +1866,7 @@ void test_polygon_11(void)
 	Y_positions.push_back(expr(z_context.real_const(name.c_str())));
     }
 
-    for (int i = 0; i < polygon_1.points.size(); ++i)
+    for (usingned int i = 0; i < polygon_1.points.size(); ++i)
     {
 	string name = "t1_par-" + to_string(i);
 	printf("name: %s\n", name.c_str());
@@ -1874,7 +1874,7 @@ void test_polygon_11(void)
 	T1_parameters.push_back(expr(z_context.real_const(name.c_str())));	
     }
 
-    for (int i = 0; i < polygon_2.points.size(); ++i)
+    for (usingned int i = 0; i < polygon_2.points.size(); ++i)
     {
 	string name = "t2_par-" + to_string(i);
 	printf("name: %s\n", name.c_str());
@@ -1882,7 +1882,7 @@ void test_polygon_11(void)
 	T2_parameters.push_back(expr(z_context.real_const(name.c_str())));	
     }
 
-    for (int i = 0; i < polygon_3.points.size(); ++i)
+    for (usingned int i = 0; i < polygon_3.points.size(); ++i)
     {
 	string name = "t3_par-" + to_string(i);
 	printf("name: %s\n", name.c_str());
@@ -1890,7 +1890,7 @@ void test_polygon_11(void)
 	T3_parameters.push_back(expr(z_context.real_const(name.c_str())));	
     }
 
-    for (int i = 0; i < polygon_4.points.size(); ++i)
+    for (usingned int i = 0; i < polygon_4.points.size(); ++i)
     {
 	string name = "t4_par-" + to_string(i);
 	printf("name: %s\n", name.c_str());
@@ -2045,7 +2045,7 @@ void test_polygon_11(void)
 	    cout << z_model << "\n";
     
 	    printf("Printing interpretation:\n");    
-	    for (int i = 0; i < z_model.size(); ++i)
+	    for (usingned int i = 0; i < z_model.size(); ++i)
 	    {
 		printf("Variable:%s  ", z_model[i].name().str().c_str());
 		
@@ -2153,7 +2153,7 @@ void test_polygon_11(void)
 			printf("Printing model:\n");
 			cout << z_model << "\n";
     
-			for (int i = 0; i < z_model.size(); ++i)
+			for (usingned int i = 0; i < z_model.size(); ++i)
 			{
 			    //printf("Variable:%s  ", z_model[i].name().str().c_str());						    
 			    double value = z_model.get_const_interp(z_model[i]).as_double();
@@ -2329,14 +2329,14 @@ void test_polygon_12(void)
     if (optimized)
     {
 	printf("Polygon positions:\n");
-	for (int i = 0; i < polygons.size(); ++i)
+	for (usingned int i = 0; i < polygons.size(); ++i)
 	{
 	    printf("  %.3f, %.3f\n", X_values[i], Y_values[i]);
 	}
     
 	SVG preview_svg("polygon_test_12.svg");
 	
-	for (int i = 0; i < polygons.size(); ++i)
+	for (usingned int i = 0; i < polygons.size(); ++i)
 	{
 	    Polygon display_polygon = scale_UP(polygons[i], X_values[i], Y_values[i]);
 	    
@@ -2455,14 +2455,14 @@ void test_polygon_13(void)
     if (optimized)
     {
 	printf("Polygon positions:\n");
-	for (int i = 0; i < polygons.size(); ++i)
+	for (usingned int i = 0; i < polygons.size(); ++i)
 	{
 	    printf("  %.3f, %.3f\n", X_values[i], Y_values[i]);
 	}
     
 	SVG preview_svg("polygon_test_13.svg");
 	
-	for (int i = 0; i < polygons.size(); ++i)
+	for (usingned int i = 0; i < polygons.size(); ++i)
 	{
 	    Polygon display_polygon = scale_UP(polygons[i], X_values[i], Y_values[i]);
 	    
@@ -2633,7 +2633,7 @@ void test_polygon_14(void)
 						       dec_var_names_map,
 						       polygons);
 
-	for (int i = 0; i < undecided.size(); ++i)
+	for (usingned int i = 0; i < undecided.size(); ++i)
 	{
 	    poly_positions_X[undecided[i]] = X_values[undecided[i]];
 	    poly_positions_Y[undecided[i]] = Y_values[undecided[i]];
@@ -2662,7 +2662,7 @@ void test_polygon_14(void)
 	decided.push_back(2);
 	decided.push_back(3);	
 	
-	for (int i = 0; i < decided.size(); ++i)
+	for (usingned int i = 0; i < decided.size(); ++i)
 	{
 	    X_values[decided[i]] = poly_positions_X[decided[i]];
 	    Y_values[decided[i]] = poly_positions_Y[decided[i]];	    
@@ -2708,14 +2708,14 @@ void test_polygon_14(void)
 	if (optimized)
 	{
 	    printf("Polygon positions:\n");
-	    for (int i = 0; i < decided.size(); ++i)
+	    for (usingned int i = 0; i < decided.size(); ++i)
 	    {
 		printf("  %.3f, %.3f\n", X_values[decided[i]].as_double(), Y_values[decided[i]].as_double());
 	    }
 	    
 	    SVG preview_svg("polygon_test_14.svg");
 	
-	    for (int i = 0; i < decided.size(); ++i)
+	    for (usingned int i = 0; i < decided.size(); ++i)
 	    {
 		Polygon display_polygon = scale_UP(polygons[decided[i]], X_values[decided[i]].as_double(), Y_values[decided[i]].as_double());
 		
@@ -2882,19 +2882,19 @@ void test_polygon_15(void)
 	if (optimized)
 	{
 	    printf("Polygon positions:\n");
-	    for (int i = 0; i < decided_polygons.size(); ++i)
+	    for (usingned int i = 0; i < decided_polygons.size(); ++i)
 	    {
 		printf("  %.3f, %.3f\n", poly_positions_X[decided_polygons[i]].as_double(), poly_positions_Y[decided_polygons[i]].as_double());
 	    }
 	    printf("Remaining polygons: %ld\n", remaining_polygons.size());
-	    for (int i = 0; i < remaining_polygons.size(); ++i)
+	    for (usingned int i = 0; i < remaining_polygons.size(); ++i)
 	    {
 		printf("  %d\n", remaining_polygons[i]);
 	    }
 	
 	    SVG preview_svg("polygon_test_15.svg");
 	
-	    for (int i = 0; i < decided_polygons.size(); ++i)
+	    for (usingned int i = 0; i < decided_polygons.size(); ++i)
 	    {
 		Polygon display_polygon = scale_UP(polygons[decided_polygons[i]],
 						   poly_positions_X[decided_polygons[i]].as_double(),
@@ -2983,7 +2983,7 @@ void test_polygon_15(void)
 	
 	vector<Polygon> next_polygons;
 	
-	for (int i = 0; i < remaining_polygons.size(); ++i)
+	for (usingned int i = 0; i < remaining_polygons.size(); ++i)
 	{
 	    next_polygons.push_back(polygons[remaining_polygons[i]]);
 	}

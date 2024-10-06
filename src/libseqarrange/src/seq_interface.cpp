@@ -27,6 +27,8 @@ namespace Sequential
 /*----------------------------------------------------------------*/
 
 const int SEQ_OBJECT_GROUP_SIZE = 4;
+const int SEQ_SCHEDULING_TEMPORAL_SPREAD = 16;
+const int SEQ_MINIMUM_BOUNDING_BOX_SIZE = 10;
     
 const int SEQ_PRUSA_MK3S_X_SIZE = 2500;
 const int SEQ_PRUSA_MK3S_Y_SIZE = 2100;    
@@ -59,14 +61,14 @@ const coord_t SEQ_PRUSA_XL_GANTRY_LEVEL   = 26000000;
     
 SolverConfiguration::SolverConfiguration()
     : bounding_box_size_optimization_step(4)
-    , minimum_X_bounding_box_size(10)
-    , minimum_Y_bounding_box_size(10)
+    , minimum_X_bounding_box_size(SEQ_MINIMUM_BOUNDING_BOX_SIZE)
+    , minimum_Y_bounding_box_size(SEQ_MINIMUM_BOUNDING_BOX_SIZE)
     , maximum_X_bounding_box_size(SEQ_PRUSA_MK3S_X_SIZE)
     , maximum_Y_bounding_box_size(SEQ_PRUSA_MK3S_Y_SIZE)
     , minimum_bounding_box_size(MIN(minimum_X_bounding_box_size, minimum_Y_bounding_box_size))
     , maximum_bounding_box_size(MAX(maximum_X_bounding_box_size, maximum_Y_bounding_box_size))
     , object_group_size(SEQ_OBJECT_GROUP_SIZE)
-    , temporal_spread(16)
+    , temporal_spread(SEQ_SCHEDULING_TEMPORAL_SPREAD)
     , decimation_precision(SEQ_DECIMATION_PRECISION_LOW)
     , printer_type(SEQ_PRINTER_TYPE_PRUSA_MK3S)
     , optimization_timeout(SEQ_Z3_SOLVER_TIMEOUT)
@@ -77,14 +79,14 @@ SolverConfiguration::SolverConfiguration()
     
 SolverConfiguration::SolverConfiguration(const PrinterGeometry &printer_geometry)
     : bounding_box_size_optimization_step(4)
-    , minimum_X_bounding_box_size(10)
-    , minimum_Y_bounding_box_size(10)
+    , minimum_X_bounding_box_size(SEQ_MINIMUM_BOUNDING_BOX_SIZE)
+    , minimum_Y_bounding_box_size(SEQ_MINIMUM_BOUNDING_BOX_SIZE)
     , maximum_X_bounding_box_size(printer_geometry.x_size / SEQ_SLICER_SCALE_FACTOR)
     , maximum_Y_bounding_box_size(printer_geometry.y_size / SEQ_SLICER_SCALE_FACTOR)
     , minimum_bounding_box_size(MIN(minimum_X_bounding_box_size, minimum_Y_bounding_box_size))
     , maximum_bounding_box_size(MAX(maximum_X_bounding_box_size, maximum_Y_bounding_box_size))
     , object_group_size(SEQ_OBJECT_GROUP_SIZE)
-    , temporal_spread(16)
+    , temporal_spread(SEQ_SCHEDULING_TEMPORAL_SPREAD)
     , decimation_precision(SEQ_DECIMATION_PRECISION_LOW)
     , printer_type(SEQ_PRINTER_TYPE_PRUSA_MK3S)
     , optimization_timeout(SEQ_Z3_SOLVER_TIMEOUT)
