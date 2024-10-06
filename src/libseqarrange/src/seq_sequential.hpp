@@ -641,10 +641,10 @@ void introduce_ConsequentialFixedPointOutsidePolygon(z3::solver            &Solv
 						     z3::context           &Context,
 						     const Rational        &dec_value_X1,
 						     const Rational        &dec_value_Y1,
-						     const z3::expr        &dec_var_T1,
+						     const Rational        &dec_value_T1,
 						     const z3::expr        &dec_var_X2,
 						     const z3::expr        &dec_var_Y2,
-						     const Rational        &dec_value_T2,
+						     const z3::expr        &dec_var_T2,						     
 						     const Slic3r::Polygon &polygon);
 
 void introduce_PointOutsideFixedPolygon(z3::solver            &Solver,
