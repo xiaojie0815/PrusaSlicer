@@ -156,7 +156,7 @@ bool check_ScheduledObjectsForSequentialPrintability(const SolverConfiguration  
 
     map<int, int> flat_index_map;
     
-    for (int i = 0; i < objects_to_print.size(); ++i)
+    for (unsigned int i = 0; i < objects_to_print.size(); ++i)
     {
 	std::vector<Slic3r::Polygon> convex_level_polygons;	    
 	std::vector<Slic3r::Polygon> box_level_polygons;
@@ -307,7 +307,7 @@ void schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver
     }
     #endif
     
-    for (int i = 0; i < objects_to_print.size(); ++i)
+    for (unsigned int i = 0; i < objects_to_print.size(); ++i)
     {
 	std::vector<Slic3r::Polygon> convex_level_polygons;	    
 	std::vector<Slic3r::Polygon> box_level_polygons;
@@ -346,7 +346,7 @@ void schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver
     vector<int> polygon_index_map;
     vector<int> decided_polygons;
 
-    for (int index = 0; index < polygons.size(); ++index)
+    for (unsigned int index = 0; index < polygons.size(); ++index)
     {
 	polygon_index_map.push_back(index);
     }
@@ -397,7 +397,7 @@ void schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver
 	    #ifdef DEBUG
 	    {	    
 		printf("Polygon positions:\n");
-		for (int i = 0; i < decided_polygons.size(); ++i)
+		for (unsigned int i = 0; i < decided_polygons.size(); ++i)
 		{
 		    printf("  [ID:%d,RID:%d] x:%.3f, y:%.3f (t:%.3f)\n",
 			   original_index_map[decided_polygons[i]],
@@ -407,7 +407,7 @@ void schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver
 			   times_T[decided_polygons[i]].as_double());
 		}
 		printf("Remaining polygons: %ld\n", remaining_polygons.size());
-		for (int i = 0; i < remaining_polygons.size(); ++i)
+		for (unsigned int i = 0; i < remaining_polygons.size(); ++i)
 		{
 		    printf("  ID:%d\n", original_index_map[remaining_polygons[i]]);
 		}
@@ -415,7 +415,7 @@ void schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver
 	    #endif
 
 	    std::map<double, int> scheduled_polygons;
-	    for (int i = 0; i < decided_polygons.size(); ++i)
+	    for (unsigned int i = 0; i < decided_polygons.size(); ++i)
 	    {
 		scheduled_polygons.insert(std::pair<double, int>(times_T[decided_polygons[i]].as_double(), decided_polygons[i]));
 	    }
@@ -458,7 +458,7 @@ void schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver
 	vector<Polygon> next_polygons;
 	vector<vector<Polygon> > next_unreachable_polygons;
 
-	for (int i = 0; i < remaining_polygons.size(); ++i)
+	for (unsigned int i = 0; i < remaining_polygons.size(); ++i)
 	{
 	    next_polygons.push_back(polygons[remaining_polygons[i]]);	    	    
 	    next_unreachable_polygons.push_back(unreachable_polygons[remaining_polygons[i]]);
@@ -474,7 +474,7 @@ void schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver
 	vector<int> next_polygon_index_map;
 	map<int, int> next_original_index_map;
 
-	for (int index = 0; index < polygons.size(); ++index)
+	for (unsigned int index = 0; index < polygons.size(); ++index)
 	{
 	    next_polygon_index_map.push_back(index);
 	    next_original_index_map[index] = original_index_map[remaining_polygons[index]];
@@ -534,7 +534,7 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver_
     }
     #endif
     
-    for (int i = 0; i < objects_to_print.size(); ++i)
+    for (unsigned int i = 0; i < objects_to_print.size(); ++i)
     {
 	Polygon nozzle_polygon;
 	Polygon extruder_polygon;
@@ -543,7 +543,7 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver_
 
 	original_index_map[i] = objects_to_print[i].id;
 	
-	for (int j = 0; j < objects_to_print[i].pgns_at_height.size(); ++j)
+	for (unsigned int j = 0; j < objects_to_print[i].pgns_at_height.size(); ++j)
 	{
 	    coord_t height = objects_to_print[i].pgns_at_height[j].first;
 
@@ -739,7 +739,7 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver_
     vector<int> polygon_index_map;
     vector<int> decided_polygons;
 
-    for (int index = 0; index < polygons.size(); ++index)
+    for (unsigned int index = 0; index < polygons.size(); ++index)
     {
 	polygon_index_map.push_back(index);
     }
@@ -790,7 +790,7 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver_
 	    #ifdef DEBUG
 	    {	    
 		printf("Polygon positions:\n");
-		for (int i = 0; i < decided_polygons.size(); ++i)
+		for (unsigned int i = 0; i < decided_polygons.size(); ++i)
 		{
 		    printf("  [ID:%d,RID:%d] x:%.3f, y:%.3f (t:%.3f)\n",
 			   original_index_map[decided_polygons[i]],
@@ -800,7 +800,7 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver_
 			   times_T[decided_polygons[i]].as_double());
 		}
 		printf("Remaining polygons: %ld\n", remaining_polygons.size());
-		for (int i = 0; i < remaining_polygons.size(); ++i)
+		for (unsigned int i = 0; i < remaining_polygons.size(); ++i)
 		{
 		    printf("  ID:%d\n", original_index_map[remaining_polygons[i]]);
 		}
@@ -808,7 +808,7 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver_
 	    #endif
 
 	    std::map<double, int> scheduled_polygons;
-	    for (int i = 0; i < decided_polygons.size(); ++i)
+	    for (unsigned int i = 0; i < decided_polygons.size(); ++i)
 	    {
 		scheduled_polygons.insert(std::pair<double, int>(times_T[decided_polygons[i]].as_double(), decided_polygons[i]));
 	    }
@@ -850,7 +850,7 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver_
 	vector<Polygon> next_polygons;
 	vector<vector<Polygon> > next_unreachable_polygons;
 
-	for (int i = 0; i < remaining_polygons.size(); ++i)
+	for (unsigned int i = 0; i < remaining_polygons.size(); ++i)
 	{
 	    next_polygons.push_back(polygons[remaining_polygons[i]]);	    	    
 	    next_unreachable_polygons.push_back(unreachable_polygons[remaining_polygons[i]]);
@@ -866,7 +866,7 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver_
 	vector<int> next_polygon_index_map;
 	map<int, int> next_original_index_map;
 
-	for (int index = 0; index < polygons.size(); ++index)
+	for (unsigned int index = 0; index < polygons.size(); ++index)
 	{
 	    next_polygon_index_map.push_back(index);
 	    next_original_index_map[index] = original_index_map[remaining_polygons[index]];
@@ -961,7 +961,7 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration                
     }
     #endif
     
-    for (int i = 0; i < objects_to_print.size(); ++i)
+    for (unsigned int i = 0; i < objects_to_print.size(); ++i)
     {
 	Polygon nozzle_polygon;
 	Polygon extruder_polygon;
@@ -972,7 +972,7 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration                
 
 	int ht = 0;
 	
-	for (int j = 0; j < objects_to_print[i].pgns_at_height.size(); ++j)
+	for (unsigned int j = 0; j < objects_to_print[i].pgns_at_height.size(); ++j)
 	{
 	    if (!objects_to_print[i].pgns_at_height[j].second.points.empty())
 	    {
@@ -1061,7 +1061,7 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration                
     vector<int> polygon_index_map;
     vector<int> decided_polygons;
 
-    for (int index = 0; index < polygons.size(); ++index)
+    for (unsigned int index = 0; index < polygons.size(); ++index)
     {
 	polygon_index_map.push_back(index);
     }
@@ -1112,7 +1112,7 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration                
 	    #ifdef DEBUG
 	    {	    
 		printf("Polygon positions:\n");
-		for (int i = 0; i < decided_polygons.size(); ++i)
+		for (unsgined int i = 0; i < decided_polygons.size(); ++i)
 		{
 		    printf("  [ID:%d,RID:%d] x:%.3f, y:%.3f (t:%.3f)\n",
 			   original_index_map[decided_polygons[i]],
@@ -1122,7 +1122,7 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration                
 			   times_T[decided_polygons[i]].as_double());
 		}
 		printf("Remaining polygons: %ld\n", remaining_polygons.size());
-		for (int i = 0; i < remaining_polygons.size(); ++i)
+		for (unsigned int i = 0; i < remaining_polygons.size(); ++i)
 		{
 		    printf("  ID:%d\n", original_index_map[remaining_polygons[i]]);
 		}
@@ -1130,7 +1130,7 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration                
 	    #endif
 
 	    std::map<double, int> scheduled_polygons;
-	    for (int i = 0; i < decided_polygons.size(); ++i)
+	    for (unsigned int i = 0; i < decided_polygons.size(); ++i)
 	    {
 		scheduled_polygons.insert(std::pair<double, int>(times_T[decided_polygons[i]].as_double(), decided_polygons[i]));
 	    }
@@ -1172,7 +1172,7 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration                
 	vector<Polygon> next_polygons;
 	vector<vector<Polygon> > next_unreachable_polygons;
 
-	for (int i = 0; i < remaining_polygons.size(); ++i)
+	for (unsigned int i = 0; i < remaining_polygons.size(); ++i)
 	{
 	    next_polygons.push_back(polygons[remaining_polygons[i]]);	    	    
 	    next_unreachable_polygons.push_back(unreachable_polygons[remaining_polygons[i]]);
@@ -1188,7 +1188,7 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration                
 	vector<int> next_polygon_index_map;
 	map<int, int> next_original_index_map;
 
-	for (int index = 0; index < polygons.size(); ++index)
+	for (unsigned int index = 0; index < polygons.size(); ++index)
 	{
 	    next_polygon_index_map.push_back(index);
 	    next_original_index_map[index] = original_index_map[remaining_polygons[index]];
