@@ -22,10 +22,10 @@
 // comment definition of NDEBUG to enable assert()
 //#define NDEBUG
 
-//#define SLA_SAMPLE_ISLAND_UTILS_STORE_VORONOI_GRAPH_TO_SVG
-//#define SLA_SAMPLE_ISLAND_UTILS_STORE_INITIAL_SAMPLE_POSITION_TO_SVG_PATH "C:/data/temp/initial_sample_positions.svg"
+//#define SLA_SAMPLE_ISLAND_UTILS_STORE_VORONOI_GRAPH_TO_SVG_PATH  "C:/data/temp/align/island_<<COUNTER>>_graph.svg"
+//#define SLA_SAMPLE_ISLAND_UTILS_STORE_INITIAL_SAMPLE_POSITION_TO_SVG_PATH "C:/data/temp/align/island_<<COUNTER>>_init.svg"
 //#define SLA_SAMPLE_ISLAND_UTILS_STORE_FIELD_TO_SVG
-#define SLA_SAMPLE_ISLAND_UTILS_STORE_ALIGNED_TO_SVG_PATH "C:/data/temp/align/island_<<COUNTER>>.svg"
+//#define SLA_SAMPLE_ISLAND_UTILS_STORE_ALIGNED_TO_SVG_PATH "C:/data/temp/align/island_<<COUNTER>>_aligned.svg"
 
 //#define SLA_SAMPLE_ISLAND_UTILS_STORE_ALIGN_ONCE_TO_SVG_PATH "C:/data/temp/align_once/iter_<<COUNTER>>.svg"
 //#define SLA_SAMPLE_ISLAND_UTILS_DEBUG_CELL_DISTANCE_PATH "C:/data/temp/island_cell.svg"
@@ -978,21 +978,23 @@ SupportIslandPoints SampleIslandUtils::sample_voronoi_graph(
     longest_path = VoronoiGraphUtils::create_longest_path(start_node);
     // longest_path = create_longest_path_recursive(start_node);
 
-#ifdef SLA_SAMPLE_ISLAND_UTILS_STORE_VORONOI_GRAPH_TO_SVG
+#ifdef SLA_SAMPLE_ISLAND_UTILS_STORE_VORONOI_GRAPH_TO_SVG_PATH
     {
         static int counter = 0;
-        SVG svg("voronoiGraph" + std::to_string(counter++) + ".svg",
-                LineUtils::create_bounding_box(lines));
+        SVG svg(replace_first(SLA_SAMPLE_ISLAND_UTILS_STORE_VORONOI_GRAPH_TO_SVG_PATH, 
+        "<<COUNTER>>", std::to_string(counter++)).c_str(), LineUtils::create_bounding_box(lines));
         VoronoiGraphUtils::draw(svg, graph, lines, config.head_radius / 10, true);
         VoronoiGraphUtils::draw(svg, longest_path, config.head_radius / 10);
     }
-#endif // SLA_SAMPLE_ISLAND_UTILS_STORE_VORONOI_GRAPH_TO_SVG
+#endif // SLA_SAMPLE_ISLAND_UTILS_STORE_VORONOI_GRAPH_TO_SVG_PATH
 
     SupportIslandPoints points = sample_expath(longest_path, lines, config);
 
 #ifdef SLA_SAMPLE_ISLAND_UTILS_STORE_INITIAL_SAMPLE_POSITION_TO_SVG_PATH
     {
-        SVG svg(SLA_SAMPLE_ISLAND_UTILS_STORE_INITIAL_SAMPLE_POSITION_TO_SVG_PATH,
+        static int counter = 0;
+        SVG svg(replace_first(SLA_SAMPLE_ISLAND_UTILS_STORE_INITIAL_SAMPLE_POSITION_TO_SVG_PATH, 
+        "<<COUNTER>>", std::to_string(counter++)).c_str(),
                 LineUtils::create_bounding_box(lines));
         svg.draw(lines, "gray", config.head_radius/ 10);
         draw(svg, points, config.head_radius, "black", true);
@@ -1211,7 +1213,7 @@ std::optional<VoronoiGraph::Position> SampleIslandUtils::sample_center(
     bool is_continous = false;
 
     // Loop over thin part of island which need to be sampled on the voronoi skeleton.
-    while (start.neighbor->max_width() <= config.max_width_for_center_support_line) {
+    while (!is_continous || start.neighbor->max_width() <= config.max_width_for_center_support_line) {
         assert(done.find(start.neighbor->node) == done.end()); // not proccessed only        
         // add support when it is in distance from last added
         if (add_support_on_neighbor_edge(start.neighbor, start.support_in, results, config))
@@ -1592,6 +1594,12 @@ SampleIslandUtils::Field SampleIslandUtils::create_field(
                 source_indexes.push_back(change.next_line_index);
             }
             done.insert(index);
+
+            // change into first index - loop is finished by change
+            if (index != input_index &&
+                input_index == change.next_line_index)
+                return false;
+
             index = change.next_line_index;
             change_item = wide_tiny_changes.find(index);
         }
@@ -1808,6 +1816,9 @@ SupportIslandPoints SampleIslandUtils::sample_outline(
     auto sample_polygon = [&](const Polygon &polygon,
                               const Polygon &inner_polygon,
                               size_t         index_offset) {
+        if (inner_polygon.empty())
+            return; // nothing to sample
+
         // contain polygon tiny wide change?
         size_t first_change_index = polygon.size();
         for (size_t polygon_index = 0; polygon_index < polygon.size(); ++polygon_index) {
@@ -1932,7 +1943,7 @@ bool SampleIslandUtils::is_visualization_disabled()
 #ifndef NDEBUG
     return false;
 #endif
-#ifdef SLA_SAMPLE_ISLAND_UTILS_STORE_VORONOI_GRAPH_TO_SVG
+#ifdef SLA_SAMPLE_ISLAND_UTILS_STORE_VORONOI_GRAPH_TO_SVG_PATH
     return false;
 #endif
 #ifdef SLA_SAMPLE_ISLAND_UTILS_STORE_INITIAL_SAMPLE_POSITION_TO_SVG_PATH
