@@ -84,6 +84,8 @@ bool Bed3D::set_shape(const Pointfs& bed_shape, const double max_print_height, c
     m_model_filename = model_filename;
     m_extended_bounding_box = this->calc_extended_bounding_box();
 
+    s_multiple_beds.update_build_volume(m_build_volume.bounding_volume2d());
+
     m_contour = ExPolygon(Polygon::new_scale(bed_shape));
     const BoundingBox bbox = m_contour.contour.bounding_box();
     if (!bbox.defined)
@@ -228,6 +230,13 @@ void Bed3D::init_triangles()
 
     m_triangles.init_from(std::move(init_data));
     m_triangles.set_color(DEFAULT_MODEL_COLOR);
+
+    BoundingBoxf bb = m_build_volume.bounding_volume2d();
+    double y = bb.size().y();
+    double ym = m_model.model.get_bounding_box().size().y();
+    double diff = std::max(0., ym - y);
+    bb.max = Vec2d(bb.max.x(), bb.max.y() + diff);
+    s_multiple_beds.update_build_volume(bb);
 }
 
 void Bed3D::init_gridlines()
