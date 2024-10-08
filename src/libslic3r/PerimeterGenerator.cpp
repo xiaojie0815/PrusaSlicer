@@ -14,7 +14,6 @@
 #include <cstdlib>
 #include <iterator>
 #include <limits>
-#include <random>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -28,6 +27,7 @@
 #include "ExPolygon.hpp"
 #include "ExtrusionEntity.hpp"
 #include "ExtrusionEntityCollection.hpp"
+#include "Feature/FuzzySkin/FuzzySkin.hpp"
 #include "Point.hpp"
 #include "Polygon.hpp"
 #include "Polyline.hpp"
@@ -52,15 +52,6 @@
 #endif
 
 namespace Slic3r {
-
-// Produces a random value between 0 and 1. Thread-safe.
-static double random_value() {
-    thread_local std::random_device rd;
-    // Hash thread ID for random number seed if no hardware rng seed is available
-    thread_local std::mt19937 gen(rd.entropy() > 0 ? rd() : std::hash<std::thread::id>()(std::this_thread::get_id()));
-    thread_local std::uniform_real_distribution<double> dist(0.0, 1.0);
-    return dist(gen);
-}
 
 ExtrusionMultiPath PerimeterGenerator::thick_polyline_to_multi_path(const ThickPolyline &thick_polyline, ExtrusionRole role, const Flow &flow, const float tolerance, const float merge_tolerance)
 {
@@ -205,102 +196,12 @@ public:
     }
 };
 
-// Thanks Cura developers for this function.
-static void fuzzy_polygon(Polygon &poly, double fuzzy_skin_thickness, double fuzzy_skin_point_distance)
-{
-    const double min_dist_between_points = fuzzy_skin_point_distance * 3. / 4.; // hardcoded: the point distance may vary between 3/4 and 5/4 the supplied value
-    const double range_random_point_dist = fuzzy_skin_point_distance / 2.;
-    double dist_left_over = random_value() * (min_dist_between_points / 2.); // the distance to be traversed on the line before making the first new point
-    Point* p0 = &poly.points.back();
-    Points out;
-    out.reserve(poly.points.size());
-    for (Point &p1 : poly.points)
-    { // 'a' is the (next) new point between p0 and p1
-        Vec2d  p0p1      = (p1 - *p0).cast<double>();
-        double p0p1_size = p0p1.norm();
-        double p0pa_dist = dist_left_over;
-        for (; p0pa_dist < p0p1_size;
-            p0pa_dist += min_dist_between_points + random_value() * range_random_point_dist)
-        {
-            double r = random_value() * (fuzzy_skin_thickness * 2.) - fuzzy_skin_thickness;
-            out.emplace_back(*p0 + (p0p1 * (p0pa_dist / p0p1_size) + perp(p0p1).cast<double>().normalized() * r).cast<coord_t>());
-        }
-        dist_left_over = p0pa_dist - p0p1_size;
-        p0 = &p1;
-    }
-    while (out.size() < 3) {
-        size_t point_idx = poly.size() - 2;
-        out.emplace_back(poly[point_idx]);
-        if (point_idx == 0)
-            break;
-        -- point_idx;
-    }
-    if (out.size() >= 3)
-        poly.points = std::move(out);
-}
-
-// Thanks Cura developers for this function.
-static void fuzzy_extrusion_line(Arachne::ExtrusionLine &ext_lines, double fuzzy_skin_thickness, double fuzzy_skin_point_dist)
-{
-    const double min_dist_between_points = fuzzy_skin_point_dist * 3. / 4.; // hardcoded: the point distance may vary between 3/4 and 5/4 the supplied value
-    const double range_random_point_dist = fuzzy_skin_point_dist / 2.;
-    double       dist_left_over          = random_value() * (min_dist_between_points / 2.); // the distance to be traversed on the line before making the first new point
-
-    auto                                   *p0 = &ext_lines.front();
-    std::vector<Arachne::ExtrusionJunction> out;
-    out.reserve(ext_lines.size());
-    for (auto &p1 : ext_lines) {
-        if (p0->p == p1.p) { // Connect endpoints.
-            out.emplace_back(p1.p, p1.w, p1.perimeter_index);
-            continue;
-        }
-
-        // 'a' is the (next) new point between p0 and p1
-        Vec2d  p0p1      = (p1.p - p0->p).cast<double>();
-        double p0p1_size = p0p1.norm();
-        double p0pa_dist = dist_left_over;
-        for (; p0pa_dist < p0p1_size; p0pa_dist += min_dist_between_points + random_value() * range_random_point_dist) {
-            double r = random_value() * (fuzzy_skin_thickness * 2.) - fuzzy_skin_thickness;
-            out.emplace_back(p0->p + (p0p1 * (p0pa_dist / p0p1_size) + perp(p0p1).cast<double>().normalized() * r).cast<coord_t>(), p1.w, p1.perimeter_index);
-        }
-        dist_left_over = p0pa_dist - p0p1_size;
-        p0             = &p1;
-    }
-
-    while (out.size() < 3) {
-        size_t point_idx = ext_lines.size() - 2;
-        out.emplace_back(ext_lines[point_idx].p, ext_lines[point_idx].w, ext_lines[point_idx].perimeter_index);
-        if (point_idx == 0)
-            break;
-        -- point_idx;
-    }
-
-    if (ext_lines.back().p == ext_lines.front().p) // Connect endpoints.
-        out.front().p = out.back().p;
-
-    if (out.size() >= 3)
-        ext_lines.junctions = std::move(out);
-}
-
-static bool should_fuzzify(const PerimeterGenerator::Parameters &params, const size_t perimeter_idx, const bool is_contour)
-{
-    const auto config          = params.config;
-    const auto fuzzy_skin_type = config.fuzzy_skin.value;
-
-    if (fuzzy_skin_type == FuzzySkinType::None || params.layer_id <= 0) {
-        return false;
-    }
-
-    const bool fuzzify_contours = perimeter_idx == 0;
-    const bool fuzzify_holes    = fuzzify_contours && fuzzy_skin_type == FuzzySkinType::All;
-
-    return is_contour ? fuzzify_contours : fuzzify_holes;
-}
-
 using PerimeterGeneratorLoops = std::vector<PerimeterGeneratorLoop>;
 
 static ExtrusionEntityCollection traverse_loops_classic(const PerimeterGenerator::Parameters &params, const Polygons &lower_slices_polygons_cache, const PerimeterGeneratorLoops &loops, ThickPolylines &thin_walls)
 {
+    using namespace Slic3r::Feature::FuzzySkin;
+
     // loops is an arrayref of ::Loop objects
     // turn each one into an ExtrusionLoop object
     ExtrusionEntityCollection   coll;
@@ -320,7 +221,7 @@ static ExtrusionEntityCollection traverse_loops_classic(const PerimeterGenerator
             loop_role = elrDefault;
         }
 
-        const bool    fuzzify  = should_fuzzify(params, loop.depth, loop.is_contour);
+        const bool    fuzzify  = should_fuzzify(params.config, params.layer_id, loop.depth, loop.is_contour);
         const Polygon &polygon = fuzzify ? fuzzified : loop.polygon;
         if (fuzzify) {
             fuzzified = loop.polygon;
@@ -518,6 +419,8 @@ static ClipperLib_Z::Paths clip_extrusion(const ClipperLib_Z::Path &subject, con
 
 static ExtrusionEntityCollection traverse_extrusions(const PerimeterGenerator::Parameters &params, const Polygons &lower_slices_polygons_cache, Arachne::PerimeterOrder::PerimeterExtrusions &pg_extrusions)
 {
+    using namespace Slic3r::Feature::FuzzySkin;
+
     ExtrusionEntityCollection extrusion_coll;
     for (Arachne::PerimeterOrder::PerimeterExtrusion &pg_extrusion : pg_extrusions) {
         Arachne::ExtrusionLine &extrusion = pg_extrusion.extrusion;
@@ -528,7 +431,7 @@ static ExtrusionEntityCollection traverse_extrusions(const PerimeterGenerator::P
         ExtrusionRole role_normal   = is_external ? ExtrusionRole::ExternalPerimeter : ExtrusionRole::Perimeter;
         ExtrusionRole role_overhang = role_normal | ExtrusionRoleModifier::Bridge;
 
-        const bool fuzzify = should_fuzzify(params, pg_extrusion.extrusion.inset_idx, !pg_extrusion.extrusion.is_closed || pg_extrusion.is_contour());
+        const bool fuzzify = should_fuzzify(params.config, params.layer_id, pg_extrusion.extrusion.inset_idx, !pg_extrusion.extrusion.is_closed || pg_extrusion.is_contour());
         if (fuzzify)
             fuzzy_extrusion_line(extrusion, scaled<float>(params.config.fuzzy_skin_thickness.value), scaled<float>(params.config.fuzzy_skin_point_dist.value));
 

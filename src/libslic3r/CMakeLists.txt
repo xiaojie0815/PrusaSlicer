@@ -87,6 +87,8 @@ set(SLIC3R_SOURCES
     ExtrusionSimulator.cpp
     ExtrusionSimulator.hpp
     FileParserError.hpp
+    Feature/FuzzySkin/FuzzySkin.cpp
+    Feature/FuzzySkin/FuzzySkin.hpp
     Fill/Fill.cpp
     Fill/Fill3DHoneycomb.cpp
     Fill/Fill3DHoneycomb.hpp
