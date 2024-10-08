@@ -176,13 +176,11 @@ public:
     bool                                is_contour;
     // Depth in the hierarchy. External perimeter has depth = 0. An external perimeter could be both a contour and a hole.
     unsigned short                      depth;
-    // Should this contur be fuzzyfied on path generation?
-    bool                                fuzzify;
     // Children contour, may be both CCW and CW oriented (outer contours or holes).
     std::vector<PerimeterGeneratorLoop> children;
-    
-    PerimeterGeneratorLoop(const Polygon &polygon, unsigned short depth, bool is_contour, bool fuzzify) : 
-        polygon(polygon), is_contour(is_contour), depth(depth), fuzzify(fuzzify) {}
+
+    PerimeterGeneratorLoop(const Polygon &polygon, unsigned short depth, bool is_contour) :
+        polygon(polygon), is_contour(is_contour), depth(depth) {}
     // External perimeter. It may be CCW or CW oriented (outer contour or hole contour).
     bool is_external() const { return this->depth == 0; }
     // An island, which may have holes, but it does not have another internal island.
@@ -210,16 +208,14 @@ static void fuzzy_polygon(Polygon &poly, double fuzzy_skin_thickness, double fuz
     { // 'a' is the (next) new point between p0 and p1
         Vec2d  p0p1      = (p1 - *p0).cast<double>();
         double p0p1_size = p0p1.norm();
-        // so that p0p1_size - dist_last_point evaulates to dist_left_over - p0p1_size
-        double dist_last_point = dist_left_over + p0p1_size * 2.;
-        for (double p0pa_dist = dist_left_over; p0pa_dist < p0p1_size;
+        double p0pa_dist = dist_left_over;
+        for (; p0pa_dist < p0p1_size;
             p0pa_dist += min_dist_between_points + double(rand()) * range_random_point_dist / double(RAND_MAX))
         {
             double r = double(rand()) * (fuzzy_skin_thickness * 2.) / double(RAND_MAX) - fuzzy_skin_thickness;
             out.emplace_back(*p0 + (p0p1 * (p0pa_dist / p0p1_size) + perp(p0p1).cast<double>().normalized() * r).cast<coord_t>());
-            dist_last_point = p0pa_dist;
         }
-        dist_left_over = p0p1_size - dist_last_point;
+        dist_left_over = p0pa_dist - p0p1_size;
         p0 = &p1;
     }
     while (out.size() < 3) {
@@ -252,14 +248,12 @@ static void fuzzy_extrusion_line(Arachne::ExtrusionLine &ext_lines, double fuzzy
         // 'a' is the (next) new point between p0 and p1
         Vec2d  p0p1      = (p1.p - p0->p).cast<double>();
         double p0p1_size = p0p1.norm();
-        // so that p0p1_size - dist_last_point evaulates to dist_left_over - p0p1_size
-        double dist_last_point = dist_left_over + p0p1_size * 2.;
-        for (double p0pa_dist = dist_left_over; p0pa_dist < p0p1_size; p0pa_dist += min_dist_between_points + double(rand()) * range_random_point_dist / double(RAND_MAX)) {
+        double p0pa_dist = dist_left_over;
+        for (; p0pa_dist < p0p1_size; p0pa_dist += min_dist_between_points + double(rand()) * range_random_point_dist / double(RAND_MAX)) {
             double r = double(rand()) * (fuzzy_skin_thickness * 2.) / double(RAND_MAX) - fuzzy_skin_thickness;
             out.emplace_back(p0->p + (p0p1 * (p0pa_dist / p0p1_size) + perp(p0p1).cast<double>().normalized() * r).cast<coord_t>(), p1.w, p1.perimeter_index);
-            dist_last_point = p0pa_dist;
         }
-        dist_left_over = p0p1_size - dist_last_point;
+        dist_left_over = p0pa_dist - p0p1_size;
         p0             = &p1;
     }
 
@@ -276,6 +270,21 @@ static void fuzzy_extrusion_line(Arachne::ExtrusionLine &ext_lines, double fuzzy
 
     if (out.size() >= 3)
         ext_lines.junctions = std::move(out);
+}
+
+static bool should_fuzzify(const PerimeterGenerator::Parameters &params, const size_t perimeter_idx, const bool is_contour)
+{
+    const auto config          = params.config;
+    const auto fuzzy_skin_type = config.fuzzy_skin.value;
+
+    if (fuzzy_skin_type == FuzzySkinType::None || params.layer_id <= 0) {
+        return false;
+    }
+
+    const bool fuzzify_contours = perimeter_idx == 0;
+    const bool fuzzify_holes    = fuzzify_contours && fuzzy_skin_type == FuzzySkinType::All;
+
+    return is_contour ? fuzzify_contours : fuzzify_holes;
 }
 
 using PerimeterGeneratorLoops = std::vector<PerimeterGeneratorLoop>;
@@ -300,17 +309,19 @@ static ExtrusionEntityCollection traverse_loops_classic(const PerimeterGenerator
         } else {
             loop_role = elrDefault;
         }
-        
-        // detect overhanging/bridging perimeters
-        ExtrusionPaths paths;
-        const Polygon &polygon = loop.fuzzify ? fuzzified : loop.polygon;
-        if (loop.fuzzify) {
+
+        const bool    fuzzify  = should_fuzzify(params, loop.depth, loop.is_contour);
+        const Polygon &polygon = fuzzify ? fuzzified : loop.polygon;
+        if (fuzzify) {
             fuzzified = loop.polygon;
             fuzzy_polygon(fuzzified, scaled<float>(params.config.fuzzy_skin_thickness.value), scaled<float>(params.config.fuzzy_skin_point_dist.value));
         }
-        if (params.config.overhangs && params.layer_id > params.object_config.raft_layers
-            && ! ((params.object_config.support_material || params.object_config.support_material_enforce_layers > 0) && 
-                  params.object_config.support_material_contact_distance.value == 0)) {
+
+        ExtrusionPaths paths;
+        if (params.config.overhangs && params.layer_id > params.object_config.raft_layers &&
+            !((params.object_config.support_material || params.object_config.support_material_enforce_layers > 0) &&
+              params.object_config.support_material_contact_distance.value == 0)) {
+            // Detect overhanging/bridging perimeters.
             BoundingBox bbox(polygon.points);
             bbox.offset(SCALED_EPSILON);
             Polygons lower_slices_polygons_clipped = ClipperUtils::clip_clipper_polygons_with_subject_bbox(lower_slices_polygons_cache, bbox);
@@ -335,7 +346,11 @@ static ExtrusionEntityCollection traverse_loops_classic(const PerimeterGenerator
                     role_overhang,
                     ExtrusionFlow{ params.mm3_per_mm_overhang, params.overhang_flow.width(), params.overhang_flow.height() }
                 });
-            
+
+            if (paths.empty()) {
+                continue;
+            }
+
             // Reapply the nearest point search for starting point.
             // We allow polyline reversal because Clipper may have randomly reversed polylines during clipping.
             chain_and_reorder_extrusion_paths(paths, &paths.front().first_point());
@@ -503,7 +518,8 @@ static ExtrusionEntityCollection traverse_extrusions(const PerimeterGenerator::P
         ExtrusionRole role_normal   = is_external ? ExtrusionRole::ExternalPerimeter : ExtrusionRole::Perimeter;
         ExtrusionRole role_overhang = role_normal | ExtrusionRoleModifier::Bridge;
 
-        if (pg_extrusion.fuzzify)
+        const bool fuzzify = should_fuzzify(params, pg_extrusion.extrusion.inset_idx, !pg_extrusion.extrusion.is_closed || pg_extrusion.is_contour());
+        if (fuzzify)
             fuzzy_extrusion_line(extrusion, scaled<float>(params.config.fuzzy_skin_thickness.value), scaled<float>(params.config.fuzzy_skin_point_dist.value));
 
         ExtrusionPaths paths;
@@ -1193,46 +1209,6 @@ void PerimeterGenerator::process_arachne(
 
     Arachne::PerimeterOrder::PerimeterExtrusions ordered_extrusions = Arachne::PerimeterOrder::ordered_perimeter_extrusions(perimeters, params.config.external_perimeters_first);
 
-    if (params.layer_id > 0 && params.config.fuzzy_skin != FuzzySkinType::None) {
-        std::vector<Arachne::PerimeterOrder::PerimeterExtrusion *> closed_loop_extrusions;
-        for (Arachne::PerimeterOrder::PerimeterExtrusion &extrusion : ordered_extrusions)
-            if (extrusion.extrusion.inset_idx == 0) {
-                if (extrusion.extrusion.is_closed && params.config.fuzzy_skin == FuzzySkinType::External) {
-                    closed_loop_extrusions.emplace_back(&extrusion);
-                } else {
-                    extrusion.fuzzify = true;
-                }
-            }
-
-        if (params.config.fuzzy_skin == FuzzySkinType::External) {
-            ClipperLib_Z::Paths loops_paths;
-            loops_paths.reserve(closed_loop_extrusions.size());
-            for (const auto &cl_extrusion : closed_loop_extrusions) {
-                assert(cl_extrusion->extrusion.junctions.front() == cl_extrusion->extrusion.junctions.back());
-                size_t             loop_idx = &cl_extrusion - &closed_loop_extrusions.front();
-                ClipperLib_Z::Path loop_path;
-                loop_path.reserve(cl_extrusion->extrusion.junctions.size() - 1);
-                for (auto junction_it = cl_extrusion->extrusion.junctions.begin(); junction_it != std::prev(cl_extrusion->extrusion.junctions.end()); ++junction_it)
-                    loop_path.emplace_back(junction_it->p.x(), junction_it->p.y(), loop_idx);
-                loops_paths.emplace_back(loop_path);
-            }
-
-            ClipperLib_Z::Clipper clipper;
-            clipper.AddPaths(loops_paths, ClipperLib_Z::ptSubject, true);
-            ClipperLib_Z::PolyTree loops_polytree;
-            clipper.Execute(ClipperLib_Z::ctUnion, loops_polytree, ClipperLib_Z::pftEvenOdd, ClipperLib_Z::pftEvenOdd);
-
-            for (const ClipperLib_Z::PolyNode *child_node : loops_polytree.Childs) {
-                // The whole contour must have the same index.
-                coord_t polygon_idx  = child_node->Contour.front().z();
-                bool    has_same_idx = std::all_of(child_node->Contour.begin(), child_node->Contour.end(),
-                                                   [&polygon_idx](const ClipperLib_Z::IntPoint &point) -> bool { return polygon_idx == point.z(); });
-                if (has_same_idx)
-                    closed_loop_extrusions[polygon_idx]->fuzzify = true;
-            }
-        }
-    }
-
     if (ExtrusionEntityCollection extrusion_coll = traverse_extrusions(params, lower_slices_polygons_cache, ordered_extrusions); !extrusion_coll.empty())
         out_loops.append(extrusion_coll);
 
@@ -1421,20 +1397,18 @@ void PerimeterGenerator::process_classic(
                 break;
             }
             {
-                const bool fuzzify_contours = params.config.fuzzy_skin != FuzzySkinType::None && i == 0 && params.layer_id > 0;
-                const bool fuzzify_holes    = fuzzify_contours && params.config.fuzzy_skin == FuzzySkinType::All;
                 for (const ExPolygon &expolygon : offsets) {
 	                // Outer contour may overlap with an inner contour,
 	                // inner contour may overlap with another inner contour,
 	                // outer contour may overlap with itself.
 	                //FIXME evaluate the overlaps, annotate each point with an overlap depth,
                     // compensate for the depth of intersection.
-                    contours[i].emplace_back(expolygon.contour, i, true, fuzzify_contours);
+                    contours[i].emplace_back(expolygon.contour, i, true);
 
                     if (! expolygon.holes.empty()) {
                         holes[i].reserve(holes[i].size() + expolygon.holes.size());
                         for (const Polygon &hole : expolygon.holes)
-                            holes[i].emplace_back(hole, i, false, fuzzify_holes);
+                            holes[i].emplace_back(hole, i, false);
                     }
                 }
             }
