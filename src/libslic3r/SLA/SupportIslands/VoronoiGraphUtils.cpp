@@ -1006,6 +1006,33 @@ std::pair<Slic3r::Point, Slic3r::Point> VoronoiGraphUtils::point_on_lines(
     return {point_on_line(edge), point_on_line(edge->twin())};
 }
 
+namespace{
+using namespace Slic3r;
+using VD = Slic3r::Geometry::VoronoiDiagram;
+double get_distance_sq(const VD::edge_type &edge, const Point &point, double &edge_ratio) {
+    // TODO: find closest point on curve edge
+    // if (edge.is_linear()) {
+
+    // get line foot point, inspired Geometry::foot_pt
+    Vec2d v0 = VoronoiGraphUtils::to_point_d(edge.vertex0());
+    Vec2d v = point.cast<double>() - v0;
+    Vec2d v1 = VoronoiGraphUtils::to_point_d(edge.vertex1());
+    Vec2d edge_dir = v1 - v0;
+    double l2 = edge_dir.squaredNorm();
+    edge_ratio = v.dot(edge_dir) / l2;
+    // IMPROVE: not neccesary to calculate point if (edge_ratio > 1 || edge_ratio < 0)
+    Point edge_point;
+    if (edge_ratio > 1.)
+        edge_point = v1.cast<coord_t>();
+    else if (edge_ratio < 0.)
+        edge_point = v0.cast<coord_t>();
+    else { // foot point
+        edge_point = (v0 + edge_dir * edge_ratio).cast<coord_t>();
+    }
+    return (point - edge_point).cast<double>().squaredNorm();
+}
+}
+
 VoronoiGraph::Position VoronoiGraphUtils::align(
     const VoronoiGraph::Position &position, const Point &to, double max_distance)
 {
@@ -1036,7 +1063,7 @@ VoronoiGraph::Position VoronoiGraphUtils::align(
         process.emplace(node, max_distance);
     }
 
-    double closest_distance = std::numeric_limits<double>::max();
+    double closest_distance_sq = std::numeric_limits<double>::max();
     VoronoiGraph::Position closest;
 
     std::set<const VoronoiGraph::Node *> done;
@@ -1048,9 +1075,9 @@ VoronoiGraph::Position VoronoiGraphUtils::align(
         for (const auto &neighbor : nd.node->neighbors) {
             if (done.find(neighbor.node) != done.end()) continue;
             double ratio;
-            double distance = get_distance(*neighbor.edge, to, ratio);
-            if (closest_distance > distance) { 
-                closest_distance = distance;
+            double distance_sq = get_distance_sq(*neighbor.edge, to, ratio);
+            if (closest_distance_sq > distance_sq) { 
+                closest_distance_sq = distance_sq;
                 closest = VoronoiGraph::Position(&neighbor, ratio);
             }
             double from_start = nd.distance + neighbor.length();
@@ -1060,32 +1087,6 @@ VoronoiGraph::Position VoronoiGraphUtils::align(
     }
     return closest;
 }
-
-double VoronoiGraphUtils::get_distance(const VD::edge_type &edge,
-                                       const Point &        point,
-                                       double &             edge_ratio)
-{
-    // TODO: find closest point on curve edge
-    //if (edge.is_linear()) {
-    
-    // get line foot point, inspired Geometry::foot_pt
-    Vec2d v0 = to_point_d(edge.vertex0());
-    Vec2d v  = point.cast<double>() - v0;
-    Vec2d v1 = to_point_d(edge.vertex1());
-    Vec2d edge_dir = v1 - v0;
-    double l2 = edge_dir.squaredNorm();
-    edge_ratio = v.dot(edge_dir) / l2;
-    // IMPROVE: not neccesary to calculate point if (edge_ratio > 1 || edge_ratio < 0)
-    Point edge_point;
-    if (edge_ratio > 1.) edge_point = v1.cast<coord_t>();
-    else if (edge_ratio < 0.) edge_point = v0.cast<coord_t>();
-    else { // foot point
-        edge_point = (v0 + edge_dir * edge_ratio).cast<coord_t>();
-    }
-    double distance = (point - edge_point).cast<double>().norm();
-    return distance;
-}
-
 
 const VoronoiGraph::Node *VoronoiGraphUtils::getFirstContourNode(
     const VoronoiGraph &graph)

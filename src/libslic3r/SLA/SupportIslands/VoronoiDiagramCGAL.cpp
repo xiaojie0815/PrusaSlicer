@@ -167,9 +167,9 @@ std::optional<Slic3r::Line> to_line(
     const Halfedge_handle &edge,
     double maximal_distance
 ) {
+    // validation slow down a lot, Never appear during algorithm tunning
     assert(edge->is_valid());
-    if (!edge->is_valid())
-        return {};
+    //if (!edge->is_valid()) return {}; 
 
     if (edge->has_source()) {
         // source point of edge

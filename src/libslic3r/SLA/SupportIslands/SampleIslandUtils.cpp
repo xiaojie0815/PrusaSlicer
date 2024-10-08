@@ -579,7 +579,7 @@ coord_t SampleIslandUtils::align_once(
             continue; // do not align point with invalid cell
 
         // IMPROVE: add intersection polygon with expolygon
-        Polygons intersections = Slic3r::intersection(island, ExPolygon(cell_polygon));
+        Polygons intersections = Slic3r::intersection(cell_polygon, island);
         const Polygon *island_cell = nullptr;
         if (intersections.size() == 1) {
             island_cell = &intersections.front();
