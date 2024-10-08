@@ -206,8 +206,7 @@ static ExtrusionEntityCollection traverse_loops_classic(const PerimeterGenerator
 
     // loops is an arrayref of ::Loop objects
     // turn each one into an ExtrusionLoop object
-    ExtrusionEntityCollection   coll;
-    Polygon                     fuzzified;
+    ExtrusionEntityCollection coll;
     for (const PerimeterGeneratorLoop &loop : loops) {
         bool is_external = loop.is_external();
         
@@ -223,12 +222,8 @@ static ExtrusionEntityCollection traverse_loops_classic(const PerimeterGenerator
             loop_role = elrDefault;
         }
 
-        const bool    fuzzify  = should_fuzzify(params.config, params.layer_id, loop.depth, loop.is_contour);
-        const Polygon &polygon = fuzzify ? fuzzified : loop.polygon;
-        if (fuzzify) {
-            fuzzified = loop.polygon;
-            fuzzy_polygon(fuzzified, scaled<float>(params.config.fuzzy_skin_thickness.value), scaled<float>(params.config.fuzzy_skin_point_dist.value));
-        }
+        // Apply fuzzy skin if it is enabled for at least some part of the polygon.
+        const Polygon polygon = apply_fuzzy_skin(loop.polygon, params.config, params.perimeter_regions, params.layer_id, loop.depth, loop.is_contour);
 
         ExtrusionPaths paths;
         if (params.config.overhangs && params.layer_id > params.object_config.raft_layers &&
@@ -425,7 +420,7 @@ static ExtrusionEntityCollection traverse_extrusions(const PerimeterGenerator::P
 
     ExtrusionEntityCollection extrusion_coll;
     for (Arachne::PerimeterOrder::PerimeterExtrusion &pg_extrusion : pg_extrusions) {
-        Arachne::ExtrusionLine &extrusion = pg_extrusion.extrusion;
+        Arachne::ExtrusionLine extrusion = pg_extrusion.extrusion;
         if (extrusion.empty())
             continue;
 
@@ -433,9 +428,8 @@ static ExtrusionEntityCollection traverse_extrusions(const PerimeterGenerator::P
         ExtrusionRole role_normal   = is_external ? ExtrusionRole::ExternalPerimeter : ExtrusionRole::Perimeter;
         ExtrusionRole role_overhang = role_normal | ExtrusionRoleModifier::Bridge;
 
-        const bool fuzzify = should_fuzzify(params.config, params.layer_id, pg_extrusion.extrusion.inset_idx, !pg_extrusion.extrusion.is_closed || pg_extrusion.is_contour());
-        if (fuzzify)
-            fuzzy_extrusion_line(extrusion, scaled<float>(params.config.fuzzy_skin_thickness.value), scaled<float>(params.config.fuzzy_skin_point_dist.value));
+        // Apply fuzzy skin if it is enabled for at least some part of the ExtrusionLine.
+        extrusion = apply_fuzzy_skin(extrusion, params.config, params.perimeter_regions, params.layer_id, pg_extrusion.extrusion.inset_idx, !pg_extrusion.extrusion.is_closed || pg_extrusion.is_contour());
 
         ExtrusionPaths paths;
         // detect overhanging/bridging perimeters

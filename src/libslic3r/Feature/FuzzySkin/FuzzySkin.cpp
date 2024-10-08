@@ -1,5 +1,6 @@
 #include <random>
 
+#include "libslic3r/Algorithm/LineSegmentation/LineSegmentation.hpp"
 #include "libslic3r/Arachne/utils/ExtrusionJunction.hpp"
 #include "libslic3r/Arachne/utils/ExtrusionLine.hpp"
 #include "libslic3r/PerimeterGenerator.hpp"
@@ -131,6 +132,99 @@ bool should_fuzzify(const PrintRegionConfig &config, const size_t layer_idx, con
     const bool fuzzify_holes    = fuzzify_contours && fuzzy_skin_type == FuzzySkinType::All;
 
     return is_contour ? fuzzify_contours : fuzzify_holes;
+}
+
+Polygon apply_fuzzy_skin(const Polygon &polygon, const PrintRegionConfig &base_config, const PerimeterRegions &perimeter_regions, const size_t layer_idx, const size_t perimeter_idx, const bool is_contour)
+{
+    using namespace Slic3r::Algorithm::LineSegmentation;
+
+    auto apply_fuzzy_skin_on_polygon = [&layer_idx, &perimeter_idx, &is_contour](const Polygon &polygon, const PrintRegionConfig &config) -> Polygon {
+        if (should_fuzzify(config, layer_idx, perimeter_idx, is_contour)) {
+            Polygon fuzzified_polygon = polygon;
+            fuzzy_polygon(fuzzified_polygon, scaled<double>(config.fuzzy_skin_thickness.value), scaled<double>(config.fuzzy_skin_point_dist.value));
+
+            return fuzzified_polygon;
+        } else {
+            return polygon;
+        }
+    };
+
+    if (perimeter_regions.empty()) {
+        return apply_fuzzy_skin_on_polygon(polygon, base_config);
+    }
+
+    PolylineRegionSegments segments = polygon_segmentation(polygon, base_config, perimeter_regions);
+    if (segments.size() == 1) {
+        const PrintRegionConfig &config = segments.front().config;
+        return apply_fuzzy_skin_on_polygon(polygon, config);
+    }
+
+    Polygon fuzzified_polygon;
+    for (PolylineRegionSegment &segment : segments) {
+        const PrintRegionConfig &config = segment.config;
+        if (should_fuzzify(config, layer_idx, perimeter_idx, is_contour)) {
+            fuzzy_polyline(segment.polyline.points, false, scaled<double>(config.fuzzy_skin_thickness.value), scaled<double>(config.fuzzy_skin_point_dist.value));
+        }
+
+        assert(!segment.polyline.empty());
+        if (segment.polyline.empty()) {
+            continue;
+        } else if (!fuzzified_polygon.empty() && fuzzified_polygon.back() == segment.polyline.front()) {
+            // Remove the last point to avoid duplicate points.
+            fuzzified_polygon.points.pop_back();
+        }
+
+        Slic3r::append(fuzzified_polygon.points, std::move(segment.polyline.points));
+    }
+
+    assert(!fuzzified_polygon.empty());
+    if (fuzzified_polygon.front() == fuzzified_polygon.back()) {
+        // Remove the last point to avoid duplicity between the first and the last point.
+        fuzzified_polygon.points.pop_back();
+    }
+
+    return fuzzified_polygon;
+}
+
+Arachne::ExtrusionLine apply_fuzzy_skin(const Arachne::ExtrusionLine &extrusion, const PrintRegionConfig &base_config, const PerimeterRegions &perimeter_regions, const size_t layer_idx, const size_t perimeter_idx, const bool is_contour)
+{
+    using namespace Slic3r::Algorithm::LineSegmentation;
+    using namespace Slic3r::Arachne;
+
+    if (perimeter_regions.empty()) {
+        if (should_fuzzify(base_config, layer_idx, perimeter_idx, is_contour)) {
+            ExtrusionLine fuzzified_extrusion = extrusion;
+            fuzzy_extrusion_line(fuzzified_extrusion, scaled<double>(base_config.fuzzy_skin_thickness.value), scaled<double>(base_config.fuzzy_skin_point_dist.value));
+
+            return fuzzified_extrusion;
+        } else {
+            return extrusion;
+        }
+    }
+
+    ExtrusionRegionSegments segments = extrusion_segmentation(extrusion, base_config, perimeter_regions);
+    ExtrusionLine           fuzzified_extrusion;
+
+    for (ExtrusionRegionSegment &segment : segments) {
+        const PrintRegionConfig &config = segment.config;
+        if (should_fuzzify(config, layer_idx, perimeter_idx, is_contour)) {
+            fuzzy_extrusion_line(segment.extrusion, scaled<double>(config.fuzzy_skin_thickness.value), scaled<double>(config.fuzzy_skin_point_dist.value));
+        }
+
+        assert(!segment.extrusion.empty());
+        if (segment.extrusion.empty()) {
+            continue;
+        } else if (!fuzzified_extrusion.empty() && fuzzified_extrusion.back().p == segment.extrusion.front().p) {
+            // Remove the last point to avoid duplicate points (We don't care if the width of both points is different.).
+            fuzzified_extrusion.junctions.pop_back();
+        }
+
+        Slic3r::append(fuzzified_extrusion.junctions, std::move(segment.extrusion.junctions));
+    }
+
+    assert(!fuzzified_extrusion.empty());
+
+    return fuzzified_extrusion;
 }
 
 } // namespace Slic3r::Feature::FuzzySkin
