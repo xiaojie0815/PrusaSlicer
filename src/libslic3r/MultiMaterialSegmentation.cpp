@@ -524,7 +524,7 @@ static void remove_multiple_edges_in_vertex(const VD::vertex_type &vertex) {
 // It iterates through all nodes on the border between two different colors, and from this point,
 // start selection always left most edges for every node to construct CCW polygons.
 static std::vector<ExPolygons> extract_colored_segments(const std::vector<ColoredLines> &colored_polygons,
-                                                        const size_t                     num_extruders,
+                                                        const size_t                     num_facets_states,
                                                         const size_t                     layer_idx)
 {
     const ColoredLines colored_lines = to_lines(colored_polygons);
@@ -606,7 +606,7 @@ static std::vector<ExPolygons> extract_colored_segments(const std::vector<Colore
     }
 
     // Sixth, extract the colored segments from the annotated Voronoi diagram.
-    std::vector<ExPolygons> segmented_expolygons_per_extruder(num_extruders + 1);
+    std::vector<ExPolygons> segmented_expolygons_per_extruder(num_facets_states);
     for (const Voronoi::VD::cell_type &cell : vd.cells()) {
         if (cell.is_degenerate() || !cell.contains_segment())
             continue;
@@ -657,7 +657,7 @@ static void cut_segmented_layers(const std::vector<ExPolygons>        &input_exp
                                  const float                           interlocking_depth,
                                  const std::function<void()>          &throw_on_cancel_callback)
 {
-    BOOST_LOG_TRIVIAL(debug) << "MM segmentation - Cutting segmented layers in parallel - Begin";
+    BOOST_LOG_TRIVIAL(debug) << "Print object segmentation - Cutting segmented layers in parallel - Begin";
     const float interlocking_cut_width = interlocking_depth > 0.f ? std::max(cut_width - interlocking_depth, 0.f) : 0.f;
     tbb::parallel_for(tbb::blocked_range<size_t>(0, segmented_regions.size()),[&segmented_regions, &input_expolygons, &cut_width, &interlocking_cut_width, &throw_on_cancel_callback](const tbb::blocked_range<size_t>& range) {
         for (size_t layer_idx = range.begin(); layer_idx < range.end(); ++layer_idx) {
@@ -673,7 +673,7 @@ static void cut_segmented_layers(const std::vector<ExPolygons>        &input_exp
             }
         }
     }); // end of parallel_for
-    BOOST_LOG_TRIVIAL(debug) << "MM segmentation - Cutting segmented layers in parallel - End";
+    BOOST_LOG_TRIVIAL(debug) << "Print object segmentation - Cutting segmented layers in parallel - End";
 }
 
 static bool is_volume_sinking(const indexed_triangle_set &its, const Transform3d &trafo) {
@@ -686,7 +686,8 @@ static bool is_volume_sinking(const indexed_triangle_set &its, const Transform3d
     return false;
 }
 
-static inline ExPolygons trim_by_top_or_bottom_layer(ExPolygons expolygons_to_trim, const size_t top_or_bottom_layer_idx,  const std::vector<std::vector<Polygons>> &top_or_bottom_raw_by_extruder) {
+static inline ExPolygons trim_by_top_or_bottom_layer(ExPolygons expolygons_to_trim, const size_t top_or_bottom_layer_idx,  const std::vector<std::vector<Polygons>> &top_or_bottom_raw_by_extruder)
+{
     for (const std::vector<Polygons> &top_or_bottom_raw : top_or_bottom_raw_by_extruder) {
         if (top_or_bottom_raw.empty())
             continue;
@@ -699,15 +700,16 @@ static inline ExPolygons trim_by_top_or_bottom_layer(ExPolygons expolygons_to_tr
     return expolygons_to_trim;
 }
 
-// Returns MM segmentation of top and bottom layers based on painting in MM segmentation gizmo
-static inline std::vector<std::vector<ExPolygons>> mm_segmentation_top_and_bottom_layers(const PrintObject             &print_object,
-                                                                                         const std::vector<ExPolygons> &input_expolygons,
-                                                                                         const std::function<void()>   &throw_on_cancel_callback)
+// Returns segmentation of top and bottom layers based on painting in segmentation gizmos.
+static inline std::vector<std::vector<ExPolygons>> segmentation_top_and_bottom_layers(const PrintObject                                               &print_object,
+                                                                                      const std::vector<ExPolygons>                                   &input_expolygons,
+                                                                                      const std::function<ModelVolumeFacetsInfo(const ModelVolume &)> &extract_facets_info,
+                                                                                      const size_t                                                     num_facets_states,
+                                                                                      const std::function<void()>                                     &throw_on_cancel_callback)
 {
-    BOOST_LOG_TRIVIAL(debug) << "MM segmentation - Segmentation of top and bottom layers in parallel - Begin";
-    const size_t num_extruders = print_object.print()->config().nozzle_diameter.size() + 1;
-    const size_t num_layers    = input_expolygons.size();
-    const SpanOfConstPtrs<Layer> layers = print_object.layers();
+    BOOST_LOG_TRIVIAL(debug) << "Print object segmentation - Segmentation of top and bottom layers in parallel - Begin";
+    const size_t                 num_layers = input_expolygons.size();
+    const SpanOfConstPtrs<Layer> layers     = print_object.layers();
 
     // Maximum number of top / bottom layers accounts for maximum overlap of one thread group into a neighbor thread group.
     int max_top_layers = 0;
@@ -722,7 +724,7 @@ static inline std::vector<std::vector<ExPolygons>> mm_segmentation_top_and_botto
 
     // Project upwards pointing painted triangles over top surfaces,
     // project downards pointing painted triangles over bottom surfaces.
-    std::vector<std::vector<Polygons>> top_raw(num_extruders), bottom_raw(num_extruders);
+    std::vector<std::vector<Polygons>> top_raw(num_facets_states), bottom_raw(num_facets_states);
     std::vector<float> zs = zs_from_layers(layers);
     Transform3d        object_trafo = print_object.trafo_centered();
 
@@ -730,8 +732,8 @@ static inline std::vector<std::vector<ExPolygons>> mm_segmentation_top_and_botto
         for (const ModelVolume *mv : print_object.model_object()->volumes)
             if (mv->is_model_part()) {
                 const Transform3d volume_trafo = object_trafo * mv->get_matrix();
-                for (size_t extruder_idx = 0; extruder_idx < num_extruders; ++ extruder_idx) {
-                    const indexed_triangle_set painted = mv->mm_segmentation_facets.get_facets_strict(*mv, TriangleStateType(extruder_idx));
+                for (size_t extruder_idx = 0; extruder_idx < num_facets_states; ++extruder_idx) {
+                    const indexed_triangle_set painted = extract_facets_info(*mv).facets_annotation.get_facets_strict(*mv, TriangleStateType(extruder_idx));
 
                     if constexpr (MM_SEGMENTATION_DEBUG_TOP_BOTTOM) {
                         its_write_obj(painted, debug_out_path("mm-painted-patch-%d.obj", extruder_idx).c_str());
@@ -779,8 +781,8 @@ static inline std::vector<std::vector<ExPolygons>> mm_segmentation_top_and_botto
             }
     }
 
-    auto filter_out_small_polygons = [&num_extruders, &num_layers](std::vector<std::vector<Polygons>> &raw_surfaces, double min_area) -> void {
-        for (size_t extruder_idx = 0; extruder_idx < num_extruders; ++extruder_idx) {
+    auto filter_out_small_polygons = [&num_facets_states, &num_layers](std::vector<std::vector<Polygons>> &raw_surfaces, double min_area) -> void {
+        for (size_t extruder_idx = 0; extruder_idx < num_facets_states; ++extruder_idx) {
             if (raw_surfaces[extruder_idx].empty())
                 continue;
 
@@ -798,7 +800,7 @@ static inline std::vector<std::vector<ExPolygons>> mm_segmentation_top_and_botto
     filter_out_small_polygons(bottom_raw, Slic3r::sqr(POLYGON_FILTER_MIN_AREA_SCALED));
 
     // Remove top and bottom surfaces that are covered by the previous or next sliced layer.
-    for (size_t extruder_idx = 0; extruder_idx < num_extruders; ++extruder_idx) {
+    for (size_t extruder_idx = 0; extruder_idx < num_facets_states; ++extruder_idx) {
         for (size_t layer_idx = 0; layer_idx < num_layers; ++layer_idx) {
             const bool has_top_surface    = !top_raw[extruder_idx].empty() && !top_raw[extruder_idx][layer_idx].empty();
             const bool has_bottom_surface = !bottom_raw[extruder_idx].empty() && !bottom_raw[extruder_idx][layer_idx].empty();
@@ -817,7 +819,7 @@ static inline std::vector<std::vector<ExPolygons>> mm_segmentation_top_and_botto
         const std::vector<std::string> colors = {"aqua", "black", "blue", "fuchsia", "gray", "green", "lime", "maroon", "navy", "olive", "purple", "red", "silver", "teal", "yellow"};
         for (size_t layer_id = 0; layer_id < zs.size(); ++layer_id) {
             std::vector<std::pair<Slic3r::ExPolygons, SVG::ExPolygonAttributes>> svg;
-            for (size_t extruder_idx = 0; extruder_idx < num_extruders; ++extruder_idx) {
+            for (size_t extruder_idx = 0; extruder_idx < num_facets_states; ++extruder_idx) {
                 if (!top_raw[extruder_idx].empty() && !top_raw[extruder_idx][layer_id].empty()) {
                     if (ExPolygons expoly = union_ex(top_raw[extruder_idx][layer_id]); !expoly.empty()) {
                         const std::string &color = colors[extruder_idx];
@@ -837,10 +839,10 @@ static inline std::vector<std::vector<ExPolygons>> mm_segmentation_top_and_botto
         }
     }
 
-    std::vector<std::vector<ExPolygons>> triangles_by_color_bottom(num_extruders);
-    std::vector<std::vector<ExPolygons>> triangles_by_color_top(num_extruders);
-    triangles_by_color_bottom.assign(num_extruders, std::vector<ExPolygons>(num_layers * 2));
-    triangles_by_color_top.assign(num_extruders, std::vector<ExPolygons>(num_layers * 2));
+    std::vector<std::vector<ExPolygons>> triangles_by_color_bottom(num_facets_states);
+    std::vector<std::vector<ExPolygons>> triangles_by_color_top(num_facets_states);
+    triangles_by_color_bottom.assign(num_facets_states, std::vector<ExPolygons>(num_layers * 2));
+    triangles_by_color_top.assign(num_facets_states, std::vector<ExPolygons>(num_layers * 2));
 
     struct LayerColorStat {
         // Number of regions for a queried color.
@@ -878,12 +880,12 @@ static inline std::vector<std::vector<ExPolygons>> mm_segmentation_top_and_botto
         return out;
     };
 
-    tbb::parallel_for(tbb::blocked_range<size_t>(0, num_layers, granularity), [&granularity, &num_layers, &num_extruders, &layer_color_stat, &top_raw, &triangles_by_color_top,
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, num_layers, granularity), [&granularity, &num_layers, &num_facets_states, &layer_color_stat, &top_raw, &triangles_by_color_top,
                                                                                &throw_on_cancel_callback, &input_expolygons, &bottom_raw, &triangles_by_color_bottom](const tbb::blocked_range<size_t> &range) {
         size_t group_idx   = range.begin() / granularity;
         size_t layer_idx_offset = (group_idx & 1) * num_layers;
         for (size_t layer_idx = range.begin(); layer_idx < range.end(); ++ layer_idx) {
-            for (size_t color_idx = 0; color_idx < num_extruders; ++ color_idx) {
+            for (size_t color_idx = 0; color_idx < num_facets_states; ++color_idx) {
                 throw_on_cancel_callback();
                 LayerColorStat stat = layer_color_stat(layer_idx, color_idx);
                 if (std::vector<Polygons> &top = top_raw[color_idx]; !top.empty() && !top[layer_idx].empty()) {
@@ -949,8 +951,8 @@ static inline std::vector<std::vector<ExPolygons>> mm_segmentation_top_and_botto
         }
     });
 
-    std::vector<std::vector<ExPolygons>> triangles_by_color_merged(num_extruders);
-    triangles_by_color_merged.assign(num_extruders, std::vector<ExPolygons>(num_layers));
+    std::vector<std::vector<ExPolygons>> triangles_by_color_merged(num_facets_states);
+    triangles_by_color_merged.assign(num_facets_states, std::vector<ExPolygons>(num_layers));
     tbb::parallel_for(tbb::blocked_range<size_t>(0, num_layers), [&triangles_by_color_merged, &triangles_by_color_bottom, &triangles_by_color_top, &num_layers, &throw_on_cancel_callback](const tbb::blocked_range<size_t> &range) {
         for (size_t layer_idx = range.begin(); layer_idx < range.end(); ++ layer_idx) {
             throw_on_cancel_callback();
@@ -968,39 +970,42 @@ static inline std::vector<std::vector<ExPolygons>> mm_segmentation_top_and_botto
                                                                           triangles_by_color_merged[color_idx - 1][layer_idx]);
         }
     });
-    BOOST_LOG_TRIVIAL(debug) << "MM segmentation - Segmentation of top and bottom layers in parallel - End";
+    BOOST_LOG_TRIVIAL(debug) << "Print object segmentation - Segmentation of top and bottom layers in parallel - End";
 
     return triangles_by_color_merged;
 }
 
-static std::vector<std::vector<ExPolygons>> merge_segmented_layers(
-    const std::vector<std::vector<ExPolygons>> &segmented_regions,
-    std::vector<std::vector<ExPolygons>>     &&top_and_bottom_layers,
-    const size_t                               num_extruders,
-    const std::function<void()>               &throw_on_cancel_callback)
+static std::vector<std::vector<ExPolygons>> merge_segmented_layers(const std::vector<std::vector<ExPolygons>> &segmented_regions,
+                                                                   std::vector<std::vector<ExPolygons>>      &&top_and_bottom_layers,
+                                                                   const size_t                                num_facets_states,
+                                                                   const std::function<void()>                &throw_on_cancel_callback)
 {
     const size_t                         num_layers = segmented_regions.size();
     std::vector<std::vector<ExPolygons>> segmented_regions_merged(num_layers);
-    segmented_regions_merged.assign(num_layers, std::vector<ExPolygons>(num_extruders));
-    assert(num_extruders + 1 == top_and_bottom_layers.size());
+    segmented_regions_merged.assign(num_layers, std::vector<ExPolygons>(num_facets_states - 1));
+    assert(!top_and_bottom_layers.size() || num_facets_states == top_and_bottom_layers.size());
 
-    BOOST_LOG_TRIVIAL(debug) << "MM segmentation - Merging segmented layers in parallel - Begin";
-    tbb::parallel_for(tbb::blocked_range<size_t>(0, num_layers), [&segmented_regions, &top_and_bottom_layers, &segmented_regions_merged, &num_extruders, &throw_on_cancel_callback](const tbb::blocked_range<size_t> &range) {
+    BOOST_LOG_TRIVIAL(debug) << "Print object segmentation - Merging segmented layers in parallel - Begin";
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, num_layers), [&segmented_regions, &top_and_bottom_layers, &segmented_regions_merged, &num_facets_states, &throw_on_cancel_callback](const tbb::blocked_range<size_t> &range) {
         for (size_t layer_idx = range.begin(); layer_idx < range.end(); ++layer_idx) {
-            assert(segmented_regions[layer_idx].size() == num_extruders + 1);
+            assert(segmented_regions[layer_idx].size() == num_facets_states);
             // Zero is skipped because it is the default color of the volume
-            for (size_t extruder_id = 1; extruder_id < num_extruders + 1; ++extruder_id) {
+            for (size_t extruder_id = 1; extruder_id < num_facets_states; ++extruder_id) {
                 throw_on_cancel_callback();
                 if (!segmented_regions[layer_idx][extruder_id].empty()) {
                     ExPolygons segmented_regions_trimmed = segmented_regions[layer_idx][extruder_id];
-                    for (const std::vector<ExPolygons> &top_and_bottom_by_extruder : top_and_bottom_layers)
-                        if (!top_and_bottom_by_extruder[layer_idx].empty() && !segmented_regions_trimmed.empty())
-                            segmented_regions_trimmed = diff_ex(segmented_regions_trimmed, top_and_bottom_by_extruder[layer_idx]);
+                    if (!top_and_bottom_layers.empty()) {
+                        for (const std::vector<ExPolygons> &top_and_bottom_by_extruder : top_and_bottom_layers) {
+                            if (!top_and_bottom_by_extruder[layer_idx].empty() && !segmented_regions_trimmed.empty()) {
+                                segmented_regions_trimmed = diff_ex(segmented_regions_trimmed, top_and_bottom_by_extruder[layer_idx]);
+                            }
+                        }
+                    }
 
                     segmented_regions_merged[layer_idx][extruder_id - 1] = std::move(segmented_regions_trimmed);
                 }
 
-                if (!top_and_bottom_layers[extruder_id][layer_idx].empty()) {
+                if (!top_and_bottom_layers.empty() && !top_and_bottom_layers[extruder_id][layer_idx].empty()) {
                     bool was_top_and_bottom_empty = segmented_regions_merged[layer_idx][extruder_id - 1].empty();
                     append(segmented_regions_merged[layer_idx][extruder_id - 1], top_and_bottom_layers[extruder_id][layer_idx]);
 
@@ -1011,7 +1016,7 @@ static std::vector<std::vector<ExPolygons>> merge_segmented_layers(
             }
         }
     }); // end of parallel_for
-    BOOST_LOG_TRIVIAL(debug) << "MM segmentation - Merging segmented layers in parallel - End";
+    BOOST_LOG_TRIVIAL(debug) << "Print object segmentation - Merging segmented layers in parallel - End";
 
     return segmented_regions_merged;
 }
@@ -1602,25 +1607,30 @@ static void update_color_changes_using_color_projection_ranges(std::vector<Color
     }
 }
 
-static indexed_triangle_set_with_color extract_mesh_with_color(const ModelVolume &volume) {
-    if (const int volume_extruder_id = volume.extruder_id(); !volume.is_mm_painted() && volume_extruder_id >= 0) {
-        const TriangleMesh &mesh = volume.mesh();
-        return {mesh.its.indices, mesh.its.vertices, std::vector<uint8_t>(mesh.its.indices.size(), uint8_t(volume_extruder_id))};
-    }
-
-    return volume.mm_segmentation_facets.get_all_facets_strict_with_colors(volume);
-}
-
-static std::vector<ColorPolygons> slice_model_volume_with_color(const ModelVolume &model_volume, const std::vector<float> &layer_zs, const PrintObject &print_object)
+static std::vector<ColorPolygons> slice_model_volume_with_color(const ModelVolume                                              &model_volume,
+                                                               const std::function<ModelVolumeFacetsInfo(const ModelVolume &)> &extract_facets_info,
+                                                               const std::vector<float>                                        &layer_zs,
+                                                               const PrintObject                                               &print_object)
 {
-    const indexed_triangle_set_with_color mesh_with_color = extract_mesh_with_color(model_volume);
+    const ModelVolumeFacetsInfo facets_info = extract_facets_info(model_volume);
+
+    const auto extract_mesh_with_color = [&model_volume, &facets_info]() -> indexed_triangle_set_with_color {
+        if (const int volume_extruder_id = model_volume.extruder_id(); facets_info.replace_default_extruder && !facets_info.is_painted && volume_extruder_id >= 0) {
+            const TriangleMesh &mesh = model_volume.mesh();
+            return {mesh.its.indices, mesh.its.vertices, std::vector<uint8_t>(mesh.its.indices.size(), uint8_t(volume_extruder_id))};
+        }
+
+        return facets_info.facets_annotation.get_all_facets_strict_with_colors(model_volume);
+    };
+
+    const indexed_triangle_set_with_color mesh_with_color = extract_mesh_with_color();
     const Transform3d                     trafo           = print_object.trafo_centered() * model_volume.get_matrix();
     const MeshSlicingParams               slicing_params{trafo};
 
     std::vector<ColorPolygons> color_polygons_per_layer = slice_mesh(mesh_with_color, layer_zs, slicing_params);
 
     // Replace default painted color (TriangleStateType::NONE) with volume extruder.
-    if (const int volume_extruder_id = model_volume.extruder_id(); volume_extruder_id > 0 && model_volume.is_mm_painted()) {
+    if (const int volume_extruder_id = model_volume.extruder_id(); facets_info.replace_default_extruder && facets_info.is_painted && volume_extruder_id > 0) {
         for (ColorPolygons &color_polygons : color_polygons_per_layer) {
             for (ColorPolygon &color_polygon : color_polygons) {
                 std::replace(color_polygon.colors.begin(), color_polygon.colors.end(), static_cast<uint8_t>(TriangleStateType::NONE), static_cast<uint8_t>(volume_extruder_id));
@@ -1631,9 +1641,14 @@ static std::vector<ColorPolygons> slice_model_volume_with_color(const ModelVolum
     return color_polygons_per_layer;
 }
 
-std::vector<std::vector<ExPolygons>> multi_material_segmentation_by_painting(const PrintObject &print_object, const std::function<void()> &throw_on_cancel_callback)
+std::vector<std::vector<ExPolygons>> segmentation_by_painting(const PrintObject                                               &print_object,
+                                                              const std::function<ModelVolumeFacetsInfo(const ModelVolume &)> &extract_facets_info,
+                                                              const size_t                                                     num_facets_states,
+                                                              const float                                                      segmentation_max_width,
+                                                              const float                                                      segmentation_interlocking_depth,
+                                                              const IncludeTopAndBottomLayers                                  include_top_and_bottom_layers,
+                                                              const std::function<void()>                                     &throw_on_cancel_callback)
 {
-    const size_t                                   num_extruders = print_object.print()->config().nozzle_diameter.size();
     const size_t                                   num_layers    = print_object.layers().size();
     const SpanOfConstPtrs<Layer>                   layers        = print_object.layers();
 
@@ -1642,7 +1657,7 @@ std::vector<std::vector<ExPolygons>> multi_material_segmentation_by_painting(con
     std::vector<std::vector<ColorLines>>           color_polygons_lines_layers(num_layers);
 
     // Merge all regions and remove small holes
-    BOOST_LOG_TRIVIAL(debug) << "MM segmentation - Slices preprocessing in parallel - Begin";
+    BOOST_LOG_TRIVIAL(debug) << "Print object segmentation - Slices preprocessing in parallel - Begin";
     tbb::parallel_for(tbb::blocked_range<size_t>(0, num_layers), [&layers, &input_expolygons, &input_polygons_projection_lines_layers, &throw_on_cancel_callback](const tbb::blocked_range<size_t> &range) {
         for (size_t layer_idx = range.begin(); layer_idx < range.end(); ++layer_idx) {
             throw_on_cancel_callback();
@@ -1674,12 +1689,12 @@ std::vector<std::vector<ExPolygons>> multi_material_segmentation_by_painting(con
             }
         }
     }); // end of parallel_for
-    BOOST_LOG_TRIVIAL(debug) << "MM segmentation - Slices preprocessing in parallel - End";
+    BOOST_LOG_TRIVIAL(debug) << "Print object segmentation - Slices preprocessing in parallel - End";
 
-    BOOST_LOG_TRIVIAL(debug) << "MM segmentation - Slicing painted triangles - Begin";
+    BOOST_LOG_TRIVIAL(debug) << "Print object segmentation - Slicing painted triangles - Begin";
     const std::vector<float> layer_zs = get_print_object_layers_zs(layers);
     for (const ModelVolume *mv : print_object.model_object()->volumes) {
-        std::vector<ColorPolygons> color_polygons_per_layer = slice_model_volume_with_color(*mv, layer_zs, print_object);
+        std::vector<ColorPolygons> color_polygons_per_layer = slice_model_volume_with_color(*mv, extract_facets_info, layer_zs, print_object);
 
         tbb::parallel_for(tbb::blocked_range<size_t>(0, num_layers), [&color_polygons_per_layer, &color_polygons_lines_layers, &throw_on_cancel_callback](const tbb::blocked_range<size_t> &range) {
             for (size_t layer_idx = range.begin(); layer_idx < range.end(); ++layer_idx) {
@@ -1710,7 +1725,7 @@ std::vector<std::vector<ExPolygons>> multi_material_segmentation_by_painting(con
             }
         }); // end of parallel_for
     }
-    BOOST_LOG_TRIVIAL(debug) << "MM segmentation - Slicing painted triangles - End";
+    BOOST_LOG_TRIVIAL(debug) << "Print object segmentation - Slicing painted triangles - End";
 
     if constexpr (MM_SEGMENTATION_DEBUG_FILTERED_COLOR_LINES) {
         for (size_t layer_idx = 0; layer_idx < print_object.layers().size(); ++layer_idx) {
@@ -1719,7 +1734,7 @@ std::vector<std::vector<ExPolygons>> multi_material_segmentation_by_painting(con
     }
 
     // Project sliced ColorPolygons on sliced layers (input_expolygons).
-    BOOST_LOG_TRIVIAL(debug) << "MM segmentation - Projection of painted triangles - Begin";
+    BOOST_LOG_TRIVIAL(debug) << "Print object segmentation - Projection of painted triangles - Begin";
     tbb::parallel_for(tbb::blocked_range<size_t>(0, num_layers), [&color_polygons_lines_layers, &input_polygons_projection_lines_layers, &throw_on_cancel_callback](const tbb::blocked_range<size_t> &range) {
         for (size_t layer_idx = range.begin(); layer_idx < range.end(); ++layer_idx) {
             throw_on_cancel_callback();
@@ -1766,12 +1781,12 @@ std::vector<std::vector<ExPolygons>> multi_material_segmentation_by_painting(con
     BOOST_LOG_TRIVIAL(debug) << "MM segmentation - Projection of painted triangles - End";
 
     std::vector<std::vector<ExPolygons>>  segmented_regions(num_layers);
-    segmented_regions.assign(num_layers, std::vector<ExPolygons>(num_extruders + 1));
+    segmented_regions.assign(num_layers, std::vector<ExPolygons>(num_facets_states));
 
     // Be aware that after the projection of the ColorPolygons and its postprocessing isn't
     // ensured that consistency of the color_prev. So, only color_next can be used.
-    BOOST_LOG_TRIVIAL(debug) << "MM segmentation - Layers segmentation in parallel - Begin";
-    tbb::parallel_for(tbb::blocked_range<size_t>(0, num_layers), [&input_polygons_projection_lines_layers, &segmented_regions, &input_expolygons, &num_extruders, &throw_on_cancel_callback](const tbb::blocked_range<size_t> &range) {
+    BOOST_LOG_TRIVIAL(debug) << "Print object segmentation - Layers segmentation in parallel - Begin";
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, num_layers), [&input_polygons_projection_lines_layers, &segmented_regions, &input_expolygons, &num_facets_states, &throw_on_cancel_callback](const tbb::blocked_range<size_t> &range) {
         for (size_t layer_idx = range.begin(); layer_idx < range.end(); ++layer_idx) {
             throw_on_cancel_callback();
 
@@ -1797,7 +1812,7 @@ std::vector<std::vector<ExPolygons>> multi_material_segmentation_by_painting(con
                 assert(!colored_polygons.front().empty());
                 segmented_regions[layer_idx][size_t(colored_polygons.front().front().color)] = input_expolygons[layer_idx];
             } else {
-                segmented_regions[layer_idx] = extract_colored_segments(colored_polygons, num_extruders, layer_idx);
+                segmented_regions[layer_idx] = extract_colored_segments(colored_polygons, num_facets_states, layer_idx);
             }
 
             if constexpr (MM_SEGMENTATION_DEBUG_REGIONS) {
@@ -1805,19 +1820,22 @@ std::vector<std::vector<ExPolygons>> multi_material_segmentation_by_painting(con
             }
         }
     }); // end of parallel_for
-    BOOST_LOG_TRIVIAL(debug) << "MM segmentation - Layers segmentation in parallel - End";
+    BOOST_LOG_TRIVIAL(debug) << "Print object segmentation - Layers segmentation in parallel - End";
     throw_on_cancel_callback();
 
     // The first index is extruder number (includes default extruder), and the second one is layer number
-    std::vector<std::vector<ExPolygons>> top_and_bottom_layers = mm_segmentation_top_and_bottom_layers(print_object, input_expolygons, throw_on_cancel_callback);
-    throw_on_cancel_callback();
-
-    if (auto max_width = print_object.config().mmu_segmented_region_max_width, interlocking_depth = print_object.config().mmu_segmented_region_interlocking_depth; max_width > 0.f) {
-        cut_segmented_layers(input_expolygons, segmented_regions, float(scale_(max_width)), float(scale_(interlocking_depth)), throw_on_cancel_callback);
+    std::vector<std::vector<ExPolygons>> top_and_bottom_layers;
+    if (include_top_and_bottom_layers == IncludeTopAndBottomLayers::Yes) {
+        top_and_bottom_layers = segmentation_top_and_bottom_layers(print_object, input_expolygons, extract_facets_info, num_facets_states, throw_on_cancel_callback);
         throw_on_cancel_callback();
     }
 
-    std::vector<std::vector<ExPolygons>> segmented_regions_merged = merge_segmented_layers(segmented_regions, std::move(top_and_bottom_layers), num_extruders, throw_on_cancel_callback);
+    if (segmentation_max_width > 0.f) {
+        cut_segmented_layers(input_expolygons, segmented_regions, scaled<float>(segmentation_max_width), scaled<float>(segmentation_interlocking_depth), throw_on_cancel_callback);
+        throw_on_cancel_callback();
+    }
+
+    std::vector<std::vector<ExPolygons>> segmented_regions_merged = merge_segmented_layers(segmented_regions, std::move(top_and_bottom_layers), num_facets_states, throw_on_cancel_callback);
     throw_on_cancel_callback();
 
     if constexpr (MM_SEGMENTATION_DEBUG_REGIONS) {
@@ -1828,5 +1846,30 @@ std::vector<std::vector<ExPolygons>> multi_material_segmentation_by_painting(con
 
     return segmented_regions_merged;
 }
+
+// Returns multi-material segmentation based on painting in multi-material segmentation gizmo
+std::vector<std::vector<ExPolygons>> multi_material_segmentation_by_painting(const PrintObject &print_object, const std::function<void()> &throw_on_cancel_callback) {
+    const size_t num_facets_states  = print_object.print()->config().nozzle_diameter.size() + 1;
+    const float  max_width          = float(print_object.config().mmu_segmented_region_max_width.value);
+    const float  interlocking_depth = float(print_object.config().mmu_segmented_region_interlocking_depth.value);
+
+    const auto extract_facets_info = [](const ModelVolume &mv) -> ModelVolumeFacetsInfo {
+        return {mv.mm_segmentation_facets, mv.is_mm_painted(), true};
+    };
+
+    return segmentation_by_painting(print_object, extract_facets_info, num_facets_states, max_width, interlocking_depth, IncludeTopAndBottomLayers::Yes, throw_on_cancel_callback);
+}
+
+// Returns fuzzy skin segmentation based on painting in fuzzy skin segmentation gizmo
+std::vector<std::vector<ExPolygons>> fuzzy_skin_segmentation_by_painting(const PrintObject &print_object, const std::function<void()> &throw_on_cancel_callback) {
+    const size_t num_facets_states = 2; // Unpainted facets and facets painted with fuzzy skin.
+
+    const auto extract_facets_info = [](const ModelVolume &mv) -> ModelVolumeFacetsInfo {
+        return {mv.fuzzy_skin_facets, mv.is_fuzzy_skin_painted(), false};
+    };
+
+    return segmentation_by_painting(print_object, extract_facets_info, num_facets_states, 0.f, 0.f, IncludeTopAndBottomLayers::No, throw_on_cancel_callback);
+}
+
 
 } // namespace Slic3r
