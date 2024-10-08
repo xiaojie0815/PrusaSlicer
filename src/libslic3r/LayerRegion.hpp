@@ -29,6 +29,9 @@ class PrintObject;
 using LayerPtrs = std::vector<Layer*>;
 class PrintRegion;
 
+struct PerimeterRegion;
+using PerimeterRegions = std::vector<PerimeterRegion>;
+
 // Range of indices, providing support for range based loops.
 template<typename T>
 class IndexRange
@@ -119,6 +122,8 @@ public:
     void    make_perimeters(
         // Input slices for which the perimeters, gap fills and fill expolygons are to be generated.
         const SurfaceCollection                                &slices,
+        // Configuration regions that will be applied to parts of created perimeters.
+        const PerimeterRegions                                 &perimeter_regions,
         // Ranges of perimeter extrusions and gap fill extrusions per suface, referencing
         // newly created extrusions stored at this LayerRegion.
         std::vector<std::pair<ExtrusionRange, ExtrusionRange>> &perimeter_and_gapfill_ranges,

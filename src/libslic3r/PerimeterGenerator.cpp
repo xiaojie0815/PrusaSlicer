@@ -42,7 +42,9 @@
 #include "Arachne/utils/ExtrusionJunction.hpp"
 #include "libslic3r.h"
 #include "libslic3r/Flow.hpp"
+#include "libslic3r/LayerRegion.hpp"
 #include "libslic3r/Line.hpp"
+#include "libslic3r/Print.hpp"
 
 //#define ARACHNE_DEBUG
 
@@ -1542,6 +1544,45 @@ void PerimeterGenerator::process_classic(
     }
     
     append(out_fill_expolygons, std::move(infill_areas));
+}
+
+PerimeterRegion::PerimeterRegion(const LayerRegion &layer_region) : region(&layer_region.region())
+{
+    this->expolygons = to_expolygons(layer_region.slices().surfaces);
+    this->bbox       = get_extents(this->expolygons);
+}
+
+bool PerimeterRegion::has_compatible_perimeter_regions(const PrintRegionConfig &config, const PrintRegionConfig &other_config)
+{
+    return config.fuzzy_skin            == other_config.fuzzy_skin &&
+           config.fuzzy_skin_thickness  == other_config.fuzzy_skin_thickness &&
+           config.fuzzy_skin_point_dist == other_config.fuzzy_skin_point_dist;
+}
+
+void PerimeterRegion::merge_compatible_perimeter_regions(PerimeterRegions &perimeter_regions)
+{
+    if (perimeter_regions.size() <= 1) {
+        return;
+    }
+
+    PerimeterRegions perimeter_regions_merged;
+    for (auto it_curr_region = perimeter_regions.begin(); it_curr_region != perimeter_regions.end();) {
+        PerimeterRegion current_merge  = *it_curr_region;
+        auto            it_next_region = std::next(it_curr_region);
+        for (; it_next_region != perimeter_regions.end() && has_compatible_perimeter_regions(it_next_region->region->config(), it_curr_region->region->config()); ++it_next_region) {
+            Slic3r::append(current_merge.expolygons, std::move(it_next_region->expolygons));
+            current_merge.bbox.merge(it_next_region->bbox);
+        }
+
+        if (std::distance(it_curr_region, it_next_region) > 1) {
+            current_merge.expolygons = union_ex(current_merge.expolygons);
+        }
+
+        perimeter_regions_merged.emplace_back(std::move(current_merge));
+        it_curr_region = it_next_region;
+    }
+
+    perimeter_regions = perimeter_regions_merged;
 }
 
 }
