@@ -1555,11 +1555,12 @@ void GLCanvas3D::toggle_model_objects_visibility(bool visible, const ModelObject
                     auto gizmo_type = gm.get_current_type();
                     if (  (gizmo_type == GLGizmosManager::FdmSupports
                         || gizmo_type == GLGizmosManager::Seam
-                        || gizmo_type == GLGizmosManager::Cut)
+                        || gizmo_type == GLGizmosManager::Cut
+                        || gizmo_type == GLGizmosManager::FuzzySkin)
                         && !vol->is_modifier) {
                         vol->force_neutral_color = true;
                     }
-                    else if (gizmo_type == GLGizmosManager::MmuSegmentation)
+                    else if (gizmo_type == GLGizmosManager::MmSegmentation)
                         vol->is_active = false;
                     else
                         vol->force_native_color = true;
@@ -3149,8 +3150,9 @@ void GLCanvas3D::on_key(wxKeyEvent& evt)
     const GLGizmosManager::EType gizmo_type = m_gizmos.get_current_type();
     if (keyCode == WXK_ALT && (gizmo_type == GLGizmosManager::FdmSupports ||
                                gizmo_type == GLGizmosManager::Seam ||
-                               gizmo_type == GLGizmosManager::MmuSegmentation)) {
-        // Prevents focusing on the menu bar when ALT is pressed in painting gizmos (FdmSupports, Seam, and MmuSegmentation).
+                               gizmo_type == GLGizmosManager::MmSegmentation ||
+                               gizmo_type == GLGizmosManager::FuzzySkin)) {
+        // Prevents focusing on the menu bar when ALT is pressed in painting gizmos (FdmSupports, Seam, MmSegmentation, and FuzzySkin).
         evt.Skip(false);
     } else if (keyCode != WXK_TAB
         && keyCode != WXK_LEFT
@@ -3359,7 +3361,7 @@ void GLCanvas3D::on_mouse(wxMouseEvent& evt)
         m_dirty = true;
         // do not return if dragging or tooltip not empty to allow for tooltip update
         // also, do not return if the mouse is moving and also is inside MM gizmo to allow update seed fill selection
-        if (!m_mouse.dragging && m_tooltip.is_empty() && (m_gizmos.get_current_type() != GLGizmosManager::MmuSegmentation || !evt.Moving()))
+        if (!m_mouse.dragging && m_tooltip.is_empty() && (m_gizmos.get_current_type() != GLGizmosManager::MmSegmentation || !evt.Moving()))
             return;
     }
 
@@ -3540,7 +3542,8 @@ void GLCanvas3D::on_mouse(wxMouseEvent& evt)
                     m_gizmos.get_current_type() != GLGizmosManager::Seam &&
                     m_gizmos.get_current_type() != GLGizmosManager::Cut &&
                     m_gizmos.get_current_type() != GLGizmosManager::Measure &&
-                    m_gizmos.get_current_type() != GLGizmosManager::MmuSegmentation) {
+                    m_gizmos.get_current_type() != GLGizmosManager::MmSegmentation &&
+                    m_gizmos.get_current_type() != GLGizmosManager::FuzzySkin) {
                     m_rectangle_selection.start_dragging(m_mouse.position, evt.ShiftDown() ? GLSelectionRectangle::EState::Select : GLSelectionRectangle::EState::Deselect);
                     m_dirty = true;
                 }
@@ -5797,7 +5800,8 @@ void GLCanvas3D::_render_bed(const Transform3d& view_matrix, const Transform3d& 
           && m_gizmos.get_current_type() != GLGizmosManager::SlaSupports
           && m_gizmos.get_current_type() != GLGizmosManager::Hollow
           && m_gizmos.get_current_type() != GLGizmosManager::Seam
-          && m_gizmos.get_current_type() != GLGizmosManager::MmuSegmentation);
+          && m_gizmos.get_current_type() != GLGizmosManager::MmSegmentation
+          && m_gizmos.get_current_type() != GLGizmosManager::FuzzySkin);
 
     m_bed.render(*this, view_matrix, projection_matrix, bottom, scale_factor, show_texture);
 }
@@ -5950,12 +5954,13 @@ void GLCanvas3D::_render_sequential_clearance()
     {
     case GLGizmosManager::EType::Flatten:
     case GLGizmosManager::EType::Cut:
-    case GLGizmosManager::EType::MmuSegmentation:
+    case GLGizmosManager::EType::MmSegmentation:
     case GLGizmosManager::EType::Measure:
     case GLGizmosManager::EType::Emboss:
     case GLGizmosManager::EType::Simplify:
     case GLGizmosManager::EType::FdmSupports:
-    case GLGizmosManager::EType::Seam: { return; }
+    case GLGizmosManager::EType::Seam:
+    case GLGizmosManager::EType::FuzzySkin: { return; }
     default: { break; }
     }
  

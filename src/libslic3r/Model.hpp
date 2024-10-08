@@ -393,6 +393,8 @@ public:
     bool                    is_seam_painted() const;
     // Checks if any of object volume is painted using the multi-material painting gizmo.
     bool                    is_mm_painted() const;
+    // Checks if any of object volume is painted using the fuzzy skin painting gizmo.
+    bool                    is_fuzzy_skin_painted() const;
     // Checks if object contains just one volume and it's a text
     bool                    is_text() const;
     // This object may have a varying layer height by painting or by a table.
@@ -802,6 +804,9 @@ public:
     // List of mesh facets painted for MM segmentation.
     FacetsAnnotation    mm_segmentation_facets;
 
+    // List of mesh facets painted for fuzzy skin.
+    FacetsAnnotation    fuzzy_skin_facets;
+
     // Is set only when volume is Embossed Text type
     // Contain information how to re-create volume
     std::optional<TextConfiguration> text_configuration;
@@ -906,11 +911,13 @@ public:
         this->supported_facets.set_new_unique_id();
         this->seam_facets.set_new_unique_id();
         this->mm_segmentation_facets.set_new_unique_id();
+        this->fuzzy_skin_facets.set_new_unique_id();
     }
 
     bool is_fdm_support_painted() const { return !this->supported_facets.empty(); }
     bool is_seam_painted() const { return !this->seam_facets.empty(); }
     bool is_mm_painted() const { return !this->mm_segmentation_facets.empty(); }
+    bool is_fuzzy_skin_painted() const { return !this->fuzzy_skin_facets.empty(); }
 
     // Returns 0-based indices of extruders painted by multi-material painting gizmo.
     std::vector<size_t> get_extruders_from_multi_material_painting() const;
@@ -958,10 +965,12 @@ private:
         assert(this->supported_facets.id().valid());
         assert(this->seam_facets.id().valid());
         assert(this->mm_segmentation_facets.id().valid());
+        assert(this->fuzzy_skin_facets.id().valid());
         assert(this->id() != this->config.id());
         assert(this->id() != this->supported_facets.id());
         assert(this->id() != this->seam_facets.id());
         assert(this->id() != this->mm_segmentation_facets.id());
+        assert(this->id() != this->fuzzy_skin_facets.id());
         return true;
     }
 
@@ -988,13 +997,14 @@ private:
         name(other.name), source(other.source), m_mesh(other.m_mesh), m_convex_hull(other.m_convex_hull),
         config(other.config), m_type(other.m_type), object(object), m_transformation(other.m_transformation),
         supported_facets(other.supported_facets), seam_facets(other.seam_facets), mm_segmentation_facets(other.mm_segmentation_facets),
-        cut_info(other.cut_info), text_configuration(other.text_configuration), emboss_shape(other.emboss_shape)
+        fuzzy_skin_facets(other.fuzzy_skin_facets), cut_info(other.cut_info), text_configuration(other.text_configuration), emboss_shape(other.emboss_shape)
     {
 		assert(this->id().valid()); 
         assert(this->config.id().valid()); 
         assert(this->supported_facets.id().valid());
         assert(this->seam_facets.id().valid());
         assert(this->mm_segmentation_facets.id().valid());
+        assert(this->fuzzy_skin_facets.id().valid());
         assert(this->id() != this->config.id());
         assert(this->id() != this->supported_facets.id());
         assert(this->id() != this->seam_facets.id());
@@ -1004,6 +1014,7 @@ private:
         assert(this->supported_facets.id() == other.supported_facets.id());
         assert(this->seam_facets.id() == other.seam_facets.id());
         assert(this->mm_segmentation_facets.id() == other.mm_segmentation_facets.id());
+        assert(this->fuzzy_skin_facets.id() == other.fuzzy_skin_facets.id());
         this->set_material_id(other.material_id());
     }
     // Providing a new mesh, therefore this volume will get a new unique ID assigned.
@@ -1016,10 +1027,12 @@ private:
         assert(this->supported_facets.id().valid());
         assert(this->seam_facets.id().valid());
         assert(this->mm_segmentation_facets.id().valid());
+        assert(this->fuzzy_skin_facets.id().valid());
         assert(this->id() != this->config.id());
         assert(this->id() != this->supported_facets.id());
         assert(this->id() != this->seam_facets.id());
         assert(this->id() != this->mm_segmentation_facets.id());
+        assert(this->id() != this->fuzzy_skin_facets.id());
 		assert(this->id() != other.id());
         assert(this->config.id() == other.config.id());
         this->set_material_id(other.material_id());
@@ -1031,10 +1044,12 @@ private:
         assert(this->supported_facets.id() != other.supported_facets.id());
         assert(this->seam_facets.id() != other.seam_facets.id());
         assert(this->mm_segmentation_facets.id() != other.mm_segmentation_facets.id());
+        assert(this->fuzzy_skin_facets.id() != other.fuzzy_skin_facets.id());
         assert(this->id() != this->config.id());
         assert(this->supported_facets.empty());
         assert(this->seam_facets.empty());
         assert(this->mm_segmentation_facets.empty());
+        assert(this->fuzzy_skin_facets.empty());
     }
 
     ModelVolume& operator=(ModelVolume &rhs) = delete;
@@ -1042,12 +1057,13 @@ private:
 	friend class cereal::access;
 	friend class UndoRedo::StackImpl;
 	// Used for deserialization, therefore no IDs are allocated.
-	ModelVolume() : ObjectBase(-1), config(-1), supported_facets(-1), seam_facets(-1), mm_segmentation_facets(-1), object(nullptr) {
+	ModelVolume() : ObjectBase(-1), config(-1), supported_facets(-1), seam_facets(-1), mm_segmentation_facets(-1), fuzzy_skin_facets(-1), object(nullptr) {
 		assert(this->id().invalid());
         assert(this->config.id().invalid());
         assert(this->supported_facets.id().invalid());
         assert(this->seam_facets.id().invalid());
         assert(this->mm_segmentation_facets.id().invalid());
+        assert(this->fuzzy_skin_facets.id().invalid());
 	}
 	template<class Archive> void load(Archive &ar) {
 		bool has_convex_hull;
@@ -1055,6 +1071,7 @@ private:
         cereal::load_by_value(ar, supported_facets);
         cereal::load_by_value(ar, seam_facets);
         cereal::load_by_value(ar, mm_segmentation_facets);
+        cereal::load_by_value(ar, fuzzy_skin_facets);
         cereal::load_by_value(ar, config);
         cereal::load(ar, text_configuration);
         cereal::load(ar, emboss_shape);
@@ -1073,6 +1090,7 @@ private:
         cereal::save_by_value(ar, supported_facets);
         cereal::save_by_value(ar, seam_facets);
         cereal::save_by_value(ar, mm_segmentation_facets);
+        cereal::save_by_value(ar, fuzzy_skin_facets);
         cereal::save_by_value(ar, config);
         cereal::save(ar, text_configuration);
         cereal::save(ar, emboss_shape);
@@ -1337,6 +1355,8 @@ public:
     bool          is_seam_painted() const;
     // Checks if any of objects is painted using the multi-material painting gizmo.
     bool          is_mm_painted() const;
+    // Checks if any of objects is painted using the fuzzy skin painting gizmo.
+    bool          is_fuzzy_skin_painted() const;
 
 private:
     explicit Model(int) : ObjectBase(-1) { assert(this->id().invalid()); }
@@ -1380,6 +1400,10 @@ bool model_custom_seam_data_changed(const ModelObject& mo, const ModelObject& mo
 // Test whether the now ModelObject has newer MMU segmentation data than the old one.
 // The function assumes that volumes list is synchronized.
 extern bool model_mmu_segmentation_data_changed(const ModelObject& mo, const ModelObject& mo_new);
+
+// Test whether the now ModelObject has newer fuzzy skin data than the old one.
+// The function assumes that volumes list is synchronized.
+extern bool model_fuzzy_skin_data_changed(const ModelObject &mo, const ModelObject &mo_new);
 
 // If the model has object(s) which contains a modofoer, then it is currently not supported by the SLA mode.
 // Either the model cannot be loaded, or a SLA printer has to be activated.

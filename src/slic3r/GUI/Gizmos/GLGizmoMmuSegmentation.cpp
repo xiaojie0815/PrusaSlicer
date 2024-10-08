@@ -560,7 +560,7 @@ void GLGizmoMmuSegmentation::update_from_model_object()
 
 PainterGizmoType GLGizmoMmuSegmentation::get_painter_type() const
 {
-    return PainterGizmoType::MMU_SEGMENTATION;
+    return PainterGizmoType::MM_SEGMENTATION;
 }
 
 ColorRGBA GLGizmoMmuSegmentation::get_cursor_sphere_left_button_color() const

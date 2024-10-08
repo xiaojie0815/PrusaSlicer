@@ -1921,11 +1921,18 @@ void ObjectList::del_info_item(const int obj_idx, InfoItemType type)
         }
         break;
 
-    case InfoItemType::MmuSegmentation:
+    case InfoItemType::MmSegmentation:
         cnv->get_gizmos_manager().reset_all_states();
         Plater::TakeSnapshot(plater, _L("Remove Multi Material painting"));
         for (ModelVolume* mv : (*m_objects)[obj_idx]->volumes)
             mv->mm_segmentation_facets.reset();
+        break;
+
+    case InfoItemType::FuzzySkin:
+        cnv->get_gizmos_manager().reset_all_states();
+        Plater::TakeSnapshot(plater, _L("Remove paint-on fuzzy skin"));
+        for (ModelVolume* mv : (*m_objects)[obj_idx]->volumes)
+            mv->fuzzy_skin_facets.reset();
         break;
 
     case InfoItemType::Sinking:
@@ -2132,8 +2139,8 @@ void ObjectList::split()
 
     take_snapshot(_(L("Split to Parts")));
 
-    // Before splitting volume we have to remove all custom supports, seams, and multimaterial painting.
-    wxGetApp().plater()->clear_before_change_mesh(obj_idx, _u8L("Custom supports, seams and multimaterial painting were "
+    // Before splitting volume we have to remove all custom supports, seams, fuzzy skin and multi-material painting.
+    wxGetApp().plater()->clear_before_change_mesh(obj_idx, _u8L("Custom supports, seams, fuzzy skin and multi-material painting were "
                                                                 "removed after splitting the object."));
 
     volume->split(nozzle_dmrs_cnt);
@@ -2148,8 +2155,8 @@ void ObjectList::split()
     // update printable state for new volumes on canvas3D
     wxGetApp().plater()->canvas3D()->update_instance_printable_state_for_object(obj_idx);
 
-    // After removing custom supports, seams, and multimaterial painting, we have to update info about the object to remove information about
-    // custom supports, seams, and multimaterial painting in the right panel.
+    // After removing custom supports, seams, fuzzy skin, and multi-material painting, we have to update info about the object to remove information about
+    // custom supports, seams, fuzzy skin, and multi-material painting in the right panel.
     wxGetApp().obj_list()->update_info_items(obj_idx);
 }
 
@@ -2727,11 +2734,13 @@ void ObjectList::part_selection_changed()
                     }
                     case InfoItemType::CustomSupports:
                     case InfoItemType::CustomSeam:
-                    case InfoItemType::MmuSegmentation:
+                    case InfoItemType::MmSegmentation:
+                    case InfoItemType::FuzzySkin:
                     {
                         GLGizmosManager::EType gizmo_type = info_type == InfoItemType::CustomSupports   ? GLGizmosManager::EType::FdmSupports :
                                                             info_type == InfoItemType::CustomSeam       ? GLGizmosManager::EType::Seam :
-                                                            GLGizmosManager::EType::MmuSegmentation;
+                                                            info_type == InfoItemType::FuzzySkin        ? GLGizmosManager::EType::FuzzySkin :
+                                                            GLGizmosManager::EType::MmSegmentation;
                         if (gizmos_mgr.get_current_type() != gizmo_type)
                             gizmos_mgr.open_gizmo(gizmo_type);
                         break;
@@ -2901,7 +2910,8 @@ void ObjectList::update_info_items(size_t obj_idx, wxDataViewItemArray* selectio
     for (InfoItemType type : {InfoItemType::CustomSupports,
                               InfoItemType::CustomSeam,
                               InfoItemType::CutConnectors,
-                              InfoItemType::MmuSegmentation,
+                              InfoItemType::MmSegmentation,
+                              InfoItemType::FuzzySkin,
                               InfoItemType::Sinking,
                               InfoItemType::VariableLayerHeight}) {
         wxDataViewItem item = m_objects_model->GetInfoItemByType(item_obj, type);
@@ -2911,12 +2921,14 @@ void ObjectList::update_info_items(size_t obj_idx, wxDataViewItemArray* selectio
         switch (type) {
         case InfoItemType::CustomSupports :
         case InfoItemType::CustomSeam :
-        case InfoItemType::MmuSegmentation :
+        case InfoItemType::MmSegmentation :
+        case InfoItemType::FuzzySkin :
             should_show = printer_technology() == ptFFF
                        && std::any_of(model_object->volumes.begin(), model_object->volumes.end(),
                                       [type](const ModelVolume *mv) {
                                           return !(type == InfoItemType::CustomSupports ? mv->supported_facets.empty() :
                                                    type == InfoItemType::CustomSeam     ? mv->seam_facets.empty() :
+                                                   type == InfoItemType::FuzzySkin      ? mv->fuzzy_skin_facets.empty() :
                                                                                           mv->mm_segmentation_facets.empty());
                                       });
             break;
@@ -4642,7 +4654,7 @@ void ObjectList::fix_through_winsdk()
             msg += "\n";
         }
 
-        plater->clear_before_change_mesh(obj_idx, _u8L("Custom supports, seams and multimaterial painting were "
+        plater->clear_before_change_mesh(obj_idx, _u8L("Custom supports, seams, fuzzy skin and multimaterial painting were "
                                                        "removed after repairing the mesh."));
         std::string res;
         if (!fix_model_by_win10_sdk_gui(*(object(obj_idx)), vol_idx, progress_dlg, msg, res))
@@ -4982,11 +4994,6 @@ ModelObject* ObjectList::object(const int obj_idx) const
         return nullptr;
 
     return (*m_objects)[obj_idx];
-}
-
-bool ObjectList::has_paint_on_segmentation()
-{
-    return m_objects_model->HasInfoItem(InfoItemType::MmuSegmentation);
 }
 
 } //namespace GUI
