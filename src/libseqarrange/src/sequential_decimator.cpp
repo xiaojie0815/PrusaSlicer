@@ -140,7 +140,7 @@ void save_DecimatedPolygons(const CommandParameters            &command_paramete
 
     Point nozzle_offset(-command_parameters.x_nozzle, -command_parameters.y_nozzle);
 	
-    for (int i = 0; i < decimated_polygons.size(); ++i)
+    for (unsigned int i = 0; i < decimated_polygons.size(); ++i)
     {
 	out << "[" << i << "]" << endl;
 	out << "{" << endl;
@@ -176,11 +176,11 @@ int decimate_Polygons(const CommandParameters &command_parameters)
 
     printf("  Decimating objects (polygons) ...\n");
 
-    for (int i = 0; i < objects_to_print.size(); ++i)
+    for (unsigned int i = 0; i < objects_to_print.size(); ++i)
     {
-	for (int j = 0; j < objects_to_print[i].pgns_at_height.size(); ++j)
+	for (unsigned int j = 0; j < objects_to_print[i].pgns_at_height.size(); ++j)
 	{
-	    coord_t height = objects_to_print[i].pgns_at_height[j].first;
+	    //coord_t height = objects_to_print[i].pgns_at_height[j].first;
 
 	    if (!objects_to_print[i].pgns_at_height[j].second.points.empty())
 	    {
@@ -200,7 +200,7 @@ int decimate_Polygons(const CommandParameters &command_parameters)
 
     Point nozzle_offset(-command_parameters.x_nozzle, -command_parameters.y_nozzle);
 	
-    for (int i = 0; i < decimated_polygons.size(); ++i)
+    for (unsigned int i = 0; i < decimated_polygons.size(); ++i)
     {
 	printf("  [%d]\n", i);
 	Slic3r::Polygon	shift_polygon = decimated_polygons[i];
@@ -225,7 +225,7 @@ int decimate_Polygons(const CommandParameters &command_parameters)
     string svg_filename = "sequential_decimator.svg";
     SVG preview_svg(svg_filename);    
 
-    for (int i = 0; i < decimated_polygons.size(); ++i)
+    for (unsigned int i = 0; i < decimated_polygons.size(); ++i)
     {
 	Polygon transformed_polygon;
 	Polygon shift_polygon = decimated_polygons[i];
@@ -237,8 +237,8 @@ int decimate_Polygons(const CommandParameters &command_parameters)
 	    transformed_polygon = transform_UpsideDown(solver_configuration,
 						       scaleUp_PolygonForSlicer(1,
 										shift_polygon,
-										rand() % (solver_configuration.maximum_X_bounding_box_size * SEQ_SLICER_SCALE_FACTOR),
-										rand() % (solver_configuration.maximum_Y_bounding_box_size * SEQ_SLICER_SCALE_FACTOR)));
+										rand() % (solver_configuration.x_plate_bounding_box_size * SEQ_SLICER_SCALE_FACTOR),
+										rand() % (solver_configuration.y_plate_bounding_box_size * SEQ_SLICER_SCALE_FACTOR)));
 	}
 	else
 	{
@@ -345,9 +345,9 @@ int decimate_Polygons(const CommandParameters &command_parameters)
     }
 
     Polygon bed_polygon({ { 0, 0},
-			  { solver_configuration.maximum_X_bounding_box_size, 0 },
-			  { solver_configuration.maximum_X_bounding_box_size, solver_configuration.maximum_Y_bounding_box_size},
-			  { 0, solver_configuration.maximum_Y_bounding_box_size} });		
+			  { solver_configuration.x_plate_bounding_box_size, 0 },
+			  { solver_configuration.x_plate_bounding_box_size, solver_configuration.y_plate_bounding_box_size},
+			  { 0, solver_configuration.y_plate_bounding_box_size} });		
     Polygon display_bed_polygon = scaleUp_PolygonForSlicer(SEQ_SVG_SCALE_FACTOR,
 							   bed_polygon,
 							   0,

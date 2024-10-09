@@ -523,7 +523,7 @@ Polygon transform_UpsideDown(const SolverConfiguration &solver_configuration, co
     for (unsigned int i = 0; i < poly.points.size(); ++i)
     {	
 	poly.points[i] = Point(poly.points[i].x(),
-			       (coord_t)(solver_configuration.maximum_Y_bounding_box_size * scale_factor - poly.points[i].y()));
+			       (coord_t)(solver_configuration.y_plate_bounding_box_size * scale_factor - poly.points[i].y()));
     }
 
     return poly;    
@@ -539,7 +539,7 @@ void transform_UpsideDown(const SolverConfiguration &solver_configuration, const
 void transform_UpsideDown(const SolverConfiguration &solver_configuration, coord_t scale_factor, const coord_t &scaled_x_pos, const coord_t &scaled_y_pos, coord_t &transformed_x_pos, coord_t &transformed_y_pos)
 {
     transformed_x_pos = scaled_x_pos;
-    transformed_y_pos = solver_configuration.maximum_Y_bounding_box_size * scale_factor - scaled_y_pos;
+    transformed_y_pos = solver_configuration.y_plate_bounding_box_size * scale_factor - scaled_y_pos;
 }
 
 
@@ -854,13 +854,13 @@ bool check_PolygonSize(const SolverConfiguration &solver_configuration, const Sl
     BoundingBox polygon_box = get_extents(polygon);
 
     coord_t x_size = polygon_box.max.x() - polygon_box.min.x();
-    if (x_size > solver_configuration.maximum_X_bounding_box_size)
+    if (x_size > solver_configuration.x_plate_bounding_box_size)
     {
 	return false;
     }
     
     coord_t y_size = polygon_box.max.y() - polygon_box.min.y();
-    if (y_size > solver_configuration.maximum_Y_bounding_box_size)
+    if (y_size > solver_configuration.y_plate_bounding_box_size)
     {
 	return false;
     }    
@@ -874,13 +874,13 @@ bool check_PolygonSize(const SolverConfiguration &solver_configuration, coord_t 
     BoundingBox polygon_box = get_extents(polygon);
 
     coord_t x_size = polygon_box.max.x() - polygon_box.min.x();
-    if (x_size > solver_configuration.maximum_X_bounding_box_size * scale_factor)
+    if (x_size > solver_configuration.x_plate_bounding_box_size * scale_factor)
     {
 	return false;
     }
     
     coord_t y_size = polygon_box.max.y() - polygon_box.min.y();
-    if (y_size > solver_configuration.maximum_Y_bounding_box_size * scale_factor)
+    if (y_size > solver_configuration.y_plate_bounding_box_size * scale_factor)
     {
 	return false;
     }    

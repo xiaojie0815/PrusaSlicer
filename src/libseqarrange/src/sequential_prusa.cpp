@@ -215,7 +215,7 @@ int solve_SequentialPrint(const CommandParameters &command_parameters)
 
     map<int, int> original_index_map;    
 
-    for (int i = 0; i < objects_to_print.size(); ++i)
+    for (unsigned int i = 0; i < objects_to_print.size(); ++i)
     {
 	Polygon nozzle_polygon;
 	Polygon extruder_polygon;
@@ -234,7 +234,7 @@ int solve_SequentialPrint(const CommandParameters &command_parameters)
 
 	if (command_parameters.printer_filename.empty())
 	{	    
-	    for (int j = 0; j < objects_to_print[i].pgns_at_height.size(); ++j)
+	    for (unsigned int j = 0; j < objects_to_print[i].pgns_at_height.size(); ++j)
 	    {
 		coord_t height = objects_to_print[i].pgns_at_height[j].first;
 		
@@ -344,7 +344,7 @@ int solve_SequentialPrint(const CommandParameters &command_parameters)
 	}
 		
 	SVG preview_svg("sequential_prusa.svg");	    	
-	for (int k = 0; k < unreachable_polygons.back().size(); ++k)
+	for (unsigned int k = 0; k < unreachable_polygons.back().size(); ++k)
 	{
 	    Polygon display_unreachable_polygon = transform_UpsideDown(solver_configuration, SEQ_SVG_SCALE_FACTOR, scaleUp_PolygonForSlicer(SEQ_SVG_SCALE_FACTOR, unreachable_polygons.back()[k], 0, 0));
 	    preview_svg.draw(display_unreachable_polygon, "lightgrey");   
@@ -361,7 +361,7 @@ int solve_SequentialPrint(const CommandParameters &command_parameters)
     //vector<int> original_index_map;
     vector<int> decided_polygons;
 
-    for (int index = 0; index < polygons.size(); ++index)
+    for (unsigned int index = 0; index < polygons.size(); ++index)
     {
 	polygon_index_map.push_back(index);
     }
@@ -412,7 +412,7 @@ int solve_SequentialPrint(const CommandParameters &command_parameters)
 	if (optimized)
 	{
 	    printf("Polygon positions:\n");
-	    for (int i = 0; i < decided_polygons.size(); ++i)
+	    for (unsigned int i = 0; i < decided_polygons.size(); ++i)
 	    {
 		printf("  [ID:%d,RID:%d] x:%.3f, y:%.3f (t:%.3f)\n",
 		       original_index_map[decided_polygons[i]],
@@ -422,13 +422,13 @@ int solve_SequentialPrint(const CommandParameters &command_parameters)
 		       times_T[decided_polygons[i]].as_double());
 	    }
 	    printf("Remaining polygons: %ld\n", remaining_polygons.size());
-	    for (int i = 0; i < remaining_polygons.size(); ++i)
+	    for (unsigned int i = 0; i < remaining_polygons.size(); ++i)
 	    {
 		printf("  ID:%d\n", original_index_map[remaining_polygons[i]]);
 	    }
 
 	    std::map<double, int> scheduled_polygons;
-	    for (int i = 0; i < decided_polygons.size(); ++i)
+	    for (unsigned int i = 0; i < decided_polygons.size(); ++i)
 	    {
 		scheduled_polygons.insert(std::pair<double, int>(times_T[decided_polygons[i]].as_double(), decided_polygons[i]));
 	    }
@@ -469,9 +469,9 @@ int solve_SequentialPrint(const CommandParameters &command_parameters)
 
 	    if (!unreachable_polygons.empty())
 	    {
-		for (int i = 0; i < decided_polygons.size(); ++i)
+		for (unsigned int i = 0; i < decided_polygons.size(); ++i)
 		{
-		    for (int j = 0; j < unreachable_polygons[decided_polygons[i]].size(); ++j)
+		    for (unsigned int j = 0; j < unreachable_polygons[decided_polygons[i]].size(); ++j)
 		    {
 			Polygon display_unreachable_polygon = transform_UpsideDown(solver_configuration, SEQ_SVG_SCALE_FACTOR, scaleUp_PolygonForSlicer(SEQ_SVG_SCALE_FACTOR,
 																			unreachable_polygons[decided_polygons[i]][j],
@@ -532,7 +532,7 @@ int solve_SequentialPrint(const CommandParameters &command_parameters)
 		}
 	    }
 
-	    for (int i = 0; i < decided_polygons.size(); ++i)
+	    for (unsigned int i = 0; i < decided_polygons.size(); ++i)
 	    {
 		Polygon display_polygon = transform_UpsideDown(solver_configuration, SEQ_SVG_SCALE_FACTOR, scaleUp_PolygonForSlicer(SEQ_SVG_SCALE_FACTOR,
 																    polygons[decided_polygons[i]],
@@ -635,7 +635,7 @@ int solve_SequentialPrint(const CommandParameters &command_parameters)
 		preview_svg.draw(display_polygon, color);
 	    }
 	    std::map<double, int>::const_iterator scheduled_polygon = scheduled_polygons.begin();
-	    for (int i = 0; i < decided_polygons.size(); ++i, ++scheduled_polygon)
+	    for (unsigned int i = 0; i < decided_polygons.size(); ++i, ++scheduled_polygon)
 	    {
 		coord_t sx, sy, x, y;
 		
@@ -682,9 +682,9 @@ int solve_SequentialPrint(const CommandParameters &command_parameters)
 		preview_svg.draw_text(Point(x, y), ("ID:" + std::to_string(original_index_map[decided_polygons[i]]) + " T:" + std::to_string(times_T[decided_polygons[i]].as_int64())).c_str(), text_color.c_str());
 	    }
 	    Polygon plate_polygon({ { 0, 0},
-				  { solver_configuration.maximum_X_bounding_box_size, 0 },
-				  { solver_configuration.maximum_X_bounding_box_size, solver_configuration.maximum_Y_bounding_box_size},
-				  { 0, solver_configuration.maximum_Y_bounding_box_size} });		
+				  { solver_configuration.x_plate_bounding_box_size, 0 },
+				  { solver_configuration.x_plate_bounding_box_size, solver_configuration.y_plate_bounding_box_size},
+				  { 0, solver_configuration.y_plate_bounding_box_size} });		
 	    Polygon display_plate_polygon = scaleUp_PolygonForSlicer(SEQ_SVG_SCALE_FACTOR,
 								     plate_polygon,
 								     0,
@@ -725,13 +725,13 @@ int solve_SequentialPrint(const CommandParameters &command_parameters)
 
 	#ifdef DEBUG
 	{
-	    for (int i = 0; i < polygon_index_map.size(); ++i)
+	    for (unsigned int i = 0; i < polygon_index_map.size(); ++i)
 	    {
 		printf("  %d\n", polygon_index_map[i]);
 	    }
 	}
 	#endif
-	for (int i = 0; i < remaining_polygons.size(); ++i)
+	for (unsigned int i = 0; i < remaining_polygons.size(); ++i)
 	{
 	    next_polygons.push_back(polygons[remaining_polygons[i]]);	    	    
 	    next_unreachable_polygons.push_back(unreachable_polygons[remaining_polygons[i]]);
@@ -748,7 +748,7 @@ int solve_SequentialPrint(const CommandParameters &command_parameters)
 	//vector<int> next_original_index_map;
 	map<int, int> next_original_index_map;
 
-	for (int index = 0; index < polygons.size(); ++index)
+	for (unsigned int index = 0; index < polygons.size(); ++index)
 	{
 	    next_polygon_index_map.push_back(index);
 	    next_original_index_map[index] = original_index_map[remaining_polygons[index]];

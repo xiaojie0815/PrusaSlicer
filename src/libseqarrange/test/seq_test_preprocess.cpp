@@ -51,7 +51,7 @@ Polygon scale_UP(const Polygon &polygon)
 {
     Polygon poly = polygon;
 
-    for (int i = 0; i < poly.points.size(); ++i)
+    for (unsigned int i = 0; i < poly.points.size(); ++i)
     {
 	poly.points[i] = Point(poly.points[i].x() * SCALE_FACTOR, poly.points[i].y() * SCALE_FACTOR);
     }
@@ -64,7 +64,7 @@ Polygon scale_UP(const Polygon &polygon, double x_pos, double y_pos)
 {
     Polygon poly = polygon;
 
-    for (int i = 0; i < poly.points.size(); ++i)
+    for (unsigned int i = 0; i < poly.points.size(); ++i)
     {	
 	poly.points[i] = Point(poly.points[i].x() * SCALE_FACTOR + x_pos * SCALE_FACTOR,
 			       poly.points[i].y() * SCALE_FACTOR + y_pos * SCALE_FACTOR);
@@ -85,14 +85,14 @@ void test_preprocess_1(void)
     SolverConfiguration solver_configuration;    
 
     start = clock();
-    for (int i = 0; i < PRUSA_PART_POLYGONS.size(); ++i)
+    for (unsigned int i = 0; i < PRUSA_PART_POLYGONS.size(); ++i)
     {
 	Polygon scale_down_polygon;
 	scaleDown_PolygonForSequentialSolver(PRUSA_PART_POLYGONS[i], scale_down_polygon);       
 	test_polygons.push_back(scale_down_polygon);
     }
 
-    for (int i = 0; i < test_polygons.size(); ++i)
+    for (unsigned int i = 0; i < test_polygons.size(); ++i)
     {
 	SVG preview_svg("preprocess_test_1.svg");
 	Polygon display_polygon = scale_UP(test_polygons[i], 1000, 1000);
@@ -122,7 +122,7 @@ void test_preprocess_2(void)
     vector<Polygon> polygons;
     vector<Polygon> unreachable_polygons;
     
-    for (int i = 0; i < PRUSA_PART_POLYGONS.size(); ++i)
+    for (unsigned int i = 0; i < PRUSA_PART_POLYGONS.size(); ++i)
     {
 	Polygon scale_down_polygon;
 	scaleDown_PolygonForSequentialSolver(PRUSA_PART_POLYGONS[i], scale_down_polygon);
@@ -135,7 +135,7 @@ void test_preprocess_2(void)
     vector<int> polygon_index_map;
     vector<int> decided_polygons;
 
-    for (int index = 0; index < polygons.size(); ++index)
+    for (unsigned int index = 0; index < polygons.size(); ++index)
     {
 	polygon_index_map.push_back(index);
     }
@@ -164,12 +164,12 @@ void test_preprocess_2(void)
 	if (optimized)
 	{
 	    printf("Polygon positions:\n");
-	    for (int i = 0; i < decided_polygons.size(); ++i)
+	    for (unsigned int i = 0; i < decided_polygons.size(); ++i)
 	    {
 		printf("  [%d] %.3f, %.3f (%.3f)\n", decided_polygons[i], poly_positions_X[decided_polygons[i]].as_double(), poly_positions_Y[decided_polygons[i]].as_double(), times_T[decided_polygons[i]].as_double());
 	    }
 	    printf("Remaining polygons: %ld\n", remaining_polygons.size());
-	    for (int i = 0; i < remaining_polygons.size(); ++i)
+	    for (unsigned int i = 0; i < remaining_polygons.size(); ++i)
 	    {
 		printf("  %d\n", remaining_polygons[i]);
 	    }
@@ -178,7 +178,7 @@ void test_preprocess_2(void)
 
 	    if (!unreachable_polygons.empty())
 	    {
-		for (int i = 0; i < decided_polygons.size(); ++i)
+		for (unsigned int i = 0; i < decided_polygons.size(); ++i)
 		{
 		    /*
 		    printf("----> %.3f,%.3f\n", poly_positions_X[decided_polygons[i]].as_double(), poly_positions_Y[decided_polygons[i]].as_double());		    
@@ -187,7 +187,7 @@ void test_preprocess_2(void)
 			printf("    xy: %d, %d\n", polygons[decided_polygons[i]].points[k].x(), polygons[decided_polygons[i]].points[k].y());
 		    }
 		    */		    
-//		    for (int j = 0; j < unreachable_polygons[decided_polygons[i]].size(); ++j)
+//		    for (unsigned int j = 0; j < unreachable_polygons[decided_polygons[i]].size(); ++j)
 		    {
 			/*
 			for (int k = 0; k < unreachable_polygons[decided_polygons[i]][j].points.size(); ++k)
@@ -203,7 +203,7 @@ void test_preprocess_2(void)
 		}
 	    }	    
 
-	    for (int i = 0; i < decided_polygons.size(); ++i)
+	    for (unsigned int i = 0; i < decided_polygons.size(); ++i)
 	    {
 		Polygon display_polygon = scale_UP(polygons[decided_polygons[i]],
 						   poly_positions_X[decided_polygons[i]].as_double(),
@@ -295,11 +295,11 @@ void test_preprocess_2(void)
 	vector<Polygon> next_polygons;
 	vector<Polygon> next_unreachable_polygons;
 
-	for (int i = 0; i < polygon_index_map.size(); ++i)
+	for (unsigned int i = 0; i < polygon_index_map.size(); ++i)
 	{
 	    printf("  %d\n", polygon_index_map[i]);
 	}
-	for (int i = 0; i < remaining_polygons.size(); ++i)
+	for (unsigned int i = 0; i < remaining_polygons.size(); ++i)
 	{
 	    next_polygons.push_back(polygons[remaining_polygons[i]]);	    	    
 	    next_unreachable_polygons.push_back(unreachable_polygons[remaining_polygons[i]]);
@@ -312,7 +312,7 @@ void test_preprocess_2(void)
 	polygons = next_polygons;
 	unreachable_polygons = next_unreachable_polygons;
 
-	for (int index = 0; index < polygons.size(); ++index)
+	for (unsigned int index = 0; index < polygons.size(); ++index)
 	{
 	    polygon_index_map.push_back(index);
 	}
@@ -340,7 +340,7 @@ void test_preprocess_3(void)
     std::vector<Slic3r::Polygon> hose_unreachable_polygons;
     std::vector<Slic3r::Polygon> gantry_unreachable_polygons;            
 
-    for (int p = 0; p < PRUSA_PART_POLYGONS.size(); ++p)
+    for (unsigned int p = 0; p < PRUSA_PART_POLYGONS.size(); ++p)
     {
 	{
 	    nozzle_unreachable_polygons.clear();
@@ -354,14 +354,14 @@ void test_preprocess_3(void)
 
 	    //preview_svg.draw(PRUSA_PART_POLYGONS[p], "blue");
 
-	    for (int j = 0; j < SEQ_UNREACHABLE_POLYGON_NOZZLE_LEVEL_MK3S.size(); ++j)
+	    for (unsigned int j = 0; j < SEQ_UNREACHABLE_POLYGON_NOZZLE_LEVEL_MK3S.size(); ++j)
 	    {
 		preview_svg.draw(SEQ_UNREACHABLE_POLYGON_NOZZLE_LEVEL_MK3S[j], "lightgrey");
 	    }
 	    
 	    if (!nozzle_unreachable_polygons.empty())
 	    {
-		for (int j = 0; j < nozzle_unreachable_polygons.size(); ++j)
+		for (unsigned int j = 0; j < nozzle_unreachable_polygons.size(); ++j)
 		{
 		    preview_svg.draw(nozzle_unreachable_polygons[j], "lightgrey");		    
 		}		
@@ -385,14 +385,14 @@ void test_preprocess_3(void)
 	    //preview_svg.draw(PRUSA_PART_POLYGONS[p], "blue");
 
 	
-	    for (int j = 0; j < SEQ_UNREACHABLE_POLYGON_NOZZLE_LEVEL_MK3S.size(); ++j)
+	    for (unsigned int j = 0; j < SEQ_UNREACHABLE_POLYGON_NOZZLE_LEVEL_MK3S.size(); ++j)
 	    {
 		preview_svg.draw(SEQ_UNREACHABLE_POLYGON_NOZZLE_LEVEL_MK3S[j], "lightgrey");
 	    }
 	
 	    if (!nozzle_unreachable_polygons.empty())
 	    {
-		for (int j = 0; j < nozzle_unreachable_polygons.size(); ++j)
+		for (unsigned int j = 0; j < nozzle_unreachable_polygons.size(); ++j)
 		{
 		    preview_svg.draw(nozzle_unreachable_polygons[j], "lightgrey");		    
 		}		
@@ -415,14 +415,14 @@ void test_preprocess_3(void)
 
 	    //preview_svg.draw(PRUSA_PART_POLYGONS[p], "blue");
 
-	    for (int j = 0; j < SEQ_UNREACHABLE_POLYGON_EXTRUDER_LEVEL_MK3S.size(); ++j)
+	    for (unsigned int j = 0; j < SEQ_UNREACHABLE_POLYGON_EXTRUDER_LEVEL_MK3S.size(); ++j)
 	    {
 		preview_svg.draw(SEQ_UNREACHABLE_POLYGON_EXTRUDER_LEVEL_MK3S[j], "lightgrey");
 	    }
 	    
 	    if (!extruder_unreachable_polygons.empty())
 	    {
-		for (int j = 0; j < extruder_unreachable_polygons.size(); ++j)
+		for (unsigned int j = 0; j < extruder_unreachable_polygons.size(); ++j)
 		{
 		    preview_svg.draw(extruder_unreachable_polygons[j], "lightgrey");		    
 		}		
@@ -446,14 +446,14 @@ void test_preprocess_3(void)
 	    //preview_svg.draw(PRUSA_PART_POLYGONS[p], "blue");
 
 	
-	    for (int j = 0; j < SEQ_UNREACHABLE_POLYGON_EXTRUDER_LEVEL_MK3S.size(); ++j)
+	    for (unsigned int j = 0; j < SEQ_UNREACHABLE_POLYGON_EXTRUDER_LEVEL_MK3S.size(); ++j)
 	    {
 		preview_svg.draw(SEQ_UNREACHABLE_POLYGON_EXTRUDER_LEVEL_MK3S[j], "lightgrey");
 	    }
 	
 	    if (!extruder_unreachable_polygons.empty())
 	    {
-		for (int j = 0; j < extruder_unreachable_polygons.size(); ++j)
+		for (unsigned int j = 0; j < extruder_unreachable_polygons.size(); ++j)
 		{
 		    preview_svg.draw(extruder_unreachable_polygons[j], "lightgrey");		    
 		}		
@@ -476,14 +476,14 @@ void test_preprocess_3(void)
 
 	    //preview_svg.draw(PRUSA_PART_POLYGONS[p], "blue");
 
-	    for (int j = 0; j < SEQ_UNREACHABLE_POLYGON_HOSE_LEVEL_MK3S.size(); ++j)
+	    for (unsigned int j = 0; j < SEQ_UNREACHABLE_POLYGON_HOSE_LEVEL_MK3S.size(); ++j)
 	    {
 		preview_svg.draw(SEQ_UNREACHABLE_POLYGON_HOSE_LEVEL_MK3S[j], "lightgrey");
 	    }
 	    
 	    if (!hose_unreachable_polygons.empty())
 	    {
-		for (int j = 0; j < hose_unreachable_polygons.size(); ++j)
+		for (unsigned int j = 0; j < hose_unreachable_polygons.size(); ++j)
 		{
 		    preview_svg.draw(hose_unreachable_polygons[j], "lightgrey");		    
 		}		
@@ -507,14 +507,14 @@ void test_preprocess_3(void)
 	    //preview_svg.draw(PRUSA_PART_POLYGONS[p], "blue");
 
 	
-	    for (int j = 0; j < SEQ_UNREACHABLE_POLYGON_HOSE_LEVEL_MK3S.size(); ++j)
+	    for (unsigned int j = 0; j < SEQ_UNREACHABLE_POLYGON_HOSE_LEVEL_MK3S.size(); ++j)
 	    {
 		preview_svg.draw(SEQ_UNREACHABLE_POLYGON_HOSE_LEVEL_MK3S[j], "lightgrey");
 	    }
 	
 	    if (!hose_unreachable_polygons.empty())
 	    {
-		for (int j = 0; j < hose_unreachable_polygons.size(); ++j)
+		for (unsigned int j = 0; j < hose_unreachable_polygons.size(); ++j)
 		{
 		    preview_svg.draw(hose_unreachable_polygons[j], "lightgrey");		    
 		}		
@@ -537,14 +537,14 @@ void test_preprocess_3(void)
 
 	    //preview_svg.draw(PRUSA_PART_POLYGONS[p], "blue");
 
-	    for (int j = 0; j < SEQ_UNREACHABLE_POLYGON_GANTRY_LEVEL_MK3S.size(); ++j)
+	    for (unsigned int j = 0; j < SEQ_UNREACHABLE_POLYGON_GANTRY_LEVEL_MK3S.size(); ++j)
 	    {
 		preview_svg.draw(SEQ_UNREACHABLE_POLYGON_GANTRY_LEVEL_MK3S[j], "lightgrey");
 	    }
 	    
 	    if (!gantry_unreachable_polygons.empty())
 	    {
-		for (int j = 0; j < gantry_unreachable_polygons.size(); ++j)
+		for (unsigned int j = 0; j < gantry_unreachable_polygons.size(); ++j)
 		{
 		    preview_svg.draw(gantry_unreachable_polygons[j], "lightgrey");		    
 		}		
@@ -568,14 +568,14 @@ void test_preprocess_3(void)
 	    //preview_svg.draw(PRUSA_PART_POLYGONS[p], "blue");
 
 	
-	    for (int j = 0; j < SEQ_UNREACHABLE_POLYGON_GANTRY_LEVEL_MK3S.size(); ++j)
+	    for (unsigned int j = 0; j < SEQ_UNREACHABLE_POLYGON_GANTRY_LEVEL_MK3S.size(); ++j)
 	    {
 		preview_svg.draw(SEQ_UNREACHABLE_POLYGON_GANTRY_LEVEL_MK3S[j], "lightgrey");
 	    }
 	
 	    if (!gantry_unreachable_polygons.empty())
 	    {
-		for (int j = 0; j < gantry_unreachable_polygons.size(); ++j)
+		for (unsigned int j = 0; j < gantry_unreachable_polygons.size(); ++j)
 		{
 		    preview_svg.draw(gantry_unreachable_polygons[j], "lightgrey");		    
 		}		
@@ -634,7 +634,7 @@ void test_preprocess_4(void)
     vector<int> polygon_index_map;
     vector<int> decided_polygons;
 
-    for (int index = 0; index < polygons.size(); ++index)
+    for (unsigned int index = 0; index < polygons.size(); ++index)
     {
 	polygon_index_map.push_back(index);
     }
@@ -663,12 +663,12 @@ void test_preprocess_4(void)
 	if (optimized)
 	{
 	    printf("Polygon positions:\n");
-	    for (int i = 0; i < decided_polygons.size(); ++i)
+	    for (unsigned int i = 0; i < decided_polygons.size(); ++i)
 	    {
 		printf("  [%d] %.3f, %.3f (%.3f)\n", decided_polygons[i], poly_positions_X[decided_polygons[i]].as_double(), poly_positions_Y[decided_polygons[i]].as_double(), times_T[decided_polygons[i]].as_double());
 	    }
 	    printf("Remaining polygons: %ld\n", remaining_polygons.size());
-	    for (int i = 0; i < remaining_polygons.size(); ++i)
+	    for (unsigned int i = 0; i < remaining_polygons.size(); ++i)
 	    {
 		printf("  %d\n", remaining_polygons[i]);
 	    }
@@ -677,7 +677,7 @@ void test_preprocess_4(void)
 
 	    if (!unreachable_polygons.empty())
 	    {
-		for (int i = 0; i < decided_polygons.size(); ++i)
+		for (unsigned int i = 0; i < decided_polygons.size(); ++i)
 		{
 		    /*
 		    printf("----> %.3f,%.3f\n", poly_positions_X[decided_polygons[i]].as_double(), poly_positions_Y[decided_polygons[i]].as_double());		    
@@ -686,7 +686,7 @@ void test_preprocess_4(void)
 			printf("    xy: %d, %d\n", polygons[decided_polygons[i]].points[k].x(), polygons[decided_polygons[i]].points[k].y());
 		    }
 		    */		    
-		    for (int j = 0; j < unreachable_polygons[decided_polygons[i]].size(); ++j)
+		    for (unsigned int j = 0; j < unreachable_polygons[decided_polygons[i]].size(); ++j)
 		    {
 			/*
 			for (int k = 0; k < unreachable_polygons[decided_polygons[i]][j].points.size(); ++k)
@@ -702,7 +702,7 @@ void test_preprocess_4(void)
 		}
 	    }	    
 
-	    for (int i = 0; i < decided_polygons.size(); ++i)
+	    for (unsigned int i = 0; i < decided_polygons.size(); ++i)
 	    {
 		Polygon display_polygon = scale_UP(polygons[decided_polygons[i]],
 						   poly_positions_X[decided_polygons[i]].as_double(),
@@ -794,11 +794,11 @@ void test_preprocess_4(void)
 	vector<Polygon> next_polygons;
 	vector<vector<Polygon> > next_unreachable_polygons;
 
-	for (int i = 0; i < polygon_index_map.size(); ++i)
+	for (unsigned int i = 0; i < polygon_index_map.size(); ++i)
 	{
 	    printf("  %d\n", polygon_index_map[i]);
 	}
-	for (int i = 0; i < remaining_polygons.size(); ++i)
+	for (unsigned int i = 0; i < remaining_polygons.size(); ++i)
 	{
 	    next_polygons.push_back(polygons[remaining_polygons[i]]);	    	    
 	    next_unreachable_polygons.push_back(unreachable_polygons[remaining_polygons[i]]);
@@ -811,7 +811,7 @@ void test_preprocess_4(void)
 	polygons = next_polygons;
 	unreachable_polygons = next_unreachable_polygons;
 
-	for (int index = 0; index < polygons.size(); ++index)
+	for (unsigned int index = 0; index < polygons.size(); ++index)
 	{
 	    polygon_index_map.push_back(index);
 	}
@@ -838,7 +838,7 @@ void test_preprocess_5(void)
     std::vector<Slic3r::Polygon> polygons;
     std::vector<std::vector<Slic3r::Polygon> > unreachable_polygons;
     
-    for (int i = 0; i < PRUSA_PART_POLYGONS.size(); ++i)
+    for (unsigned int i = 0; i < PRUSA_PART_POLYGONS.size(); ++i)
     {
 	Polygon simplified_polygon;
 	
@@ -896,7 +896,7 @@ void test_preprocess_6(void)
 
     std::vector<Slic3r::Polygon> polygons;
     std::vector<std::vector<Slic3r::Polygon> > unreachable_polygons;
-    for (int i = 0; i < PRUSA_PART_POLYGONS.size(); ++i)
+    for (unsigned int i = 0; i < PRUSA_PART_POLYGONS.size(); ++i)
     {
 	Polygon decimated_polygon;
 	decimate_PolygonForSequentialSolver(solver_configuration,
@@ -929,7 +929,7 @@ void test_preprocess_6(void)
     vector<int> polygon_index_map;
     vector<int> decided_polygons;
 
-    for (int index = 0; index < polygons.size(); ++index)
+    for (unsigned int index = 0; index < polygons.size(); ++index)
     {
 	polygon_index_map.push_back(index);
     }
@@ -958,12 +958,12 @@ void test_preprocess_6(void)
 	if (optimized)
 	{
 	    printf("Polygon positions:\n");
-	    for (int i = 0; i < decided_polygons.size(); ++i)
+	    for (unsigned int i = 0; i < decided_polygons.size(); ++i)
 	    {
 		printf("  [%d] %.3f, %.3f (%.3f)\n", decided_polygons[i], poly_positions_X[decided_polygons[i]].as_double(), poly_positions_Y[decided_polygons[i]].as_double(), times_T[decided_polygons[i]].as_double());
 	    }
 	    printf("Remaining polygons: %ld\n", remaining_polygons.size());
-	    for (int i = 0; i < remaining_polygons.size(); ++i)
+	    for (unsigned int i = 0; i < remaining_polygons.size(); ++i)
 	    {
 		printf("  %d\n", remaining_polygons[i]);
 	    }
@@ -972,7 +972,7 @@ void test_preprocess_6(void)
 
 	    if (!unreachable_polygons.empty())
 	    {
-		for (int i = 0; i < decided_polygons.size(); ++i)
+		for (unsigned int i = 0; i < decided_polygons.size(); ++i)
 		{
 		    /*
 		    printf("----> %.3f,%.3f\n", poly_positions_X[decided_polygons[i]].as_double(), poly_positions_Y[decided_polygons[i]].as_double());		    
@@ -981,7 +981,7 @@ void test_preprocess_6(void)
 			printf("    xy: %d, %d\n", polygons[decided_polygons[i]].points[k].x(), polygons[decided_polygons[i]].points[k].y());
 		    }
 		    */		    
-		    for (int j = 0; j < unreachable_polygons[decided_polygons[i]].size(); ++j)
+		    for (unsigned int j = 0; j < unreachable_polygons[decided_polygons[i]].size(); ++j)
 		    {
 			/*
 			for (int k = 0; k < unreachable_polygons[decided_polygons[i]][j].points.size(); ++k)
@@ -997,7 +997,7 @@ void test_preprocess_6(void)
 		}
 	    }	    
 
-	    for (int i = 0; i < decided_polygons.size(); ++i)
+	    for (unsigned int i = 0; i < decided_polygons.size(); ++i)
 	    {
 		Polygon display_polygon = scale_UP(polygons[decided_polygons[i]],
 						   poly_positions_X[decided_polygons[i]].as_double(),
@@ -1089,11 +1089,11 @@ void test_preprocess_6(void)
 	vector<Polygon> next_polygons;
 	vector<vector<Polygon> > next_unreachable_polygons;
 
-	for (int i = 0; i < polygon_index_map.size(); ++i)
+	for (unsigned int i = 0; i < polygon_index_map.size(); ++i)
 	{
 	    printf("  %d\n", polygon_index_map[i]);
 	}
-	for (int i = 0; i < remaining_polygons.size(); ++i)
+	for (unsigned int i = 0; i < remaining_polygons.size(); ++i)
 	{
 	    next_polygons.push_back(polygons[remaining_polygons[i]]);	    	    
 	    next_unreachable_polygons.push_back(unreachable_polygons[remaining_polygons[i]]);
@@ -1106,7 +1106,7 @@ void test_preprocess_6(void)
 	polygons = next_polygons;
 	unreachable_polygons = next_unreachable_polygons;
 
-	for (int index = 0; index < polygons.size(); ++index)
+	for (unsigned int index = 0; index < polygons.size(); ++index)
 	{
 	    polygon_index_map.push_back(index);
 	}

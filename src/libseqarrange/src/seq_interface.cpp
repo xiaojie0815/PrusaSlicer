@@ -26,9 +26,24 @@ namespace Sequential
 
 /*----------------------------------------------------------------*/
 
-const int SEQ_OBJECT_GROUP_SIZE = 4;
-const int SEQ_SCHEDULING_TEMPORAL_SPREAD = 16;
-const int SEQ_MINIMUM_BOUNDING_BOX_SIZE = 10;
+const int SEQ_OBJECT_GROUP_SIZE                   =  4;
+const int SEQ_SCHEDULING_TEMPORAL_SPREAD          = 16;
+
+const int SEQ_BOUNDING_BOX_SIZE_OPTIMIZATION_STEP =  4;
+const int SEQ_MINIMUM_BOUNDING_BOX_SIZE           = 16;
+
+
+/*----------------------------------------------------------------*/
+    
+enum PrinterType
+{
+    SEQ_PRINTER_TYPE_UNDEFINED,
+    SEQ_PRINTER_TYPE_PRUSA_MINI,    
+    SEQ_PRINTER_TYPE_PRUSA_MK3S,
+    SEQ_PRINTER_TYPE_PRUSA_MK4,
+    SEQ_PRINTER_TYPE_PRUSA_XL
+};
+    
     
 const int SEQ_PRUSA_MK3S_X_SIZE = 2500;
 const int SEQ_PRUSA_MK3S_Y_SIZE = 2100;    
@@ -41,7 +56,6 @@ const coord_t SEQ_PRUSA_MK3S_GANTRY_LEVEL   = 26000000;
 const int SEQ_PRUSA_MK4_X_SIZE = 2500;
 const int SEQ_PRUSA_MK4_Y_SIZE = 2100;    
 
-// TODO: measure for true values    
 const coord_t SEQ_PRUSA_MK4_NOZZLE_LEVEL   = 0;
 const coord_t SEQ_PRUSA_MK4_EXTRUDER_LEVEL = 2000000;
 const coord_t SEQ_PRUSA_MK4_HOSE_LEVEL     = 18000000;
@@ -50,48 +64,52 @@ const coord_t SEQ_PRUSA_MK4_GANTRY_LEVEL   = 26000000;
 const int SEQ_PRUSA_XL_X_SIZE = 3600;
 const int SEQ_PRUSA_XL_Y_SIZE = 3600;    
     
-// TODO: measure for true values    
 const coord_t SEQ_PRUSA_XL_NOZZLE_LEVEL   = 0;
 const coord_t SEQ_PRUSA_XL_EXTRUDER_LEVEL = 2000000;
 const coord_t SEQ_PRUSA_XL_HOSE_LEVEL     = 18000000;
 const coord_t SEQ_PRUSA_XL_GANTRY_LEVEL   = 26000000;        
 
+
+/*----------------------------------------------------------------*/
+    
+int PrinterGeometry::convert_Geometry2PlateBoundingBoxSize(void) const
+{
+    return MAX(x_size / SEQ_SLICER_SCALE_FACTOR, y_size / SEQ_SLICER_SCALE_FACTOR);
+}
+
+    
+void PrinterGeometry::convert_Geometry2PlateBoundingBoxSize(int &x_plate_bounding_box_size, int &y_plate_bounding_box_size) const
+{       
+    x_plate_bounding_box_size = x_size / SEQ_SLICER_SCALE_FACTOR;
+    y_plate_bounding_box_size = y_size / SEQ_SLICER_SCALE_FACTOR;
+}
+    
     
 /*----------------------------------------------------------------*/
     
 SolverConfiguration::SolverConfiguration()
-    : bounding_box_size_optimization_step(4)
-    , minimum_X_bounding_box_size(SEQ_MINIMUM_BOUNDING_BOX_SIZE)
-    , minimum_Y_bounding_box_size(SEQ_MINIMUM_BOUNDING_BOX_SIZE)
-    , maximum_X_bounding_box_size(SEQ_PRUSA_MK3S_X_SIZE)
-    , maximum_Y_bounding_box_size(SEQ_PRUSA_MK3S_Y_SIZE)
-    , minimum_bounding_box_size(MIN(minimum_X_bounding_box_size, minimum_Y_bounding_box_size))
-    , maximum_bounding_box_size(MAX(maximum_X_bounding_box_size, maximum_Y_bounding_box_size))
+    : bounding_box_size_optimization_step(SEQ_BOUNDING_BOX_SIZE_OPTIMIZATION_STEP)
+    , minimum_bounding_box_size(SEQ_MINIMUM_BOUNDING_BOX_SIZE)
+    , x_plate_bounding_box_size(SEQ_PRUSA_MK3S_X_SIZE)
+    , y_plate_bounding_box_size(SEQ_PRUSA_MK3S_Y_SIZE)      
     , object_group_size(SEQ_OBJECT_GROUP_SIZE)
     , temporal_spread(SEQ_SCHEDULING_TEMPORAL_SPREAD)
     , decimation_precision(SEQ_DECIMATION_PRECISION_LOW)
-    , printer_type(SEQ_PRINTER_TYPE_PRUSA_MK3S)
     , optimization_timeout(SEQ_Z3_SOLVER_TIMEOUT)
 {
 	/* nothing */
 }
 
-    
+
 SolverConfiguration::SolverConfiguration(const PrinterGeometry &printer_geometry)
-    : bounding_box_size_optimization_step(4)
-    , minimum_X_bounding_box_size(SEQ_MINIMUM_BOUNDING_BOX_SIZE)
-    , minimum_Y_bounding_box_size(SEQ_MINIMUM_BOUNDING_BOX_SIZE)
-    , maximum_X_bounding_box_size(printer_geometry.x_size / SEQ_SLICER_SCALE_FACTOR)
-    , maximum_Y_bounding_box_size(printer_geometry.y_size / SEQ_SLICER_SCALE_FACTOR)
-    , minimum_bounding_box_size(MIN(minimum_X_bounding_box_size, minimum_Y_bounding_box_size))
-    , maximum_bounding_box_size(MAX(maximum_X_bounding_box_size, maximum_Y_bounding_box_size))
+    : bounding_box_size_optimization_step(SEQ_BOUNDING_BOX_SIZE_OPTIMIZATION_STEP)
+    , minimum_bounding_box_size(SEQ_MINIMUM_BOUNDING_BOX_SIZE)
     , object_group_size(SEQ_OBJECT_GROUP_SIZE)
     , temporal_spread(SEQ_SCHEDULING_TEMPORAL_SPREAD)
     , decimation_precision(SEQ_DECIMATION_PRECISION_LOW)
-    , printer_type(SEQ_PRINTER_TYPE_PRUSA_MK3S)
     , optimization_timeout(SEQ_Z3_SOLVER_TIMEOUT)
 {
-    /* nothing */
+    setup(printer_geometry);
 }
 
     
@@ -122,13 +140,10 @@ double SolverConfiguration::convert_DecimationPrecision2Tolerance(DecimationPrec
     return SEQ_DECIMATION_TOLERANCE_VALUE_UNDEFINED;	
 }
 
-    
+       
 void SolverConfiguration::setup(const PrinterGeometry &printer_geometry)
 {
-    maximum_X_bounding_box_size = printer_geometry.x_size / SEQ_SLICER_SCALE_FACTOR;
-    maximum_Y_bounding_box_size = printer_geometry.y_size / SEQ_SLICER_SCALE_FACTOR;
-    minimum_bounding_box_size = MIN(minimum_X_bounding_box_size, minimum_Y_bounding_box_size);
-    maximum_bounding_box_size = MAX(maximum_X_bounding_box_size, maximum_Y_bounding_box_size);
+    printer_geometry.convert_Geometry2PlateBoundingBoxSize(x_plate_bounding_box_size, y_plate_bounding_box_size);
 }
 
     
@@ -523,6 +538,8 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver_
     }
     #endif
 
+    PrinterType printer_type = SEQ_PRINTER_TYPE_PRUSA_MK3S;
+
     std::vector<Slic3r::Polygon> polygons;
     std::vector<std::vector<Slic3r::Polygon> > unreachable_polygons;
 
@@ -573,7 +590,7 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver_
 		    return -1;
 		}		
 
-		switch (solver_configuration.printer_type)
+		switch (printer_type)
 		{
 		case SEQ_PRINTER_TYPE_PRUSA_MK3S:
 		{
@@ -693,7 +710,7 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver_
 	
 	std::vector<Slic3r::Polygon> scale_down_unreachable_polygons;
 
-	switch (solver_configuration.printer_type)
+	switch (printer_type)
 	{
 	case SEQ_PRINTER_TYPE_PRUSA_MK3S:
 	{
@@ -900,11 +917,13 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver_
 }
 
 
-void setup_ExtruderUnreachableZones(const SolverConfiguration                  &solver_configuration,
+void setup_ExtruderUnreachableZones(const SolverConfiguration                 &solver_configuration,
 				   std::vector<std::vector<Slic3r::Polygon> > &convex_unreachable_zones,
 				   std::vector<std::vector<Slic3r::Polygon> > &box_unreachable_zones)
 {
-    switch (solver_configuration.printer_type)
+    PrinterType printer_type = SEQ_PRINTER_TYPE_PRUSA_MK3S;
+	
+    switch (printer_type)
     {
     case SEQ_PRINTER_TYPE_PRUSA_MK3S:
     {

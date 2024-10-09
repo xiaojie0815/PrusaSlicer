@@ -6814,9 +6814,10 @@ bool optimize_WeakPolygonNonoverlapping(z3::solver                         &Solv
     z3::set_param("timeout", solver_configuration.optimization_timeout.c_str());
     
     int last_solvable_bounding_box_size = -1;
+
+    int maximum_bounding_box_size = MAX(solver_configuration.x_plate_bounding_box_size, solver_configuration.y_plate_bounding_box_size);
     
-    for (int bounding_box_size = solver_configuration.maximum_bounding_box_size;
-	 bounding_box_size > solver_configuration.minimum_bounding_box_size;
+    for (int bounding_box_size = maximum_bounding_box_size; bounding_box_size > solver_configuration.minimum_bounding_box_size;
 	 bounding_box_size -= solver_configuration.bounding_box_size_optimization_step)
     {
 	#ifdef DEBUG
@@ -6959,9 +6960,10 @@ bool optimize_WeakPolygonNonoverlapping(z3::solver                         &Solv
 {
     Z3_global_param_set("timeout", solver_configuration.optimization_timeout.c_str());        
     int last_solvable_bounding_box_size = -1;
+
+    int maximum_bounding_box_size = MAX(solver_configuration.x_plate_bounding_box_size, solver_configuration.y_plate_bounding_box_size);
     
-    for (int bounding_box_size = solver_configuration.maximum_bounding_box_size;
-	 bounding_box_size > solver_configuration.minimum_bounding_box_size;
+    for (int bounding_box_size = maximum_bounding_box_size; bounding_box_size > solver_configuration.minimum_bounding_box_size;
 	 bounding_box_size -= solver_configuration.bounding_box_size_optimization_step)
     {
         #ifdef DEBUG
@@ -7107,9 +7109,10 @@ bool optimize_WeakPolygonNonoverlapping(z3::solver                         &Solv
 
     z3::set_param("timeout", solver_configuration.optimization_timeout.c_str());
     int last_solvable_bounding_box_size = -1;
+
+    int maximum_bounding_box_size = MAX(solver_configuration.x_plate_bounding_box_size, solver_configuration.y_plate_bounding_box_size);
     
-    for (int bounding_box_size = solver_configuration.maximum_bounding_box_size;
-	 bounding_box_size > solver_configuration.minimum_bounding_box_size;
+    for (int bounding_box_size = maximum_bounding_box_size; bounding_box_size > solver_configuration.minimum_bounding_box_size;
 	 bounding_box_size -= solver_configuration.bounding_box_size_optimization_step)
     {
 	#ifdef DEBUG
@@ -7256,9 +7259,10 @@ bool optimize_WeakPolygonNonoverlapping(z3::solver                         &Solv
 {
     z3::set_param("timeout", solver_configuration.optimization_timeout.c_str());        
     int last_solvable_bounding_box_size = -1;
+
+    int maximum_bounding_box_size = MAX(solver_configuration.x_plate_bounding_box_size, solver_configuration.y_plate_bounding_box_size);
     
-    for (int bounding_box_size = solver_configuration.maximum_bounding_box_size;
-	 bounding_box_size > solver_configuration.minimum_bounding_box_size;
+    for (int bounding_box_size = maximum_bounding_box_size; bounding_box_size > solver_configuration.minimum_bounding_box_size;
 	 bounding_box_size -= solver_configuration.bounding_box_size_optimization_step)
     {
 	#ifdef DEBUG
@@ -7408,12 +7412,13 @@ bool optimize_WeakPolygonNonoverlapping(z3::solver                         &Solv
 {
     z3::set_param("timeout", solver_configuration.optimization_timeout.c_str());        
     int last_solvable_bounding_box_size = -1;
-
-    std::vector<Rational> local_dec_values_X = dec_values_X;
-    std::vector<Rational> local_dec_values_Y = dec_values_Y;    
     
-    for (int bounding_box_size = solver_configuration.maximum_bounding_box_size;
-	 bounding_box_size > solver_configuration.minimum_bounding_box_size;
+    std::vector<Rational> local_dec_values_X = dec_values_X;
+    std::vector<Rational> local_dec_values_Y = dec_values_Y;
+
+    int maximum_bounding_box_size = MAX(solver_configuration.x_plate_bounding_box_size, solver_configuration.y_plate_bounding_box_size);
+    
+    for (int bounding_box_size = maximum_bounding_box_size; bounding_box_size > solver_configuration.minimum_bounding_box_size;
 	 bounding_box_size -= solver_configuration.bounding_box_size_optimization_step)
     {
 	#ifdef DEBUG
@@ -7611,17 +7616,17 @@ bool optimize_SequentialWeakPolygonNonoverlapping(z3::solver                    
 						  const std::vector<Slic3r::Polygon>               &polygons,
 						  const std::vector<std::vector<Slic3r::Polygon> > &unreachable_polygons)
 {
-    z3::set_param("timeout", solver_configuration.optimization_timeout.c_str());    
-    //z3::set_param("parallel.enable", "true");
+    z3::set_param("timeout", solver_configuration.optimization_timeout.c_str());
     
     int last_solvable_bounding_box_size = -1;
 
     std::vector<Rational> local_dec_values_X = dec_values_X;
     std::vector<Rational> local_dec_values_Y = dec_values_Y;
-    std::vector<Rational> local_dec_values_T = dec_values_T;        
+    std::vector<Rational> local_dec_values_T = dec_values_T;
+
+    int maximum_bounding_box_size = MAX(solver_configuration.x_plate_bounding_box_size, solver_configuration.y_plate_bounding_box_size);
     
-    for (int bounding_box_size = solver_configuration.maximum_bounding_box_size;
-	 bounding_box_size > solver_configuration.minimum_bounding_box_size;
+    for (int bounding_box_size = maximum_bounding_box_size; bounding_box_size > solver_configuration.minimum_bounding_box_size;
 	 bounding_box_size -= solver_configuration.bounding_box_size_optimization_step)
     {
 	#ifdef DEBUG
@@ -7629,8 +7634,6 @@ bool optimize_SequentialWeakPolygonNonoverlapping(z3::solver                    
 	    printf("BBX: %d\n", bounding_box_size);
 	}
 	#endif
-	
-	//Solver.reset();
 	
 	z3::expr_vector bounding_box_assumptions(Context);
 
@@ -7640,8 +7643,6 @@ bool optimize_SequentialWeakPolygonNonoverlapping(z3::solver                    
 	}
 
 	bool sat = false;
-
-//	Solver.add(bounding_box_assumptions);
 
 	#ifdef DEBUG
 	{
@@ -7862,12 +7863,12 @@ bool optimize_SequentialWeakPolygonNonoverlappingCentered(z3::solver            
 
     std::vector<Rational> local_dec_values_X = dec_values_X;
     std::vector<Rational> local_dec_values_Y = dec_values_Y;
-    std::vector<Rational> local_dec_values_T = dec_values_T;        
+    std::vector<Rational> local_dec_values_T = dec_values_T;
 
     int box_min_x = 0;
-    int box_max_x = solver_configuration.maximum_X_bounding_box_size;
+    int box_max_x = solver_configuration.x_plate_bounding_box_size;
     int box_min_y = 0;
-    int box_max_y = solver_configuration.maximum_Y_bounding_box_size;
+    int box_max_y = solver_configuration.y_plate_bounding_box_size;
     
     while (box_min_x < box_max_x && box_min_y < box_max_y)
     {
@@ -8230,10 +8231,10 @@ bool optimize_SequentialWeakPolygonNonoverlappingBinaryCentered(z3::solver      
     std::vector<Rational> local_dec_values_T = dec_values_T;        
 
     coord_t half_x_min = 0;
-    coord_t half_x_max = box_half_x_max; //solver_configuration.maximum_X_bounding_box_size / 2;
+    coord_t half_x_max = box_half_x_max;
 
     coord_t half_y_min = 0;
-    coord_t half_y_max = box_half_y_max; //solver_configuration.maximum_Y_bounding_box_size / 2;	
+    coord_t half_y_max = box_half_y_max;
 
     while ((half_x_max - half_x_min) > 1 && (half_y_max - half_y_min) > 1)
     {
@@ -8248,9 +8249,9 @@ bool optimize_SequentialWeakPolygonNonoverlappingBinaryCentered(z3::solver      
 	z3::expr_vector bounding_box_assumptions(Context);
 
 	coord_t box_min_x = (half_x_max + half_x_min) / 2;
-	coord_t box_max_x = solver_configuration.maximum_X_bounding_box_size - box_min_x;
+	coord_t box_max_x = solver_configuration.x_plate_bounding_box_size - box_min_x;
 	coord_t box_min_y = (half_y_max + half_y_min) / 2;
-	coord_t box_max_y = solver_configuration.maximum_Y_bounding_box_size - box_min_y;
+	coord_t box_max_y = solver_configuration.y_plate_bounding_box_size - box_min_y;
 
 	#ifdef DEBUG
 	{
@@ -8565,13 +8566,13 @@ bool optimize_ConsequentialWeakPolygonNonoverlappingBinaryCentered(z3::solver   
 
     std::vector<Rational> local_dec_values_X = dec_values_X;
     std::vector<Rational> local_dec_values_Y = dec_values_Y;
-    std::vector<Rational> local_dec_values_T = dec_values_T;        
+    std::vector<Rational> local_dec_values_T = dec_values_T;
 
     coord_t half_x_min = 0;
-    coord_t half_x_max = box_half_x_max; //solver_configuration.maximum_X_bounding_box_size / 2;
+    coord_t half_x_max = box_half_x_max;
 
     coord_t half_y_min = 0;
-    coord_t half_y_max = box_half_y_max; //solver_configuration.maximum_Y_bounding_box_size / 2;	
+    coord_t half_y_max = box_half_y_max;
             
     while ((half_x_max - half_x_min) > 1 && (half_y_max - half_y_min) > 1)
     {
@@ -8586,9 +8587,9 @@ bool optimize_ConsequentialWeakPolygonNonoverlappingBinaryCentered(z3::solver   
 	z3::expr_vector bounding_box_assumptions(Context);
 
 	coord_t box_min_x = (half_x_max + half_x_min) / 2;
-	coord_t box_max_x = solver_configuration.maximum_X_bounding_box_size - box_min_x;
+	coord_t box_max_x = solver_configuration.x_plate_bounding_box_size - box_min_x;
 	coord_t box_min_y = (half_y_max + half_y_min) / 2;
-	coord_t box_max_y = solver_configuration.maximum_Y_bounding_box_size - box_min_y;
+	coord_t box_max_y = solver_configuration.y_plate_bounding_box_size - box_min_y;
 
 	#ifdef DEBUG
 	{
@@ -9199,9 +9200,6 @@ bool optimize_SubglobalSequentialPolygonNonoverlapping(const SolverConfiguration
 	for(int object_group_size = MIN((unsigned int)solver_configuration.object_group_size, polygons.size() - curr_polygon); object_group_size > 0; --object_group_size)
 	{
 	    z3::set_param("timeout", solver_configuration.optimization_timeout.c_str());
-	    //z3::set_param("parallel.enable", "true");
-	    //z3::set_param("smt.threads", "8");
-	    //z3::set_param("parallel.threads.max", "16");
 	    
 	    z3::context z_context;
 	    z3::solver z_solver(z_context);
@@ -9452,9 +9450,6 @@ bool optimize_SubglobalSequentialPolygonNonoverlappingCentered(const SolverConfi
 	for(int object_group_size = MIN((unsigned int)solver_configuration.object_group_size, polygons.size() - curr_polygon); object_group_size > 0; --object_group_size)
 	{
 	    z3::set_param("timeout", solver_configuration.optimization_timeout.c_str());
-	    //z3::set_param("parallel.enable", "true");
-	    //z3::set_param("smt.threads", "8");
-	    //z3::set_param("parallel.threads.max", "16");
 	    
 	    z3::context z_context;
 	    z3::solver z_solver(z_context);
@@ -9697,8 +9692,8 @@ bool optimize_SubglobalSequentialPolygonNonoverlappingBinaryCentered(const Solve
     dec_values_Y.resize(polygons.size());
     dec_values_T.resize(polygons.size());
 
-    coord_t box_half_x_max = solver_configuration.maximum_X_bounding_box_size / 2;
-    coord_t box_half_y_max = solver_configuration.maximum_Y_bounding_box_size / 2;	    
+    coord_t box_half_x_max = solver_configuration.x_plate_bounding_box_size / 2;
+    coord_t box_half_y_max = solver_configuration.y_plate_bounding_box_size / 2;	    
     
     for (unsigned int curr_polygon = 0; curr_polygon < polygons.size(); /* nothing */)
     {
@@ -9708,9 +9703,6 @@ bool optimize_SubglobalSequentialPolygonNonoverlappingBinaryCentered(const Solve
 	for(int object_group_size = MIN((unsigned int)solver_configuration.object_group_size, polygons.size() - curr_polygon); object_group_size > 0; --object_group_size)
 	{
 	    z3::set_param("timeout", solver_configuration.optimization_timeout.c_str());
-	    //z3::set_param("parallel.enable", "true");
-	    //z3::set_param("smt.threads", "8");
-	    //z3::set_param("parallel.threads.max", "16");
 	    
 	    z3::context z_context;
 	    z3::solver z_solver(z_context);
@@ -9965,17 +9957,13 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
     dec_values_Y.resize(polygons.size());
     dec_values_T.resize(polygons.size());
 
-    int box_half_x_max = solver_configuration.maximum_X_bounding_box_size / 2;
-    int box_half_y_max = solver_configuration.maximum_Y_bounding_box_size / 2;	    
+    int box_half_x_max = solver_configuration.x_plate_bounding_box_size / 2;
+    int box_half_y_max = solver_configuration.y_plate_bounding_box_size / 2;	    
     
     for (unsigned int curr_polygon = 0; curr_polygon < polygons.size(); /* nothing */)
     {
 	bool optimized = false;
-
 	z3::set_param("timeout", solver_configuration.optimization_timeout.c_str());
-	    //z3::set_param("parallel.enable", "true");
-	    //z3::set_param("smt.threads", "8");
-	    //z3::set_param("parallel.threads.max", "16");
 	    
 	z3::context z_context;
 	z3::solver z_solver(z_context);

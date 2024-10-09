@@ -137,7 +137,7 @@ void test_interface_1(void)
 
 	printf("Number of plates: %ld\n", scheduled_plates.size());
 
-	for (int plate = 0; plate < scheduled_plates.size(); ++plate)
+	for (unsigned int plate = 0; plate < scheduled_plates.size(); ++plate)
 	{
 	    printf("  Number of objects on plate: %ld\n", scheduled_plates[plate].scheduled_objects.size());
 
@@ -194,7 +194,7 @@ void test_interface_2(void)
 
 	printf("Number of plates: %ld\n", scheduled_plates.size());
 
-	for (int plate = 0; plate < scheduled_plates.size(); ++plate)
+	for (unsigned int plate = 0; plate < scheduled_plates.size(); ++plate)
 	{
 	    printf("  Number of objects on plate: %ld\n", scheduled_plates[plate].scheduled_objects.size());
 
@@ -306,7 +306,7 @@ int test_interface_4(void)
     
     printf("Number of plates: %ld\n", scheduled_plates.size());
 
-    for (int plate = 0; plate < scheduled_plates.size(); ++plate)
+    for (unsigned int plate = 0; plate < scheduled_plates.size(); ++plate)
     {
 	printf("  Number of objects on plate: %ld\n", scheduled_plates[plate].scheduled_objects.size());
 	
@@ -365,7 +365,7 @@ int test_interface_5(void)
     
     printf("Number of plates: %ld\n", scheduled_plates.size());
 
-    for (int plate = 0; plate < scheduled_plates.size(); ++plate)
+    for (unsigned int plate = 0; plate < scheduled_plates.size(); ++plate)
     {
 	printf("  Number of objects on plate: %ld\n", scheduled_plates[plate].scheduled_objects.size());
 	

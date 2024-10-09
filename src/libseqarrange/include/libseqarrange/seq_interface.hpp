@@ -41,21 +41,13 @@ struct PrinterGeometry
     std::set<coord_t> box_heights;
     
     std::map<coord_t, std::vector<Slic3r::Polygon> > extruder_slices;
+
+    int convert_Geometry2PlateBoundingBoxSize(void) const;
+    void convert_Geometry2PlateBoundingBoxSize(int &X_bounding_box_size, int &Y_bounding_box_size) const;
 };
 
     
 /*----------------------------------------------------------------*/
-
-// Setting printer type is obsolete, will be removed
-enum PrinterType
-{
-    SEQ_PRINTER_TYPE_UNDEFINED,
-    SEQ_PRINTER_TYPE_PRUSA_MINI,    
-    SEQ_PRINTER_TYPE_PRUSA_MK3S,
-    SEQ_PRINTER_TYPE_PRUSA_MK4,
-    SEQ_PRINTER_TYPE_PRUSA_XL,    
-};
-
 
 enum DecimationPrecision
 {
@@ -72,27 +64,22 @@ struct SolverConfiguration
     SolverConfiguration();
     SolverConfiguration(const PrinterGeometry &printer_geometry);
     
-    static double convert_DecimationPrecision2Tolerance(DecimationPrecision decimation_precision);
-    void setup(const PrinterGeometry &printer_geometry);
-
     void set_DecimationPrecision(DecimationPrecision decimation_precision);
     void set_ObjectGroupSize(int object_group_size);
 
+    void setup(const PrinterGeometry &printer_geometry);
+
+    static double convert_DecimationPrecision2Tolerance(DecimationPrecision decimation_precision);
+
     int bounding_box_size_optimization_step;
-    int minimum_X_bounding_box_size;
-    int minimum_Y_bounding_box_size;        
-    int maximum_X_bounding_box_size;
-    int maximum_Y_bounding_box_size;
     int minimum_bounding_box_size;
-    int maximum_bounding_box_size;
+    int x_plate_bounding_box_size;
+    int y_plate_bounding_box_size;
+    
     int object_group_size;
     int temporal_spread;
 
-    DecimationPrecision decimation_precision;
-
-    // Setting printer type is obsolete, will be removed    
-    PrinterType printer_type;
-    
+    DecimationPrecision decimation_precision;   
     std::string optimization_timeout;    
 };
 

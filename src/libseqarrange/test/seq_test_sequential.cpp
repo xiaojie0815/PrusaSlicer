@@ -46,7 +46,7 @@ Polygon scale_UP(const Polygon &polygon)
 {
     Polygon poly = polygon;
 
-    for (int i = 0; i < poly.points.size(); ++i)
+    for (unsigned int i = 0; i < poly.points.size(); ++i)
     {
 	poly.points[i] = Point(poly.points[i].x() * SCALE_FACTOR, poly.points[i].y() * SCALE_FACTOR);
     }
@@ -59,7 +59,7 @@ Polygon scale_UP(const Polygon &polygon, double x_pos, double y_pos)
 {
     Polygon poly = polygon;
 
-    for (int i = 0; i < poly.points.size(); ++i)
+    for (unsigned int i = 0; i < poly.points.size(); ++i)
     {	
 	poly.points[i] = Point(poly.points[i].x() * SCALE_FACTOR + x_pos * SCALE_FACTOR,
 			       poly.points[i].y() * SCALE_FACTOR + y_pos * SCALE_FACTOR);
@@ -142,18 +142,25 @@ void test_sequential_1(void)
     printf("Printing model:\n");
     cout << z_model << "\n";
     
-    for (int i = 0; i < z_model.size(); ++i)
+    for (unsigned int i = 0; i < z_model.size(); ++i)
     {
 	printf("Variable:%s\n", z_model[i].name().str().c_str());
 	printf("Printing interpretation:\n");
 	
 	cout << z_model.get_const_interp(z_model[i]) << "\n";
 
-	switch (z_model.get_const_interp(z_model[i]).is_bool())
+	if (z_model.get_const_interp(z_model[i]).is_bool())
 	{
+	    printf("   value: TRUE\n");
+	}
+	else
+	{
+	    printf("   value: FALSE\n");	    
+	}
+	/*
 	case Z3_L_FALSE:
 	{
-	    printf("   value: FALSE\n");
+	    printf("   value: FALSE\n");	    	    
 	    break;
 	}
 	case Z3_L_TRUE:
@@ -170,7 +177,8 @@ void test_sequential_1(void)
 	{
 		break;
 	}
-	}
+        }
+	*/
     }    
     
     printf("Testing sequential scheduling 1 ... finished\n");    
@@ -395,7 +403,7 @@ void test_sequential_2(void)
 
     finish = clock();    
     
-    for (int i = 0; i < z_model.size(); ++i)
+    for (unsigned int i = 0; i < z_model.size(); ++i)
     {
 	printf("Variable:%s\n", z_model[i].name().str().c_str());
 	
@@ -672,7 +680,7 @@ void test_sequential_3(void)
 
     finish = clock();    
     
-    for (int i = 0; i < z_model.size(); ++i)
+    for (unsigned int i = 0; i < z_model.size(); ++i)
     {
 	printf("Variable:%s\n", z_model[i].name().str().c_str());
 	
@@ -789,7 +797,7 @@ void test_sequential_4(void)
 	Y_positions.push_back(expr(z_context.real_const(name.c_str())));
     }
 
-    for (int i = 0; i < polygon_1.points.size(); ++i)
+    for (unsigned int i = 0; i < polygon_1.points.size(); ++i)
     {
 	string name = "t_time-" + to_string(i);
 	printf("name: %s\n", name.c_str());
@@ -888,7 +896,7 @@ void test_sequential_4(void)
 	    */
     
 	    printf("Printing interpretation:\n");    
-	    for (int i = 0; i < z_model.size(); ++i)
+	    for (unsigned int i = 0; i < z_model.size(); ++i)
 	    {
 		printf("Variable:%s  ", z_model[i].name().str().c_str());
 		
@@ -1036,7 +1044,7 @@ void test_sequential_4(void)
 			cout << z_model << "\n";
 			*/
     
-			for (int i = 0; i < z_model.size(); ++i)
+			for (unsigned int i = 0; i < z_model.size(); ++i)
 			{
 			    //printf("Variable:%s  ", z_model[i].name().str().c_str());
 			    double value = z_model.get_const_interp(z_model[i]).as_double();
@@ -1250,7 +1258,7 @@ void test_sequential_5(void)
 	Y_positions.push_back(expr(z_context.real_const(name.c_str())));
     }
 
-    for (int i = 0; i < polygon_1.points.size(); ++i)
+    for (unsigned int i = 0; i < polygon_1.points.size(); ++i)
     {
 	string name = "t_time-" + to_string(i);
 	printf("name: %s\n", name.c_str());
@@ -1350,7 +1358,7 @@ void test_sequential_5(void)
 	    cout << z_model << "\n";
 	    */
 	    printf("Printing interpretation:\n");    
-	    for (int i = 0; i < z_model.size(); ++i)
+	    for (unsigned int i = 0; i < z_model.size(); ++i)
 	    {
 		printf("Variable:%s  ", z_model[i].name().str().c_str());
 		
@@ -1515,7 +1523,7 @@ void test_sequential_5(void)
 			cout << z_model << "\n";
 			*/
     
-			for (int i = 0; i < z_model.size(); ++i)
+			for (unsigned int i = 0; i < z_model.size(); ++i)
 			{
 			    printf("Variable:%s  ", z_model[i].name().str().c_str());
 			    double value = z_model.get_const_interp(z_model[i]).as_double();
@@ -1675,25 +1683,25 @@ void test_sequential_5(void)
     
     SVG preview_svg("sequential_test_5.svg");
 
-    for (int i = 0; i < unreachable_polygons[0].size(); ++i)
+    for (unsigned int i = 0; i < unreachable_polygons[0].size(); ++i)
     {
 	Polygon display_pro_polygon_1 = scale_UP(unreachable_polygons[0][i], _poly_1_pos_x.as_double(), _poly_1_pos_y.as_double());
 	preview_svg.draw(display_pro_polygon_1, "lightgrey");
     }
 
-    for (int i = 0; i < unreachable_polygons[1].size(); ++i)
+    for (unsigned int i = 0; i < unreachable_polygons[1].size(); ++i)
     {
 	Polygon display_pro_polygon_2 = scale_UP(unreachable_polygons[1][i], _poly_2_pos_x.as_double(), _poly_2_pos_y.as_double());
 	preview_svg.draw(display_pro_polygon_2, "lightgrey");    
     }
 
-    for (int i = 0; i < unreachable_polygons[2].size(); ++i)
+    for (unsigned int i = 0; i < unreachable_polygons[2].size(); ++i)
     {    
 	Polygon display_pro_polygon_3 = scale_UP(unreachable_polygons[2][i], _poly_3_pos_x.as_double(), _poly_3_pos_y.as_double());
 	preview_svg.draw(display_pro_polygon_3, "lightgrey");	
     }
 
-    for (int i = 0; i < unreachable_polygons[3].size(); ++i)
+    for (unsigned int i = 0; i < unreachable_polygons[3].size(); ++i)
     {        
 	Polygon display_pro_polygon_4 = scale_UP(unreachable_polygons[3][i], _poly_4_pos_x.as_double(), _poly_4_pos_y.as_double());
 	preview_svg.draw(display_pro_polygon_4, "lightgrey");	
@@ -1811,7 +1819,7 @@ void test_sequential_6(void)
     }
     */
 
-    for (int index = 0; index < polygons.size(); ++index)
+    for (unsigned int index = 0; index < polygons.size(); ++index)
     {
 	polygon_index_map.push_back(index);
     }
@@ -1854,13 +1862,13 @@ void test_sequential_6(void)
 	if (optimized)
 	{
 	    printf("Polygon positions:\n");
-	    for (int i = 0; i < decided_polygons.size(); ++i)
+	    for (unsigned int i = 0; i < decided_polygons.size(); ++i)
 	    {
 		// printf("  [%d] %.3f, %.3f (%.3f)\n", decided_polygons[i], poly_positions_X[decided_polygons[i]].as_double(), poly_positions_Y[decided_polygons[i]].as_double(), times_T[decided_polygons[i]].as_double());
 		printf("  [%d] %.3f, %.3f (%.3f)\n", decided_polygons[i], poly_positions_X[decided_polygons[i]].as_double(), poly_positions_Y[decided_polygons[i]].as_double(), times_T[decided_polygons[i]].as_double());		
 	    }
 	    printf("Remaining polygons: %ld\n", remaining_polygons.size());
-	    for (int i = 0; i < remaining_polygons.size(); ++i)
+	    for (unsigned int i = 0; i < remaining_polygons.size(); ++i)
 	    {
 		printf("  %d\n", remaining_polygons[i]);
 	    }
@@ -1869,7 +1877,7 @@ void test_sequential_6(void)
 
 	    if (!unreachable_polygons.empty())
 	    {
-		for (int i = 0; i < decided_polygons.size(); ++i)
+		for (unsigned int i = 0; i < decided_polygons.size(); ++i)
 		{
 		    /*
 		    printf("----> %.3f,%.3f\n", poly_positions_X[decided_polygons[i]].as_double(), poly_positions_Y[decided_polygons[i]].as_double());		    
@@ -1888,7 +1896,7 @@ void test_sequential_6(void)
 		}
 	    }	    
 
-	    for (int i = 0; i < decided_polygons.size(); ++i)
+	    for (unsigned int i = 0; i < decided_polygons.size(); ++i)
 	    {
 		Polygon display_polygon = scale_UP(polygons[decided_polygons[i]],
 						   poly_positions_X[decided_polygons[i]].as_double(),
@@ -1978,11 +1986,11 @@ void test_sequential_6(void)
 	vector<Polygon> next_polygons;
 	vector<Polygon> next_unreachable_polygons;
 
-	for (int i = 0; i < polygon_index_map.size(); ++i)
+	for (unsigned int i = 0; i < polygon_index_map.size(); ++i)
 	{
 	    printf("  %d\n", polygon_index_map[i]);
 	}
-	for (int i = 0; i < remaining_polygons.size(); ++i)
+	for (unsigned int i = 0; i < remaining_polygons.size(); ++i)
 	{
 	    next_polygons.push_back(polygons[remaining_polygons[i]]);	    	    
 	    next_unreachable_polygons.push_back(unreachable_polygons[remaining_polygons[i]]);
@@ -1995,7 +2003,7 @@ void test_sequential_6(void)
 	polygons = next_polygons;
 	unreachable_polygons = next_unreachable_polygons;
 
-	for (int index = 0; index < polygons.size(); ++index)
+	for (unsigned int index = 0; index < polygons.size(); ++index)
 	{
 	    polygon_index_map.push_back(index);
 	}
@@ -2094,7 +2102,7 @@ void test_sequential_7(void)
     }
     */
 
-    for (int index = 0; index < polygons.size(); ++index)
+    for (unsigned int index = 0; index < polygons.size(); ++index)
     {
 	polygon_index_map.push_back(index);
     }
@@ -2128,12 +2136,12 @@ void test_sequential_7(void)
 	if (optimized)
 	{
 	    printf("Polygon positions:\n");
-	    for (int i = 0; i < decided_polygons.size(); ++i)
+	    for (unsigned int i = 0; i < decided_polygons.size(); ++i)
 	    {
 		printf("  [%d] %.3f, %.3f (%.3f)\n", decided_polygons[i], poly_positions_X[decided_polygons[i]].as_double(), poly_positions_Y[decided_polygons[i]].as_double(), times_T[decided_polygons[i]].as_double());
 	    }
 	    printf("Remaining polygons: %ld\n", remaining_polygons.size());
-	    for (int i = 0; i < remaining_polygons.size(); ++i)
+	    for (unsigned int i = 0; i < remaining_polygons.size(); ++i)
 	    {
 		printf("  %d\n", remaining_polygons[i]);
 	    }
@@ -2142,7 +2150,7 @@ void test_sequential_7(void)
 
 	    if (!unreachable_polygons.empty())
 	    {
-		for (int i = 0; i < decided_polygons.size(); ++i)
+		for (unsigned int i = 0; i < decided_polygons.size(); ++i)
 		{
 		    /*
 		    printf("----> %.3f,%.3f\n", poly_positions_X[decided_polygons[i]].as_double(), poly_positions_Y[decided_polygons[i]].as_double());		    
@@ -2151,7 +2159,7 @@ void test_sequential_7(void)
 			printf("    xy: %d, %d\n", polygons[decided_polygons[i]].points[k].x(), polygons[decided_polygons[i]].points[k].y());
 		    }
 		    */		    
-		    for (int j = 0; j < unreachable_polygons[decided_polygons[i]].size(); ++j)
+		    for (unsigned int j = 0; j < unreachable_polygons[decided_polygons[i]].size(); ++j)
 		    {
 			/*
 			for (int k = 0; k < unreachable_polygons[decided_polygons[i]][j].points.size(); ++k)
@@ -2167,7 +2175,7 @@ void test_sequential_7(void)
 		}
 	    }	    
 
-	    for (int i = 0; i < decided_polygons.size(); ++i)
+	    for (unsigned int i = 0; i < decided_polygons.size(); ++i)
 	    {
 		Polygon display_polygon = scale_UP(polygons[decided_polygons[i]],
 						   poly_positions_X[decided_polygons[i]].as_double(),
@@ -2257,11 +2265,11 @@ void test_sequential_7(void)
 	vector<Polygon> next_polygons;
 	vector<vector<Polygon> > next_unreachable_polygons;
 
-	for (int i = 0; i < polygon_index_map.size(); ++i)
+	for (unsigned int i = 0; i < polygon_index_map.size(); ++i)
 	{
 	    printf("  %d\n", polygon_index_map[i]);
 	}
-	for (int i = 0; i < remaining_polygons.size(); ++i)
+	for (unsigned int i = 0; i < remaining_polygons.size(); ++i)
 	{
 	    next_polygons.push_back(polygons[remaining_polygons[i]]);	    	    
 	    next_unreachable_polygons.push_back(unreachable_polygons[remaining_polygons[i]]);
@@ -2274,7 +2282,7 @@ void test_sequential_7(void)
 	polygons = next_polygons;
 	unreachable_polygons = next_unreachable_polygons;
 
-	for (int index = 0; index < polygons.size(); ++index)
+	for (unsigned int index = 0; index < polygons.size(); ++index)
 	{
 	    polygon_index_map.push_back(index);
 	}
