@@ -13,6 +13,7 @@
 #include "libslic3r/Point.hpp"
 #include "libslic3r/ExPolygon.hpp"
 #include "libslic3r/SLA/SupportPoint.hpp"
+#include "libslic3r/SLA/SupportIslands/SampleConfig.hpp"
 
 namespace Slic3r::sla {
 
@@ -31,7 +32,7 @@ struct SupportPointGeneratorConfig{
     /// <summary>
     /// Size range for support point interface (head)
     /// </summary>
-    MinMax<float> head_diameter = {0.2f, 0.6f}; // [in mm]
+    float head_diameter = 0.4f; // [in mm]
 
     // FIXME: calculate actual pixel area from printer config:
     // const float pixel_area =
@@ -46,6 +47,9 @@ struct SupportPointGeneratorConfig{
     // y axis .. mean difference of height(Z)
     // Points of lines [in mm]
     std::vector<Vec2f> support_curve;
+
+    // Configuration for sampling island
+    SampleConfig island_configuration;
 };
 
 struct LayerPart; // forward decl.

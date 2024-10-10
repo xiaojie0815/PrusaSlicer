@@ -7,6 +7,7 @@
 #include <libslic3r/ClipperUtils.hpp>
 #include <libslic3r/TriangleMeshSlicer.hpp>
 
+#include <libslic3r/SLA/SupportIslands/SampleConfigFactory.hpp>
 #include <libslic3r/SLA/SupportIslands/SampleConfig.hpp>
 #include <libslic3r/SLA/SupportIslands/VoronoiGraphUtils.hpp>
 #include <libslic3r/SLA/SupportIslands/SampleIslandUtils.hpp>
@@ -17,7 +18,7 @@
 using namespace Slic3r;
 using namespace Slic3r::sla;
 
-#define STORE_SAMPLE_INTO_SVG_FILES
+//#define STORE_SAMPLE_INTO_SVG_FILES
 
 TEST_CASE("Overhanging point should be supported", "[SupGen]") {
 
@@ -304,9 +305,23 @@ ExPolygon create_mountains(double size) {
                       {size / 7, size}});
 }
 
+/// Neighbor points create trouble for voronoi - test of neccessary offseting(closing) of contour
+ExPolygon create_cylinder_bottom_slice() {
+    indexed_triangle_set its_cylinder = its_make_cylinder(6.6551999999999998, 11.800000000000001);
+    MeshSlicingParams param;
+    Polygons polygons = slice_mesh(its_cylinder, 0.0125000002, param);
+    return ExPolygon{polygons.front()};
+}
+
+ExPolygon load_frog(){
+    TriangleMesh mesh = load_model("frog_legs.obj");
+    std::vector<ExPolygons> slices = slice_mesh_ex(mesh.its, {0.1f});
+    return slices.front()[1];
+}
+
 ExPolygons createTestIslands(double size)
 {
-    bool      useFrogLeg = false;    
+    bool useFrogLeg = false;    
     // need post reorganization of longest path
     ExPolygons result = {
         // one support point
@@ -338,6 +353,9 @@ ExPolygons createTestIslands(double size)
         create_tiny_wide_test_2(3 * size, 2 / 3. * size),
         create_tiny_between_holes(3 * size, 2 / 3. * size),
 
+        ExPolygon(PolygonUtils::create_equilateral_triangle(scale_(18.6))),
+        create_cylinder_bottom_slice(),
+
         // still problem
         // three support points
         ExPolygon(PolygonUtils::create_equilateral_triangle(3 * size)), 
@@ -347,14 +365,9 @@ ExPolygons createTestIslands(double size)
         create_trinagle_with_hole(size),
         create_square_with_hole(size, size / 2),
         create_square_with_hole(size, size / 3)
-    };
-    
-    if (useFrogLeg) {
-        TriangleMesh            mesh = load_model("frog_legs.obj");
-        std::vector<ExPolygons>   slices = slice_mesh_ex(mesh.its, {0.1f});
-        ExPolygon frog_leg = slices.front()[1];
-        result.push_back(frog_leg);
-    }
+    };    
+    if (useFrogLeg)
+        result.push_back(load_frog());
     return result;
 }
 
@@ -403,7 +416,7 @@ Points rasterize(const ExPolygon &island, double distance) {
 SupportIslandPoints test_island_sampling(const ExPolygon &   island,
                                         const SampleConfig &config)
 {
-    auto points = SupportPointGenerator::uniform_cover_island(island, config);
+    auto points = SampleIslandUtils::uniform_cover_island(island, config);
 
     Points chck_points = rasterize(island, config.head_radius); // TODO: Use resolution of printer
     bool is_ok = true;
@@ -447,7 +460,7 @@ SupportIslandPoints test_island_sampling(const ExPolygon &   island,
         }
     }
     CHECK(!points.empty());
-    //CHECK(is_ok);
+    CHECK(is_ok);
 
     // all points must be inside of island
     for (const auto &point : points) { CHECK(island.contains(point->point)); }
@@ -539,12 +552,6 @@ TEST_CASE("speed sampling", "[hide], [SupGen]") {
 
     size_t count = 1;
     
-    std::vector<std::vector<Vec2f>> result1;
-    result1.reserve(islands.size()*count);
-    for (size_t i = 0; i<count; ++i)
-        for (const auto& island: islands)
-            result1.emplace_back(sample_expolygon(island, samples_per_mm2, m_rng));
-    
     std::vector<std::vector<Vec2f>> result2;
     result2.reserve(islands.size()*count);
     for (size_t i = 0; i < count; ++i)
@@ -560,7 +567,7 @@ TEST_CASE("speed sampling", "[hide], [SupGen]") {
     
     
 #ifdef STORE_SAMPLE_INTO_SVG_FILES
-    for (size_t i = 0; i < result1.size(); ++i) {
+    for (size_t i = 0; i < result2.size(); ++i) {
         size_t     island_index = i % islands.size();
         ExPolygon &island       = islands[island_index];
 
@@ -568,9 +575,6 @@ TEST_CASE("speed sampling", "[hide], [SupGen]") {
         std::string name  = "sample_" + std::to_string(i) + ".svg";
         SVG         svg(name, LineUtils::create_bounding_box(lines));
         svg.draw(island, "lightgray");
-        svg.draw_text({0, 0}, ("random samples " + std::to_string(result1[i].size())).c_str(), "blue");
-        for (Vec2f &p : result1[i])
-            svg.draw((p * 1e6).cast<coord_t>(), "blue", 1e6);
         svg.draw_text({0., 5e6}, ("uniform samples " + std::to_string(result2[i].size())).c_str(), "green");
         for (Vec2f &p : result2[i]) 
             svg.draw((p * 1e6).cast<coord_t>(), "green", 1e6);
@@ -580,16 +584,17 @@ TEST_CASE("speed sampling", "[hide], [SupGen]") {
 
 /// <summary>
 /// Check for correct sampling of island
-/// 
 /// </summary>
 TEST_CASE("Small islands should be supported in center", "[SupGen], [VoronoiSkeleton]")
 {
-    double       size    = 3e7;
-    SampleConfig cfg  = create_sample_config(size);
-    ExPolygons islands = createTestIslands(size);
+    float head_diameter = .4f;
+    SampleConfig cfg = SampleConfigFactory::create(head_diameter);
+    ExPolygons islands = createTestIslands(21 * scale_(head_diameter));
     for (ExPolygon &island : islands) {
         // information for debug which island cause problem
         [[maybe_unused]] size_t debug_index = &island - &islands.front(); 
+
+        // TODO: index 17 - create field again
         auto   points = test_island_sampling(island, cfg);
         double angle  = 3.14 / 3; // cca 60 degree
 
@@ -601,46 +606,31 @@ TEST_CASE("Small islands should be supported in center", "[SupGen], [VoronoiSkel
     }
 }
 
-std::vector<Vec2f> sample_old(const ExPolygon &island)
-{
-    // Create the support point generator
-    static TriangleMesh mesh;
-    static AABBMesh emesh(mesh);
-    static sla::SupportPointGenerator::Config autogencfg;
-    //autogencfg.minimal_distance = 8.f;
-    static sla::SupportPointGenerator generator{emesh, autogencfg, [] {}, [](int) {}};
-
-    // tear preasure
-    float tp = autogencfg.tear_pressure();
-    size_t layer_id = 13;
-    coordf_t print_z = 11.f;
-    SupportPointGenerator::MyLayer layer(layer_id, print_z);
-    ExPolygon                      poly = island;
-    BoundingBox                    bbox(island.contour.points);
-    Vec2f                          centroid;
-    float                          area = island.area();
-    float                                 h    = 17.f;
-    sla::SupportPointGenerator::Structure s(layer, poly, bbox, centroid,area,h);
-    auto flag = sla::SupportPointGenerator::IslandCoverageFlags(
-        sla::SupportPointGenerator::icfIsNew | sla::SupportPointGenerator::icfWithBoundary);
-    SupportPointGenerator::PointGrid3D grid3d;
-    generator.uniformly_cover({island}, s, s.area * tp, grid3d, flag);
-
-    std::vector<Vec2f> result;
-    result.reserve(grid3d.grid.size());
-    for (auto g : grid3d.grid) { 
-        const Vec3f &p = g.second.position;
-        Vec2f        p2f(p.x(), p.y());
-        result.emplace_back(scale_(p2f));
-    }
-    return result;
-}
+//TEST_CASE("Cell polygon check", "") {
+//    coord_t max_distance = 9;
+//    Points points{Point{0,0}, Point{10,0}};
+//    using VD = Slic3r::Geometry::VoronoiDiagram;
+//    VD vd;
+//    vd.construct_voronoi(points.begin(), points.end());
+//    assert(points.size() == vd.cells().size());
+//    Polygons cells(points.size());
+//    for (const VD::cell_type &cell : vd.cells())
+//        cells[cell.source_index()] = VoronoiGraphUtils::to_polygon(cell, points, max_distance);
+//
+//    REQUIRE(cells[0].size() >= 3);
+//    REQUIRE(cells[1].size() >= 3);
+//    Polygons cell_overlaps = intersection(cells[0], cells[1]);
+//    double area = 0;
+//    for (const Polygon &cell_overlap : cell_overlaps)
+//        area += cell_overlap.area();
+//    CHECK(area < 1);
+//}
 
 #include <libslic3r/SLA/SupportIslands/SampleConfigFactory.hpp>
 std::vector<Vec2f> sample_filip(const ExPolygon &island)
 {
     static SampleConfig cfg = create_sample_config(1e6);
-    SupportIslandPoints points = SupportPointGenerator::uniform_cover_island(island, cfg);
+    SupportIslandPoints points = SampleIslandUtils::uniform_cover_island(island, cfg);
 
     std::vector<Vec2f> result;
     result.reserve(points.size());
@@ -675,16 +665,8 @@ void store_sample(const std::vector<Vec2f> &samples, const ExPolygon& island)
 }
 
 TEST_CASE("Compare sampling test", "[hide]")
-{
-    enum class Sampling {
-        old,
-        filip 
-    } sample_type = Sampling::old;
-    
-    std::function<std::vector<Vec2f>(const ExPolygon &)> sample =
-        (sample_type == Sampling::old)   ? sample_old :
-        (sample_type == Sampling::filip) ? sample_filip :
-                                           nullptr;
+{    
+    std::function<std::vector<Vec2f>(const ExPolygon &)> sample = sample_filip;
     ExPolygons   islands  = createTestIslands(1e6);
     ExPolygons   islands_big = createTestIslands(3e6);
     islands.insert(islands.end(), islands_big.begin(), islands_big.end());

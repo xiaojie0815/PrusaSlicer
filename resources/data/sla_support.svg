@@ -26,13 +26,13 @@
      showgrid="false"
      showborder="true"
      borderlayer="true"
-     inkscape:zoom="3.3638608"
-     inkscape:cx="92.601929"
-     inkscape:cy="110.88449"
-     inkscape:window-width="1920"
-     inkscape:window-height="1129"
-     inkscape:window-x="1912"
-     inkscape:window-y="-8"
+     inkscape:zoom="19.02887"
+     inkscape:cx="14.845863"
+     inkscape:cy="132.29897"
+     inkscape:window-width="2400"
+     inkscape:window-height="1261"
+     inkscape:window-x="-9"
+     inkscape:window-y="-9"
      inkscape:window-maximized="1"
      inkscape:current-layer="layer1" />
   <defs
@@ -130,7 +130,7 @@
        id="path12735" />
     <path
        style="fill:none;stroke:#b50000;stroke-width:0.4;stroke-linejoin:round;stroke-dasharray:none;stop-color:#000000"
-       d="M 5,0 6,3.8987591 8,15 10,40"
+       d="M 4,0 6,3.8987591 8,15 10,40"
        id="path3587"
        sodipodi:nodetypes="cccc" />
     <text
@@ -174,7 +174,7 @@
          style="font-weight:normal;font-size:2.11667px;stroke-width:0.4"
          x="24.711193"
          y="63.303635"
-         id="tspan9676" /></text>
+         id="tspan9676">Last virtual point of curve is [last.x, ∞]</tspan></text>
     <text
        xml:space="preserve"
        style="font-size:2.11667px;line-height:1.3;font-family:'Cascadia Code';-inkscape-font-specification:'Cascadia Code';text-align:center;text-decoration-color:#000000;text-anchor:middle;fill:#364e59;stroke:none;stroke-width:0.4;stroke-linejoin:round;stroke-dasharray:none;stop-color:#000000"
@@ -356,6 +356,6 @@
        id="text17458"><tspan
          sodipodi:role="line"
          id="tspan17456"
-         style="stroke-width:2.5"></tspan></text>
+         style="stroke-width:2.5" /></text>
   </g>
 </svg>

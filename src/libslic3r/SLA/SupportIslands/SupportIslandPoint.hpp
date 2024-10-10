@@ -34,6 +34,7 @@ public:
         outline, // keep position align with island outline 
         inner, // point inside wide part, without restriction on move
 
+        one_bb_center_point, // for island smaller than head radius
         undefined
     };
 

@@ -22,6 +22,8 @@
 #include "libslic3r/PresetBundle.hpp"
 #include "libslic3r/SLAPrint.hpp"
 
+#include "libslic3r/SLA/SupportIslands/SampleConfigFactory.hpp"
+
 static const double CONE_RADIUS = 0.25;
 static const double CONE_HEIGHT = 0.75;
 
@@ -677,6 +679,92 @@ RENDER_AGAIN:
     }
     else { // not in editing mode:
         m_imgui->disabled_begin(!is_input_enabled());
+        if (int density = static_cast<const ConfigOptionInt*>(get_config_options({"support_points_density_relative"})[0])->value;
+            ImGui::SliderInt("points_density", &density, 0, 200, "%d \%")) {
+            mo->config.set("support_points_density_relative", density);
+        } else if (ImGui::IsItemHovered()) {
+             ImGui::SetTooltip("Divider for the supported radius\nSmaller mean less point(75% -> supported radius is enlaged to 133%, for 50% it is 200% of radius)\nLarger mean more points(125% -> supported radius is reduced to 80%, for value 150% it is 66% of radius, for 200% -> 50%)");
+        }
+
+        if (ImGui::TreeNode("Support islands:")) {
+            sla::SampleConfig &sample_config = sla::SampleConfigFactory::get_sample_config();
+            bool exist_change = false;
+            if (float simplification_tolerance = unscale<float>(sample_config.simplification_tolerance); // [in mm]
+                ImGui::InputFloat("input simplify", &simplification_tolerance, .1f, 1.f, "%.2f mm")) {
+                sample_config.simplification_tolerance = scale_(simplification_tolerance);
+                exist_change = true;
+            } else if (ImGui::IsItemHovered())
+                ImGui::SetTooltip("There is no need to calculate with precisse island\nNOTE: Slice of Cylinder bottom has tip of trinagles on contour\n(neighbor coordinate -> create issue in boost::voronoi)");
+            if (float max_distance = unscale<float>(sample_config.max_distance); // [in mm]
+                ImGui::InputFloat("Max dist", &max_distance, .1f, 1.f, "%.2f mm")) {
+                sample_config.max_distance = scale_(max_distance);
+                sample_config.half_distance = sample_config.max_distance / 2;
+                exist_change = true;
+            } else if (ImGui::IsItemHovered())
+                ImGui::SetTooltip("Every support point on island has at least one support point in maximum distance\nMUST be bigger than zero");
+            ImGui::SameLine(); ImGui::Text("half is %.2f", unscale<float>(sample_config.half_distance));
+            if (float minimal_distance_from_outline = unscale<float>(sample_config.minimal_distance_from_outline); // [in mm]
+                ImGui::InputFloat("from outline", &minimal_distance_from_outline, .1f, 1.f, "%.2f mm")) {
+                sample_config.minimal_distance_from_outline = scale_(minimal_distance_from_outline);
+                exist_change = true;
+            } else if (ImGui::IsItemHovered())
+                ImGui::SetTooltip("When it is possible, there will be this minimal distance from outline.\nZERO when head center should be on outline\nSHOULD be positive number");
+            ImGui::SameLine();
+            if (float maximal_distance_from_outline = unscale<float>(sample_config.maximal_distance_from_outline); // [in mm]
+                ImGui::InputFloat("max from outline", &maximal_distance_from_outline, .1f, 1.f, "%.2f mm")) {
+                sample_config.maximal_distance_from_outline = scale_(maximal_distance_from_outline);
+                exist_change = true;
+            } else if (ImGui::IsItemHovered())
+                ImGui::SetTooltip("Measured as sum of VD edge length from outline\nUsed only when there is no space for outline offset on first/last point\nMust be bigger than minimal_distance_from_outline");
+            ImGui::Text("max_interesting_angle is %.0f", float(sample_config.max_interesting_angle*180/M_PI));
+            if (ImGui::IsItemHovered()) ImGui::SetTooltip(" When angle on outline is smaller than max_interesting_angle\nthan create unmovable support point.\nShould be in range from 90 to 180");
+            if (float minimal_support_distance = unscale<float>(sample_config.minimal_support_distance); // [in mm]
+                ImGui::InputFloat("Thin dist", &minimal_support_distance, .1f, 1.f, "%.2f mm")) {
+                sample_config.minimal_support_distance = scale_(minimal_support_distance);
+                exist_change = true;
+            } else if (ImGui::IsItemHovered())
+                ImGui::SetTooltip("Distinguish when to add support point on Voronoi Diagram\nMUST be bigger than minimal_distance_from_outline\nSmaller -> more supports AND Larger -> less amount");
+            if (float min_side_branch_length = unscale<float>(sample_config.min_side_branch_length); // [in mm]
+                ImGui::InputFloat("min_side_branch_length", &min_side_branch_length, .1f, 1.f, "%.2f mm")) {
+                sample_config.min_side_branch_length = scale_(min_side_branch_length);
+                exist_change = true;
+            } else if (ImGui::IsItemHovered())
+                ImGui::SetTooltip("minimal length of side branch to be sampled\nit is used for sampling in center only");
+            if (float max_for_one = unscale<float>(sample_config.max_length_for_one_support_point); // [in mm]
+                ImGui::InputFloat("Max len for one", &max_for_one, .1f, 1.f, "%.2f mm")) {
+                sample_config.max_length_for_one_support_point = scale_(max_for_one);
+                exist_change = true;
+            } else if (ImGui::IsItemHovered())
+                ImGui::SetTooltip("Maximal island length (longest voronoi path) for support by point in path center");
+            if (float max_for_two = unscale<float>(sample_config.max_length_for_two_support_points); // [in mm]
+                ImGui::InputFloat("Max len for two", &max_for_two, .1f, 1.f, "%.2f mm")) {
+                sample_config.max_length_for_two_support_points = scale_(max_for_two);
+                exist_change = true;
+            } else if (ImGui::IsItemHovered())
+                ImGui::SetTooltip("Maximal island length (longest voronoi path)\n for support by 2 points on path sides");        
+            if (float max_width_for_center_support_line = unscale<float>(sample_config.max_width_for_center_support_line); // [in mm]
+                ImGui::InputFloat("thin max width", &max_width_for_center_support_line, .1f, 1.f, "%.2f mm")) {
+                sample_config.max_width_for_center_support_line = scale_(max_width_for_center_support_line);
+                exist_change = true;
+            } else if (ImGui::IsItemHovered())
+                ImGui::SetTooltip("Maximal width of line island supported in the middle of line\nMust be greater or equal to thick min width(to make hysteresis)");
+            if (float min_width_for_outline_support = unscale<float>(sample_config.min_width_for_outline_support); // [in mm]
+                ImGui::InputFloat("thick min width", &min_width_for_outline_support, .1f, 1.f, "%.2f mm")) {
+                sample_config.min_width_for_outline_support = scale_(min_width_for_outline_support);
+                exist_change = true;
+            } else if (ImGui::IsItemHovered())
+                ImGui::SetTooltip("Minimal width to be supported by outline\nMust be smaller or equal to thin max width(to make hysteresis)");
+
+            ImGui::Text("head radius is set to %.2f", unscale<float>(sample_config.head_radius));
+            ImGui::Text("Alignment stop criteria: min_move(%.0f um), iter(%d x), max_VD_move(%.2f mm)", unscale<float>(sample_config.minimal_move)*1000, sample_config.count_iteration, 
+                unscale<float>(sample_config.max_align_distance)
+            );            
+
+            if (exist_change){
+                sla::SampleConfigFactory::verify(sample_config);
+            }
+            ImGui::TreePop();
+        }
 
         ImGui::Text("Distribution depends on './resources/data/sla_support.svg'\ninstruction for edit are in file");
 
@@ -720,9 +808,7 @@ RENDER_AGAIN:
         //    wxGetApp().obj_list()->update_and_show_object_settings_item();
         //}
 
-        bool generate = ImGuiPureWrap::button(m_desc.at("auto_generate"));
-
-        if (generate)
+        if (ImGuiPureWrap::button(m_desc.at("auto_generate")))
             auto_generate();
 
         ImGui::Separator();

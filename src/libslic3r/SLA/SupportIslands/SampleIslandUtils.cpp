@@ -57,26 +57,84 @@ const ExPolygon &get_expolygon_with_biggest_contour(const ExPolygons &expolygons
     }
     return *biggest;
 }
+
+/// <summary>
+/// When radius of all points is smaller than max radius set output center and return true
+/// </summary>
+/// <param name="points"></param>
+/// <param name="max_radius"></param>
+/// <param name="output_center"></param>
+/// <returns>True when Bounding box of points is smaller than max radius</returns>
+bool get_center(const Points &points, coord_t max_radius, Point& output_center){
+    if (points.size()<=2)
+        return false;
+    auto it = points.begin();
+    Point min = *it;
+    Point max = *it;
+    for (++it; it != points.end(); ++it) {
+        if (min.x() > it->x()) {
+            min.x() = it->x();
+            if (max.x() - min.x() > max_radius)
+                return false;
+        } else if(max.x() < it->x()) {
+            max.x() = it->x();
+            if (max.x() - min.x() > max_radius)
+                return false;
+        }
+        if (min.y() > it->y()) {
+            min.y() = it->y();
+            if (max.y() - min.y() > max_radius)
+                return false;
+        } else if (max.y() < it->y()) {
+            max.y() = it->y();
+            if (max.y() - min.y() > max_radius)
+                return false;
+        }
+    }
+
+    // prevent overflow of point range, no care about 1 size
+    output_center = min/2 + max/2;
+    return true;
+}
+
+/// <summary>
+/// Decrease level of detail
+/// </summary>
+/// <param name="island">Polygon to reduce count of points</param>
+/// <param name="config">Define progressivness of reduction</param>
+/// <returns>Simplified island</returns>
+ExPolygon get_simplified(const ExPolygon &island, const SampleConfig &config) {
+    //// closing similar to FDM arachne do before voronoi inspiration in make_expolygons inside TriangleMeshSlicer
+    //float closing_radius = scale_(0.0499f);
+    //float offset_out = closing_radius;
+    //float offset_in = -closing_radius;
+    //ExPolygons closed_expolygons = offset2_ex({island}, offset_out, offset_in); // mitter
+    //ExPolygon closed_expolygon = get_expolygon_with_biggest_contour(closed_expolygons);
+    //// "Close" operation still create neighbor pixel for sharp triangle tip - cause VD issues
+
+    ExPolygons simplified_expolygons = island.simplify(config.simplification_tolerance);
+    return simplified_expolygons.empty() ?
+        island : get_expolygon_with_biggest_contour(simplified_expolygons);
+}
+
 } // namespace
 
 SupportIslandPoints SampleIslandUtils::uniform_cover_island(
     const ExPolygon &island, const SampleConfig &config
 ) {
-    // closing similar to FDM arachne do before voronoi
-    // inspired by make_expolygons inside TriangleMeshSlicer
-    float closing_radius = scale_(0.0499f);
-    float offset_out = closing_radius;
-    float offset_in = -closing_radius;
-    ExPolygons closed_expolygons = offset2_ex({island}, offset_out, offset_in); // mitter
-    ExPolygon closed_expolygon = get_expolygon_with_biggest_contour(closed_expolygons);
+    ExPolygon simplified_island = get_simplified(island, config);
 
-    // "Close" operation create neighbor pixel for sharp triangle tip
-    double tolerance = scale_(0.05);
-    ExPolygons simplified_expolygons = island.simplify(tolerance);
-    ExPolygon simplified_expolygon = get_expolygon_with_biggest_contour(simplified_expolygons);
+    // When island is smaller than minimal-head diameter,
+    // it will be supported whole by support poin in center  
+    if (Point center; get_center(simplified_island.contour.points, config.head_radius, center)) {
+        SupportIslandPoints result;
+        result.push_back(std::make_unique<SupportIslandNoMovePoint>(
+            center, SupportIslandInnerPoint::Type::one_bb_center_point));
+        return result;
+    }
 
     Slic3r::Geometry::VoronoiDiagram vd;
-    Lines lines = to_lines(simplified_expolygon);
+    Lines lines = to_lines(simplified_island);
     vd.construct_voronoi(lines.begin(), lines.end());
     Slic3r::Voronoi::annotate_inside_outside(vd, lines);
     VoronoiGraph skeleton = VoronoiGraphUtils::create_skeleton(vd, lines);
@@ -976,7 +1034,6 @@ SupportIslandPoints SampleIslandUtils::sample_voronoi_graph(
     // every island has to have a point on contour
     assert(start_node != nullptr);
     longest_path = VoronoiGraphUtils::create_longest_path(start_node);
-    // longest_path = create_longest_path_recursive(start_node);
 
 #ifdef SLA_SAMPLE_ISLAND_UTILS_STORE_VORONOI_GRAPH_TO_SVG_PATH
     {

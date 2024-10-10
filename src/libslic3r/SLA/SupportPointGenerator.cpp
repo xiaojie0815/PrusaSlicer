@@ -10,7 +10,6 @@
 #include "libslic3r/KDTreeIndirect.hpp"
 
 // SupportIslands
-#include "libslic3r/SLA/SupportIslands/SampleConfigFactory.hpp"
 #include "libslic3r/SLA/SupportIslands/SampleIslandUtils.hpp"
 
 using namespace Slic3r;
@@ -232,7 +231,6 @@ void support_part_overhangs(
     (const LayerSupportPoint &support_point, const Point &p) -> bool {
         // Debug visualization of all sampled outline
         //return false;
-
         coord_t r = support_point.current_radius;
         Point dp = support_point.position_on_layer - p;
         if (std::abs(dp.x()) > r) return false;
@@ -269,9 +267,8 @@ void support_part_overhangs(
 /// <param name="part_z">z coordinate of part</param>
 /// <param name="cfg"></param>
 void support_island(const LayerPart &part, NearPoints& near_points, float part_z,
-    const SupportPointGeneratorConfig &cfg) { 
-    SampleConfig sample_cfg = SampleConfigFactory::create(cfg);
-    SupportIslandPoints samples = SampleIslandUtils::uniform_cover_island(*part.shape, sample_cfg);
+    const SupportPointGeneratorConfig &cfg) {
+    SupportIslandPoints samples = SampleIslandUtils::uniform_cover_island(*part.shape, cfg.island_configuration);
     //samples = {std::make_unique<SupportIslandPoint>(island.contour.centroid())};
     for (const SupportIslandPointPtr &sample : samples)
         near_points.add(LayerSupportPoint{
@@ -443,6 +440,12 @@ Points sample_overhangs(const LayerPart& part, double dist2) {
 
 void prepare_supports_for_layer(LayerSupportPoints &supports, float layer_z, 
     const SupportPointGeneratorConfig &config) {
+    auto set_radius = [&config](LayerSupportPoint &support, float radius) {
+        if (!is_approx(config.density_relative, 1.f, 1e-4f)) // exist relative density
+            radius /= config.density_relative;
+        support.current_radius = static_cast<coord_t>(scale_(radius));
+    };
+
     const std::vector<Vec2f>& curve = config.support_curve;
     // calculate support area for each support point as radius
     // IMPROVE: use some offsets of previous supported island
@@ -458,7 +461,7 @@ void prepare_supports_for_layer(LayerSupportPoints &supports, float layer_z,
 
         if ((index+1) >= curve.size()) {
             // set maximal radius
-            support.current_radius = static_cast<coord_t>(scale_(curve.back().x()));
+            set_radius(support, curve.back().x());
             continue;
         }
         // interpolate radius on input curve
@@ -467,7 +470,7 @@ void prepare_supports_for_layer(LayerSupportPoints &supports, float layer_z,
         assert(a.y() <= diff_z && diff_z <= b.y());
         float t = (diff_z - a.y()) / (b.y() - a.y());
         assert(0 <= t && t <= 1);
-        support.current_radius = static_cast<coord_t>(scale_(a.x() + t * (b.x() - a.x())));
+        set_radius(support, a.x() + t * (b.x() - a.x()));
     }
 }
 

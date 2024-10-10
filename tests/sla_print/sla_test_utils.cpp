@@ -129,8 +129,7 @@ void test_supports(const std::string          &obj_filename,
 
     // Create the support point generator
     sla::SupportPointGeneratorConfig autogencfg;
-    float head_diam = 2 * supportcfg.head_front_radius_mm;
-    autogencfg.head_diameter = {head_diam, head_diam};
+    autogencfg.head_diameter = 2 * supportcfg.head_front_radius_mm;
     sla::ThrowOnCancel cancel = []() {};
     sla::StatusFunction status = [](int) {};
     sla::SupportPointGeneratorData gen_data = sla::prepare_generator_data(std::move(out.model_slices), out.slicegrid, cancel, status);

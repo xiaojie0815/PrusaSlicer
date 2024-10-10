@@ -473,6 +473,7 @@ set(SLIC3R_SOURCES
     SLA/SupportIslands/PostProcessNeighbors.cpp
     SLA/SupportIslands/PostProcessNeighbors.hpp
     SLA/SupportIslands/SampleConfig.hpp
+    SLA/SupportIslands/SampleConfigFactory.cpp
     SLA/SupportIslands/SampleConfigFactory.hpp
     SLA/SupportIslands/SampleIslandUtils.cpp
     SLA/SupportIslands/SampleIslandUtils.hpp

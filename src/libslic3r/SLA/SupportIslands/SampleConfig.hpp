@@ -13,12 +13,12 @@ struct SampleConfig
 {
     // Every point on island has at least one support point in maximum distance
     // MUST be bigger than zero
-    coord_t max_distance  = 2; 
-    coord_t half_distance = 1; // has to be half od max_distance
+    coord_t max_distance = static_cast<coord_t>(scale_(5.));
+    coord_t half_distance = static_cast<coord_t>(scale_(2.5)); // has to be half od max_distance
 
     // Support point head radius
     // MUST be bigger than zero
-    coord_t head_radius = 1; // [nano meter]
+    coord_t head_radius = static_cast<coord_t>(scale_(.4)); // [nano meter]
 
     // When it is possible, there will be this minimal distance from outline.
     // zero when head should be on outline
@@ -27,7 +27,7 @@ struct SampleConfig
     // Measured as sum of VD edge length from outline
     // Used only when there is no space for outline offset on first/last point
     // Must be bigger than minimal_distance_from_outline
-    coord_t maximal_distance_from_outline = 1.;// [nano meter]
+    coord_t maximal_distance_from_outline = static_cast<coord_t>(scale_(1.));// [nano meter]
 
     // When angle on outline is smaller than max_interesting_angle
     // than create unmovable support point.
@@ -44,23 +44,23 @@ struct SampleConfig
 
     // Maximal length of longest path in voronoi diagram to be island
     // supported only by one single support point this point will be in center of path.
-    coord_t max_length_for_one_support_point = 1.;
+    coord_t max_length_for_one_support_point = static_cast<coord_t>(scale_(1.));
 
     // Maximal length of island supported by 2 points
-    coord_t max_length_for_two_support_points = 1.;
+    coord_t max_length_for_two_support_points = static_cast<coord_t>(scale_(1.));
 
     // Maximal width of line island supported in the middle of line
     // Must be greater or equal to min_width_for_outline_support
-    coord_t max_width_for_center_support_line = 1.;
+    coord_t max_width_for_center_support_line = static_cast<coord_t>(scale_(1.));
 
     // Minimal width to be supported by outline
     // Must be smaller or equal to max_width_for_center_support_line
-    coord_t min_width_for_outline_support = 1.;
+    coord_t min_width_for_outline_support = static_cast<coord_t>(scale_(1.));
 
 
     // Term criteria for end of alignment
     // Minimal change in manhatn move of support position before termination
-    coord_t minimal_move = 1000; // in nanometers, devide from print resolution to quater pixel
+    coord_t minimal_move = static_cast<coord_t>(scale_(.01)); // devide from print resolution to quater pixel
 
     // Maximal count of align iteration
     size_t count_iteration = 100;
@@ -75,7 +75,7 @@ struct SampleConfig
     // There is no need to calculate with precisse island
     // NOTE: Slice of Cylinder bottom has tip of trinagles on contour
     // (neighbor coordinate - create issue in voronoi)
-    double simplification_tolerance = 1e4; // [nm] 
+    double simplification_tolerance = scale_(0.05 /*mm*/);
 };
 } // namespace Slic3r::sla
 #endif // slic3r_SLA_SuppotstIslands_SampleConfig_hpp_
