@@ -314,6 +314,13 @@ static const t_config_enum_values s_keys_map_TiltSpeeds{
 };
 CONFIG_OPTION_ENUM_DEFINE_STATIC_MAPS(TiltSpeeds)
 
+static const t_config_enum_values s_keys_map_EnsureVerticalShellThickness {
+    { "disabled", int(EnsureVerticalShellThickness::Disabled) },
+    { "partial",  int(EnsureVerticalShellThickness::Partial)  },
+    { "enabled",  int(EnsureVerticalShellThickness::Enabled)  },
+};
+CONFIG_OPTION_ENUM_DEFINE_STATIC_MAPS(EnsureVerticalShellThickness)
+
 static void assign_printer_technology_to_unknown(t_optiondef_map &options, PrinterTechnology printer_technology)
 {
     for (std::pair<const t_config_option_key, ConfigOptionDef> &kvp : options)
@@ -957,6 +964,19 @@ void PrintConfigDef::init_fff_params()
     def->height = 120;
     def->mode = comExpert;
     def->set_default_value(new ConfigOptionStrings { "; Filament-specific end gcode \n;END gcode for filament\n" });
+
+    def = this->add("ensure_vertical_shell_thickness", coEnum);
+    def->label = L("Ensure vertical shell thickness");
+    def->category = L("Layers and Perimeters");
+    def->tooltip = L("Add solid infill near sloping surfaces to guarantee the vertical shell thickness "
+                   "(top+bottom solid layers).");
+    def->set_enum<EnsureVerticalShellThickness>({
+        { "disabled", L("Disabled") },
+        { "partial",  L("Partial")  },
+        { "enabled",  L("Enabled")  },
+    });
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionEnum<EnsureVerticalShellThickness>(EnsureVerticalShellThickness::Enabled));
 
     auto def_top_fill_pattern = def = this->add("top_fill_pattern", coEnum);
     def->label = L("Top fill pattern");
@@ -4795,8 +4815,6 @@ static std::set<std::string> PrintConfigDef_ignore = {
     "fuzzy_skin_perimeter_mode", "fuzzy_skin_shape",
     // Introduced in PrusaSlicer 2.3.0-alpha2, later replaced by automatic calculation based on extrusion width.
     "wall_add_middle_threshold", "wall_split_middle_threshold",
-    // Replaced by new concentric ensuring in 2.6.0-alpha5
-    "ensure_vertical_shell_thickness",
     // Disabled in 2.6.0-alpha6, this option is problematic
     "infill_only_where_needed",
     "gcode_binary", // Introduced in 2.7.0-alpha1, removed in 2.7.1 (replaced by binary_gcode).
@@ -4873,16 +4891,17 @@ void PrintConfigDef::handle_legacy(t_config_option_key &opt_key, std::string &va
         opt_key = "printhost_apikey";
     } else if (opt_key == "preset_name") {
         opt_key = "preset_names";
-    } /*else if (opt_key == "material_correction" || opt_key == "relative_correction") {
-        ConfigOptionFloats p;
-        p.deserialize(value);
-
-        if (p.values.size() < 3) {
-            double firstval = p.values.front();
-            p.values.emplace(p.values.begin(), firstval);
-            value = p.serialize();
+    } else if (opt_key == "ensure_vertical_shell_thickness") {
+        if (value == "1") {
+            value = "enabled";
+        } else if (value == "0") {
+            value = "partial";
+        } else if (const t_config_enum_values &enum_keys_map = ConfigOptionEnum<EnsureVerticalShellThickness>::get_enum_values(); enum_keys_map.find(value) == enum_keys_map.end()) {
+            assert(value == "0" || value == "1");
+            // Values other than 0/1 are replaced with "partial" for handling values from different slicers.
+            value = "partial";
         }
-    }*/
+    }
 
     // In PrusaSlicer 2.3.0-alpha0 the "monotonous" infill was introduced, which was later renamed to "monotonic".
     if (value == "monotonous" && (opt_key == "top_fill_pattern" || opt_key == "bottom_fill_pattern" || opt_key == "fill_pattern"))
