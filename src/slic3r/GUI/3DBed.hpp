@@ -84,6 +84,7 @@ private:
     void init_triangles();
     void init_gridlines();
     void init_contourlines();
+    void init_internal_model_from_file();
     static std::tuple<Type, std::string, std::string> detect_type(const Pointfs& shape);
     void render_internal(GLCanvas3D& canvas, const Transform3d& view_matrix, const Transform3d& projection_matrix, bool bottom, float scale_factor,
         bool show_texture, bool picking, bool active);

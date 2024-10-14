@@ -33,6 +33,7 @@ static const Slic3r::ColorRGBA DEFAULT_MODEL_COLOR             = Slic3r::ColorRG
 static const Slic3r::ColorRGBA PICKING_MODEL_COLOR             = Slic3r::ColorRGBA::BLACK();
 static const Slic3r::ColorRGBA DEFAULT_SOLID_GRID_COLOR        = { 0.9f, 0.9f, 0.9f, 1.0f };
 static const Slic3r::ColorRGBA DEFAULT_TRANSPARENT_GRID_COLOR  = { 0.9f, 0.9f, 0.9f, 0.6f };
+static const Slic3r::ColorRGBA DISABLED_MODEL_COLOR            = { 0.6f, 0.6f, 0.6f, 0.75f };
 
 namespace Slic3r {
 namespace GUI {
@@ -84,8 +85,6 @@ bool Bed3D::set_shape(const Pointfs& bed_shape, const double max_print_height, c
     m_model_filename = model_filename;
     m_extended_bounding_box = this->calc_extended_bounding_box();
 
-    s_multiple_beds.update_build_volume(m_build_volume.bounding_volume2d());
-
     m_contour = ExPolygon(Polygon::new_scale(bed_shape));
     const BoundingBox bbox = m_contour.contour.bounding_box();
     if (!bbox.defined)
@@ -97,12 +96,19 @@ bool Bed3D::set_shape(const Pointfs& bed_shape, const double max_print_height, c
     m_texture.reset();
     m_model.reset();
 
+    // unregister from picking
+    wxGetApp().plater()->canvas3D()->remove_raycasters_for_picking(SceneRaycaster::EType::Bed);
+
+    init_internal_model_from_file();
+    init_triangles();
+
+    BoundingBoxf bb = m_build_volume.bounding_volume2d();
+    bb.max = Vec2d(bb.max.x() + std::max(0., m_model.model.get_bounding_box().size().x() - bb.size().x()), bb.max.y() + std::max(0., m_model.model.get_bounding_box().size().y() - bb.size().y()));
+    s_multiple_beds.update_build_volume(m_build_volume.bounding_volume2d(), bb);
+
     // Set the origin and size for rendering the coordinate system axes.
     m_axes.set_origin({ 0.0, 0.0, static_cast<double>(GROUND_Z) });
     m_axes.set_stem_length(0.1f * static_cast<float>(m_build_volume.bounding_volume().max_size()));
-
-    // unregister from picking
-    wxGetApp().plater()->canvas3D()->remove_raycasters_for_picking(SceneRaycaster::EType::Bed);
 
     // Let the calee to update the UI.
     return true;
@@ -145,8 +151,11 @@ void Bed3D::render_internal(GLCanvas3D& canvas, const Transform3d& view_matrix, 
     glsafe(::glEnable(GL_DEPTH_TEST));
 
     m_model.model.set_color(picking ? PICKING_MODEL_COLOR : DEFAULT_MODEL_COLOR);
-    if (!picking && ! active)
-        m_model.model.set_color(ColorRGBA(.6f, .6f, 0.6f, 0.5f));
+    m_triangles.set_color(picking ? PICKING_MODEL_COLOR : DEFAULT_MODEL_COLOR);
+    if (!picking && !active) {
+        m_model.model.set_color(DISABLED_MODEL_COLOR);
+        m_triangles.set_color(DISABLED_MODEL_COLOR);
+    }
 
     switch (m_type)
     {
@@ -229,14 +238,6 @@ void Bed3D::init_triangles()
         register_raycasters_for_picking(init_data, Transform3d::Identity());
 
     m_triangles.init_from(std::move(init_data));
-    m_triangles.set_color(DEFAULT_MODEL_COLOR);
-
-    BoundingBoxf bb = m_build_volume.bounding_volume2d();
-    double y = bb.size().y();
-    double ym = m_model.model.get_bounding_box().size().y();
-    double diff = std::max(0., ym - y);
-    bb.max = Vec2d(bb.max.x(), bb.max.y() + diff);
-    s_multiple_beds.update_build_volume(bb);
 }
 
 void Bed3D::init_gridlines()
@@ -454,7 +455,7 @@ void Bed3D::render_texture(bool bottom, GLCanvas3D& canvas, const Transform3d& v
     }
 }
 
-void Bed3D::render_model(const Transform3d& view_matrix, const Transform3d& projection_matrix)
+void Bed3D::init_internal_model_from_file()
 {
     if (m_model_filename.empty())
         return;
@@ -479,6 +480,14 @@ void Bed3D::render_model(const Transform3d& view_matrix, const Transform3d& proj
         // update extended bounding box
         m_extended_bounding_box = this->calc_extended_bounding_box();
     }
+}
+
+void Bed3D::render_model(const Transform3d& view_matrix, const Transform3d& projection_matrix)
+{
+    if (m_model_filename.empty())
+        return;
+
+    init_internal_model_from_file();
 
     if (!m_model.model.get_filename().empty()) {
         GLShaderProgram* shader = wxGetApp().get_shader("gouraud_light");
