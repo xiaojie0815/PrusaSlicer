@@ -110,6 +110,12 @@ bool GLGizmoMmuSegmentation::on_init()
     m_desc["second_color"]         = _u8L("Second color");
     m_desc["remove_caption"]       = _u8L("Shift + Left mouse button") + ": ";
     m_desc["remove"]               = _u8L("Remove painted color");
+
+    m_desc["alt_caption"]          = _u8L("Alt + Mouse wheel") + ": ";
+    m_desc["alt_brush"]            = _u8L("Change brush size");
+    m_desc["alt_fill"]             = _u8L("Change angle");
+    m_desc["alt_height_range"]     = _u8L("Change height range");
+
     m_desc["remove_all"]           = _u8L("Clear all");
     m_desc["circle"]               = _u8L("Circle");
     m_desc["sphere"]               = _u8L("Sphere");
@@ -122,10 +128,7 @@ bool GLGizmoMmuSegmentation::on_init()
     m_desc["tool_height_range"]    = _u8L("Height range");
 
     m_desc["smart_fill_angle"]     = _u8L("Smart fill angle");
-    m_desc["smart_fill_gap_area"]  = _u8L("Smart fill gap");
-
     m_desc["bucket_fill_angle"]    = _u8L("Bucket fill angle");
-    m_desc["bucket_fill_gap_area"] = _u8L("Bucket fill gap");
 
     m_desc["split_triangles"]      = _u8L("Split triangles");
 
@@ -282,6 +285,7 @@ void GLGizmoMmuSegmentation::on_render_input_window(float x, float y, float bott
                                                     ImGuiPureWrap::calc_text_size(m_desc.at("reset_direction")).x) + m_imgui->scaled(1.5f);
     const float cursor_slider_left       = ImGuiPureWrap::calc_text_size(m_desc.at("cursor_size")).x + m_imgui->scaled(1.f);
     const float smart_fill_slider_left   = ImGuiPureWrap::calc_text_size(m_desc.at("smart_fill_angle")).x + m_imgui->scaled(1.f);
+    const float bucket_fill_slider_left  = ImGuiPureWrap::calc_text_size(m_desc.at("bucket_fill_angle")).x + m_imgui->scaled(1.f);
     const float height_range_slider_left = ImGuiPureWrap::calc_text_size(m_desc.at("height_range_z_range")).x + m_imgui->scaled(1.f);
 
     const float cursor_type_radio_circle  = ImGuiPureWrap::calc_text_size(m_desc["circle"]).x + m_imgui->scaled(2.5f);
@@ -306,16 +310,20 @@ void GLGizmoMmuSegmentation::on_render_input_window(float x, float y, float bott
 
     const float split_triangles_checkbox_width = ImGuiPureWrap::calc_text_size(m_desc["split_triangles"]).x + m_imgui->scaled(2.5f);
 
-    float caption_max    = 0.f;
+    float caption_max = 0.f;
+    for (const std::string t : {"first_color", "second_color", "remove", "alt"}) {
+        caption_max = std::max(caption_max, ImGuiPureWrap::calc_text_size(m_desc[t + "_caption"]).x);
+    }
+
     float total_text_max = 0.f;
-    for (const auto &t : std::array<std::string, 3>{"first_color", "second_color", "remove"}) {
-        caption_max    = std::max(caption_max, ImGuiPureWrap::calc_text_size(m_desc[t + "_caption"]).x);
+    for (const std::string t : {"first_color", "second_color", "remove", "alt_brush", "alt_fill", "alt_height_range"}) {
         total_text_max = std::max(total_text_max, ImGuiPureWrap::calc_text_size(m_desc[t]).x);
     }
+
     total_text_max += caption_max + m_imgui->scaled(1.f);
     caption_max    += m_imgui->scaled(1.f);
 
-    const float sliders_left_width = std::max({smart_fill_slider_left, cursor_slider_left, clipping_slider_left, height_range_slider_left});
+    const float sliders_left_width = std::max({smart_fill_slider_left, bucket_fill_slider_left, cursor_slider_left, clipping_slider_left, height_range_slider_left});
     const float slider_icon_width  = ImGuiPureWrap::get_slider_icon_size().x;
     float       window_width       = minimal_slider_width + sliders_left_width + slider_icon_width;
     window_width = std::max(window_width, total_text_max);
@@ -331,8 +339,14 @@ void GLGizmoMmuSegmentation::on_render_input_window(float x, float y, float bott
         ImGuiPureWrap::text(text);
     };
 
-    for (const auto &t : std::array<std::string, 3>{"first_color", "second_color", "remove"})
+    for (const std::string t : {"first_color", "second_color", "remove"}) {
         draw_text_with_caption(m_desc.at(t + "_caption"), m_desc.at(t));
+    }
+
+    std::string alt_hint_text = (m_tool_type == ToolType::BRUSH)        ? "alt_brush" :
+                                (m_tool_type == ToolType::HEIGHT_RANGE) ? "alt_height_range"
+                                                                        : "alt_fill";
+    draw_text_with_caption(m_desc.at("alt_caption"), m_desc.at(alt_hint_text));
 
     ImGui::Separator();
 
@@ -486,18 +500,8 @@ void GLGizmoMmuSegmentation::on_render_input_window(float x, float y, float bott
                                                                                       "placed after the number with no whitespace in between.");
         ImGui::SameLine(sliders_left_width);
         ImGui::PushItemWidth(window_width - sliders_left_width - slider_icon_width);
-        if (m_imgui->slider_float("##smart_fill_angle", &m_smart_fill_angle, SmartFillAngleMin, SmartFillAngleMax, format_str_angle.data(), 1.0f, true, _L("Alt + Mouse wheel"))) {
-            for (auto &triangle_selector: m_triangle_selectors) {
-                triangle_selector->seed_fill_unselect_all_triangles();
-                triangle_selector->request_update_render_data();
-            }
-        }
-
-        ImGui::AlignTextToFramePadding();
-        ImGuiPureWrap::text((m_tool_type == ToolType::SMART_FILL ? m_desc["smart_fill_gap_area"] : m_desc["bucket_fill_gap_area"]) + ":");
-        ImGui::SameLine(sliders_left_width);
-        ImGui::PushItemWidth(window_width - sliders_left_width - slider_icon_width);
-        if (m_imgui->slider_float("##smart_fill_gap_area", &m_smart_fill_gap_area, SmartFillGapAreaMin, SmartFillGapAreaMax, "%.2f", 1.0f, true)) {
+        float &fill_angle = (m_tool_type == ToolType::SMART_FILL) ? m_smart_fill_angle : m_bucket_fill_angle;
+        if (m_imgui->slider_float("##fill_angle", &fill_angle, SmartFillAngleMin, SmartFillAngleMax, format_str_angle.data(), 1.0f, true, _L("Alt + Mouse wheel"))) {
             for (auto &triangle_selector: m_triangle_selectors) {
                 triangle_selector->seed_fill_unselect_all_triangles();
                 triangle_selector->request_update_render_data();
