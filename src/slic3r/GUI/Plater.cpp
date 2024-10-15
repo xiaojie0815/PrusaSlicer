@@ -2091,12 +2091,6 @@ unsigned int Plater::priv::update_background_process(bool force_validation, bool
     if (full_config.has("binary_gcode")) // needed for SLA
         full_config.set("binary_gcode", bool(full_config.opt_bool("binary_gcode") & wxGetApp().app_config->get_bool("use_binary_gcode_when_supported")));
 
-    // Also tell the backend about the position of the wipe tower.
-    // TODO: Refactor the backend and the apply function to take this from the Model.
-    full_config.set("wipe_tower_x", model.wipe_tower.position.x(), true);
-    full_config.set("wipe_tower_y", model.wipe_tower.position.y(), true);
-    full_config.set("wipe_tower_rotation_angle", model.wipe_tower.rotation, true);
-
     const Preset &selected_printer = wxGetApp().preset_bundle->printers.get_selected_preset();
     std::string printer_model_serialized = full_config.option("printer_model")->serialize();
     std::string vendor_repo_prefix;

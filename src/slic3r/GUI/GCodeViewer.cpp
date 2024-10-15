@@ -1690,8 +1690,8 @@ void GCodeViewer::load_wipetower_shell(const Print& print)
             const std::vector<std::pair<float, float>> z_and_depth_pairs = print.wipe_tower_data(extruders_count).z_and_depth_pairs;
             const float brim_width = wipe_tower_data.brim_width;
             if (depth != 0.) {
-                m_shells.volumes.load_wipe_tower_preview(config.wipe_tower_x, config.wipe_tower_y, config.wipe_tower_width, depth, z_and_depth_pairs,
-                    max_z, config.wipe_tower_cone_angle, config.wipe_tower_rotation_angle, false, brim_width);
+                m_shells.volumes.load_wipe_tower_preview(wxGetApp().plater()->model().wipe_tower.position.x(), wxGetApp().plater()->model().wipe_tower.position.y(), config.wipe_tower_width, depth, z_and_depth_pairs,
+                    max_z, config.wipe_tower_cone_angle, wxGetApp().plater()->model().wipe_tower.rotation, false, brim_width);
                 GLVolume* volume = m_shells.volumes.volumes.back();
                 volume->color.a(0.25f);
                 volume->force_native_color = true;
