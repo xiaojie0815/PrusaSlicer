@@ -90,6 +90,7 @@ const std::string LAYER_CONFIG_RANGES_FILE = "Metadata/Prusa_Slicer_layer_config
 const std::string SLA_SUPPORT_POINTS_FILE = "Metadata/Slic3r_PE_sla_support_points.txt";
 const std::string SLA_DRAIN_HOLES_FILE = "Metadata/Slic3r_PE_sla_drain_holes.txt";
 const std::string CUSTOM_GCODE_PER_PRINT_Z_FILE = "Metadata/Prusa_Slicer_custom_gcode_per_print_z.xml";
+const std::string WIPE_TOWER_INFORMATION_FILE = "Metadata/Prusa_Slicer_wipe_tower_information.xml";
 const std::string CUT_INFORMATION_FILE = "Metadata/Prusa_Slicer_cut_information.xml";
 
 static constexpr const char *RELATIONSHIP_TAG = "Relationship";
@@ -554,6 +555,8 @@ namespace Slic3r {
         void _extract_sla_drain_holes_from_archive(mz_zip_archive& archive, const mz_zip_archive_file_stat& stat);
 
         void _extract_custom_gcode_per_print_z_from_archive(mz_zip_archive& archive, const mz_zip_archive_file_stat& stat);
+        void _extract_wipe_tower_information_from_archive(mz_zip_archive& archive, const mz_zip_archive_file_stat& stat, Model& model);
+        void _extract_wipe_tower_information_from_archive_legacy(::mz_zip_archive &archive, const mz_zip_archive_file_stat &stat, Model& model);
 
         void _extract_print_config_from_archive(mz_zip_archive& archive, const mz_zip_archive_file_stat& stat, DynamicPrintConfig& config, ConfigSubstitutionContext& subs_context, const std::string& archive_filename);
         bool _extract_model_config_from_archive(mz_zip_archive& archive, const mz_zip_archive_file_stat& stat, Model& model);
@@ -766,6 +769,9 @@ namespace Slic3r {
             }
         }
 
+        // Initialize the wipe tower position (see the end of this function):
+        model.wipe_tower.position.x() = std::numeric_limits<double>::max();
+
         // Read root model file
         if (start_part_stat.m_file_index < num_entries) {
             try {
@@ -822,6 +828,10 @@ namespace Slic3r {
                     // extract slic3r layer config ranges file
                     _extract_custom_gcode_per_print_z_from_archive(archive, stat);
                 }
+                else if (boost::algorithm::iequals(name, WIPE_TOWER_INFORMATION_FILE)) {
+                    // extract wipe tower information file
+                    _extract_wipe_tower_information_from_archive(archive, stat, model);
+                }
                 else if (boost::algorithm::iequals(name, MODEL_CONFIG_FILE)) {
                     // extract slic3r model config file
                     if (!_extract_model_config_from_archive(archive, stat, model)) {
@@ -832,6 +842,28 @@ namespace Slic3r {
                 } 
                 else if (_is_svg_shape_file(name)) {
                     _extract_embossed_svg_shape_file(name, archive, stat);
+                }
+            }
+        }
+
+
+        if (model.wipe_tower.position.x() == std::numeric_limits<double>::max()) {
+            // This is apparently an old project from before PS 2.9.0, which saved wipe tower pos and rotation
+            // into config, not into Model. Try to load it from the config file.
+            // First set default in case we do not find it (these were the default values of the config options).
+            model.wipe_tower.position.x() = 180;
+            model.wipe_tower.position.y() = 140;
+            model.wipe_tower.rotation = 0.;
+
+            for (mz_uint i = 0; i < num_entries; ++i) {
+                if (mz_zip_reader_file_stat(&archive, i, &stat)) {
+                    std::string name(stat.m_filename);
+                    std::replace(name.begin(), name.end(), '\\', '/');
+
+                    if (boost::algorithm::iequals(name, PRINT_CONFIG_FILE)) {
+                        _extract_wipe_tower_information_from_archive_legacy(archive, stat, model);
+                        break;
+                    }
                 }
             }
         }
@@ -1611,6 +1643,77 @@ namespace Slic3r {
                     extra = tree.get<std::string>("<xmlattr>.extra");
                 }
                 m_model->custom_gcode_per_print_z.gcodes.push_back(CustomGCode::Item{print_z, type, extruder, color, extra}) ;
+            }
+        }
+    }
+
+    void _3MF_Importer::_extract_wipe_tower_information_from_archive(::mz_zip_archive &archive, const mz_zip_archive_file_stat &stat, Model& model)
+    {
+        if (stat.m_uncomp_size > 0) {
+            std::string buffer((size_t)stat.m_uncomp_size, 0);
+            mz_bool res = mz_zip_reader_extract_to_mem(&archive, stat.m_file_index, (void*)buffer.data(), (size_t)stat.m_uncomp_size, 0);
+            if (res == 0) {
+                add_error("Error while reading wipe tower information data to buffer");
+                return;
+            }
+
+            std::istringstream iss(buffer); // wrap returned xml to istringstream
+            pt::ptree main_tree;
+            pt::read_xml(iss, main_tree);
+
+            try {
+                auto& node = main_tree.get_child("wipe_tower_information");
+                double pos_x = node.get<double>("<xmlattr>.position_x");
+                double pos_y = node.get<double>("<xmlattr>.position_y");
+                double rot_deg = node.get<double>("<xmlattr>.rotation_deg");
+                model.wipe_tower.position = Vec2d(pos_x, pos_y);
+                model.wipe_tower.rotation = rot_deg;
+            } catch (const boost::property_tree::ptree_bad_path&) {
+                // Handles missing node or attribute.
+                add_error("Error while reading wipe tower information.");
+                return;
+            }
+
+        }
+    }
+
+    void _3MF_Importer::_extract_wipe_tower_information_from_archive_legacy(::mz_zip_archive &archive, const mz_zip_archive_file_stat &stat, Model& model)
+    {
+        if (stat.m_uncomp_size > 0) {
+            std::string buffer((size_t)stat.m_uncomp_size, 0);
+            mz_bool res = mz_zip_reader_extract_to_mem(&archive, stat.m_file_index, (void*)buffer.data(), (size_t)stat.m_uncomp_size, 0);
+            if (res == 0) {
+                add_error("Error while reading config data to buffer");
+                return;
+            }
+
+            // Try to find wipe tower data in the config, where pre-2.9.0 slicers saved them.
+            // Do not load the config as usual, it no longer knows those values.
+            std::istringstream iss(buffer);
+            std::string line;
+
+            while (iss) {
+                std::getline(iss, line);
+                boost::algorithm::trim_left_if(line, [](char ch) { return std::isspace(ch) || ch == ';'; });
+                if (boost::starts_with(line, "wipe_tower_x") || boost::starts_with(line, "wipe_tower_y") || boost::starts_with(line, "wipe_tower_rotation_angle")) {
+                    std::string value_str;
+                    try {
+                        value_str = line.substr(line.find("=") + 1, std::string::npos);
+                    } catch (const std::out_of_range&) {
+                        continue;
+                    }
+                    double val = 0.;
+                    std::istringstream value_ss(value_str);
+                    value_ss >> val;
+                    if (! value_ss.fail()) {
+                        if (boost::starts_with(line, "wipe_tower_x"))
+                            model.wipe_tower.position.x() = val;
+                        else if (boost::starts_with(line, "wipe_tower_y"))
+                            model.wipe_tower.position.y() = val;
+                        else
+                            model.wipe_tower.rotation = val;
+                    }
+                }
             }
         }
     }
@@ -2645,9 +2748,10 @@ namespace Slic3r {
         bool _add_layer_config_ranges_file_to_archive(mz_zip_archive& archive, Model& model);
         bool _add_sla_support_points_file_to_archive(mz_zip_archive& archive, Model& model);
         bool _add_sla_drain_holes_file_to_archive(mz_zip_archive& archive, Model& model);
-        bool _add_print_config_file_to_archive(mz_zip_archive& archive, const DynamicPrintConfig &config);
+        bool _add_print_config_file_to_archive(mz_zip_archive& archive, const DynamicPrintConfig &config, const Model& model);
         bool _add_model_config_file_to_archive(mz_zip_archive& archive, const Model& model, const IdToObjectDataMap &objects_data);
         bool _add_custom_gcode_per_print_z_file_to_archive(mz_zip_archive& archive, Model& model, const DynamicPrintConfig* config);
+        bool _add_wipe_tower_information_file_to_archive( mz_zip_archive& archive, Model& model);
     };
 
     bool _3MF_Exporter::save_model_to_file(const std::string& filename, Model& model, const DynamicPrintConfig* config, bool fullpath_sources, const ThumbnailData* thumbnail_data, bool zip64)
@@ -2754,10 +2858,19 @@ namespace Slic3r {
             return false;
         }
 
+
+        // Adds wipe tower information ("Metadata/Prusa_Slicer_wipe_tower_information.xml").
+        if (!_add_wipe_tower_information_file_to_archive(archive, model)) {
+            close_zip_writer(&archive);
+            boost::filesystem::remove(filename);
+            return false;
+        }
+
+
         // Adds slic3r print config file ("Metadata/Slic3r_PE.config").
         // This file contains the content of FullPrintConfing / SLAFullPrintConfig.
         if (config != nullptr) {
-            if (!_add_print_config_file_to_archive(archive, *config)) {
+            if (!_add_print_config_file_to_archive(archive, *config, model)) {
                 close_zip_writer(&archive);
                 boost::filesystem::remove(filename);
                 return false;
@@ -3456,16 +3569,39 @@ namespace Slic3r {
         return true;
     }
 
-    bool _3MF_Exporter::_add_print_config_file_to_archive(mz_zip_archive& archive, const DynamicPrintConfig &config)
+    bool _3MF_Exporter::_add_print_config_file_to_archive(mz_zip_archive& archive, const DynamicPrintConfig &config, const Model& model)
     {
         assert(is_decimal_separator_point());
         char buffer[1024];
         sprintf(buffer, "; %s\n\n", header_slic3r_generated().c_str());
         std::string out = buffer;
 
-        for (const std::string &key : config.keys())
-            if (key != "compatible_printers")
-                out += "; " + key + " = " + config.opt_serialize(key) + "\n";
+        t_config_option_keys keys = config.keys();
+
+        // Wipe tower values were historically stored in the config, but they were moved into
+        // Model in PS 2.9.0. Keep saving the old values to maintain forward compatibility.
+        for (const std::string s : {"wipe_tower_x", "wipe_tower_y", "wipe_tower_rotation_angle"})
+            if (! config.has(s))
+                keys.emplace_back(s);
+        sort_remove_duplicates(keys);
+
+        for (const std::string& key : keys) {
+            if (key == "compatible_printers")
+                continue;
+
+            std::string opt_serialized;
+            
+            if (key == "wipe_tower_x")
+                opt_serialized = float_to_string_decimal_point(model.wipe_tower.position.x());
+            else if (key == "wipe_tower_y")
+                opt_serialized = float_to_string_decimal_point(model.wipe_tower.position.y());
+            else if (key == "wipe_tower_rotation_angle")
+                opt_serialized = float_to_string_decimal_point(model.wipe_tower.rotation);
+            else
+                opt_serialized = config.opt_serialize(key);
+
+            out += "; " + key + " = " + opt_serialized + "\n";
+        }
 
         if (!out.empty()) {
             if (!mz_zip_writer_add_mem(&archive, PRINT_CONFIG_FILE.c_str(), (const void*)out.data(), out.length(), MZ_DEFAULT_COMPRESSION)) {
@@ -3656,6 +3792,34 @@ bool _3MF_Exporter::_add_custom_gcode_per_print_z_file_to_archive( mz_zip_archiv
     if (!out.empty()) {
         if (!mz_zip_writer_add_mem(&archive, CUSTOM_GCODE_PER_PRINT_Z_FILE.c_str(), (const void*)out.data(), out.length(), MZ_DEFAULT_COMPRESSION)) {
             add_error("Unable to add custom Gcodes per print_z file to archive");
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool _3MF_Exporter::_add_wipe_tower_information_file_to_archive( mz_zip_archive& archive, Model& model)
+{
+    std::string out = "";
+
+    pt::ptree tree;
+    pt::ptree& main_tree = tree.add("wipe_tower_information", "");
+
+    main_tree.put("<xmlattr>.position_x", model.wipe_tower.position.x());
+    main_tree.put("<xmlattr>.position_y", model.wipe_tower.position.y());
+    main_tree.put("<xmlattr>.rotation_deg", model.wipe_tower.rotation);
+    
+    std::ostringstream oss;
+    boost::property_tree::write_xml(oss, tree);
+    out = oss.str();
+
+    // Post processing("beautification") of the output string
+    boost::replace_all(out, "><", ">\n<");
+    
+    if (!out.empty()) {
+        if (!mz_zip_writer_add_mem(&archive, WIPE_TOWER_INFORMATION_FILE.c_str(), (const void*)out.data(), out.length(), MZ_DEFAULT_COMPRESSION)) {
+            add_error("Unable to add wipe tower information file to archive");
             return false;
         }
     }

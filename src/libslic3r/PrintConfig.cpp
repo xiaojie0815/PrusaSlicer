@@ -3547,33 +3547,12 @@ void PrintConfigDef::init_fff_params()
     def->tooltip = "";
     def->set_default_value(new ConfigOptionBool{ false });
 
-    def = this->add("wipe_tower_x", coFloat);
-    def->label = L("Position X");
-    def->tooltip = L("X coordinate of the left front corner of a wipe tower");
-    def->sidetext = L("mm");
-    def->mode = comAdvanced;
-    def->set_default_value(new ConfigOptionFloat(180.));
-
-    def = this->add("wipe_tower_y", coFloat);
-    def->label = L("Position Y");
-    def->tooltip = L("Y coordinate of the left front corner of a wipe tower");
-    def->sidetext = L("mm");
-    def->mode = comAdvanced;
-    def->set_default_value(new ConfigOptionFloat(140.));
-
     def = this->add("wipe_tower_width", coFloat);
     def->label = L("Width");
     def->tooltip = L("Width of a wipe tower");
     def->sidetext = L("mm");
     def->mode = comAdvanced;
     def->set_default_value(new ConfigOptionFloat(60.));
-
-    def = this->add("wipe_tower_rotation_angle", coFloat);
-    def->label = L("Wipe tower rotation angle");
-    def->tooltip = L("Wipe tower rotation angle with respect to x-axis.");
-    def->sidetext = L("°");
-    def->mode = comAdvanced;
-    def->set_default_value(new ConfigOptionFloat(0.));
 
     def = this->add("wipe_tower_brim_width", coFloat);
     def->label = L("Wipe tower brim width");
@@ -4821,7 +4800,8 @@ static std::set<std::string> PrintConfigDef_ignore = {
     // Disabled in 2.6.0-alpha6, this option is problematic
     "infill_only_where_needed",
     "gcode_binary", // Introduced in 2.7.0-alpha1, removed in 2.7.1 (replaced by binary_gcode).
-    "wiping_volumes_extruders" // Removed in 2.7.3-alpha1.
+    "wiping_volumes_extruders", // Removed in 2.7.3-alpha1.
+    "wipe_tower_x", "wipe_tower_y", "wipe_tower_rotation_angle" // Removed in 2.9.0
 };
 
 void PrintConfigDef::handle_legacy(t_config_option_key &opt_key, std::string &value)

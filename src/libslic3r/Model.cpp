@@ -69,6 +69,7 @@ Model& Model::assign_copy(const Model &rhs)
 
     // copy custom code per height
     this->custom_gcode_per_print_z = rhs.custom_gcode_per_print_z;
+    this->wipe_tower = rhs.wipe_tower;
     return *this;
 }
 
@@ -90,6 +91,7 @@ Model& Model::assign_copy(Model &&rhs)
 
     // copy custom code per height
     this->custom_gcode_per_print_z = std::move(rhs.custom_gcode_per_print_z);
+    this->wipe_tower = rhs.wipe_tower;
     return *this;
 }
 
