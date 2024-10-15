@@ -680,7 +680,7 @@ RENDER_AGAIN:
     else { // not in editing mode:
         m_imgui->disabled_begin(!is_input_enabled());
         if (int density = static_cast<const ConfigOptionInt*>(get_config_options({"support_points_density_relative"})[0])->value;
-            ImGui::SliderInt("points_density", &density, 0, 200, "%d \%")) {
+            ImGui::SliderInt("points_density", &density, 0, 200, "%d %%")) {
             mo->config.set("support_points_density_relative", density);
         } else if (ImGui::IsItemHovered()) {
              ImGui::SetTooltip("Divider for the supported radius\nSmaller mean less point(75% -> supported radius is enlaged to 133%, for 50% it is 200% of radius)\nLarger mean more points(125% -> supported radius is reduced to 80%, for value 150% it is 66% of radius, for 200% -> 50%)");

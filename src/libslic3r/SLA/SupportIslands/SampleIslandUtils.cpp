@@ -1927,9 +1927,18 @@ SupportIslandPoints SampleIslandUtils::sample_outline(
         }
     };
 
+    // No inner space to sample
+    if (field.inner.contour.size() < 3)
+        return result;
+
     size_t index_offset = 0;
     sample_polygon(contour, field.inner.contour, index_offset);
-    index_offset = contour.size();    
+    index_offset = contour.size(); 
+
+    assert(border.holes.size() == field.inner.holes.size());
+    if (border.holes.size() != field.inner.holes.size())
+        return result;
+
     for (size_t hole_index = 0; hole_index < border.holes.size(); ++hole_index) {
         const Polygon &hole = border.holes[hole_index];
         sample_polygon(hole, field.inner.holes[hole_index], index_offset);
@@ -1986,6 +1995,24 @@ void SampleIslandUtils::draw(SVG &                      svg,
                              bool                       write_type)
 {
     for (const auto &p : supportIslandPoints) {
+        switch (p->type) {
+        case SupportIslandPoint::Type::center_line1:
+        case SupportIslandPoint::Type::center_line2:
+        case SupportIslandPoint::Type::center_line3:
+        case SupportIslandPoint::Type::center_circle:
+        case SupportIslandPoint::Type::center_circle_end:
+        case SupportIslandPoint::Type::center_circle_end2:
+        case SupportIslandPoint::Type::center_line_end:
+        case SupportIslandPoint::Type::center_line_end2:
+        case SupportIslandPoint::Type::center_line_end3:
+        case SupportIslandPoint::Type::center_line_start: color = "lightred"; break;
+        case SupportIslandPoint::Type::outline: color = "lightblue"; break;
+        case SupportIslandPoint::Type::inner: color = "lightgreen"; break;
+        case SupportIslandPoint::Type::one_bb_center_point: color = "red"; break;
+        case SupportIslandPoint::Type::one_center_point:
+        case SupportIslandPoint::Type::two_points:
+        default: color = "black";
+        }
         svg.draw(p->point, color, size);
         if (write_type && p->type != SupportIslandPoint::Type::undefined) {
             auto type_name = SupportIslandPoint::to_string(p->type);

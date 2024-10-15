@@ -14,6 +14,7 @@
 #include "libslic3r/ExPolygon.hpp"
 #include "libslic3r/SLA/SupportPoint.hpp"
 #include "libslic3r/SLA/SupportIslands/SampleConfig.hpp"
+#include "libslic3r/SLA/SupportIslands/SampleConfigFactory.hpp"
 
 namespace Slic3r::sla {
 
@@ -49,7 +50,7 @@ struct SupportPointGeneratorConfig{
     std::vector<Vec2f> support_curve;
 
     // Configuration for sampling island
-    SampleConfig island_configuration;
+    SampleConfig island_configuration = SampleConfigFactory::create(head_diameter);
 };
 
 struct LayerPart; // forward decl.
