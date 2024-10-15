@@ -1193,8 +1193,12 @@ private:
 class ModelWipeTower final : public ObjectBase
 {
 public:
-	Vec2d		position;
-	double 		rotation;
+	Vec2d		position = Vec2d(180., 140.);
+	double 		rotation = 0.;
+
+    bool operator==(const ModelWipeTower& other) const { return position == other.position && rotation == other.rotation; }
+    bool operator!=(const ModelWipeTower& other) const { return !((*this) == other); }
+
 
 private:
 	friend class cereal::access;

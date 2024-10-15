@@ -1066,7 +1066,7 @@ Print::ApplyStatus Print::apply(const Model &model, DynamicPrintConfig new_full_
             num_extruders_changed = true;
         }
     }
-    
+
     ModelObjectStatusDB model_object_status_db;
 
     // 1) Synchronize model objects.
