@@ -359,7 +359,8 @@ int test_interface_5(void)
 
     scheduled_plates = schedule_ObjectsForSequentialPrint(solver_configuration,
 							  printer_geometry,
-							  objects_to_print);
+							  objects_to_print,
+							  [](int progress) { printf("Progress: %d\n", progress); });
 
     printf("Object scheduling for sequential print SUCCESSFUL !\n");
     

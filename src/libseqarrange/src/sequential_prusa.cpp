@@ -210,6 +210,7 @@ int solve_SequentialPrint(const CommandParameters &command_parameters)
 
     std::vector<Slic3r::Polygon> polygons;
     std::vector<std::vector<Slic3r::Polygon> > unreachable_polygons;
+    std::vector<int> previous_polygons;
 
     printf("  Preparing objects ...\n");
 
@@ -316,7 +317,8 @@ int solve_SequentialPrint(const CommandParameters &command_parameters)
 					    SEQ_UNREACHABLE_POLYGON_BOX_LEVELS_MK4,
 					    scale_down_unreachable_polygons);
 	    
-	    unreachable_polygons.push_back(scale_down_unreachable_polygons);	    
+	    unreachable_polygons.push_back(scale_down_unreachable_polygons);
+	    previous_polygons.push_back(objects_to_print[i].previous_id);		    
 	}
 	else
 	{
@@ -340,7 +342,9 @@ int solve_SequentialPrint(const CommandParameters &command_parameters)
 				   scale_down_unreachable_polygons);
 	    
 	    unreachable_polygons.push_back(scale_down_unreachable_polygons);
-	    polygons.push_back(scale_down_object_polygon);	    
+	    polygons.push_back(scale_down_object_polygon);
+
+	    previous_polygons.push_back(objects_to_print[i].previous_id);	    
 	}
 		
 	SVG preview_svg("sequential_prusa.svg");	    	
@@ -373,6 +377,9 @@ int solve_SequentialPrint(const CommandParameters &command_parameters)
     printf("  Preparing objects ... finished\n");
 
     int plate_index = 0;
+
+    int progress_objects_done = 0;
+    int progress_objects_total = objects_to_print.size();            
     
     do
     {
@@ -390,9 +397,13 @@ int solve_SequentialPrint(const CommandParameters &command_parameters)
 											   times_T,
 											   polygons,
 											   unreachable_polygons,
+											   previous_polygons,
 											   polygon_index_map,
 											   decided_polygons,
-											   remaining_polygons);	    
+											   remaining_polygons,
+											   progress_objects_done,
+											   progress_objects_total);
+
 	}
 	else
 	{
@@ -404,7 +415,8 @@ int solve_SequentialPrint(const CommandParameters &command_parameters)
 											unreachable_polygons,
 											polygon_index_map,
 											decided_polygons,
-											remaining_polygons);	    	    
+											remaining_polygons);
+
 	}
 
 	printf("  Object scheduling/arranging ... finished\n");	
@@ -432,6 +444,7 @@ int solve_SequentialPrint(const CommandParameters &command_parameters)
 	    {
 		scheduled_polygons.insert(std::pair<double, int>(times_T[decided_polygons[i]].as_double(), decided_polygons[i]));
 	    }
+	    progress_objects_done += decided_polygons.size();	    
 
 	    string output_filename;
 	    
@@ -722,6 +735,7 @@ int solve_SequentialPrint(const CommandParameters &command_parameters)
 	
 	vector<Polygon> next_polygons;
 	vector<vector<Polygon> > next_unreachable_polygons;
+	vector<int> next_previous_polygons;
 
 	#ifdef DEBUG
 	{
@@ -735,14 +749,17 @@ int solve_SequentialPrint(const CommandParameters &command_parameters)
 	{
 	    next_polygons.push_back(polygons[remaining_polygons[i]]);	    	    
 	    next_unreachable_polygons.push_back(unreachable_polygons[remaining_polygons[i]]);
+	    next_previous_polygons.push_back(previous_polygons[remaining_polygons[i]]);
 	}
 		
 	polygons.clear();
 	unreachable_polygons.clear();
+	previous_polygons.clear();
 	polygon_index_map.clear();	
 	
 	polygons = next_polygons;
 	unreachable_polygons = next_unreachable_polygons;
+	previous_polygons = next_previous_polygons;
 
 	vector<int> next_polygon_index_map;
 	//vector<int> next_original_index_map;

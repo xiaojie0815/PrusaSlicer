@@ -89,6 +89,7 @@ struct SolverConfiguration
 struct ObjectToPrint
 {
     int id = 0;
+    int previous_id = -1; /* object 'id' will be scheduled right after object 'previous_id' */
     coord_t total_height = 0;
     std::vector<std::pair<coord_t, Slic3r::Polygon>> pgns_at_height;
 };
@@ -145,12 +146,14 @@ bool check_ScheduledObjectsForSequentialPrintability(const SolverConfiguration  
 
 std::vector<ScheduledPlate> schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver_configuration,
 							       const PrinterGeometry            &printer_geometry,
-							       const std::vector<ObjectToPrint> &objects_to_print);
+							       const std::vector<ObjectToPrint> &objects_to_print,
+							       std::function<void(int)>          progress_callback = [](int progress){});
     
 void schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver_configuration,
 					const PrinterGeometry            &printer_geometry,
 					const std::vector<ObjectToPrint> &objects_to_print,
-					std::vector<ScheduledPlate>      &scheduled_plates);
+					std::vector<ScheduledPlate>      &scheduled_plates,
+					std::function<void(int)>          progress_callback = [](int progress){});
     
     
 /*----------------------------------------------------------------*/
@@ -160,7 +163,8 @@ void schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver
            
 int schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver_configuration,
 				       const std::vector<ObjectToPrint> &objects_to_print,
-				       std::vector<ScheduledPlate>      &scheduled_plates);
+				       std::vector<ScheduledPlate>      &scheduled_plates,
+				       std::function<void(int)>          progress_callback = [](int progress){});
 
 void setup_ExtruderUnreachableZones(const SolverConfiguration                  &solver_configuration,
 				    std::vector<std::vector<Slic3r::Polygon> > &convex_unreachable_zones,
@@ -170,7 +174,8 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration                
 				       const std::vector<ObjectToPrint>                 &objects_to_print,
 				       const std::vector<std::vector<Slic3r::Polygon> > &convex_unreachable_zones,
 				       const std::vector<std::vector<Slic3r::Polygon> > &box_unreachable_zones,     
-				       std::vector<ScheduledPlate>                      &scheduled_plates);
+				       std::vector<ScheduledPlate>                      &scheduled_plates,
+				       std::function<void(int)>                          progress_callback = [](int progress){});
 
     
 /*----------------------------------------------------------------*/
