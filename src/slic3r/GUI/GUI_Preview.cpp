@@ -422,7 +422,7 @@ void Preview::create_sliders()
     if (wxGetApp().is_editor()) {
         m_layers_slider->set_callback_on_ticks_changed([this]()                 -> void {
             Model& model = wxGetApp().plater()->model();
-            model.custom_gcode_per_print_z = m_layers_slider->GetTicksValues();
+            model.custom_gcode_per_print_z() = m_layers_slider->GetTicksValues();
             m_schedule_background_process();
 
             m_keep_current_preview_type = false;
@@ -615,7 +615,7 @@ void Preview::update_layers_slider(const std::vector<double>& layers_z, bool kee
     Plater* plater = wxGetApp().plater();
     CustomGCode::Info ticks_info_from_model;
     if (wxGetApp().is_editor())
-        ticks_info_from_model = plater->model().custom_gcode_per_print_z;
+        ticks_info_from_model = plater->model().custom_gcode_per_print_z();
     else {
         ticks_info_from_model.mode = CustomGCode::Mode::SingleExtruder;
         ticks_info_from_model.gcodes = active_gcode_result()->custom_gcode_per_print_z;
@@ -956,7 +956,8 @@ void Preview::load_print_as_fff(bool keep_z_range)
 
     const std::vector<std::string> tool_colors = wxGetApp().plater()->get_extruder_color_strings_from_plater_config(active_gcode_result());
     const std::vector<CustomGCode::Item>& color_print_values = wxGetApp().is_editor() ?
-        wxGetApp().plater()->model().custom_gcode_per_print_z.gcodes : active_gcode_result()->custom_gcode_per_print_z;
+        wxGetApp().plater()->model().custom_gcode_per_print_z().gcodes : active_gcode_result()->custom_gcode_per_print_z;
+
     std::vector<std::string> color_print_colors;
     if (!color_print_values.empty()) {
         color_print_colors = wxGetApp().plater()->get_color_strings_for_color_print(active_gcode_result());
