@@ -5521,11 +5521,6 @@ CLIActionsConfigDef::CLIActionsConfigDef()
     def->tooltip = L("Export the model(s) as 3MF.");
     def->set_default_value(new ConfigOptionBool(false));
 
-    def = this->add("export_amf", coBool);
-    def->label = L("Export AMF");
-    def->tooltip = L("Export the model(s) as AMF.");
-    def->set_default_value(new ConfigOptionBool(false));
-
     def = this->add("export_stl", coBool);
     def->label = L("Export STL");
     def->tooltip = L("Export the model(s) as STL.");

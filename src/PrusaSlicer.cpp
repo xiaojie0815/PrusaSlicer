@@ -606,9 +606,6 @@ int CLI::run(int argc, char **argv)
                 model.add_default_instances();
             if (! this->export_models(IO::OBJ))
                 return 1;
-        } else if (opt_key == "export_amf") {
-            if (! this->export_models(IO::AMF))
-                return 1;
         } else if (opt_key == "export_3mf") {
             if (! this->export_models(IO::TMF))
                 return 1;
@@ -955,7 +952,6 @@ bool CLI::export_models(IO::ExportFormat format)
         const std::string path = this->output_filepath(model, format);
         bool success = false;
         switch (format) {
-            case IO::AMF: success = Slic3r::store_amf(path.c_str(), &model, nullptr, false); break;
             case IO::OBJ: success = Slic3r::store_obj(path.c_str(), &model);          break;
             case IO::STL: success = Slic3r::store_stl(path.c_str(), &model, true);    break;
             case IO::TMF: success = Slic3r::store_3mf(path.c_str(), &model, nullptr, false); break;
@@ -975,7 +971,6 @@ std::string CLI::output_filepath(const Model &model, IO::ExportFormat format) co
 {
     std::string ext;
     switch (format) {
-        case IO::AMF: ext = ".zip.amf"; break;
         case IO::OBJ: ext = ".obj"; break;
         case IO::STL: ext = ".stl"; break;
         case IO::TMF: ext = ".3mf"; break;
