@@ -614,7 +614,7 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
     , config(Slic3r::DynamicPrintConfig::new_from_defaults_keys({
         "bed_shape", "bed_custom_texture", "bed_custom_model", "complete_objects", "duplicate_distance", "extruder_clearance_radius", "skirts", "skirt_distance",
         "brim_width", "brim_separation", "brim_type", "variable_layer_height", "nozzle_diameter", "single_extruder_multi_material",
-        "wipe_tower", "wipe_tower_x", "wipe_tower_y", "wipe_tower_width", "wipe_tower_rotation_angle", "wipe_tower_brim_width", "wipe_tower_cone_angle", "wipe_tower_extra_spacing", "wipe_tower_extra_flow", "wipe_tower_extruder",
+        "wipe_tower", "wipe_tower_width", "wipe_tower_brim_width", "wipe_tower_cone_angle", "wipe_tower_extra_spacing", "wipe_tower_extra_flow", "wipe_tower_extruder",
         "extruder_colour", "filament_colour", "material_colour", "max_print_height", "printer_model", "printer_notes", "printer_technology",
         // These values are necessary to construct SlicingParameters by the Canvas3D variable layer height editor.
         "layer_height", "first_layer_height", "min_layer_height", "max_layer_height",
@@ -701,8 +701,7 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
             { if (evt.data == 1) this->q->increase_instances(); else if (this->can_decrease_instances()) this->q->decrease_instances(); });
         view3D_canvas->Bind(EVT_GLCANVAS_INSTANCE_MOVED, [this](SimpleEvent&) { update(); });
         view3D_canvas->Bind(EVT_GLCANVAS_FORCE_UPDATE, [this](SimpleEvent&) { update(); });
-        view3D_canvas->Bind(EVT_GLCANVAS_WIPETOWER_MOVED, &priv::on_wipetower_moved, this);
-        view3D_canvas->Bind(EVT_GLCANVAS_WIPETOWER_ROTATED, &priv::on_wipetower_rotated, this);
+        view3D_canvas->Bind(EVT_GLCANVAS_WIPETOWER_TOUCHED,[this](SimpleEvent&) { update(); });
         view3D_canvas->Bind(EVT_GLCANVAS_INSTANCE_ROTATED, [this](SimpleEvent&) { update(); });
         view3D_canvas->Bind(EVT_GLCANVAS_RESET_SKEW, [this](SimpleEvent&) { update(); });
         view3D_canvas->Bind(EVT_GLCANVAS_INSTANCE_SCALED, [this](SimpleEvent&) { update(); });
@@ -1301,8 +1300,10 @@ std::vector<size_t> Plater::priv::load_files(const std::vector<fs::path>& input_
                     if (! config_substitutions.empty())
                         show_substitutions_info(config_substitutions.substitutions, filename.string());
 
-                    if (load_config)
+                    if (load_config) {
                         this->model.custom_gcode_per_print_z = model.custom_gcode_per_print_z;
+                        this->model.wipe_tower = model.wipe_tower;
+                    }
                 }
 
                 if (load_config) {
@@ -3234,19 +3235,13 @@ void Plater::priv::on_right_click(RBtnEvent& evt)
 
 void Plater::priv::on_wipetower_moved(Vec3dEvent &evt)
 {
-    DynamicPrintConfig cfg;
-    cfg.opt<ConfigOptionFloat>("wipe_tower_x", true)->value = evt.data(0);
-    cfg.opt<ConfigOptionFloat>("wipe_tower_y", true)->value = evt.data(1);
-    wxGetApp().get_tab(Preset::TYPE_PRINT)->load_config(cfg);
+    model.wipe_tower.position = Vec2d(evt.data[0], evt.data[1]);
 }
 
 void Plater::priv::on_wipetower_rotated(Vec3dEvent& evt)
 {
-    DynamicPrintConfig cfg;
-    cfg.opt<ConfigOptionFloat>("wipe_tower_x", true)->value = evt.data(0);
-    cfg.opt<ConfigOptionFloat>("wipe_tower_y", true)->value = evt.data(1);
-    cfg.opt<ConfigOptionFloat>("wipe_tower_rotation_angle", true)->value = Geometry::rad2deg(evt.data(2));
-    wxGetApp().get_tab(Preset::TYPE_PRINT)->load_config(cfg);
+    model.wipe_tower.position = Vec2d(evt.data[0], evt.data[1]);
+    model.wipe_tower.rotation = Geometry::rad2deg(evt.data(2));
 }
 
 void Plater::priv::on_update_geometry(Vec3dsEvent<2>&)
@@ -3789,13 +3784,6 @@ void Plater::priv::take_snapshot(const std::string& snapshot_name, const UndoRed
     if (view3D->get_canvas3d()->get_gizmos_manager().wants_reslice_supports_on_undo())
         snapshot_data.flags |= UndoRedo::SnapshotData::RECALCULATE_SLA_SUPPORTS;
 
-    //FIXME updating the Wipe tower config values at the ModelWipeTower from the Print config.
-    // This is a workaround until we refactor the Wipe Tower position / orientation to live solely inside the Model, not in the Print config.
-    if (this->printer_technology == ptFFF) {
-        const DynamicPrintConfig &config = wxGetApp().preset_bundle->prints.get_edited_preset().config;
-        model.wipe_tower.position = Vec2d(config.opt_float("wipe_tower_x"), config.opt_float("wipe_tower_y"));
-        model.wipe_tower.rotation = config.opt_float("wipe_tower_rotation_angle");
-    }
     const GLGizmosManager& gizmos = view3D->get_canvas3d()->get_gizmos_manager();
 
     if (snapshot_type == UndoRedo::SnapshotType::ProjectSeparator && get_config_bool("clear_undo_redo_stack_on_new_project"))
@@ -3865,13 +3853,6 @@ void Plater::priv::undo_redo_to(std::vector<UndoRedo::Snapshot>::const_iterator 
     }
     // Save the last active preset name of a particular printer technology.
     ((this->printer_technology == ptFFF) ? m_last_fff_printer_profile_name : m_last_sla_printer_profile_name) = wxGetApp().preset_bundle->printers.get_selected_preset_name();
-    //FIXME updating the Wipe tower config values at the ModelWipeTower from the Print config.
-    // This is a workaround until we refactor the Wipe Tower position / orientation to live solely inside the Model, not in the Print config.
-    if (this->printer_technology == ptFFF) {
-        const DynamicPrintConfig &config = wxGetApp().preset_bundle->prints.get_edited_preset().config;
-                model.wipe_tower.position = Vec2d(config.opt_float("wipe_tower_x"), config.opt_float("wipe_tower_y"));
-                model.wipe_tower.rotation = config.opt_float("wipe_tower_rotation_angle");
-    }
     const int layer_range_idx = it_snapshot->snapshot_data.layer_range_idx;
     // Flags made of Snapshot::Flags enum values.
     unsigned int new_flags = it_snapshot->snapshot_data.flags;
@@ -3920,22 +3901,6 @@ void Plater::priv::undo_redo_to(std::vector<UndoRedo::Snapshot>::const_iterator 
             // Load the currently selected preset into the GUI, update the preset selection box.
             // This also switches the printer technology based on the printer technology of the active printer profile.
             wxGetApp().load_current_presets();
-        }
-        //FIXME updating the Print config from the Wipe tower config values at the ModelWipeTower.
-        // This is a workaround until we refactor the Wipe Tower position / orientation to live solely inside the Model, not in the Print config.
-        if (this->printer_technology == ptFFF) {
-            const DynamicPrintConfig &current_config = wxGetApp().preset_bundle->prints.get_edited_preset().config;
-            Vec2d 					  current_position(current_config.opt_float("wipe_tower_x"), current_config.opt_float("wipe_tower_y"));
-            double 					  current_rotation = current_config.opt_float("wipe_tower_rotation_angle");
-            if (current_position != model.wipe_tower.position || current_rotation != model.wipe_tower.rotation) {
-                DynamicPrintConfig new_config;
-                new_config.set_key_value("wipe_tower_x", new ConfigOptionFloat(model.wipe_tower.position.x()));
-                new_config.set_key_value("wipe_tower_y", new ConfigOptionFloat(model.wipe_tower.position.y()));
-                new_config.set_key_value("wipe_tower_rotation_angle", new ConfigOptionFloat(model.wipe_tower.rotation));
-                Tab *tab_print = wxGetApp().get_tab(Preset::TYPE_PRINT);
-                tab_print->load_config(new_config);
-                tab_print->update_dirty();
-            }
         }
         // set selection mode for ObjectList on sidebar
         this->sidebar->obj_list()->set_selection_mode(new_selected_settings_on_sidebar  ? ObjectList::SELECTION_MODE::smSettings :

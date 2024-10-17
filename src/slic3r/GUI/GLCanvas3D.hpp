@@ -163,12 +163,11 @@ wxDECLARE_EVENT(EVT_GLCANVAS_QUESTION_MARK, SimpleEvent);
 wxDECLARE_EVENT(EVT_GLCANVAS_INCREASE_INSTANCES, Event<int>); // data: +1 => increase, -1 => decrease
 wxDECLARE_EVENT(EVT_GLCANVAS_INSTANCE_MOVED, SimpleEvent);
 wxDECLARE_EVENT(EVT_GLCANVAS_FORCE_UPDATE, SimpleEvent);
-wxDECLARE_EVENT(EVT_GLCANVAS_WIPETOWER_MOVED, Vec3dEvent);
+wxDECLARE_EVENT(EVT_GLCANVAS_WIPETOWER_TOUCHED, SimpleEvent);
 wxDECLARE_EVENT(EVT_GLCANVAS_INSTANCE_ROTATED, SimpleEvent);
 wxDECLARE_EVENT(EVT_GLCANVAS_RESET_SKEW, SimpleEvent);
 wxDECLARE_EVENT(EVT_GLCANVAS_INSTANCE_SCALED, SimpleEvent);
 wxDECLARE_EVENT(EVT_GLCANVAS_INSTANCE_MIRRORED, SimpleEvent);
-wxDECLARE_EVENT(EVT_GLCANVAS_WIPETOWER_ROTATED, Vec3dEvent);
 wxDECLARE_EVENT(EVT_GLCANVAS_ENABLE_ACTION_BUTTONS, Event<bool>);
 wxDECLARE_EVENT(EVT_GLCANVAS_UPDATE_GEOMETRY, Vec3dsEvent<2>);
 wxDECLARE_EVENT(EVT_GLCANVAS_MOUSE_DRAGGING_STARTED, SimpleEvent);
@@ -919,8 +918,6 @@ public:
         inline double rotation() const { return m_rotation; }
         inline const Vec2d bb_size() const { return m_bb.size(); }
         inline const BoundingBoxf& bounding_box() const { return m_bb; }
-        
-        void apply_wipe_tower() const { apply_wipe_tower(m_pos, m_rotation); }
 
         static void apply_wipe_tower(Vec2d pos, double rot);
     };
