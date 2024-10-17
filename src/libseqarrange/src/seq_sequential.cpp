@@ -341,15 +341,16 @@ void introduce_ConsequentialTemporalLepoxAgainstFixed(z3::solver                
 						      const std::vector<int>             &undecided,
 						      int                                 temporal_spread,
 						      const std::vector<Slic3r::Polygon> &SEQ_UNUSED(polygons),
-						      const std::vector<int>             &previous_polygons)
+						      const std::vector<bool>            &lepox_to_next)
 {
     std::set<int> fixed_(fixed.begin(), fixed.end());
     std::set<int> undecided_(undecided.begin(), undecided.end());
 	
     for (unsigned int i = 0; i < undecided.size(); ++i)
     {
-	if (previous_polygons[undecided[i]] >= 0)
+	if (lepox_to_next[undecided[i]])
 	{
+	    /* TODO: we know what to do */
 	    //Solver.add(dec_vars_T[previous_polygons[undecided[i]]] + temporal_spread < dec_vars_T[undecided[i]] && dec_vars_T[previous_polygons[undecided[i]]] + temporal_spread + temporal_spread / 2 > dec_vars_T[undecided[i]]);
 	}
     }
@@ -9939,7 +9940,7 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 									std::vector<Rational>              &dec_values_T,
 									const std::vector<Slic3r::Polygon> &polygons,
 									const std::vector<Slic3r::Polygon> &unreachable_polygons,
-									const std::vector<int>             &previous_polygons,
+									const std::vector<bool>            &lepox_to_next,
 									const std::vector<int>             &undecided_polygons,
 									std::vector<int>                   &decided_polygons,
 									std::vector<int>                   &remaining_polygons,
@@ -9961,7 +9962,7 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 									      dec_values_T,
 									      polygons,
 									      _unreachable_polygons,
-									      previous_polygons,
+									      lepox_to_next,
 									      undecided_polygons,
 									      decided_polygons,
 									      remaining_polygons,
@@ -9982,7 +9983,7 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 									std::vector<Rational>                            &dec_values_T,
 									const std::vector<Slic3r::Polygon>               &polygons,
 									const std::vector<std::vector<Slic3r::Polygon> > &unreachable_polygons,
-									const std::vector<int>                           &previous_polygons,
+									const std::vector<bool>                          &lepox_to_next,
 									const std::vector<int>                           &undecided_polygons,
 									std::vector<int>                                 &decided_polygons,
 									std::vector<int>                                 &remaining_polygons,
@@ -10123,7 +10124,7 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 							     undecided,
 							     solver_configuration.temporal_spread,
 							     polygons,
-							     previous_polygons);	    
+							     lepox_to_next);	    
 
 	    #ifdef DEBUG
 	    {
@@ -10174,7 +10175,7 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 		{
 		    dec_values_X[undecided[i]] = local_values_X[undecided[i]];
 		    dec_values_Y[undecided[i]] = local_values_Y[undecided[i]];		    
-		    dec_values_T[undecided[i]] = local_values_T[undecided[i]];		    
+		    dec_values_T[undecided[i]] = local_values_T[undecided[i]];
 		    decided_polygons.push_back(undecided[i]);
 		}
 		augment_TemporalSpread(solver_configuration, dec_values_T, decided_polygons);
@@ -10207,7 +10208,6 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 	    undecided.pop_back();	    
 
 	    --object_group_size;
-
 	    progress_callback((SEQ_PROGRESS_RANGE * (decided_polygons.size() + objects_done)) / total_objects);
 	}
 

@@ -64,7 +64,7 @@ const double SEQ_DECIMATION_TOLERANCE = 400000.0;
 
 const double SEQ_DECIMATION_TOLERANCE_VALUE_UNDEFINED = 0.0;    
 const double SEQ_DECIMATION_TOLERANCE_VALUE_LOW       = 150000.0;
-const double SEQ_DECIMATION_TOLERANCE_VALUE_HIGH      = 450000.0;    
+const double SEQ_DECIMATION_TOLERANCE_VALUE_HIGH      = 650000.0;        
 
     
 /*----------------------------------------------------------------*/
@@ -299,6 +299,16 @@ void introduce_ConsequentialTemporalOrderingAgainstFixed(z3::solver             
 							 const std::vector<int>             &undecided,				
 							 int                                temporal_spread,
 							 const std::vector<Slic3r::Polygon> &polygons);
+
+void introduce_ConsequentialTemporalLepoxAgainstFixed(z3::solver                         &Solver,
+						      z3::context                        &Context,
+						      const z3::expr_vector              &dec_vars_T,
+						      std::vector<Rational>              &dec_values_T,
+						      const std::vector<int>             &fixed,
+						      const std::vector<int>             &undecided,
+						      int                                 temporal_spread,
+						      const std::vector<Slic3r::Polygon> &SEQ_UNUSED(polygons),
+						      const std::vector<bool>            &lepox_to_next);
 
 /*----------------------------------------------------------------*/
 
@@ -1537,13 +1547,13 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 									std::vector<Rational>              &dec_values_T,
 									const std::vector<Slic3r::Polygon> &polygons,
 									const std::vector<Slic3r::Polygon> &unreachable_polygons,
-									const std::vector<int>             &previous_polygons,
+									const std::vector<bool>            &lepox_to_next,
 									const std::vector<int>             &undecided_polygons,
 									std::vector<int>                   &decided_polygons,
 									std::vector<int>                   &remaining_polygons,
 									int                                 objects_done,
-									int                                 total_objects,									
-									std::function<void(int)>            progress_callback = [](int progress){});									
+									int                                 total_objects,
+									std::function<void(int)>            progress_callback = [](int progress){});
 
 bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const SolverConfiguration                        &solver_configuration,
 									std::vector<Rational>                            &dec_values_X,
@@ -1551,12 +1561,12 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 									std::vector<Rational>                            &dec_values_T,
 									const std::vector<Slic3r::Polygon>               &polygons,
 									const std::vector<std::vector<Slic3r::Polygon> > &unreachable_polygons,
-									const std::vector<int>                           &previous_polygons,
+									const std::vector<bool>                          &lepox_to_next,
 									const std::vector<int>                           &undecided_polygons,
 									std::vector<int>                                 &decided_polygons,
 									std::vector<int>                                 &remaining_polygons,
 									int                                               objects_done,
-									int                                               total_objects,									
+									int                                               total_objects,
 									std::function<void(int)>                          progress_callback = [](int progress){});
 
 /*----------------------------------------------------------------*/

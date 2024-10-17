@@ -318,7 +318,7 @@ void schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver
     std::vector<std::vector<Slic3r::Polygon> > unreachable_polygons;
 
     std::map<int, int> original_index_map;
-    std::vector<int> previous_polygons;
+    std::vector<bool> lepox_to_next;
 
     #ifdef DEBUG
     {
@@ -360,21 +360,21 @@ void schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver
 	unreachable_polygons.push_back(scale_down_unreachable_polygons);
 	polygons.push_back(scale_down_object_polygon);
 
-	previous_polygons.push_back(objects_to_print[i].previous_id);	
+	lepox_to_next.push_back(objects_to_print[i].glued_to_next);	
     }
 
-    vector<int> remaining_polygons;
-    vector<int> polygon_index_map;
-    vector<int> decided_polygons;
+    std::vector<int> remaining_polygons;
+    std::vector<int> polygon_index_map;
+    std::vector<int> decided_polygons;
 
     for (unsigned int index = 0; index < polygons.size(); ++index)
     {
 	polygon_index_map.push_back(index);
     }
     
-    vector<Rational> poly_positions_X;
-    vector<Rational> poly_positions_Y;
-    vector<Rational> times_T;
+    std::vector<Rational> poly_positions_X;
+    std::vector<Rational> poly_positions_Y;
+    std::vector<Rational> times_T;
 
     #ifdef DEBUG
     {
@@ -406,7 +406,7 @@ void schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver
 										       times_T,
 										       polygons,
 										       unreachable_polygons,
-										       previous_polygons,
+										       lepox_to_next,
 										       polygon_index_map,
 										       decided_polygons,
 										       remaining_polygons,
@@ -484,28 +484,30 @@ void schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver
 	}
 	#endif
 	
-	vector<Polygon> next_polygons;
-	vector<vector<Polygon> > next_unreachable_polygons;
-	vector<int> next_previous_polygons;
+	std::vector<Polygon> next_polygons;
+	std::vector<vector<Polygon> > next_unreachable_polygons;
+	std::vector<bool> next_lepox_to_next;
 
 	for (unsigned int i = 0; i < remaining_polygons.size(); ++i)
 	{
 	    next_polygons.push_back(polygons[remaining_polygons[i]]);	    	    
 	    next_unreachable_polygons.push_back(unreachable_polygons[remaining_polygons[i]]);
-	    next_previous_polygons.push_back(previous_polygons[remaining_polygons[i]]);
+	    next_lepox_to_next.push_back(lepox_to_next[remaining_polygons[i]]);
 	}
-		
+
+	/* TODO: remove */
 	polygons.clear();
 	unreachable_polygons.clear();
-	previous_polygons.clear();
+	lepox_to_next.clear();
+	
 	polygon_index_map.clear();	
 	
 	polygons = next_polygons;
 	unreachable_polygons = next_unreachable_polygons;
-	previous_polygons = next_previous_polygons;
+	lepox_to_next = next_lepox_to_next;
 
-	vector<int> next_polygon_index_map;
-	map<int, int> next_original_index_map;
+	std::vector<int> next_polygon_index_map;
+	std::map<int, int> next_original_index_map;
 
 	for (unsigned int index = 0; index < polygons.size(); ++index)
 	{
@@ -561,9 +563,9 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver_
 
     std::vector<Slic3r::Polygon> polygons;
     std::vector<std::vector<Slic3r::Polygon> > unreachable_polygons;
-    std::vector<int> previous_polygons;    
+    std::vector<bool> lepox_to_next;
 
-    map<int, int> original_index_map;    
+    std::map<int, int> original_index_map;    
 
     #ifdef DEBUG
     {
@@ -770,7 +772,7 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver_
 	}
 	
 	unreachable_polygons.push_back(scale_down_unreachable_polygons);
-	previous_polygons.push_back(objects_to_print[i].previous_id);		    	
+	lepox_to_next.push_back(objects_to_print[i].glued_to_next);
     }
 
     vector<int> remaining_polygons;
@@ -816,7 +818,7 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver_
 										       times_T,
 										       polygons,
 										       unreachable_polygons,
-										       previous_polygons,
+										       lepox_to_next,
 										       polygon_index_map,
 										       decided_polygons,
 										       remaining_polygons,
@@ -893,28 +895,30 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver_
 	}
 	#endif
 	
-	vector<Polygon> next_polygons;
-	vector<vector<Polygon> > next_unreachable_polygons;
-	vector<int> next_previous_polygons;
+	std::vector<Polygon> next_polygons;
+	std::vector<vector<Polygon> > next_unreachable_polygons;
+	std::vector<bool> next_lepox_to_next;
 
 	for (unsigned int i = 0; i < remaining_polygons.size(); ++i)
 	{
 	    next_polygons.push_back(polygons[remaining_polygons[i]]);	    	    
 	    next_unreachable_polygons.push_back(unreachable_polygons[remaining_polygons[i]]);
-	    next_previous_polygons.push_back(previous_polygons[remaining_polygons[i]]);
+	    next_lepox_to_next.push_back(lepox_to_next[remaining_polygons[i]]);
 	}
-		
+
+	/* TODO: remove */
 	polygons.clear();
 	unreachable_polygons.clear();
-	previous_polygons.clear();	
+	lepox_to_next.clear();
+	
 	polygon_index_map.clear();	
 	
 	polygons = next_polygons;
 	unreachable_polygons = next_unreachable_polygons;
-	previous_polygons = next_previous_polygons;
+	lepox_to_next = next_lepox_to_next;
 
-	vector<int> next_polygon_index_map;
-	map<int, int> next_original_index_map;
+	std::vector<int> next_polygon_index_map;
+	std::map<int, int> next_original_index_map;
 
 	for (unsigned int index = 0; index < polygons.size(); ++index)
 	{
@@ -1007,7 +1011,7 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration                
     std::vector<std::vector<Slic3r::Polygon> > unreachable_polygons;
 
     std::map<int, int> original_index_map;
-    std::vector<int> previous_polygons;
+    std::vector<bool> lepox_to_next;
 
     #ifdef DEBUG
     {
@@ -1109,21 +1113,21 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration                
 				       scale_down_unreachable_polygons);
 	
 	unreachable_polygons.push_back(scale_down_unreachable_polygons);
-	previous_polygons.push_back(objects_to_print[i].previous_id);		    		
+	lepox_to_next.push_back(objects_to_print[i].glued_to_next);
     }
 
-    vector<int> remaining_polygons;
-    vector<int> polygon_index_map;
-    vector<int> decided_polygons;
+    std::vector<int> remaining_polygons;
+    std::vector<int> polygon_index_map;
+    std::vector<int> decided_polygons;
 
     for (unsigned int index = 0; index < polygons.size(); ++index)
     {
 	polygon_index_map.push_back(index);
     }
     
-    vector<Rational> poly_positions_X;
-    vector<Rational> poly_positions_Y;
-    vector<Rational> times_T;
+    std::vector<Rational> poly_positions_X;
+    std::vector<Rational> poly_positions_Y;
+    std::vector<Rational> times_T;
 
     #ifdef DEBUG
     {
@@ -1155,7 +1159,7 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration                
 										       times_T,
 										       polygons,
 										       unreachable_polygons,
-										       previous_polygons,
+										       lepox_to_next,
 										       polygon_index_map,
 										       decided_polygons,
 										       remaining_polygons,
@@ -1235,26 +1239,28 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration                
 	
 	std::vector<Polygon> next_polygons;
 	std::vector<vector<Polygon> > next_unreachable_polygons;
-	std::vector<int> next_previous_polygons;
+	std::vector<bool> next_lepox_to_next;
 
 	for (unsigned int i = 0; i < remaining_polygons.size(); ++i)
 	{
 	    next_polygons.push_back(polygons[remaining_polygons[i]]);	    	    
 	    next_unreachable_polygons.push_back(unreachable_polygons[remaining_polygons[i]]);
-	    next_previous_polygons.push_back(previous_polygons[remaining_polygons[i]]);
+	    next_lepox_to_next.push_back(lepox_to_next[remaining_polygons[i]]);
 	}
-		
+
+	/* TODO: remove */
 	polygons.clear();
 	unreachable_polygons.clear();
-	previous_polygons.clear();	
+	lepox_to_next.clear();
+	
 	polygon_index_map.clear();	
 	
 	polygons = next_polygons;
 	unreachable_polygons = next_unreachable_polygons;
-	previous_polygons = next_previous_polygons;
+	lepox_to_next = next_lepox_to_next;
 
-	vector<int> next_polygon_index_map;
-	map<int, int> next_original_index_map;
+	std::vector<int> next_polygon_index_map;
+	std::map<int, int> next_original_index_map;
 
 	for (unsigned int index = 0; index < polygons.size(); ++index)
 	{

@@ -210,7 +210,7 @@ int solve_SequentialPrint(const CommandParameters &command_parameters)
 
     std::vector<Slic3r::Polygon> polygons;
     std::vector<std::vector<Slic3r::Polygon> > unreachable_polygons;
-    std::vector<int> previous_polygons;
+    std::vector<bool> lepox_to_next;
 
     printf("  Preparing objects ...\n");
 
@@ -318,7 +318,7 @@ int solve_SequentialPrint(const CommandParameters &command_parameters)
 					    scale_down_unreachable_polygons);
 	    
 	    unreachable_polygons.push_back(scale_down_unreachable_polygons);
-	    previous_polygons.push_back(objects_to_print[i].previous_id);		    
+	    lepox_to_next.push_back(objects_to_print[i].glued_to_next);		    
 	}
 	else
 	{
@@ -344,7 +344,7 @@ int solve_SequentialPrint(const CommandParameters &command_parameters)
 	    unreachable_polygons.push_back(scale_down_unreachable_polygons);
 	    polygons.push_back(scale_down_object_polygon);
 
-	    previous_polygons.push_back(objects_to_print[i].previous_id);	    
+	    lepox_to_next.push_back(objects_to_print[i].glued_to_next);
 	}
 		
 	SVG preview_svg("sequential_prusa.svg");	    	
@@ -397,7 +397,7 @@ int solve_SequentialPrint(const CommandParameters &command_parameters)
 											   times_T,
 											   polygons,
 											   unreachable_polygons,
-											   previous_polygons,
+											   lepox_to_next,
 											   polygon_index_map,
 											   decided_polygons,
 											   remaining_polygons,
@@ -733,9 +733,9 @@ int solve_SequentialPrint(const CommandParameters &command_parameters)
 	    printf("All objects fit onto plate.\n");
 	}
 	
-	vector<Polygon> next_polygons;
-	vector<vector<Polygon> > next_unreachable_polygons;
-	vector<int> next_previous_polygons;
+	std::vector<Polygon> next_polygons;
+	std::vector<vector<Polygon> > next_unreachable_polygons;
+	std::vector<bool> next_lepox_to_next;
 
 	#ifdef DEBUG
 	{
@@ -749,21 +749,22 @@ int solve_SequentialPrint(const CommandParameters &command_parameters)
 	{
 	    next_polygons.push_back(polygons[remaining_polygons[i]]);	    	    
 	    next_unreachable_polygons.push_back(unreachable_polygons[remaining_polygons[i]]);
-	    next_previous_polygons.push_back(previous_polygons[remaining_polygons[i]]);
+	    next_lepox_to_next.push_back(lepox_to_next[remaining_polygons[i]]);
 	}
-		
+
+	/* TODO: remove */
 	polygons.clear();
 	unreachable_polygons.clear();
-	previous_polygons.clear();
+	lepox_to_next.clear();
+	
 	polygon_index_map.clear();	
 	
 	polygons = next_polygons;
 	unreachable_polygons = next_unreachable_polygons;
-	previous_polygons = next_previous_polygons;
+	lepox_to_next = next_lepox_to_next;
 
-	vector<int> next_polygon_index_map;
-	//vector<int> next_original_index_map;
-	map<int, int> next_original_index_map;
+	std::vector<int> next_polygon_index_map;
+	std::map<int, int> next_original_index_map;
 
 	for (unsigned int index = 0; index < polygons.size(); ++index)
 	{

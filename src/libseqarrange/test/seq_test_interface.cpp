@@ -334,7 +334,7 @@ int test_interface_5(void)
     start = clock();
 
     SolverConfiguration solver_configuration;
-    solver_configuration.decimation_precision = SEQ_DECIMATION_PRECISION_HIGH;
+    solver_configuration.decimation_precision = SEQ_DECIMATION_PRECISION_LOW;
     solver_configuration.object_group_size = 4;    
 
     printf("Loading objects ...\n");    
