@@ -47,16 +47,15 @@ namespace Sequential
 
     
 /*----------------------------------------------------------------*/
-
-const coord_t SEQ_SVG_SCALE_FACTOR    =  50000;  
-    
+   
 #define SEQ_INTERSECTION_REPULSION_MIN    "-0.01"
 #define SEQ_INTERSECTION_REPULSION_MAX    "1.01"
 #define SEQ_TEMPORAL_ABSENCE_THRESHOLD    "-16"
 #define SEQ_TEMPORAL_PRESENCE_THRESHOLD    "16"
 
 #define SEQ_Z3_SOLVER_TIMEOUT              "8000"
-    
+
+const coord_t SEQ_SVG_SCALE_FACTOR    = 50000;  
 const int SEQ_GROUND_PRESENCE_TIME    = 32;
 const int SEQ_PROGRESS_RANGE          = 100;
     
@@ -72,21 +71,6 @@ const double SEQ_DECIMATION_TOLERANCE_VALUE_HIGH      = 450000.0;
 
 typedef std::basic_string<char> string;
 typedef std::unordered_map<string, int> string_map;
-
-    
-/*----------------------------------------------------------------*/
-/*
-struct PrinterGeometry
-{
-    coord_t x_size;
-    coord_t y_size;
-    
-    std::set<coord_t> convex_heights;
-    std::set<coord_t> box_heights;
-    
-    std::map<coord_t, std::vector<Polygon> > extruder_slices;
-};
-*/
     
 
 /*----------------------------------------------------------------*/

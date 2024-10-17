@@ -1223,7 +1223,7 @@ void introduce_PointOutsidePolygon(z3::solver            &Solver,
 					- (normal.x() * dec_var_X2)
 					- (normal.x() * line.a.x())
 					- (normal.y() * dec_var_Y2)
-					- (normal.y() * line.a.y()) > 0/*Context.real_val("0")*/);
+					- (normal.y() * line.a.y()) > 0);
 	    
 	    if (p == 0)
 	    {
@@ -1266,7 +1266,7 @@ void introduce_SequentialPointOutsidePolygon(z3::solver            &Solver,
 					- (normal.x() * dec_var_X2)
 					- (normal.x() * line.a.x())
 					- (normal.y() * dec_var_Y2)
-					- (normal.y() * line.a.y()) > 0/*Context.real_val("0")*/);
+					- (normal.y() * line.a.y()) > 0);
 	    
 	    if (p == 0)
 	    {
@@ -1309,7 +1309,7 @@ void introduce_ConsequentialPointOutsidePolygon(z3::solver            &Solver,
 					- (normal.x() * dec_var_X2)
 					- (normal.x() * line.a.x())
 					- (normal.y() * dec_var_Y2)
-					- (normal.y() * line.a.y()) > 0/*Context.real_val("0")*/);
+					- (normal.y() * line.a.y()) > 0);
 	    
 	    if (p == 0)
 	    {
@@ -1354,7 +1354,7 @@ void introduce_ShiftSequentialPointOutsidePolygon(z3::solver            &Solver,
 					- (normal.x() * dec_var_X2)
 					- (normal.x() * line.a.x())
 					- (normal.y() * dec_var_Y2)
-					- (normal.y() * line.a.y()) > 0/*Context.real_val("0")*/);
+					- (normal.y() * line.a.y()) > 0);
 	    
 	    if (p == 0)
 	    {
@@ -1399,7 +1399,7 @@ void introduce_ShiftConsequentialPointOutsidePolygon(z3::solver            &Solv
 					- (normal.x() * dec_var_X2)
 					- (normal.x() * line.a.x())
 					- (normal.y() * dec_var_Y2)
-					- (normal.y() * line.a.y()) > 0/*Context.real_val("0")*/);
+					- (normal.y() * line.a.y()) > 0);
 	    
 	    if (p == 0)
 	    {
@@ -1483,7 +1483,7 @@ void introduce_SequentialFixedPointOutsidePolygon(z3::solver            &Solver,
 					- (normal.x() * dec_var_X2)
 					- (normal.x() * line.a.x())
 					- (normal.y() * dec_var_Y2)
-					- (normal.y() * line.a.y()) > 0/*Context.real_val("0")*/);
+					- (normal.y() * line.a.y()) > 0);
 	    
 	    if (p == 0)
 	    {
@@ -1525,7 +1525,7 @@ void introduce_SequentialFixedPointOutsidePolygon(z3::solver            &Solver,
 					- (normal.x() * dec_var_X2)
 					- (normal.x() * line.a.x())
 					- (normal.y() * dec_var_Y2)
-					- (normal.y() * line.a.y()) > 0/*Context.real_val("0")*/);
+					- (normal.y() * line.a.y()) > 0);
 	    
 	    if (p == 0)
 	    {
@@ -1570,7 +1570,7 @@ void introduce_ConsequentialFixedPointOutsidePolygon(z3::solver            &Solv
 					    - (normal.x() * dec_var_X2)
 					    - (normal.x() * line.a.x())
 					    - (normal.y() * dec_var_Y2)
-					    - (normal.y() * line.a.y()) > 0/*Context.real_val("0")*/);
+					    - (normal.y() * line.a.y()) > 0);
 	    
 		if (p == 0)
 		{
@@ -1615,7 +1615,7 @@ void introduce_ConsequentialFixedPointOutsidePolygon(z3::solver            &Solv
 					    - (normal.x() * dec_var_X2)
 					    - (normal.x() * line.a.x())
 					    - (normal.y() * dec_var_Y2)
-					    - (normal.y() * line.a.y()) > 0/*Context.real_val("0")*/);
+					    - (normal.y() * line.a.y()) > 0);
 	    
 		if (p == 0)
 		{
@@ -1657,7 +1657,7 @@ void introduce_PointOutsideFixedPolygon(z3::solver            &Solver,
 					- (normal.x() * Context.real_val(dec_value_X2.numerator, dec_value_X2.denominator))
 					- (normal.x() * line.a.x())
 					- (normal.y() * Context.real_val(dec_value_Y2.numerator, dec_value_Y2.denominator))
-					- (normal.y() * line.a.y()) > 0/*Context.real_val("0")*/);
+					- (normal.y() * line.a.y()) > 0);
 	    
 	    if (p == 0)
 	    {
@@ -1700,7 +1700,7 @@ void introduce_SequentialPointOutsideFixedPolygon(z3::solver            &Solver,
 					- (normal.x() * Context.real_val(dec_value_X2.numerator, dec_value_X2.denominator))
 					- (normal.x() * line.a.x())
 					- (normal.y() * Context.real_val(dec_value_Y2.numerator, dec_value_Y2.denominator))
-					- (normal.y() * line.a.y()) > 0/*Context.real_val("0")*/);
+					- (normal.y() * line.a.y()) > 0);
 	    
 	    if (p == 0)
 	    {
@@ -1743,7 +1743,7 @@ void introduce_SequentialPointOutsideFixedPolygon(z3::solver            &Solver,
 					- (normal.x() * Context.real_val(dec_value_X2.numerator, dec_value_X2.denominator))
 					- (normal.x() * line.a.x())
 					- (normal.y() * Context.real_val(dec_value_Y2.numerator, dec_value_Y2.denominator))
-					- (normal.y() * line.a.y()) > 0/*Context.real_val("0")*/);
+					- (normal.y() * line.a.y()) > 0);
 	    
 	    if (p == 0)
 	    {
@@ -1788,7 +1788,7 @@ void introduce_ConsequentialPointOutsideFixedPolygon(z3::solver            &Solv
 					    - (normal.x() * Context.real_val(dec_value_X2.numerator, dec_value_X2.denominator))
 					    - (normal.x() * line.a.x())
 					    - (normal.y() * Context.real_val(dec_value_Y2.numerator, dec_value_Y2.denominator))
-					    - (normal.y() * line.a.y()) > 0/*Context.real_val("0")*/);
+					    - (normal.y() * line.a.y()) > 0);
 	    
 		if (p == 0)
 		{
@@ -1834,7 +1834,7 @@ void introduce_ConsequentialPointOutsideFixedPolygon(z3::solver            &Solv
 					    - (normal.x() * Context.real_val(dec_value_X2.numerator, dec_value_X2.denominator))
 					    - (normal.x() * line.a.x())
 					    - (normal.y() * Context.real_val(dec_value_Y2.numerator, dec_value_Y2.denominator))
-					    - (normal.y() * line.a.y()) > 0/*Context.real_val("0")*/);
+					    - (normal.y() * line.a.y()) > 0);
 	    
 		if (p == 0)
 		{
