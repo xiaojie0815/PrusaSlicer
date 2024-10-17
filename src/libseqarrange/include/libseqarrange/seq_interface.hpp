@@ -89,6 +89,7 @@ struct SolverConfiguration
 struct ObjectToPrint
 {
     int id = 0;
+    bool lepox = false; /* object must be scheduled right after the previous object */ 
     int previous_id = -1; /* object 'id' will be scheduled right after object 'previous_id' */
     coord_t total_height = 0;
     std::vector<std::pair<coord_t, Slic3r::Polygon>> pgns_at_height;

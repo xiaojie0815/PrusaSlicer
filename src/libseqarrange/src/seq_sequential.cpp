@@ -9730,7 +9730,6 @@ bool optimize_SubglobalSequentialPolygonNonoverlappingBinaryCentered(const Solve
     {
 	bool optimized = false;
 
-	int remaining_polygon = 0;
 	for(int object_group_size = MIN((unsigned int)solver_configuration.object_group_size, polygons.size() - curr_polygon); object_group_size > 0; --object_group_size)
 	{
 	    z3::set_param("timeout", solver_configuration.optimization_timeout.c_str());
@@ -9778,9 +9777,9 @@ bool optimize_SubglobalSequentialPolygonNonoverlappingBinaryCentered(const Solve
 	    }
 	    */
 
-	    for (int i = object_group_size - 1; i >= 0; --i)
+	    for (int i = 0; i < object_group_size; ++i)
 	    {
-		undecided.push_back(curr_polygon + i + remaining_polygon);
+		undecided.push_back(curr_polygon + i);
 	    }
 	    
 	    #ifdef DEBUG
@@ -9899,10 +9898,10 @@ bool optimize_SubglobalSequentialPolygonNonoverlappingBinaryCentered(const Solve
 	    {
 		#ifdef DEBUG
 		{
-		    printf("Remaining polygon: %d\n", curr_polygon + remaining_polygon);
+		    printf("Remaining polygon: %d\n", curr_polygon + object_group_size - 1);
 		}
 		#endif
-		remaining_polygons.push_back(undecided_polygons[curr_polygon + remaining_polygon++]);
+		remaining_polygons.push_back(undecided_polygons[curr_polygon + object_group_size - 1]);
 	    }
 	}
 	if (!optimized)
@@ -9991,7 +9990,7 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 									int                                               total_objects,
 									std::function<void(int)>                          progress_callback)
 {
-    vector<int> undecided;
+    std::vector<int> undecided;
 
     decided_polygons.clear();
     remaining_polygons.clear();
@@ -10040,16 +10039,13 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 	    local_values_T[decided_polygons[i]] = dec_values_T[decided_polygons[i]];		
 	}
 
-	string_map dec_var_names_map;
-		    
+	string_map dec_var_names_map;		    
 	int object_group_size = MIN((unsigned int)solver_configuration.object_group_size, polygons.size() - curr_polygon);
 
-	undecided.clear();
-	int remaining_polygon = 0;	
-	
-	for (int i = object_group_size - 1; i >= 0; --i)
+	undecided.clear();	
+	for (int i = 0; i < object_group_size; ++i)
 	{
-	    undecided.push_back(curr_polygon + i + remaining_polygon);
+	    undecided.push_back(curr_polygon + i);
 	}
 
 	#ifdef PROFILE
@@ -10201,10 +10197,10 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 	    {
 		#ifdef DEBUG
 		{
-		    printf("Remaining polygon: %d\n", curr_polygon + remaining_polygon);
+		    printf("Remaining polygon: %d\n", curr_polygon + object_group_size - 1);
 		}
 		#endif
-		remaining_polygons.push_back(undecided_polygons[curr_polygon + remaining_polygon++]);
+		remaining_polygons.push_back(undecided_polygons[curr_polygon + object_group_size - 1]);
 	    }
 	    
 	    missing.push_back(undecided.back());

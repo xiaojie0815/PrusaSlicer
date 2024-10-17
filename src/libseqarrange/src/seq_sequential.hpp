@@ -58,6 +58,8 @@ const coord_t SEQ_SVG_SCALE_FACTOR    =  50000;
 #define SEQ_Z3_SOLVER_TIMEOUT              "8000"
     
 const int SEQ_GROUND_PRESENCE_TIME    = 32;
+const int SEQ_PROGRESS_RANGE          = 100;
+    
 const int64_t SEQ_RATIONAL_PRECISION  = 1000000;
 const double SEQ_DECIMATION_TOLERANCE = 400000.0;
 
@@ -1551,9 +1553,13 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 									std::vector<Rational>              &dec_values_T,
 									const std::vector<Slic3r::Polygon> &polygons,
 									const std::vector<Slic3r::Polygon> &unreachable_polygons,
+									const std::vector<int>             &previous_polygons,
 									const std::vector<int>             &undecided_polygons,
 									std::vector<int>                   &decided_polygons,
-									std::vector<int>                   &remaining_polygons);
+									std::vector<int>                   &remaining_polygons,
+									int                                 objects_done,
+									int                                 total_objects,									
+									std::function<void(int)>            progress_callback = [](int progress){});									
 
 bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const SolverConfiguration                        &solver_configuration,
 									std::vector<Rational>                            &dec_values_X,
@@ -1561,9 +1567,13 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 									std::vector<Rational>                            &dec_values_T,
 									const std::vector<Slic3r::Polygon>               &polygons,
 									const std::vector<std::vector<Slic3r::Polygon> > &unreachable_polygons,
+									const std::vector<int>                           &previous_polygons,
 									const std::vector<int>                           &undecided_polygons,
 									std::vector<int>                                 &decided_polygons,
-									std::vector<int>                                 &remaining_polygons);
+									std::vector<int>                                 &remaining_polygons,
+									int                                               objects_done,
+									int                                               total_objects,									
+									std::function<void(int)>                          progress_callback = [](int progress){});
 
 /*----------------------------------------------------------------*/
 
