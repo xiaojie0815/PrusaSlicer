@@ -2106,15 +2106,26 @@ unsigned int Plater::priv::update_background_process(bool force_validation, bool
 
     const Preset &selected_printer = wxGetApp().preset_bundle->printers.get_selected_preset();
     std::string printer_model_serialized = full_config.option("printer_model")->serialize();
+
+    const VendorProfile* vendor = nullptr;
     std::string vendor_repo_prefix;
     if (selected_printer.vendor) {
-        vendor_repo_prefix = selected_printer.vendor->repo_prefix;
+        vendor = selected_printer.vendor;
+
     } else if (std::string inherits = selected_printer.inherits(); !inherits.empty()) {
         const Preset *parent = wxGetApp().preset_bundle->printers.find_preset(inherits);
         if (parent && parent->vendor) {
             vendor_repo_prefix = parent->vendor->repo_prefix;
         }
     }
+
+    if (vendor) {
+        vendor_repo_prefix = vendor->repo_prefix;
+        // Passing extra info about preset vendor and version, so these can be inserted as metadata to GCode
+        full_config.set("profile_vendor", vendor->name, true);
+        full_config.set("profile_version", vendor->config_version.to_string(), true);
+    }
+
     if (printer_model_serialized.find(vendor_repo_prefix) == 0) {
         printer_model_serialized = printer_model_serialized.substr(vendor_repo_prefix.size());
         boost::trim_left(printer_model_serialized);
