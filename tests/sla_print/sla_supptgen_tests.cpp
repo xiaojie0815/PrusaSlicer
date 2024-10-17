@@ -12,7 +12,7 @@
 #include <libslic3r/SLA/SupportIslands/VoronoiGraphUtils.hpp>
 #include <libslic3r/SLA/SupportIslands/SampleIslandUtils.hpp>
 #include <libslic3r/SLA/SupportIslands/PolygonUtils.hpp>
-
+#include "nanosvg/nanosvg.h"    // load SVG file
 #include "sla_test_utils.hpp"
 
 using namespace Slic3r;
@@ -318,11 +318,45 @@ ExPolygon load_frog(){
     return slices.front()[1];
 }
 
+ExPolygon load_svg(const std::string& svg_filepath) {
+    struct NSVGimage *image = nsvgParseFromFile(svg_filepath.c_str(), "px", 96);
+    ScopeGuard sg_image([&image] { nsvgDelete(image); });
+
+    auto to_polygon = [](NSVGpath *path) { 
+        Polygon r;
+        r.points.reserve(path->npts);
+        for (size_t i = 0; i < path->npts; i++)
+            r.points.push_back(Point(path->pts[2 * i], path->pts[2 * i + 1]));
+        return r;
+    };
+
+    for (NSVGshape *shape_ptr = image->shapes; shape_ptr != NULL; shape_ptr = shape_ptr->next) {
+        const NSVGshape &shape = *shape_ptr;
+        if (!(shape.flags & NSVG_FLAGS_VISIBLE)) continue; // is visible
+        if (shape.fill.type != NSVG_PAINT_NONE) continue; // is not used fill
+        if (shape.stroke.type == NSVG_PAINT_NONE) continue; // exist stroke
+        //if (shape.strokeWidth < 1e-5f) continue; // is visible stroke width
+        //if (shape.stroke.color != 4278190261) continue; // is red
+        ExPolygon result;
+        for (NSVGpath *path = shape.paths; path != NULL; path = path->next) {
+            // Path order is reverse to path in file
+            if (path->next == NULL) // last path is contour
+                result.contour = to_polygon(path);
+            else
+                result.holes.push_back(to_polygon(path));        
+        }
+        return result;
+    }
+    REQUIRE(false);
+    return {};
+}
+
 ExPolygons createTestIslands(double size)
 {
     bool useFrogLeg = false;    
     // need post reorganization of longest path
     ExPolygons result = {
+        load_svg("C:/Users/Filip Sykala/Downloads/lm_issue.svg"),
         // one support point
         ExPolygon(PolygonUtils::create_equilateral_triangle(size)), 
         ExPolygon(PolygonUtils::create_square(size)),

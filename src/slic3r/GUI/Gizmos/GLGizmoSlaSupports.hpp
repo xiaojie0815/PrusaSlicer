@@ -91,6 +91,8 @@ private:
     void unregister_point_raycasters_for_picking();
     void update_point_raycasters_for_picking_transform();
 
+    void draw_island_config();
+
     bool m_lock_unique_islands = false;
     bool m_editing_mode = false;            // Is editing mode active?
     float m_new_point_head_diameter;        // Size of a new point.

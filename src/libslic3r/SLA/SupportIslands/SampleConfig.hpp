@@ -76,6 +76,9 @@ struct SampleConfig
     // NOTE: Slice of Cylinder bottom has tip of trinagles on contour
     // (neighbor coordinate - create issue in voronoi)
     double simplification_tolerance = scale_(0.05 /*mm*/);
+
+    // Only for debug purposes
+    std::string path = ""; // when set to empty string, no debug output is generated
 };
 } // namespace Slic3r::sla
 #endif // slic3r_SLA_SuppotstIslands_SampleConfig_hpp_

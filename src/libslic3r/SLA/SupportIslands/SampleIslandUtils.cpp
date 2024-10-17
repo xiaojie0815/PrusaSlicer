@@ -124,6 +124,15 @@ SupportIslandPoints SampleIslandUtils::uniform_cover_island(
 ) {
     ExPolygon simplified_island = get_simplified(island, config);
 
+    if (!config.path.empty()) {
+        static int counter = 0;
+        std::string path = replace_first(config.path, "<<order>>", std::to_string(++counter));
+        SVG svg(path, BoundingBox{island.contour.points});
+        svg.draw_original(island);
+        svg.draw(island, "lightgray");
+        svg.draw(simplified_island, "gray");
+    }
+
     // When island is smaller than minimal-head diameter,
     // it will be supported whole by support poin in center  
     if (Point center; get_center(simplified_island.contour.points, config.head_radius, center)) {
