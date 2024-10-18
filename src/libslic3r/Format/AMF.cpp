@@ -57,7 +57,7 @@ namespace pt = boost::property_tree;
 // 3 : Added volumes' matrices and source data, meshes transformed back to their coordinate system on loading.
 // WARNING !! -> the version number has been rolled back to 2
 //               the next change should use 4
-const unsigned int VERSION_AMF = 2;
+// const unsigned int VERSION_AMF = 2; Commented-out after we removed AMF export.
 const unsigned int VERSION_AMF_COMPATIBLE = 3;
 const char* SLIC3RPE_AMF_VERSION = "slic3rpe_amf_version";
 
