@@ -545,7 +545,6 @@ WipeTower::WipeTower(const Vec2f& pos, double rotation_deg, const PrintConfig& c
     m_semm(config.single_extruder_multi_material.value),
     m_wipe_tower_pos(pos),
     m_wipe_tower_width(float(config.wipe_tower_width)),
-    m_wipe_tower_rotation_angle(rotation_deg),
     m_wipe_tower_brim_width(float(config.wipe_tower_brim_width)),
     m_wipe_tower_cone_angle(float(config.wipe_tower_cone_angle)),
     m_extra_flow(float(config.wipe_tower_extra_flow/100.)),
