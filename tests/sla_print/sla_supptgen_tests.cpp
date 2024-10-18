@@ -356,7 +356,7 @@ ExPolygons createTestIslands(double size)
     bool useFrogLeg = false;    
     // need post reorganization of longest path
     ExPolygons result = {
-        load_svg("C:/Users/Filip Sykala/Downloads/lm_issue.svg"),
+        //load_svg("C:/Users/Filip Sykala/Downloads/lm_issue.svg"),
         // one support point
         ExPolygon(PolygonUtils::create_equilateral_triangle(size)), 
         ExPolygon(PolygonUtils::create_square(size)),
@@ -525,98 +525,8 @@ SampleConfig create_sample_config(double size) {
     return cfg;
 }
 
-#include <libslic3r/Geometry.hpp>
-#include <libslic3r/Geometry/VoronoiOffset.hpp>
-TEST_CASE("Sampling speed test on FrogLegs", "[hide], [VoronoiSkeleton]")
-{
-    TriangleMesh            mesh = load_model("frog_legs.obj");
-    std::vector<float>      grid({0.1f});
-    std::vector<ExPolygons> slices = slice_mesh_ex(mesh.its, {0.1f});
-    ExPolygon frog_leg = slices.front()[1];
-    SampleConfig cfg = create_sample_config(3e7);
-
-    using VD = Slic3r::Geometry::VoronoiDiagram;
-    VD    vd;
-    Lines lines = to_lines(frog_leg);
-    vd.construct_voronoi(lines.begin(), lines.end());
-    Slic3r::Voronoi::annotate_inside_outside(vd, lines);
-    
-    for (int i = 0; i < 100; ++i) {
-        VoronoiGraph::ExPath longest_path;
-        VoronoiGraph skeleton = VoronoiGraphUtils::create_skeleton(vd, lines);
-        auto samples = SampleIslandUtils::sample_voronoi_graph(skeleton, lines, cfg, longest_path);
-    }
-}
-
-TEST_CASE("Speed align", "[hide], [VoronoiSkeleton]")
-{
-    SampleConfig cfg      = create_sample_config(3e7);
-    cfg.max_align_distance = 1000;
-    cfg.count_iteration    = 1000;
-    cfg.max_align_distance = 3e7;
-
-    double       size = 3e7;
-    auto island = create_square_with_4holes(5 * size, 5 * size / 2 - size / 3);
-    using VD = Slic3r::Geometry::VoronoiDiagram;
-    VD    vd;
-    Lines lines = to_lines(island);
-    vd.construct_voronoi(lines.begin(), lines.end());
-    Slic3r::Voronoi::annotate_inside_outside(vd, lines);
-    VoronoiGraph::ExPath longest_path;
-    VoronoiGraph skeleton = VoronoiGraphUtils::create_skeleton(vd, lines);
-
-    for (int i = 0; i < 100; ++i) {
-        auto samples = SampleIslandUtils::sample_voronoi_graph(skeleton, lines, cfg, longest_path);
-        SampleIslandUtils::align_samples(samples, island, cfg);
-    }
-}
-
-#include <libslic3r/SLA/SupportIslands/LineUtils.hpp>
-/// <summary>
-/// Check speed of sampling,
-/// for be sure that code is not optimized out store result to svg or print count.
-/// </summary>
-TEST_CASE("speed sampling", "[hide], [SupGen]") { 
-    double       size    = 3e7;
-    float      samples_per_mm2 = 0.01f;
-    ExPolygons   islands = createTestIslands(size);
-    std::random_device rd;
-    std::mt19937 m_rng;
-    m_rng.seed(rd());
-
-    size_t count = 1;
-    
-    std::vector<std::vector<Vec2f>> result2;
-    result2.reserve(islands.size()*count);
-    for (size_t i = 0; i < count; ++i)
-        for (const auto &island : islands)
-            result2.emplace_back(SampleIslandUtils::sample_expolygon(island, samples_per_mm2)); //*/
-
-    /*size_t all = 0;
-    for (auto& result : result2) { 
-        //std::cout << "case " << &result - &result1[0] << " points " << result.size() << std::endl;
-        all += result.size();
-    }
-    std::cout << "All points " << all << std::endl;*/
-    
-    
 #ifdef STORE_SAMPLE_INTO_SVG_FILES
-    for (size_t i = 0; i < result2.size(); ++i) {
-        size_t     island_index = i % islands.size();
-        ExPolygon &island       = islands[island_index];
-
-        Lines       lines = to_lines(island.contour);
-        std::string name  = "sample_" + std::to_string(i) + ".svg";
-        SVG         svg(name, LineUtils::create_bounding_box(lines));
-        svg.draw(island, "lightgray");
-        svg.draw_text({0., 5e6}, ("uniform samples " + std::to_string(result2[i].size())).c_str(), "green");
-        for (Vec2f &p : result2[i]) 
-            svg.draw((p * 1e6).cast<coord_t>(), "green", 1e6);
-    }
-#endif // STORE_SAMPLE_INTO_SVG_FILES
-}
 namespace {
-
 void store_sample(const SupportIslandPoints &samples, const ExPolygon &island) { 
     static int counter = 0;
     BoundingBox bb(island.contour.points);
@@ -639,8 +549,8 @@ void store_sample(const SupportIslandPoints &samples, const ExPolygon &island) {
     for (int i=0; i<10;i+=2)
         svg.draw(Line(start + Point(i*mm, 0.), start + Point((i+1)*mm, 0.)), "black", 1e6);
 }
-
 } // namespace
+#endif // STORE_SAMPLE_INTO_SVG_FILES
 
 /// <summary>
 /// Check for correct sampling of island
@@ -649,6 +559,7 @@ TEST_CASE("Uniform sample test islands", "[SupGen], [VoronoiSkeleton]")
 {
     float head_diameter = .4f;
     SampleConfig cfg = SampleConfigFactory::create(head_diameter);
+    //cfg.path = "C:/data/temp/island<<order>>.svg";
     ExPolygons islands = createTestIslands(7 * scale_(head_diameter));
     for (ExPolygon &island : islands) {
         // information for debug which island cause problem

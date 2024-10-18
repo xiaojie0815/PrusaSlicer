@@ -813,6 +813,8 @@ void GLGizmoSlaSupports::draw_island_config() {
     if (!ImGui::TreeNode("Support islands:"))
         return; // no need to draw configuration for islands
     sla::SampleConfig &sample_config = sla::SampleConfigFactory::get_sample_config();
+
+#ifdef OPTION_TO_STORE_ISLAND
     bool store_islands = !sample_config.path.empty();
     if (ImGui::Checkbox("StoreIslands", &store_islands)) {
         if (store_islands = true)
@@ -824,6 +826,7 @@ void GLGizmoSlaSupports::draw_island_config() {
         std::string path;
         ImGui::InputText("path", &sample_config.path);
     }
+#endif // OPTION_TO_STORE_ISLAND
 
     bool exist_change = false;
     if (float simplification_tolerance = unscale<float>(sample_config.simplification_tolerance); // [in mm]

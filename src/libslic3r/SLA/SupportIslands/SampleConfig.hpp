@@ -3,6 +3,8 @@
 
 #include <libslic3r/libslic3r.h>
 
+#define OPTION_TO_STORE_ISLAND
+
 namespace Slic3r::sla {
 /// <summary>
 /// Configuration DTO 
@@ -77,8 +79,10 @@ struct SampleConfig
     // (neighbor coordinate - create issue in voronoi)
     double simplification_tolerance = scale_(0.05 /*mm*/);
 
+#ifdef OPTION_TO_STORE_ISLAND
     // Only for debug purposes
     std::string path = ""; // when set to empty string, no debug output is generated
+#endif // OPTION_TO_STORE_ISLAND
 };
 } // namespace Slic3r::sla
 #endif // slic3r_SLA_SuppotstIslands_SampleConfig_hpp_

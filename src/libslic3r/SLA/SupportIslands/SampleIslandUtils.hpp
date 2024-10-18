@@ -184,21 +184,6 @@ public:
         SupportIslandPoints &               result);
 
     /// <summary>
-    /// Sample voronoi skeleton
-    /// </summary>
-    /// <param name="graph">Inside skeleton of island</param>
-    /// <param name="lines">Source lines for VG --> outline of island.</param>
-    /// <param name="config">Params for sampling</param>
-    /// <param name="longest_path">OUTPUT: longest path in graph</param>
-    /// <returns>Vector of sampled points or Empty when distance from edge is
-    /// bigger than max_distance</returns>
-    static SupportIslandPoints sample_voronoi_graph(
-        const VoronoiGraph &  graph,
-        const Lines & lines,
-        const SampleConfig &  config,
-        VoronoiGraph::ExPath &longest_path);
-
-    /// <summary>
     /// Decide how to sample path
     /// </summary>
     /// <param name="path">Path inside voronoi diagram with side branches and circles</param>

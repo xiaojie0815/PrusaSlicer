@@ -21,9 +21,6 @@
 
 // comment definition of NDEBUG to enable assert()
 //#define NDEBUG
-
-//#define SLA_SAMPLE_ISLAND_UTILS_STORE_VORONOI_GRAPH_TO_SVG_PATH  "C:/data/temp/align/island_<<COUNTER>>_graph.svg"
-//#define SLA_SAMPLE_ISLAND_UTILS_STORE_INITIAL_SAMPLE_POSITION_TO_SVG_PATH "C:/data/temp/align/island_<<COUNTER>>_init.svg"
 //#define SLA_SAMPLE_ISLAND_UTILS_STORE_FIELD_TO_SVG
 //#define SLA_SAMPLE_ISLAND_UTILS_STORE_ALIGNED_TO_SVG_PATH "C:/data/temp/align/island_<<COUNTER>>_aligned.svg"
 
@@ -117,21 +114,38 @@ ExPolygon get_simplified(const ExPolygon &island, const SampleConfig &config) {
         island : get_expolygon_with_biggest_contour(simplified_expolygons);
 }
 
+#ifdef OPTION_TO_STORE_ISLAND
+SVG draw_island(const std::string &path, const ExPolygon &island, const ExPolygon &simplified_island) {
+    SVG svg(path, BoundingBox{island.contour.points});
+    svg.draw_original(island);
+    svg.draw(island, "lightgray");
+    svg.draw(simplified_island, "gray");
+    return svg;
+}
+SVG draw_island_graph(const std::string &path, const ExPolygon &island, 
+    const ExPolygon &simplified_island, const VoronoiGraph& skeleton,
+    const VoronoiGraph::ExPath& longest_path, const Lines& lines, coord_t width) {
+    SVG svg = draw_island(path, island, simplified_island);
+    VoronoiGraphUtils::draw(svg, skeleton, lines, width);
+    VoronoiGraphUtils::draw(svg, longest_path.nodes, width, "orange");
+    return svg;
+}
+#endif // OPTION_TO_STORE_ISLAND
 } // namespace
 
 SupportIslandPoints SampleIslandUtils::uniform_cover_island(
     const ExPolygon &island, const SampleConfig &config
 ) {
     ExPolygon simplified_island = get_simplified(island, config);
-
+#ifdef OPTION_TO_STORE_ISLAND
+    std::string path;
     if (!config.path.empty()) {
         static int counter = 0;
-        std::string path = replace_first(config.path, "<<order>>", std::to_string(++counter));
-        SVG svg(path, BoundingBox{island.contour.points});
-        svg.draw_original(island);
-        svg.draw(island, "lightgray");
-        svg.draw(simplified_island, "gray");
+        path = replace_first(config.path, "<<order>>", std::to_string(++counter));
+        draw_island(path, island, simplified_island);
+        // need to save svg in case of infinite loop so no store SVG into variable
     }
+#endif // OPTION_TO_STORE_ISLAND
 
     // When island is smaller than minimal-head diameter,
     // it will be supported whole by support poin in center  
@@ -139,7 +153,14 @@ SupportIslandPoints SampleIslandUtils::uniform_cover_island(
         SupportIslandPoints result;
         result.push_back(std::make_unique<SupportIslandNoMovePoint>(
             center, SupportIslandInnerPoint::Type::one_bb_center_point));
+#ifdef OPTION_TO_STORE_ISLAND
+        if (!path.empty()){ // add center support point into image
+            SVG svg = draw_island(path, island, simplified_island);
+            svg.draw(center, "black", config.head_radius);
+            svg.draw_text(center, "Center of bounding box", "black");
+        }
         return result;
+#endif // OPTION_TO_STORE_ISLAND
     }
 
     Slic3r::Geometry::VoronoiDiagram vd;
@@ -148,13 +169,39 @@ SupportIslandPoints SampleIslandUtils::uniform_cover_island(
     Slic3r::Voronoi::annotate_inside_outside(vd, lines);
     VoronoiGraph skeleton = VoronoiGraphUtils::create_skeleton(vd, lines);
     VoronoiGraph::ExPath longest_path;
-    
-    SupportIslandPoints samples =
-        SampleIslandUtils::sample_voronoi_graph(skeleton, lines, config, longest_path);
+
+    const VoronoiGraph::Node *start_node = VoronoiGraphUtils::getFirstContourNode(skeleton);
+    // every island has to have a point on contour
+    assert(start_node != nullptr);
+    longest_path = VoronoiGraphUtils::create_longest_path(start_node);
+
+#ifdef OPTION_TO_STORE_ISLAND // add voronoi diagram with longest path into image
+    if (!path.empty()) draw_island_graph(path, island, simplified_island, skeleton, longest_path, lines, config.head_radius / 10);
+#endif // OPTION_TO_STORE_ISLAND
+
+    SupportIslandPoints samples = sample_expath(longest_path, lines, config);
+
+#ifdef OPTION_TO_STORE_ISLAND
+    Points samples_before_align = to_points(samples);
+    if (!path.empty()) {
+        SVG svg = draw_island_graph(path, island, simplified_island, skeleton, longest_path, lines, config.head_radius / 10);
+        draw(svg, samples, config.head_radius);
+    }
+#endif // OPTION_TO_STORE_ISLAND
 
     // allign samples
     SampleIslandUtils::align_samples(samples, island, config);
-
+#ifdef OPTION_TO_STORE_ISLAND
+    if (!path.empty()) {
+        SVG svg = draw_island_graph(path, island, simplified_island, skeleton, longest_path, lines, config.head_radius / 10);
+        draw(svg, samples, config.head_radius);
+        Lines align_moves;
+        align_moves.reserve(samples.size());
+        for (size_t i = 0; i < samples.size(); ++i)
+            align_moves.push_back(Line(samples[i]->point, samples_before_align[i]));
+        svg.draw(align_moves, "lightgray");
+    }
+#endif // OPTION_TO_STORE_ISLAND
     return samples;
 }
 
@@ -569,17 +616,6 @@ void SampleIslandUtils::align_samples(SupportIslandPoints &samples,
 }
 
 namespace {
-Polygons create_voronoi_cells_boost(const Points &points, coord_t max_distance) {
-    using VD = Slic3r::Geometry::VoronoiDiagram;
-    VD vd;
-    vd.construct_voronoi(points.begin(), points.end());
-    assert(points.size() == vd.cells().size());
-    Polygons cells(points.size());
-    for (const VD::cell_type &cell : vd.cells())
-        cells[cell.source_index()] = VoronoiGraphUtils::to_polygon(cell, points, max_distance);
-    return cells;
-}
-
 bool is_points_in_distance(const Slic3r::Point & p,
                            const Slic3r::Points &points,
                            double                max_distance)
@@ -598,16 +634,12 @@ coord_t SampleIslandUtils::align_once(
     const ExPolygon &island, 
     const SampleConfig &config) 
 {  
+    // IMPROVE: Do not calculate voronoi diagram out of island(only triangulate island)
+    // https://stackoverflow.com/questions/23823345/how-to-construct-a-voronoi-diagram-inside-a-polygon 
     // IMPROVE1: add accessor to point coordinate do not copy points
     // IMPROVE2: add filter for create cell polygon only for moveable samples
-    Slic3r::Points points = SampleIslandUtils::to_points(samples);
-    
-    Polygons cell_polygons = /* 
-        create_voronoi_cells_boost
-    /*/
-        create_voronoi_cells_cgal
-    //*/
-    (points, config.max_distance);
+    Slic3r::Points points = SampleIslandUtils::to_points(samples);    
+    Polygons cell_polygons = create_voronoi_cells_cgal(points, config.max_distance);
     
 #ifdef SLA_SAMPLE_ISLAND_UTILS_STORE_ALIGN_ONCE_TO_SVG_PATH
     std::string color_of_island = "#FF8080";             // LightRed. Should not be visible - cell color should overlap
@@ -1030,43 +1062,6 @@ SupportIslandPoints SampleIslandUtils::sample_center_circle(
         }
     }
     return result;
-}
-
-SupportIslandPoints SampleIslandUtils::sample_voronoi_graph(
-    const VoronoiGraph &  graph,
-    const Lines &         lines,
-    const SampleConfig &  config,
-    VoronoiGraph::ExPath &longest_path)
-{
-    const VoronoiGraph::Node *start_node =
-        VoronoiGraphUtils::getFirstContourNode(graph);
-    // every island has to have a point on contour
-    assert(start_node != nullptr);
-    longest_path = VoronoiGraphUtils::create_longest_path(start_node);
-
-#ifdef SLA_SAMPLE_ISLAND_UTILS_STORE_VORONOI_GRAPH_TO_SVG_PATH
-    {
-        static int counter = 0;
-        SVG svg(replace_first(SLA_SAMPLE_ISLAND_UTILS_STORE_VORONOI_GRAPH_TO_SVG_PATH, 
-        "<<COUNTER>>", std::to_string(counter++)).c_str(), LineUtils::create_bounding_box(lines));
-        VoronoiGraphUtils::draw(svg, graph, lines, config.head_radius / 10, true);
-        VoronoiGraphUtils::draw(svg, longest_path, config.head_radius / 10);
-    }
-#endif // SLA_SAMPLE_ISLAND_UTILS_STORE_VORONOI_GRAPH_TO_SVG_PATH
-
-    SupportIslandPoints points = sample_expath(longest_path, lines, config);
-
-#ifdef SLA_SAMPLE_ISLAND_UTILS_STORE_INITIAL_SAMPLE_POSITION_TO_SVG_PATH
-    {
-        static int counter = 0;
-        SVG svg(replace_first(SLA_SAMPLE_ISLAND_UTILS_STORE_INITIAL_SAMPLE_POSITION_TO_SVG_PATH, 
-        "<<COUNTER>>", std::to_string(counter++)).c_str(),
-                LineUtils::create_bounding_box(lines));
-        svg.draw(lines, "gray", config.head_radius/ 10);
-        draw(svg, points, config.head_radius, "black", true);
-    }
-#endif // SLA_SAMPLE_ISLAND_UTILS_STORE_INITIAL_SAMPLE_POSITION_TO_SVG_PATH
-    return points;
 }
 
 SupportIslandPoints SampleIslandUtils::sample_expath(
@@ -1796,7 +1791,6 @@ SupportIslandPoints SampleIslandUtils::sample_outline(
         const double &line_length_double = restriction->lengths[index];
         coord_t line_length = static_cast<coord_t>(std::round(line_length_double));
         if (last_support + line_length > sample_distance) {
-            Point direction = LineUtils::direction(line);
             do {
                 double ratio = (sample_distance - last_support) / line_length_double;
                 result.emplace_back(
@@ -2034,12 +2028,6 @@ void SampleIslandUtils::draw(SVG &                      svg,
 bool SampleIslandUtils::is_visualization_disabled()
 {
 #ifndef NDEBUG
-    return false;
-#endif
-#ifdef SLA_SAMPLE_ISLAND_UTILS_STORE_VORONOI_GRAPH_TO_SVG_PATH
-    return false;
-#endif
-#ifdef SLA_SAMPLE_ISLAND_UTILS_STORE_INITIAL_SAMPLE_POSITION_TO_SVG_PATH
     return false;
 #endif
 #ifdef SLA_SAMPLE_ISLAND_UTILS_STORE_FIELD_TO_SVG
