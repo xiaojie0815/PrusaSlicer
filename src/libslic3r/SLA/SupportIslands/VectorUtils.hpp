@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <algorithm>
+#include <numeric> // iota
 #include <functional>
 
 namespace Slic3r::sla {
@@ -31,7 +32,7 @@ public:
 
         // initialize original index locations
         std::vector<size_t> idx(data.size());
-        iota(idx.begin(), idx.end(), 0);
+        std::iota(idx.begin(), idx.end(), 0);
 
         // values used for sort
         std::vector<T2> v;
