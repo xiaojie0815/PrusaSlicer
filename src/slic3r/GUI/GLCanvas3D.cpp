@@ -2454,10 +2454,10 @@ void GLCanvas3D::reload_scene(bool refresh_immediately, bool force_full_scene_re
 
         if (extruders_count > 1 && wt && !co) {
 
-            const float x = m_model->wipe_tower.position.x();
-            const float y = m_model->wipe_tower.position.y();
+            const float x = m_model->wipe_tower().position.x();
+            const float y = m_model->wipe_tower().position.y();
             const float w = dynamic_cast<const ConfigOptionFloat*>(m_config->option("wipe_tower_width"))->value;
-            const float a = m_model->wipe_tower.rotation;
+            const float a = m_model->wipe_tower().rotation;
             const float bw = dynamic_cast<const ConfigOptionFloat*>(m_config->option("wipe_tower_brim_width"))->value;
             const float ca = dynamic_cast<const ConfigOptionFloat*>(m_config->option("wipe_tower_cone_angle"))->value;
 
@@ -4042,7 +4042,7 @@ void GLCanvas3D::do_move(const std::string& snapshot_type)
         post_event(SimpleEvent(EVT_GLCANVAS_INSTANCE_MOVED));
 
     if (wipe_tower_origin != Vec3d::Zero()) {
-        m_model->wipe_tower.position = Vec2d(wipe_tower_origin[0], wipe_tower_origin[1]);
+        m_model->wipe_tower().position = Vec2d(wipe_tower_origin[0], wipe_tower_origin[1]);
         post_event(SimpleEvent(EVT_GLCANVAS_WIPETOWER_TOUCHED));
     }
 
@@ -4088,8 +4088,8 @@ void GLCanvas3D::do_rotate(const std::string& snapshot_type)
             const Vec3d offset = v->get_volume_offset();
             Vec3d rot_unit_x = v->get_volume_transformation().get_matrix().linear() * Vec3d::UnitX();
             double z_rot = std::atan2(rot_unit_x.y(), rot_unit_x.x());
-            m_model->wipe_tower.position = Vec2d(offset.x(), offset.y());
-            m_model->wipe_tower.rotation = (180./M_PI) * z_rot;
+            m_model->wipe_tower().position = Vec2d(offset.x(), offset.y());
+            m_model->wipe_tower().rotation = (180. / M_PI) * z_rot;
         }
         const int object_idx = v->object_idx();
         if (object_idx < 0 || (int)m_model->objects.size() <= object_idx)
@@ -4406,9 +4406,9 @@ GLCanvas3D::WipeTowerInfo GLCanvas3D::get_wipe_tower_info() const
     
     for (const GLVolume* vol : m_volumes.volumes) {
         if (vol->is_wipe_tower) {
-            wti.m_pos = Vec2d(m_model->wipe_tower.position.x(),
-                            m_model->wipe_tower.position.y());
-            wti.m_rotation = (M_PI/180.) * m_model->wipe_tower.rotation;
+            wti.m_pos = Vec2d(m_model->wipe_tower().position.x(),
+                            m_model->wipe_tower().position.y());
+            wti.m_rotation = (M_PI/180.) * m_model->wipe_tower().rotation;
             const BoundingBoxf3& bb = vol->bounding_box();
             wti.m_bb = BoundingBoxf{to_2d(bb.min), to_2d(bb.max)};
             break;
@@ -7000,8 +7000,8 @@ const SLAPrint* GLCanvas3D::sla_print() const
 
 void GLCanvas3D::WipeTowerInfo::apply_wipe_tower(Vec2d pos, double rot)
 {
-    wxGetApp().plater()->model().wipe_tower.position = pos;
-    wxGetApp().plater()->model().wipe_tower.rotation = (180./M_PI) * rot;
+    wxGetApp().plater()->model().wipe_tower().position = pos;
+    wxGetApp().plater()->model().wipe_tower().rotation = (180. / M_PI) * rot;
 }
 
 void GLCanvas3D::RenderTimer::Notify()

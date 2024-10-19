@@ -1330,7 +1330,7 @@ std::vector<size_t> Plater::priv::load_files(const std::vector<fs::path>& input_
 
                     if (load_config) {
                         this->model.get_custom_gcode_per_print_z_vector() = model.get_custom_gcode_per_print_z_vector();
-                        this->model.wipe_tower = model.wipe_tower;
+                        this->model.get_wipe_tower_vector() = model.get_wipe_tower_vector();
                     }
                 }
 
@@ -3388,13 +3388,13 @@ void Plater::priv::on_right_click(RBtnEvent& evt)
 
 void Plater::priv::on_wipetower_moved(Vec3dEvent &evt)
 {
-    model.wipe_tower.position = Vec2d(evt.data[0], evt.data[1]);
+    model.wipe_tower().position = Vec2d(evt.data[0], evt.data[1]);
 }
 
 void Plater::priv::on_wipetower_rotated(Vec3dEvent& evt)
 {
-    model.wipe_tower.position = Vec2d(evt.data[0], evt.data[1]);
-    model.wipe_tower.rotation = Geometry::rad2deg(evt.data(2));
+    model.wipe_tower().position = Vec2d(evt.data[0], evt.data[1]);
+    model.wipe_tower().rotation = Geometry::rad2deg(evt.data(2));
 }
 
 void Plater::priv::on_update_geometry(Vec3dsEvent<2>&)

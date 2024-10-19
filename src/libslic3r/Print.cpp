@@ -1048,8 +1048,8 @@ void Print::process()
     if (this->has_wipe_tower()) {
         // These values have to be updated here, not during wipe tower generation.
         // When the wipe tower is moved/rotated, it is not regenerated.
-        m_wipe_tower_data.position = model().wipe_tower.position;
-        m_wipe_tower_data.rotation_angle = model().wipe_tower.rotation;
+        m_wipe_tower_data.position = model().wipe_tower().position;
+        m_wipe_tower_data.rotation_angle = model().wipe_tower().rotation;
     }
     auto conflictRes = ConflictChecker::find_inter_of_lines_in_diff_objs(objects(), m_wipe_tower_data);
 
@@ -1278,8 +1278,8 @@ Points Print::first_layer_wipe_tower_corners() const
             pts.emplace_back(center + r*Vec2d(std::cos(alpha)/cone_x_scale, std::sin(alpha)));
 
         for (Vec2d& pt : pts) {
-            pt = Eigen::Rotation2Dd(Geometry::deg2rad(model().wipe_tower.rotation)) * pt;
-            pt += model().wipe_tower.position;
+            pt = Eigen::Rotation2Dd(Geometry::deg2rad(model().wipe_tower().rotation)) * pt;
+            pt += model().wipe_tower().position;
             pts_scaled.emplace_back(Point(scale_(pt.x()), scale_(pt.y())));
         }
     }
@@ -1553,7 +1553,7 @@ void Print::_make_wipe_tower()
     this->throw_if_canceled();
 
     // Initialize the wipe tower.
-    WipeTower wipe_tower(model().wipe_tower.position.cast<float>(), model().wipe_tower.rotation, m_config, m_default_region_config, wipe_volumes, m_wipe_tower_data.tool_ordering.first_extruder());
+    WipeTower wipe_tower(model().wipe_tower().position.cast<float>(), model().wipe_tower().rotation, m_config, m_default_region_config, wipe_volumes, m_wipe_tower_data.tool_ordering.first_extruder());
 
     // Set the extruder & material properties at the wipe tower object.
     for (size_t i = 0; i < m_config.nozzle_diameter.size(); ++ i)

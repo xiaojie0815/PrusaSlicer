@@ -47,6 +47,8 @@ namespace pt = boost::property_tree;
 
 #include "libslic3r/NSVGUtils.hpp"
 
+#include "libslic3r/MultipleBeds.hpp"
+
 #include <fast_float.h>
 
 // Slightly faster than sprintf("%.9g"), but there is an issue with the karma floating point formatter,
@@ -773,7 +775,7 @@ namespace Slic3r {
         }
 
         // Initialize the wipe tower position (see the end of this function):
-        model.wipe_tower.position.x() = std::numeric_limits<double>::max();
+        model.get_wipe_tower_vector().front().position.x() = std::numeric_limits<double>::max();
 
         // Read root model file
         if (start_part_stat.m_file_index < num_entries) {
@@ -850,13 +852,13 @@ namespace Slic3r {
         }
 
 
-        if (model.wipe_tower.position.x() == std::numeric_limits<double>::max()) {
+        if (model.get_wipe_tower_vector().front().position.x() == std::numeric_limits<double>::max()) {
             // This is apparently an old project from before PS 2.9.0, which saved wipe tower pos and rotation
             // into config, not into Model. Try to load it from the config file.
             // First set default in case we do not find it (these were the default values of the config options).
-            model.wipe_tower.position.x() = 180;
-            model.wipe_tower.position.y() = 140;
-            model.wipe_tower.rotation = 0.;
+            model.get_wipe_tower_vector().front().position.x() = 180;
+            model.get_wipe_tower_vector().front().position.y() = 140;
+            model.get_wipe_tower_vector().front().rotation = 0.;
 
             for (mz_uint i = 0; i < num_entries; ++i) {
                 if (mz_zip_reader_file_stat(&archive, i, &stat)) {
@@ -1679,17 +1681,29 @@ namespace Slic3r {
             pt::ptree main_tree;
             pt::read_xml(iss, main_tree);
 
-            try {
-                auto& node = main_tree.get_child("wipe_tower_information");
-                double pos_x = node.get<double>("<xmlattr>.position_x");
-                double pos_y = node.get<double>("<xmlattr>.position_y");
-                double rot_deg = node.get<double>("<xmlattr>.rotation_deg");
-                model.wipe_tower.position = Vec2d(pos_x, pos_y);
-                model.wipe_tower.rotation = rot_deg;
-            } catch (const boost::property_tree::ptree_bad_path&) {
-                // Handles missing node or attribute.
-                add_error("Error while reading wipe tower information.");
-                return;
+            for (const auto& bed_block : main_tree) {
+                if (bed_block.first != "wipe_tower_information")
+                    continue;
+                try {
+                    int bed_idx = 0;
+                    try {
+                        bed_idx = bed_block.second.get<int>("<xmlattr>.bed_idx");
+                    } catch (const boost::property_tree::ptree_bad_path&) {
+                        // Probably an old project with no bed_idx info - pretend that we saw 0.
+                    }
+                    if (bed_idx >= int(m_model->get_wipe_tower_vector().size()))
+                        continue;                
+                    double pos_x = bed_block.second.get<double>("<xmlattr>.position_x");
+                    double pos_y = bed_block.second.get<double>("<xmlattr>.position_y");
+                    double rot_deg = bed_block.second.get<double>("<xmlattr>.rotation_deg");
+                    model.get_wipe_tower_vector()[bed_idx].position = Vec2d(pos_x, pos_y);
+                    model.get_wipe_tower_vector()[bed_idx].rotation = rot_deg;
+                }
+                catch (const boost::property_tree::ptree_bad_path&) {
+                    // Handles missing node or attribute.
+                    add_error("Error while reading wipe tower information.");
+                    return;
+                }
             }
 
         }
@@ -1725,11 +1739,11 @@ namespace Slic3r {
                     value_ss >> val;
                     if (! value_ss.fail()) {
                         if (boost::starts_with(line, "wipe_tower_x"))
-                            model.wipe_tower.position.x() = val;
+                            model.get_wipe_tower_vector().front().position.x() = val;
                         else if (boost::starts_with(line, "wipe_tower_y"))
-                            model.wipe_tower.position.y() = val;
+                            model.get_wipe_tower_vector().front().position.y() = val;
                         else
-                            model.wipe_tower.rotation = val;
+                            model.get_wipe_tower_vector().front().rotation = val;
                     }
                 }
             }
@@ -3621,11 +3635,11 @@ namespace Slic3r {
             std::string opt_serialized;
             
             if (key == "wipe_tower_x")
-                opt_serialized = float_to_string_decimal_point(model.wipe_tower.position.x());
+                opt_serialized = float_to_string_decimal_point(model.get_wipe_tower_vector().front().position.x());
             else if (key == "wipe_tower_y")
-                opt_serialized = float_to_string_decimal_point(model.wipe_tower.position.y());
+                opt_serialized = float_to_string_decimal_point(model.get_wipe_tower_vector().front().position.y());
             else if (key == "wipe_tower_rotation_angle")
-                opt_serialized = float_to_string_decimal_point(model.wipe_tower.rotation);
+                opt_serialized = float_to_string_decimal_point(model.get_wipe_tower_vector().front().rotation);
             else
                 opt_serialized = config.opt_serialize(key);
 
@@ -3842,11 +3856,19 @@ bool _3MF_Exporter::_add_wipe_tower_information_file_to_archive( mz_zip_archive&
     std::string out = "";
 
     pt::ptree tree;
-    pt::ptree& main_tree = tree.add("wipe_tower_information", "");
 
-    main_tree.put("<xmlattr>.position_x", model.wipe_tower.position.x());
-    main_tree.put("<xmlattr>.position_y", model.wipe_tower.position.y());
-    main_tree.put("<xmlattr>.rotation_deg", model.wipe_tower.rotation);
+    size_t bed_idx = 0;
+    for (const ModelWipeTower& wipe_tower : model.get_wipe_tower_vector()) {
+        pt::ptree& main_tree = tree.add("wipe_tower_information", "");
+
+        main_tree.put("<xmlattr>.bed_idx", bed_idx);
+        main_tree.put("<xmlattr>.position_x", wipe_tower.position.x());
+        main_tree.put("<xmlattr>.position_y", wipe_tower.position.y());
+        main_tree.put("<xmlattr>.rotation_deg", wipe_tower.rotation);
+        ++bed_idx;
+        if (bed_idx >= s_multiple_beds.get_number_of_beds())
+            break;
+    }
     
     std::ostringstream oss;
     boost::property_tree::write_xml(oss, tree);
