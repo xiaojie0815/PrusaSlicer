@@ -59,7 +59,7 @@ static std::vector<Sequential::ObjectToPrint> get_objects_to_print(const Model& 
 	std::vector<Sequential::ObjectToPrint> objects;
 	for (const ModelObject* mo : model.objects) {
 		const ModelInstance* mi = mo->instances.front();
-		objects.emplace_back(Sequential::ObjectToPrint{int(mo->id().id), scaled(mo->instance_bounding_box(0).size().z()), {}});
+		objects.emplace_back(Sequential::ObjectToPrint{int(mo->id().id), false, scaled(mo->instance_bounding_box(0).size().z()), {}});
 		for (double height : heights) {
 			auto tr = Transform3d::Identity();
 			Vec3d offset = mi->get_offset();

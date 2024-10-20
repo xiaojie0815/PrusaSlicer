@@ -343,15 +343,41 @@ void introduce_ConsequentialTemporalLepoxAgainstFixed(z3::solver                
 						      const std::vector<Slic3r::Polygon> &SEQ_UNUSED(polygons),
 						      const std::vector<bool>            &lepox_to_next)
 {
-    std::set<int> fixed_(fixed.begin(), fixed.end());
-    std::set<int> undecided_(undecided.begin(), undecided.end());
-	
     for (unsigned int i = 0; i < undecided.size(); ++i)
     {
+	if (i == 0)
+	{
+	    if ((undecided[0] - 1) >= 0)
+	    {
+		if (lepox_to_next[undecided[0] - 1])
+		{
+		    for (unsigned int j = 1; j < undecided.size(); ++j)
+		    {
+			Solver.add(dec_vars_T[undecided[0]] + temporal_spread < dec_vars_T[undecided[j]]);
+		    }
+		    if (!fixed.empty())
+		    {
+			int prev_fix_i = fixed[fixed.size() - 1];
+			Solver.add(Context.real_val(dec_values_T[prev_fix_i].numerator, dec_values_T[prev_fix_i].denominator) + temporal_spread < dec_vars_T[undecided[0]]);
+		    }
+		}
+	    }
+	}
 	if (lepox_to_next[undecided[i]])
 	{
-	    /* TODO: we know what to do */
-	    //Solver.add(dec_vars_T[previous_polygons[undecided[i]]] + temporal_spread < dec_vars_T[undecided[i]] && dec_vars_T[previous_polygons[undecided[i]]] + temporal_spread + temporal_spread / 2 > dec_vars_T[undecided[i]]);
+	    printf("Lepox constraint present: %d\n", undecided[i]);
+	    if (undecided.size() > i + 1)
+	    {
+		int next_i = undecided[i + 1];
+		Solver.add(dec_vars_T[undecided[i]] + temporal_spread < dec_vars_T[next_i] && dec_vars_T[undecided[i]] + temporal_spread + temporal_spread / 2 > dec_vars_T[next_i]);
+	    }
+	    else
+	    {
+		for (unsigned int j = 0; j < undecided.size() - 1; ++j)
+		{
+		    Solver.add(dec_vars_T[undecided[j]] + temporal_spread < dec_vars_T[undecided[i]]);
+		}
+	    }
 	}
     }
 
@@ -8589,7 +8615,9 @@ bool optimize_ConsequentialWeakPolygonNonoverlappingBinaryCentered(z3::solver   
 								   const string_map                                 &dec_var_names_map,
 								   const std::vector<Slic3r::Polygon>               &polygons,
 								   const std::vector<std::vector<Slic3r::Polygon> > &unreachable_polygons,
-								   const z3::expr_vector                            &presence_constraints)
+								   const z3::expr_vector                            &presence_constraints,
+								   const ProgressRange                              &progress_range,								   
+								   std::function<void(int)>                          progress_callback)
 {
     z3::set_param("timeout", solver_configuration.optimization_timeout.c_str());    
     //z3::set_param("parallel.enable", "true");
@@ -8605,6 +8633,9 @@ bool optimize_ConsequentialWeakPolygonNonoverlappingBinaryCentered(z3::solver   
 
     coord_t half_y_min = 0;
     coord_t half_y_max = box_half_y_max;
+
+    int progress_total_estimation = MAX(1,std::log2(half_x_max - half_x_min));
+    int progress = 0;
             
     while ((half_x_max - half_x_min) > 1 && (half_y_max - half_y_min) > 1)
     {
@@ -8940,7 +8971,11 @@ bool optimize_ConsequentialWeakPolygonNonoverlappingBinaryCentered(z3::solver   
 	    printf("Halves augmented: X:[%d,%d] Y:[%d,%d]\n", half_x_min, half_x_max, half_y_min, half_y_max);
 	}
 	#endif
+
+	++progress;
+	progress_callback(progress_range.progress_min + (progress_range.progress_max - progress_range.progress_min) * progress / progress_total_estimation);
     }
+    progress_callback(progress_range.progress_max);    
    
     if (last_solvable_bounding_box_size > 0)
     {	
@@ -9987,8 +10022,8 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 									const std::vector<int>                           &undecided_polygons,
 									std::vector<int>                                 &decided_polygons,
 									std::vector<int>                                 &remaining_polygons,
-									int                                               objects_done,
-									int                                               total_objects,
+									int                                               progress_objects_done,
+									int                                               progress_total_objects,
 									std::function<void(int)>                          progress_callback)
 {
     std::vector<int> undecided;
@@ -10067,6 +10102,26 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 						     decided_polygons,
 						     undecided,				    
 						     dec_var_names_map);
+
+	introduce_ConsequentialTemporalOrderingAgainstFixed(z_solver,
+							    z_context,
+							    local_dec_vars_T,
+							    local_values_T,
+							    decided_polygons,
+							    undecided,
+							    solver_configuration.temporal_spread,
+							    polygons);
+
+	introduce_ConsequentialTemporalLepoxAgainstFixed(z_solver,
+							 z_context,
+							 local_dec_vars_T,
+							 local_values_T,
+							 decided_polygons,
+							 undecided,
+							 solver_configuration.temporal_spread,
+							 polygons,
+							 lepox_to_next);
+	
 	#ifdef PROFILE
 	{
 	    build_finish = clock();
@@ -10074,7 +10129,8 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 	}
 	#endif
 
-	vector<int> missing;
+	std::vector<int> missing;
+	std::vector<int> remaining_local;	
     
 	while(object_group_size > 0)
 	{
@@ -10107,25 +10163,6 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 	    }
 	    #endif
 
-	    introduce_ConsequentialTemporalOrderingAgainstFixed(z_solver,
-								z_context,
-								local_dec_vars_T,
-								local_values_T,
-								decided_polygons,
-								undecided,
-								solver_configuration.temporal_spread,
-								polygons);
-
-	    introduce_ConsequentialTemporalLepoxAgainstFixed(z_solver,
-							     z_context,
-							     local_dec_vars_T,
-							     local_values_T,
-							     decided_polygons,
-							     undecided,
-							     solver_configuration.temporal_spread,
-							     polygons,
-							     lepox_to_next);	    
-
 	    #ifdef DEBUG
 	    {
 		printf("%ld,%ld\n", local_values_X.size(), local_values_Y.size());
@@ -10141,7 +10178,7 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 	    }
 	    #endif
 
-	    progress_callback((SEQ_PROGRESS_RANGE * (decided_polygons.size() + objects_done)) / total_objects);
+	    progress_callback((SEQ_PROGRESS_RANGE * (decided_polygons.size() + progress_objects_done)) / progress_total_objects);
 	    
 	    optimized = optimize_ConsequentialWeakPolygonNonoverlappingBinaryCentered(z_solver,
 										      z_context,
@@ -10159,7 +10196,10 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 										      dec_var_names_map,
 										      polygons,
 										      unreachable_polygons,
-										      presence_assumptions);
+										      presence_assumptions,
+										      ProgressRange((SEQ_PROGRESS_RANGE * (decided_polygons.size() + progress_objects_done)) / progress_total_objects,
+												    (SEQ_PROGRESS_RANGE * (decided_polygons.size() + (progress_objects_done + 1))) / progress_total_objects),
+										      progress_callback);
 	    
 	    if (optimized)
 	    {
@@ -10175,23 +10215,22 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 		{
 		    dec_values_X[undecided[i]] = local_values_X[undecided[i]];
 		    dec_values_Y[undecided[i]] = local_values_Y[undecided[i]];		    
-		    dec_values_T[undecided[i]] = local_values_T[undecided[i]];
+		    dec_values_T[undecided[i]] = local_values_T[undecided[i]];		    
 		    decided_polygons.push_back(undecided[i]);
 		}
 		augment_TemporalSpread(solver_configuration, dec_values_T, decided_polygons);
-		
-		if (polygons.size() - curr_polygon > (unsigned int)solver_configuration.object_group_size)
+
+		if (polygons.size() - curr_polygon > (unsigned int)object_group_size)
 		{
-		    curr_polygon += solver_configuration.object_group_size;
+		    curr_polygon += object_group_size;
 		}
 		else
 		{
-		    curr_polygon += polygons.size() - curr_polygon;
-		    progress_callback((SEQ_PROGRESS_RANGE * (decided_polygons.size() + objects_done)) / total_objects);	    
+		    progress_callback((SEQ_PROGRESS_RANGE * (decided_polygons.size() + progress_objects_done)) / progress_total_objects);
 		    return true;
 		}
 		
-		progress_callback((SEQ_PROGRESS_RANGE * (decided_polygons.size() + objects_done)) / total_objects);
+		progress_callback((SEQ_PROGRESS_RANGE * (decided_polygons.size() + progress_objects_done)) / progress_total_objects);
 		break;
 	    }
 	    else
@@ -10201,15 +10240,17 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 		    printf("Remaining polygon: %d\n", curr_polygon + object_group_size - 1);
 		}
 		#endif
-		remaining_polygons.push_back(undecided_polygons[curr_polygon + object_group_size - 1]);
+		remaining_local.push_back(undecided_polygons[curr_polygon + object_group_size - 1]);
 	    }
-	    
 	    missing.push_back(undecided.back());
 	    undecided.pop_back();	    
 
 	    --object_group_size;
-	    progress_callback((SEQ_PROGRESS_RANGE * (decided_polygons.size() + objects_done)) / total_objects);
+	    progress_callback((SEQ_PROGRESS_RANGE * (decided_polygons.size() + progress_objects_done)) / progress_total_objects);
 	}
+
+	std::reverse(remaining_local.begin(), remaining_local.end());
+	remaining_polygons.insert(remaining_polygons.end(), remaining_local.begin(), remaining_local.end());
 
 	#ifdef PROFILE
 	{
@@ -10233,15 +10274,298 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 		    {
 			remaining_polygons.push_back(undecided_polygons[curr_polygon]);
 		    }
-		    return true;		   
+		}
+		return true;		   
+	    }
+	}
+	assert(remaining_polygons.empty());
+    }
+    assert(remaining_polygons.empty());
+	
+    return true;    
+}
+
+
+bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const SolverConfiguration                        &solver_configuration,
+									std::vector<Rational>                            &dec_values_X,
+									std::vector<Rational>                            &dec_values_Y,
+									std::vector<Rational>                            &dec_values_T,
+									const std::vector<SolvableObject>                &solvable_objects,
+									const std::vector<int>                           &undecided_polygons,
+									std::vector<int>                                 &decided_polygons,
+									std::vector<int>                                 &remaining_polygons,
+									int                                               progress_objects_done,
+									int                                               progress_total_objects,
+									std::function<void(int)>                          progress_callback)
+{
+    std::vector<int> undecided;
+
+    decided_polygons.clear();
+    remaining_polygons.clear();
+    
+    dec_values_X.resize(solvable_objects.size());
+    dec_values_Y.resize(solvable_objects.size());
+    dec_values_T.resize(solvable_objects.size());
+
+    int box_half_x_max = solver_configuration.x_plate_bounding_box_size / 2;
+    int box_half_y_max = solver_configuration.y_plate_bounding_box_size / 2;
+
+    std::vector<Slic3r::Polygon> polygons;
+    std::vector<std::vector<Slic3r::Polygon> > unreachable_polygons;
+    std::vector<bool> lepox_to_next;
+    
+    for (const auto& solvable_object: solvable_objects)
+    {
+	polygons.push_back(solvable_object.polygon);
+	unreachable_polygons.push_back(solvable_object.unreachable_polygons);
+	lepox_to_next.push_back(solvable_object.lepox_to_next);
+    }
+    
+    for (unsigned int curr_polygon = 0; curr_polygon < solvable_objects.size(); /* nothing */)
+    {
+	bool optimized = false;
+	z3::set_param("timeout", solver_configuration.optimization_timeout.c_str());
+	    
+	z3::context z_context;
+	z3::solver z_solver(z_context);
+	
+	z3::expr_vector local_dec_vars_X(z_context);
+	z3::expr_vector local_dec_vars_Y(z_context);
+	z3::expr_vector local_dec_vars_T(z_context);	    
+	
+	vector<Rational> local_values_X;
+	vector<Rational> local_values_Y;
+	vector<Rational> local_values_T;	    
+	
+	local_values_X.resize(solvable_objects.size());
+	local_values_Y.resize(solvable_objects.size());
+	local_values_T.resize(solvable_objects.size());	    
+	
+	for (unsigned int i = 0; i < decided_polygons.size(); ++i)
+	{
+            #ifdef DEBUG
+	    {
+		printf("Decided: %d %.3f, %.3f, %.3f\n",
+		       decided_polygons[i],
+		       dec_values_X[decided_polygons[i]].as_double(),
+		       dec_values_Y[decided_polygons[i]].as_double(),
+		       dec_values_T[decided_polygons[i]].as_double());
+	    }
+	    #endif
+	    
+	    local_values_X[decided_polygons[i]] = dec_values_X[decided_polygons[i]];
+	    local_values_Y[decided_polygons[i]] = dec_values_Y[decided_polygons[i]];
+	    local_values_T[decided_polygons[i]] = dec_values_T[decided_polygons[i]];		
+	}
+
+	string_map dec_var_names_map;		    
+	int object_group_size = MIN((unsigned int)solver_configuration.object_group_size, solvable_objects.size() - curr_polygon);
+
+	undecided.clear();	
+	for (int i = 0; i < object_group_size; ++i)
+	{
+	    undecided.push_back(curr_polygon + i);
+	}
+
+	#ifdef PROFILE
+	{
+	    build_start = clock();
+	}
+	#endif
+	
+	build_ConsequentialWeakPolygonNonoverlapping(z_solver,
+						     z_context,
+						     polygons,
+						     unreachable_polygons,
+						     local_dec_vars_X,
+						     local_dec_vars_Y,
+						     local_dec_vars_T,
+						     local_values_X,
+						     local_values_Y,
+						     local_values_T,
+						     decided_polygons,
+						     undecided,				    
+						     dec_var_names_map);
+
+	introduce_ConsequentialTemporalOrderingAgainstFixed(z_solver,
+							    z_context,
+							    local_dec_vars_T,
+							    local_values_T,
+							    decided_polygons,
+							    undecided,
+							    solver_configuration.temporal_spread,
+							    polygons);
+
+	introduce_ConsequentialTemporalLepoxAgainstFixed(z_solver,
+							 z_context,
+							 local_dec_vars_T,
+							 local_values_T,
+							 decided_polygons,
+							 undecided,
+							 solver_configuration.temporal_spread,
+							 polygons,
+							 lepox_to_next);
+	
+	#ifdef PROFILE
+	{
+	    build_finish = clock();
+	    build_cumul += (build_finish - build_start) / (double)CLOCKS_PER_SEC;
+	}
+	#endif
+
+	std::vector<int> missing;
+	std::vector<int> remaining_local;	
+    
+	while(object_group_size > 0)
+	{
+	    z3::expr_vector presence_assumptions(z_context);
+	    assume_ConsequentialObjectPresence(z_context, local_dec_vars_T, undecided, missing, presence_assumptions);
+	    
+	    #ifdef DEBUG
+	    {
+		printf("Undecided\n");
+		for (unsigned int j = 0; j < undecided.size(); ++j)
+		{
+		    printf("  %d\n", undecided[j]);
+		}
+		printf("Decided\n");
+		for (unsigned int j = 0; j < decided_solvable_objects.size(); ++j)
+		{
+		    printf("  %d\n", decided_polygons[j]);
+		}
+		printf("Locals\n");
+		for (unsigned int j = 0; j < solvable_objects.size(); ++j)
+		{
+		    printf("X: %ld,%ld  Y: %ld,%ld  T: %ld,%ld\n",
+			   local_values_X[j].numerator,
+			   local_values_X[j].denominator,
+			   local_values_Y[j].numerator,
+			   local_values_Y[j].denominator,
+			   local_values_T[j].numerator,
+			   local_values_T[j].denominator);	   
+		}		
+	    }
+	    #endif
+
+	    #ifdef DEBUG
+	    {
+		printf("%ld,%ld\n", local_values_X.size(), local_values_Y.size());
+
+		for (unsigned int i = 0; i < solvable_objects.size(); ++i)
+		{
+		    printf("poly: %ld\n", polygons[i].points.size());
+		    for (unsigned int j = 0; j < polygons[i].points.size(); ++j)
+		    {
+			printf("    %d,%d\n", polygons[i].points[j].x(), polygons[i].points[j].y());
+		    }
+		}
+	    }
+	    #endif
+
+	    progress_callback((SEQ_PROGRESS_RANGE * (decided_polygons.size() + progress_objects_done)) / progress_total_objects);
+	    
+	    optimized = optimize_ConsequentialWeakPolygonNonoverlappingBinaryCentered(z_solver,
+										      z_context,
+										      solver_configuration,
+										      box_half_x_max,
+										      box_half_y_max,
+										      local_dec_vars_X,
+										      local_dec_vars_Y,
+										      local_dec_vars_T,
+										      local_values_X,
+										      local_values_Y,
+										      local_values_T,
+										      decided_polygons,
+										      undecided,
+										      dec_var_names_map,
+										      polygons,
+										      unreachable_polygons,
+										      presence_assumptions,
+										      ProgressRange((SEQ_PROGRESS_RANGE * (decided_polygons.size() + progress_objects_done)) / progress_total_objects,
+												    (SEQ_PROGRESS_RANGE * (decided_polygons.size() + (progress_objects_done + 1))) / progress_total_objects),
+										      progress_callback);
+	    
+	    if (optimized)
+	    {
+		/*
+		printf("Printing solver status:\n");
+		cout << z_solver << "\n";
+    
+		printf("Printing smt status:\n");
+		cout << z_solver.to_smt2() << "\n";	    
+		*/		
+				
+		for (unsigned int i = 0; i < undecided.size(); ++i)
+		{
+		    dec_values_X[undecided[i]] = local_values_X[undecided[i]];
+		    dec_values_Y[undecided[i]] = local_values_Y[undecided[i]];		    
+		    dec_values_T[undecided[i]] = local_values_T[undecided[i]];		    
+		    decided_polygons.push_back(undecided[i]);
+		}
+		augment_TemporalSpread(solver_configuration, dec_values_T, decided_polygons);
+
+		if (solvable_objects.size() - curr_polygon > (unsigned int)object_group_size)
+		{
+		    curr_polygon += object_group_size;
 		}
 		else
 		{
+		    progress_callback((SEQ_PROGRESS_RANGE * (decided_polygons.size() + progress_objects_done)) / progress_total_objects);
 		    return true;
 		}
+		
+		progress_callback((SEQ_PROGRESS_RANGE * (decided_polygons.size() + progress_objects_done)) / progress_total_objects);
+		break;
+	    }
+	    else
+	    {
+		#ifdef DEBUG
+		{
+		    printf("Remaining polygon: %d\n", curr_polygon + object_group_size - 1);
+		}
+		#endif
+		remaining_local.push_back(undecided_polygons[curr_polygon + object_group_size - 1]);
+	    }
+	    missing.push_back(undecided.back());
+	    undecided.pop_back();	    
+
+	    --object_group_size;
+	    progress_callback((SEQ_PROGRESS_RANGE * (decided_polygons.size() + progress_objects_done)) / progress_total_objects);
+	}
+
+	std::reverse(remaining_local.begin(), remaining_local.end());
+	remaining_polygons.insert(remaining_polygons.end(), remaining_local.begin(), remaining_local.end());
+
+	#ifdef PROFILE
+	{
+	    printf("Build: %.3f\n", build_cumul);
+	}
+	#endif
+	
+	if (!optimized)
+	{
+	    if (curr_polygon <= 0)
+	    {		
+		return false;
+	    }
+	    else
+	    {
+		if (solvable_objects.size() - curr_polygon > (unsigned int)solver_configuration.object_group_size)
+		{		    
+		    curr_polygon += solver_configuration.object_group_size;
+
+		    for (; curr_polygon < solvable_objects.size(); ++curr_polygon)
+		    {
+			remaining_polygons.push_back(undecided_polygons[curr_polygon]);
+		    }
+		}
+		return true;		   
 	    }
 	}
+	assert(remaining_polygons.empty());
     }
+    assert(remaining_polygons.empty());
+	
     return true;    
 }
 

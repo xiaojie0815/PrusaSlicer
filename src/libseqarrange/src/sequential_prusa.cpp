@@ -751,11 +751,6 @@ int solve_SequentialPrint(const CommandParameters &command_parameters)
 	    next_unreachable_polygons.push_back(unreachable_polygons[remaining_polygons[i]]);
 	    next_lepox_to_next.push_back(lepox_to_next[remaining_polygons[i]]);
 	}
-
-	/* TODO: remove */
-	polygons.clear();
-	unreachable_polygons.clear();
-	lepox_to_next.clear();
 	
 	polygon_index_map.clear();	
 	

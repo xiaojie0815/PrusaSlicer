@@ -401,6 +401,87 @@ int test_interface_5(void)
 }
 
 
+int test_interface_6(void)
+{
+    clock_t start, finish;
+    
+    printf("Testing interface 6 ...\n");
+
+    start = clock();
+
+    SolverConfiguration solver_configuration;
+    solver_configuration.decimation_precision = SEQ_DECIMATION_PRECISION_LOW;
+    solver_configuration.object_group_size = 4;    
+
+    printf("Loading objects ...\n");    
+    std::vector<ObjectToPrint> objects_to_print = load_exported_data("arrange_data_export.txt");
+    printf("Loading objects ... finished\n");
+
+    for (auto& object_to_print: objects_to_print)
+    {
+	object_to_print.glued_to_next = true;
+    }
+
+    PrinterGeometry printer_geometry;
+
+    printf("Loading printer geometry ...\n");
+    int result = load_printer_geometry("../printers/printer_geometry.mk4.compatibility.txt", printer_geometry);
+
+    if (result != 0)
+    {
+	printf("Cannot load printer geometry (code: %d).\n", result);
+	return result;
+    }
+    solver_configuration.setup(printer_geometry);
+    printf("Loading printer geometry ... finished\n");
+    
+    std::vector<ScheduledPlate> scheduled_plates;
+    printf("Scheduling objects for sequential print ...\n");
+
+    scheduled_plates = schedule_ObjectsForSequentialPrint(solver_configuration,
+							  printer_geometry,
+							  objects_to_print,
+							  [](int progress) { printf("Progress: %d\n", progress); });
+
+    printf("Object scheduling for sequential print SUCCESSFUL !\n");
+    
+    printf("Number of plates: %ld\n", scheduled_plates.size());
+
+    for (unsigned int plate = 0; plate < scheduled_plates.size(); ++plate)
+    {
+	printf("  Number of objects on plate: %ld\n", scheduled_plates[plate].scheduled_objects.size());
+	
+	for (const auto& scheduled_object: scheduled_plates[plate].scheduled_objects)
+	{
+	    cout << "    ID: " << scheduled_object.id << "  X: " << scheduled_object.x << "  Y: " << scheduled_object.y << endl;	    
+	}
+    }
+    
+    finish = clock();    
+    printf("Solving time: %.3f\n", (finish - start) / (double)CLOCKS_PER_SEC);
+
+    start = clock();
+    
+    printf("Checking sequential printability ...\n");
+
+    bool printable = check_ScheduledObjectsForSequentialPrintability(solver_configuration,
+								     printer_geometry,
+								     objects_to_print,
+								     scheduled_plates);
+    
+    printf("  Scheduled/arranged objects are sequentially printable: %s\n", (printable ? "YES" : "NO"));
+
+    printf("Checking sequential printability ... finished\n");
+
+    finish = clock();   
+    printf("Checking time: %.3f\n", (finish - start) / (double)CLOCKS_PER_SEC);    
+    
+    printf("Testing interface 6 ... finished\n");
+
+    return 0;
+}
+
+
 /*----------------------------------------------------------------*/
 
 int main(int SEQ_UNUSED(argc), char **SEQ_UNUSED(argv))
@@ -409,7 +490,8 @@ int main(int SEQ_UNUSED(argc), char **SEQ_UNUSED(argv))
 //    test_interface_2();
 //    test_interface_3();
 //    test_interface_4();
-    test_interface_5();        
+    test_interface_5();
+//    test_interface_6();
     
     return 0;
 }

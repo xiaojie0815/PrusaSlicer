@@ -320,6 +320,8 @@ void schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver
     std::map<int, int> original_index_map;
     std::vector<bool> lepox_to_next;
 
+    std::vector<SolvableObject> solvable_objects;
+
     #ifdef DEBUG
     {
 	printf("  Preparing objects ...\n");
@@ -333,12 +335,9 @@ void schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver
 
 	std::vector<std::vector<Slic3r::Polygon> > extruder_convex_level_polygons;	    
 	std::vector<std::vector<Slic3r::Polygon> > extruder_box_level_polygons;	
-	
-	std::vector<Slic3r::Polygon> scale_down_unreachable_polygons;		
 
+	SolvableObject solvable_object;
 	original_index_map[i] = objects_to_print[i].id;
-
-	Polygon scale_down_object_polygon;
 	    
 	prepare_ExtruderPolygons(solver_configuration,
 				 printer_geometry,
@@ -354,13 +353,13 @@ void schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver
 			       box_level_polygons,
 			       extruder_convex_level_polygons,
 			       extruder_box_level_polygons,
-			       scale_down_object_polygon,
-			       scale_down_unreachable_polygons);
-	
-	unreachable_polygons.push_back(scale_down_unreachable_polygons);
-	polygons.push_back(scale_down_object_polygon);
+			       solvable_object.polygon,
+			       solvable_object.unreachable_polygons);
 
-	lepox_to_next.push_back(objects_to_print[i].glued_to_next);	
+	solvable_object.id = objects_to_print[i].id;
+	solvable_object.lepox_to_next = objects_to_print[i].glued_to_next;
+
+    	solvable_objects.push_back(solvable_object);
     }
 
     std::vector<int> remaining_polygons;
@@ -404,9 +403,7 @@ void schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver
 										       poly_positions_X,
 										       poly_positions_Y,
 										       times_T,
-										       polygons,
-										       unreachable_polygons,
-										       lepox_to_next,
+										       solvable_objects,
 										       polygon_index_map,
 										       decided_polygons,
 										       remaining_polygons,
@@ -483,28 +480,15 @@ void schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver
 	    printf("Intermediate CPU time: %.3f\n", (finish - start) / (double)CLOCKS_PER_SEC);
 	}
 	#endif
-	
-	std::vector<Polygon> next_polygons;
-	std::vector<vector<Polygon> > next_unreachable_polygons;
-	std::vector<bool> next_lepox_to_next;
+
+	std::vector<SolvableObject> next_solvable_objects;
 
 	for (unsigned int i = 0; i < remaining_polygons.size(); ++i)
 	{
-	    next_polygons.push_back(polygons[remaining_polygons[i]]);	    	    
-	    next_unreachable_polygons.push_back(unreachable_polygons[remaining_polygons[i]]);
-	    next_lepox_to_next.push_back(lepox_to_next[remaining_polygons[i]]);
-	}
-
-	/* TODO: remove */
-	polygons.clear();
-	unreachable_polygons.clear();
-	lepox_to_next.clear();
-	
+	    next_solvable_objects.push_back(solvable_objects[remaining_polygons[i]]);	    	    
+	}	
 	polygon_index_map.clear();	
-	
-	polygons = next_polygons;
-	unreachable_polygons = next_unreachable_polygons;
-	lepox_to_next = next_lepox_to_next;
+	solvable_objects = next_solvable_objects;
 
 	std::vector<int> next_polygon_index_map;
 	std::map<int, int> next_original_index_map;
@@ -564,6 +548,8 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver_
     std::vector<Slic3r::Polygon> polygons;
     std::vector<std::vector<Slic3r::Polygon> > unreachable_polygons;
     std::vector<bool> lepox_to_next;
+
+    std::vector<SolvableObject> solvable_objects;
 
     std::map<int, int> original_index_map;    
 
@@ -718,10 +704,9 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver_
 		}
 	    }
 	}
-
-	Polygon scale_down_polygon;
-	scaleDown_PolygonForSequentialSolver(nozzle_polygon, scale_down_polygon);
-	polygons.push_back(scale_down_polygon);
+	SolvableObject solvable_object;
+	
+	scaleDown_PolygonForSequentialSolver(nozzle_polygon, solvable_object.polygon);
 
 	std::vector<Slic3r::Polygon> convex_level_polygons;
 	convex_level_polygons.push_back(nozzle_polygon);
@@ -737,31 +722,31 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver_
 	case SEQ_PRINTER_TYPE_PRUSA_MK3S:
 	{
 	    prepare_UnreachableZonePolygons(solver_configuration,
-					   convex_level_polygons,
-					   box_level_polygons,
-					   SEQ_UNREACHABLE_POLYGON_CONVEX_LEVELS_MK3S,
-					   SEQ_UNREACHABLE_POLYGON_BOX_LEVELS_MK3S,
-					   scale_down_unreachable_polygons);	    
+					    convex_level_polygons,
+					    box_level_polygons,
+					    SEQ_UNREACHABLE_POLYGON_CONVEX_LEVELS_MK3S,
+					    SEQ_UNREACHABLE_POLYGON_BOX_LEVELS_MK3S,
+					    solvable_object.unreachable_polygons);
 	    break;
 	}
 	case SEQ_PRINTER_TYPE_PRUSA_MK4:
 	{
 	    prepare_UnreachableZonePolygons(solver_configuration,
-					   convex_level_polygons,
-					   box_level_polygons,
-					   SEQ_UNREACHABLE_POLYGON_CONVEX_LEVELS_MK4,
-					   SEQ_UNREACHABLE_POLYGON_BOX_LEVELS_MK4,
-					   scale_down_unreachable_polygons);	    
+					    convex_level_polygons,
+					    box_level_polygons,
+					    SEQ_UNREACHABLE_POLYGON_CONVEX_LEVELS_MK4,
+					    SEQ_UNREACHABLE_POLYGON_BOX_LEVELS_MK4,
+					    solvable_object.unreachable_polygons);					    
 	    break;
 	}
 	case SEQ_PRINTER_TYPE_PRUSA_XL:
 	{
 	    prepare_UnreachableZonePolygons(solver_configuration,
-					   convex_level_polygons,
-					   box_level_polygons,
-					   SEQ_UNREACHABLE_POLYGON_CONVEX_LEVELS_XL,
-					   SEQ_UNREACHABLE_POLYGON_BOX_LEVELS_XL,
-					   scale_down_unreachable_polygons);	    
+					    convex_level_polygons,
+					    box_level_polygons,
+					    SEQ_UNREACHABLE_POLYGON_CONVEX_LEVELS_XL,
+					    SEQ_UNREACHABLE_POLYGON_BOX_LEVELS_XL,
+					    solvable_object.unreachable_polygons);
 	    break;
 	}
 	default:
@@ -771,22 +756,24 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver_
 	}	
 	}
 	
-	unreachable_polygons.push_back(scale_down_unreachable_polygons);
-	lepox_to_next.push_back(objects_to_print[i].glued_to_next);
+	solvable_object.id = objects_to_print[i].id;
+	solvable_object.lepox_to_next = objects_to_print[i].glued_to_next;
+
+	solvable_objects.push_back(solvable_object);
     }
 
-    vector<int> remaining_polygons;
-    vector<int> polygon_index_map;
-    vector<int> decided_polygons;
+    std::vector<int> remaining_polygons;
+    std::vector<int> polygon_index_map;
+    std::vector<int> decided_polygons;
 
     for (unsigned int index = 0; index < polygons.size(); ++index)
     {
 	polygon_index_map.push_back(index);
     }
     
-    vector<Rational> poly_positions_X;
-    vector<Rational> poly_positions_Y;
-    vector<Rational> times_T;
+    std::vector<Rational> poly_positions_X;
+    std::vector<Rational> poly_positions_Y;
+    std::vector<Rational> times_T;
 
     #ifdef DEBUG
     {
@@ -816,9 +803,7 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver_
 										       poly_positions_X,
 										       poly_positions_Y,
 										       times_T,
-										       polygons,
-										       unreachable_polygons,
-										       lepox_to_next,
+										       solvable_objects,
 										       polygon_index_map,
 										       decided_polygons,
 										       remaining_polygons,
@@ -894,28 +879,15 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver_
 	    printf("Intermediate CPU time: %.3f\n", (finish - start) / (double)CLOCKS_PER_SEC);
 	}
 	#endif
-	
-	std::vector<Polygon> next_polygons;
-	std::vector<vector<Polygon> > next_unreachable_polygons;
-	std::vector<bool> next_lepox_to_next;
+
+	std::vector<SolvableObject> next_solvable_objects;
 
 	for (unsigned int i = 0; i < remaining_polygons.size(); ++i)
 	{
-	    next_polygons.push_back(polygons[remaining_polygons[i]]);	    	    
-	    next_unreachable_polygons.push_back(unreachable_polygons[remaining_polygons[i]]);
-	    next_lepox_to_next.push_back(lepox_to_next[remaining_polygons[i]]);
-	}
-
-	/* TODO: remove */
-	polygons.clear();
-	unreachable_polygons.clear();
-	lepox_to_next.clear();
-	
+	    next_solvable_objects.push_back(solvable_objects[i]);
+	}	
 	polygon_index_map.clear();	
-	
-	polygons = next_polygons;
-	unreachable_polygons = next_unreachable_polygons;
-	lepox_to_next = next_lepox_to_next;
+	solvable_objects = next_solvable_objects;
 
 	std::vector<int> next_polygon_index_map;
 	std::map<int, int> next_original_index_map;
@@ -1007,11 +979,8 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration                
     }
     #endif
 
-    std::vector<Slic3r::Polygon> polygons;
-    std::vector<std::vector<Slic3r::Polygon> > unreachable_polygons;
-
+    std::vector<SolvableObject> solvable_objects;
     std::map<int, int> original_index_map;
-    std::vector<bool> lepox_to_next;
 
     #ifdef DEBUG
     {
@@ -1020,7 +989,7 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration                
     #endif
     
     for (unsigned int i = 0; i < objects_to_print.size(); ++i)
-    {
+    {	
 	Polygon nozzle_polygon;
 	Polygon extruder_polygon;
 	Polygon hose_polygon;
@@ -1090,10 +1059,9 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration                
 	    }
 	    ++ht;
 	}
-
-	Polygon scale_down_polygon;
-	scaleDown_PolygonForSequentialSolver(nozzle_polygon, scale_down_polygon);
-	polygons.push_back(scale_down_polygon);
+	SolvableObject solvable_object;
+	
+	scaleDown_PolygonForSequentialSolver(nozzle_polygon, solvable_object.polygon);
 
 	std::vector<Slic3r::Polygon> convex_level_polygons;
 	convex_level_polygons.push_back(nozzle_polygon);	
@@ -1110,17 +1078,19 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration                
 				       box_level_polygons,
 				       convex_unreachable_zones,
 				       box_unreachable_zones,
-				       scale_down_unreachable_polygons);
-	
-	unreachable_polygons.push_back(scale_down_unreachable_polygons);
-	lepox_to_next.push_back(objects_to_print[i].glued_to_next);
+				       solvable_object.unreachable_polygons);
+
+	solvable_object.id = objects_to_print[i].id;	
+	solvable_object.lepox_to_next = objects_to_print[i].glued_to_next;
+
+	solvable_objects.push_back(solvable_object);
     }
 
     std::vector<int> remaining_polygons;
     std::vector<int> polygon_index_map;
     std::vector<int> decided_polygons;
 
-    for (unsigned int index = 0; index < polygons.size(); ++index)
+    for (unsigned int index = 0; index < solvable_objects.size(); ++index)
     {
 	polygon_index_map.push_back(index);
     }
@@ -1157,9 +1127,7 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration                
 										       poly_positions_X,
 										       poly_positions_Y,
 										       times_T,
-										       polygons,
-										       unreachable_polygons,
-										       lepox_to_next,
+										       solvable_objects,
 										       polygon_index_map,
 										       decided_polygons,
 										       remaining_polygons,
@@ -1236,33 +1204,20 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration                
 	    printf("Intermediate CPU time: %.3f\n", (finish - start) / (double)CLOCKS_PER_SEC);
 	}
 	#endif
-	
-	std::vector<Polygon> next_polygons;
-	std::vector<vector<Polygon> > next_unreachable_polygons;
-	std::vector<bool> next_lepox_to_next;
 
+	std::vector<SolvableObject> next_solvable_objects;
+	
 	for (unsigned int i = 0; i < remaining_polygons.size(); ++i)
 	{
-	    next_polygons.push_back(polygons[remaining_polygons[i]]);	    	    
-	    next_unreachable_polygons.push_back(unreachable_polygons[remaining_polygons[i]]);
-	    next_lepox_to_next.push_back(lepox_to_next[remaining_polygons[i]]);
-	}
-
-	/* TODO: remove */
-	polygons.clear();
-	unreachable_polygons.clear();
-	lepox_to_next.clear();
-	
+	    next_solvable_objects.push_back(solvable_objects[i]);
+	}	
 	polygon_index_map.clear();	
-	
-	polygons = next_polygons;
-	unreachable_polygons = next_unreachable_polygons;
-	lepox_to_next = next_lepox_to_next;
+	solvable_objects = next_solvable_objects;
 
 	std::vector<int> next_polygon_index_map;
 	std::map<int, int> next_original_index_map;
 
-	for (unsigned int index = 0; index < polygons.size(); ++index)
+	for (unsigned int index = 0; index < solvable_objects.size(); ++index)
 	{
 	    next_polygon_index_map.push_back(index);
 	    next_original_index_map[index] = original_index_map[remaining_polygons[index]];

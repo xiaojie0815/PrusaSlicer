@@ -75,6 +75,18 @@ typedef std::unordered_map<string, int> string_map;
 
 /*----------------------------------------------------------------*/
 
+struct SolvableObject
+{
+    int id = 0;
+    
+    Slic3r::Polygon polygon;
+    std::vector<Slic3r::Polygon> unreachable_polygons;
+    bool lepox_to_next;    
+};
+
+    
+/*----------------------------------------------------------------*/
+
 struct Rational
 {
     Rational()
@@ -179,6 +191,20 @@ struct Rational
 };
 
 
+/*----------------------------------------------------------------*/
+    
+struct ProgressRange
+{
+    ProgressRange(int min, int max)
+	: progress_min(min)
+	, progress_max(max)
+    { /* nothing */ }
+    
+    int progress_min;
+    int progress_max;
+};
+
+    
 /*----------------------------------------------------------------*/
 
 bool lines_intersect_(coord_t ax, coord_t ay, coord_t ux, coord_t uy, coord_t bx, coord_t by, coord_t vx, coord_t vy);
@@ -1447,6 +1473,7 @@ bool optimize_SequentialWeakPolygonNonoverlappingBinaryCentered(z3::solver      
 								const std::vector<Slic3r::Polygon>               &polygons,
 								const std::vector<std::vector<Slic3r::Polygon> > &unreachable_polygons);
 
+
 bool optimize_ConsequentialWeakPolygonNonoverlappingBinaryCentered(z3::solver                                       &Solver,
 								   z3::context                                      &Context,
 								   const SolverConfiguration                        &solver_configuration,
@@ -1462,7 +1489,9 @@ bool optimize_ConsequentialWeakPolygonNonoverlappingBinaryCentered(z3::solver   
 								   const std::vector<int>                           &undecided,
 								   const string_map                                 &dec_var_names_map,
 								   const std::vector<Slic3r::Polygon>               &polygons,
-								   const std::vector<std::vector<Slic3r::Polygon> > &unreachable_polygons);
+								   const std::vector<std::vector<Slic3r::Polygon> > &unreachable_polygons,
+								   const ProgressRange                              &progress_range,
+								   std::function<void(int)>                          progress_callback);
 
 
 /*----------------------------------------------------------------*/
@@ -1565,9 +1594,21 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 									const std::vector<int>                           &undecided_polygons,
 									std::vector<int>                                 &decided_polygons,
 									std::vector<int>                                 &remaining_polygons,
-									int                                               objects_done,
-									int                                               total_objects,
+									int                                               progress_objects_done,
+									int                                               progress_total_objects,
 									std::function<void(int)>                          progress_callback = [](int progress){});
+
+bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const SolverConfiguration                        &solver_configuration,
+									std::vector<Rational>                            &dec_values_X,
+									std::vector<Rational>                            &dec_values_Y,
+									std::vector<Rational>                            &dec_values_T,
+									const std::vector<SolvableObject>                &solvable_objects,
+									const std::vector<int>                           &undecided_polygons,
+									std::vector<int>                                 &decided_polygons,
+									std::vector<int>                                 &remaining_polygons,
+									int                                               progress_objects_done,
+									int                                               progress_total_objects,
+									std::function<void(int)>                          progress_callback = [](int progress){});    
 
 /*----------------------------------------------------------------*/
 

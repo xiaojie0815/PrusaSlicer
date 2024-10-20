@@ -29,6 +29,8 @@ int test_interface_4(void);
 /* Interface test 5 */
 int test_interface_5(void);
 
+/* Interface test 6 */
+int test_interface_6(void);
 
 /*----------------------------------------------------------------*/
 
