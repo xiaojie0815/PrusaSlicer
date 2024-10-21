@@ -2556,6 +2556,17 @@ LayerResult GCodeGenerator::process_layer(
             print.config().before_layer_gcode.value, m_writer.extruder()->id(), &config)
             + "\n";
     }
+
+    // Initialize avoid crossing perimeters before a layer change.
+    if (!instances_to_print.empty() && print.config().avoid_crossing_perimeters) {
+        const InstanceToPrint instance_to_print{instances_to_print.front()};
+        this->m_avoid_crossing_perimeters.init_layer(
+            *layers[instance_to_print.object_layer_to_print_id].layer());
+        this->set_origin(unscale(first_instance->shift));
+
+        m_avoid_crossing_perimeters.use_external_mp_once = true;
+    }
+
     gcode += this->change_layer(previous_layer_z, print_z, result.spiral_vase_enable, first_point.head<2>(), first_layer); // this will increase m_layer_index
     m_layer = &layer;
     if (this->line_distancer_is_required(layer_tools.extruders) && this->m_layer != nullptr && this->m_layer->lower_layer != nullptr)
@@ -2698,7 +2709,7 @@ LayerResult GCodeGenerator::process_layer(
                 if (is_empty(overriden_extrusions.slices_extrusions)) {
                     continue;
                 }
-                this->initialize_instance(instance, layers[instance.object_layer_to_print_id]);
+                this->initialize_instance(instance, layers[instance.object_layer_to_print_id], i == 0);
                 gcode += this->extrude_slices(
                     instance, layers[instance.object_layer_to_print_id],
                     overriden_extrusions.slices_extrusions
@@ -2720,7 +2731,7 @@ LayerResult GCodeGenerator::process_layer(
             if (support_extrusions.empty() && is_empty(slices_extrusions)) {
                 continue;
             }
-            this->initialize_instance(instance, layers[instance.object_layer_to_print_id]);
+            this->initialize_instance(instance, layers[instance.object_layer_to_print_id], i == 0);
 
             if (!support_extrusions.empty()) {
                 m_layer = layer_to_print.support_layer;
@@ -2748,22 +2759,28 @@ static const auto comment_perimeter = "perimeter"sv;
 
 void GCodeGenerator::initialize_instance(
     const InstanceToPrint &print_instance,
-    const ObjectLayerToPrint &layer_to_print
+    const ObjectLayerToPrint &layer_to_print,
+    const bool is_first
 ) {
     const PrintObject &print_object = print_instance.print_object;
     const Print       &print        = *print_object.print();
 
     m_config.apply(print_object.config(), true);
     m_layer = layer_to_print.layer();
-    if (print.config().avoid_crossing_perimeters)
-        m_avoid_crossing_perimeters.init_layer(*m_layer);
-    // When starting a new object, use the external motion planner for the first travel move.
     const Point &offset = print_object.instances()[print_instance.instance_id].shift;
     GCode::PrintObjectInstance next_instance = {&print_object, int(print_instance.instance_id)};
-    if (m_current_instance != next_instance) {
-        m_avoid_crossing_perimeters.use_external_mp_once = true;
+
+    if (print.config().avoid_crossing_perimeters && !is_first) {
+        m_avoid_crossing_perimeters.init_layer(*m_layer);
+
+        // When starting a new object, use the external motion planner for the first travel move.
+        if (m_current_instance != next_instance) {
+            m_avoid_crossing_perimeters.use_external_mp_once = true;
+        }
     }
+
     m_current_instance = next_instance;
+
     this->set_origin(unscale(offset));
     m_label_objects.update(&print_instance.print_object.instances()[print_instance.instance_id]);
 }
