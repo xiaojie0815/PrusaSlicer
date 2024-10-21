@@ -365,7 +365,6 @@ void introduce_ConsequentialTemporalLepoxAgainstFixed(z3::solver                
 	}
 	if (lepox_to_next[undecided[i]])
 	{
-	    printf("Lepox constraint present: %d\n", undecided[i]);
 	    if (undecided.size() > i + 1)
 	    {
 		int next_i = undecided[i + 1];
@@ -7915,7 +7914,6 @@ bool optimize_SequentialWeakPolygonNonoverlappingCentered(z3::solver            
 							  const std::vector<std::vector<Slic3r::Polygon> > &unreachable_polygons)
 {
     z3::set_param("timeout", solver_configuration.optimization_timeout.c_str());    
-    //z3::set_param("parallel.enable", "true");
     
     int last_solvable_bounding_box_size = -1;
 
@@ -8280,8 +8278,7 @@ bool optimize_SequentialWeakPolygonNonoverlappingBinaryCentered(z3::solver      
 								const std::vector<std::vector<Slic3r::Polygon> > &unreachable_polygons)
 {
     z3::set_param("timeout", solver_configuration.optimization_timeout.c_str());    
-    //z3::set_param("parallel.enable", "true");
-    
+   
     coord_t last_solvable_bounding_box_size = -1;
 
     std::vector<Rational> local_dec_values_X = dec_values_X;
@@ -8620,7 +8617,6 @@ bool optimize_ConsequentialWeakPolygonNonoverlappingBinaryCentered(z3::solver   
 								   std::function<void(int)>                          progress_callback)
 {
     z3::set_param("timeout", solver_configuration.optimization_timeout.c_str());    
-    //z3::set_param("parallel.enable", "true");
     
     coord_t last_solvable_bounding_box_size = -1;
 
@@ -8640,7 +8636,7 @@ bool optimize_ConsequentialWeakPolygonNonoverlappingBinaryCentered(z3::solver   
     while ((half_x_max - half_x_min) > 1 && (half_y_max - half_y_min) > 1)
     {
 	#ifdef DEBUG
-	{
+      	{
 	    printf("Halves: %d, %d, %d, %d\n", half_x_min, half_x_max, half_y_min, half_y_max);
 	}
 	#endif
@@ -8752,6 +8748,8 @@ bool optimize_ConsequentialWeakPolygonNonoverlappingBinaryCentered(z3::solver   
 					    local_dec_values_Y,
 					    local_dec_values_T);
 
+	    int total_refines = 0;
+
 	    while (true)
 	    {
 		#ifdef PROFILE
@@ -8777,79 +8775,83 @@ bool optimize_ConsequentialWeakPolygonNonoverlappingBinaryCentered(z3::solver   
 		    refine_cumul += (refine_finish - refine_start) / (double)CLOCKS_PER_SEC;
 		}
 		#endif
-	       
+
 		if (refined)
 		{
+		    ++total_refines;
+
 		    bool refined_sat = false;
 
-		    #ifdef DEBUG
+		    if (total_refines < solver_configuration.max_refines)
 		    {
-			printf("Solving 12 ...\n");
-		    }
-		    #endif
+		        #ifdef DEBUG
+			{
+			    printf("------> ... Solving 12 ... <------\n");
+			}
+                        #endif
 
-		    if (checkArea_SequentialWeakPolygonNonoverlapping(box_min_x,
-								      box_min_y,
-								      box_max_x,
-								      box_max_y,
-								      fixed,
-								      undecided,	       
-								      polygons,
-								      unreachable_polygons))
-		    {
-			#ifdef PROFILE
-			{
-			    recheck_start = clock();
-			}
-			#endif
-			    
-			switch (Solver.check(complete_assumptions))
-			{
-			case z3::sat:
+			if (checkArea_SequentialWeakPolygonNonoverlapping(box_min_x,
+									  box_min_y,
+									  box_max_x,
+									  box_max_y,
+									  fixed,
+									  undecided,	       
+									  polygons,
+									  unreachable_polygons))
 			{
 			    #ifdef PROFILE
 			    {
-				recheck_finish = clock();
-				recheck_SAT_cumul += (recheck_finish - recheck_start) / (double)CLOCKS_PER_SEC;
+				recheck_start = clock();
 			    }
 			    #endif
 			    
-			    refined_sat = true;	    
-			    break;
-			}
-			case z3::unsat:	
-			{
-			    #ifdef PROFILE
-			    {			    
-				recheck_finish = clock();
-				recheck_UNSAT_cumul += (recheck_finish - recheck_start) / (double)CLOCKS_PER_SEC;
-			    }
-			    #endif
-			    refined_sat = false;	    
-			    break;
-			}
-			case z3::unknown:
-			{
-                            #ifdef PROFILE
+			    switch (Solver.check(complete_assumptions))
 			    {
-				recheck_finish = clock();
-				recheck_INDET_cumul += (recheck_finish - recheck_start) / (double)CLOCKS_PER_SEC;
+			    case z3::sat:
+			    {
+			        #ifdef PROFILE
+				{
+				    recheck_finish = clock();
+				    recheck_SAT_cumul += (recheck_finish - recheck_start) / (double)CLOCKS_PER_SEC;
+				}
+			        #endif
+			    
+				refined_sat = true;	    
+				break;
 			    }
-			    #endif			    
+			    case z3::unsat:	
+			    {
+			        #ifdef PROFILE
+				{			    
+				    recheck_finish = clock();
+				    recheck_UNSAT_cumul += (recheck_finish - recheck_start) / (double)CLOCKS_PER_SEC;
+				}
+			        #endif
+				refined_sat = false;	    
+				break;
+			    }
+			    case z3::unknown:
+			    {
+                                #ifdef PROFILE
+				{
+				    recheck_finish = clock();
+				    recheck_INDET_cumul += (recheck_finish - recheck_start) / (double)CLOCKS_PER_SEC;
+				}
+			        #endif			    
+				refined_sat = false;
+				break;
+			    }
+			    default:
+			    {
+				break;
+			    }
+			    }
+			}
+			else
+			{
 			    refined_sat = false;
-			    break;
-			}
-			default:
-			{
-			    break;
-			}
 			}
 		    }
-		    else
-		    {
-			refined_sat = false;
-		    }
-		    
 		    #ifdef DEBUG
 		    {
 			printf("Solving 12 ... finished: %d\n", refined_sat);
@@ -8860,6 +8862,7 @@ bool optimize_ConsequentialWeakPolygonNonoverlappingBinaryCentered(z3::solver   
 		    printf("Printing solver status:\n");
 		    cout << Solver << "\n";
 		    */
+		    progress_callback(progress_range.progress_min + (progress_range.progress_max - progress_range.progress_min) * progress / progress_total_estimation);		    
 		    		    
 		    if (refined_sat)
 		    {
@@ -8933,14 +8936,7 @@ bool optimize_ConsequentialWeakPolygonNonoverlappingBinaryCentered(z3::solver   
 	    }
 	    #endif
 	    
-	    if (last_solvable_bounding_box_size > 0)
-	    {
-		size_solvable = false;
-	    }
-	    else
-	    {
-		size_solvable = false;		
-	    }
+	    size_solvable = false;
 	}
 
 	coord_t half_x_med = (half_x_max + half_x_min) / 2;
@@ -8954,14 +8950,14 @@ bool optimize_ConsequentialWeakPolygonNonoverlappingBinaryCentered(z3::solver   
 	    }
 	    #endif
 	    half_x_min = half_x_med;
-	    half_y_min = half_y_med;	    
+	    half_y_min = half_y_med;
 	}
 	else
 	{
 	    #ifdef DEBUG
 	    {
 		printf("Unsolvable\n");
-	    }
+	    }	    
 	    #endif
 	    half_x_max = half_x_med;
 	    half_y_max = half_y_med;	    
@@ -8994,7 +8990,7 @@ bool optimize_ConsequentialWeakPolygonNonoverlappingBinaryCentered(z3::solver   
 	#endif
 	
 	return true;
-    }    
+    }
     return false;
 }
 
@@ -10291,7 +10287,6 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 									std::vector<Rational>                            &dec_values_Y,
 									std::vector<Rational>                            &dec_values_T,
 									const std::vector<SolvableObject>                &solvable_objects,
-									const std::vector<int>                           &undecided_polygons,
 									std::vector<int>                                 &decided_polygons,
 									std::vector<int>                                 &remaining_polygons,
 									int                                               progress_objects_done,
@@ -10429,12 +10424,12 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 		    printf("  %d\n", undecided[j]);
 		}
 		printf("Decided\n");
-		for (unsigned int j = 0; j < decided_solvable_objects.size(); ++j)
+		for (unsigned int j = 0; j < decided_polygons.size(); ++j)
 		{
 		    printf("  %d\n", decided_polygons[j]);
 		}
 		printf("Locals\n");
-		for (unsigned int j = 0; j < solvable_objects.size(); ++j)
+		for (unsigned int j = 0; j < decided_polygons.size(); ++j)
 		{
 		    printf("X: %ld,%ld  Y: %ld,%ld  T: %ld,%ld\n",
 			   local_values_X[j].numerator,
@@ -10524,7 +10519,7 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 		    printf("Remaining polygon: %d\n", curr_polygon + object_group_size - 1);
 		}
 		#endif
-		remaining_local.push_back(undecided_polygons[curr_polygon + object_group_size - 1]);
+		remaining_local.push_back(undecided.back());
 	    }
 	    missing.push_back(undecided.back());
 	    undecided.pop_back();	    
@@ -10545,7 +10540,7 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 	if (!optimized)
 	{
 	    if (curr_polygon <= 0)
-	    {		
+	    {
 		return false;
 	    }
 	    else
@@ -10556,7 +10551,7 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 
 		    for (; curr_polygon < solvable_objects.size(); ++curr_polygon)
 		    {
-			remaining_polygons.push_back(undecided_polygons[curr_polygon]);
+			remaining_polygons.push_back(curr_polygon);			
 		    }
 		}
 		return true;		   

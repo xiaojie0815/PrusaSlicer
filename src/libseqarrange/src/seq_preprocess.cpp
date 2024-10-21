@@ -889,6 +889,35 @@ bool check_PolygonSize(const SolverConfiguration &solver_configuration, coord_t 
 }
 
 
+void glue_LowObjects(std::vector<SolvableObject> &solvable_objects)
+{
+    int low = 0;
+	
+    for (unsigned int i = 0; i < solvable_objects.size(); ++i)
+    {	
+	double polygon_area = calc_PolygonArea(solvable_objects[i].polygon);
+	double unreachable_area = calc_PolygonUnreachableZoneArea(solvable_objects[i].polygon, solvable_objects[i].unreachable_polygons);	
+
+	if (2 * polygon_area > unreachable_area)
+	{
+	    printf("Low: %d\n", solvable_objects[i].id);
+	    if (++low >= 2)
+	    {
+		assert(i > 0);
+		printf("---> gluing: %d -> %d\n", solvable_objects[i-1].id, solvable_objects[i].id);
+		solvable_objects[i-1].lepox_to_next = true;
+		low = 1;
+	    }
+	}
+	else
+	{
+	    printf("noLow: %d\n", solvable_objects[i].id);
+	    low = 0;
+	}
+    }
+}
+
+
 /*----------------------------------------------------------------*/
 
 double calc_PolygonArea(const Slic3r::Polygon &polygon)

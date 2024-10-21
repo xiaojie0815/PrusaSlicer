@@ -32,6 +32,8 @@ const int SEQ_SCHEDULING_TEMPORAL_SPREAD          = 16;
 const int SEQ_BOUNDING_BOX_SIZE_OPTIMIZATION_STEP =  4;
 const int SEQ_MINIMUM_BOUNDING_BOX_SIZE           = 16;
 
+const int SEQ_MAX_REFINES                         =  2;
+
 
 /*----------------------------------------------------------------*/
     
@@ -91,7 +93,8 @@ SolverConfiguration::SolverConfiguration()
     : bounding_box_size_optimization_step(SEQ_BOUNDING_BOX_SIZE_OPTIMIZATION_STEP)
     , minimum_bounding_box_size(SEQ_MINIMUM_BOUNDING_BOX_SIZE)
     , x_plate_bounding_box_size(SEQ_PRUSA_MK3S_X_SIZE)
-    , y_plate_bounding_box_size(SEQ_PRUSA_MK3S_Y_SIZE)      
+    , y_plate_bounding_box_size(SEQ_PRUSA_MK3S_Y_SIZE)
+    , max_refines(SEQ_MAX_REFINES)
     , object_group_size(SEQ_OBJECT_GROUP_SIZE)
     , temporal_spread(SEQ_SCHEDULING_TEMPORAL_SPREAD)
     , decimation_precision(SEQ_DECIMATION_PRECISION_LOW)
@@ -104,6 +107,7 @@ SolverConfiguration::SolverConfiguration()
 SolverConfiguration::SolverConfiguration(const PrinterGeometry &printer_geometry)
     : bounding_box_size_optimization_step(SEQ_BOUNDING_BOX_SIZE_OPTIMIZATION_STEP)
     , minimum_bounding_box_size(SEQ_MINIMUM_BOUNDING_BOX_SIZE)
+    , max_refines(SEQ_MAX_REFINES)      
     , object_group_size(SEQ_OBJECT_GROUP_SIZE)
     , temporal_spread(SEQ_SCHEDULING_TEMPORAL_SPREAD)
     , decimation_precision(SEQ_DECIMATION_PRECISION_LOW)
@@ -314,9 +318,6 @@ void schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver
     }
     #endif
 
-    std::vector<Slic3r::Polygon> polygons;
-    std::vector<std::vector<Slic3r::Polygon> > unreachable_polygons;
-
     std::map<int, int> original_index_map;
     std::vector<bool> lepox_to_next;
 
@@ -363,14 +364,8 @@ void schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver
     }
 
     std::vector<int> remaining_polygons;
-    std::vector<int> polygon_index_map;
     std::vector<int> decided_polygons;
 
-    for (unsigned int index = 0; index < polygons.size(); ++index)
-    {
-	polygon_index_map.push_back(index);
-    }
-    
     std::vector<Rational> poly_positions_X;
     std::vector<Rational> poly_positions_Y;
     std::vector<Rational> times_T;
@@ -404,7 +399,6 @@ void schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver
 										       poly_positions_Y,
 										       times_T,
 										       solvable_objects,
-										       polygon_index_map,
 										       decided_polygons,
 										       remaining_polygons,
 										       progress_objects_done,
@@ -487,18 +481,14 @@ void schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver
 	{
 	    next_solvable_objects.push_back(solvable_objects[remaining_polygons[i]]);	    	    
 	}	
-	polygon_index_map.clear();	
 	solvable_objects = next_solvable_objects;
 
-	std::vector<int> next_polygon_index_map;
 	std::map<int, int> next_original_index_map;
 
-	for (unsigned int index = 0; index < polygons.size(); ++index)
+	for (unsigned int index = 0; index < solvable_objects.size(); ++index)
 	{
-	    next_polygon_index_map.push_back(index);
 	    next_original_index_map[index] = original_index_map[remaining_polygons[index]];
 	}
-	polygon_index_map = next_polygon_index_map;
 	original_index_map = next_original_index_map;
 
 	scheduled_plates.push_back(scheduled_plate);
@@ -545,12 +535,7 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver_
 
     PrinterType printer_type = SEQ_PRINTER_TYPE_PRUSA_MK3S;
 
-    std::vector<Slic3r::Polygon> polygons;
-    std::vector<std::vector<Slic3r::Polygon> > unreachable_polygons;
-    std::vector<bool> lepox_to_next;
-
     std::vector<SolvableObject> solvable_objects;
-
     std::map<int, int> original_index_map;    
 
     #ifdef DEBUG
@@ -763,13 +748,14 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver_
     }
 
     std::vector<int> remaining_polygons;
-    std::vector<int> polygon_index_map;
     std::vector<int> decided_polygons;
 
-    for (unsigned int index = 0; index < polygons.size(); ++index)
+    /*
+    for (unsigned int index = 0; index < solvable_objects.size(); ++index)
     {
 	polygon_index_map.push_back(index);
     }
+    */
     
     std::vector<Rational> poly_positions_X;
     std::vector<Rational> poly_positions_Y;
@@ -804,7 +790,6 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver_
 										       poly_positions_Y,
 										       times_T,
 										       solvable_objects,
-										       polygon_index_map,
 										       decided_polygons,
 										       remaining_polygons,
 										       progress_objects_done,
@@ -886,18 +871,13 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver_
 	{
 	    next_solvable_objects.push_back(solvable_objects[i]);
 	}	
-	polygon_index_map.clear();	
 	solvable_objects = next_solvable_objects;
-
-	std::vector<int> next_polygon_index_map;
 	std::map<int, int> next_original_index_map;
 
-	for (unsigned int index = 0; index < polygons.size(); ++index)
+	for (unsigned int index = 0; index < solvable_objects.size(); ++index)
 	{
-	    next_polygon_index_map.push_back(index);
 	    next_original_index_map[index] = original_index_map[remaining_polygons[index]];
 	}
-	polygon_index_map = next_polygon_index_map;
 	original_index_map = next_original_index_map;
 
 	scheduled_plates.push_back(scheduled_plate);
@@ -1087,13 +1067,7 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration                
     }
 
     std::vector<int> remaining_polygons;
-    std::vector<int> polygon_index_map;
     std::vector<int> decided_polygons;
-
-    for (unsigned int index = 0; index < solvable_objects.size(); ++index)
-    {
-	polygon_index_map.push_back(index);
-    }
     
     std::vector<Rational> poly_positions_X;
     std::vector<Rational> poly_positions_Y;
@@ -1128,7 +1102,6 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration                
 										       poly_positions_Y,
 										       times_T,
 										       solvable_objects,
-										       polygon_index_map,
 										       decided_polygons,
 										       remaining_polygons,
 										       progress_objects_done,
@@ -1211,18 +1184,13 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration                
 	{
 	    next_solvable_objects.push_back(solvable_objects[i]);
 	}	
-	polygon_index_map.clear();	
 	solvable_objects = next_solvable_objects;
-
-	std::vector<int> next_polygon_index_map;
 	std::map<int, int> next_original_index_map;
 
 	for (unsigned int index = 0; index < solvable_objects.size(); ++index)
 	{
-	    next_polygon_index_map.push_back(index);
 	    next_original_index_map[index] = original_index_map[remaining_polygons[index]];
 	}
-	polygon_index_map = next_polygon_index_map;
 	original_index_map = next_original_index_map;
 
 	scheduled_plates.push_back(scheduled_plate);

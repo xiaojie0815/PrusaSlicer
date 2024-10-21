@@ -199,6 +199,8 @@ bool check_PolygonSize(const SolverConfiguration &solver_configuration, coord_t 
 void simplify_ConvexUnreachablePolygons(const std::vector<std::vector<Slic3r::Polygon> > &unreachable_convex_polygons,
 					std::vector<Slic3r::Polygon>                     &simplified_unreachable_polygons);
 
+void glue_LowObjects(std::vector<SolvableObject> &solvable_ojects);
+
 
 /*----------------------------------------------------------------*/
 

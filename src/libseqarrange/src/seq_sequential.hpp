@@ -1603,7 +1603,6 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 									std::vector<Rational>                            &dec_values_Y,
 									std::vector<Rational>                            &dec_values_T,
 									const std::vector<SolvableObject>                &solvable_objects,
-									const std::vector<int>                           &undecided_polygons,
 									std::vector<int>                                 &decided_polygons,
 									std::vector<int>                                 &remaining_polygons,
 									int                                               progress_objects_done,

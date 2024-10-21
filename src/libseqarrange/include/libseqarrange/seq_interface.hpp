@@ -75,6 +75,7 @@ struct SolverConfiguration
     int minimum_bounding_box_size;
     int x_plate_bounding_box_size;
     int y_plate_bounding_box_size;
+    int max_refines;
     
     int object_group_size;
     int temporal_spread;
