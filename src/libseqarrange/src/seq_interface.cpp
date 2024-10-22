@@ -27,6 +27,7 @@ namespace Sequential
 /*----------------------------------------------------------------*/
 
 const int SEQ_OBJECT_GROUP_SIZE                   =  4;
+const int SEQ_FIXED_OBJECT_GROUPING_LIMIT         = 64;
 const int SEQ_SCHEDULING_TEMPORAL_SPREAD          = 16;
 
 const int SEQ_BOUNDING_BOX_SIZE_OPTIMIZATION_STEP =  4;
@@ -96,6 +97,7 @@ SolverConfiguration::SolverConfiguration()
     , y_plate_bounding_box_size(SEQ_PRUSA_MK3S_Y_SIZE)
     , max_refines(SEQ_MAX_REFINES)
     , object_group_size(SEQ_OBJECT_GROUP_SIZE)
+    , fixed_object_grouping_limit(SEQ_FIXED_OBJECT_GROUPING_LIMIT)
     , temporal_spread(SEQ_SCHEDULING_TEMPORAL_SPREAD)
     , decimation_precision(SEQ_DECIMATION_PRECISION_LOW)
     , optimization_timeout(SEQ_Z3_SOLVER_TIMEOUT)
@@ -109,6 +111,7 @@ SolverConfiguration::SolverConfiguration(const PrinterGeometry &printer_geometry
     , minimum_bounding_box_size(SEQ_MINIMUM_BOUNDING_BOX_SIZE)
     , max_refines(SEQ_MAX_REFINES)      
     , object_group_size(SEQ_OBJECT_GROUP_SIZE)
+    , fixed_object_grouping_limit(SEQ_FIXED_OBJECT_GROUPING_LIMIT)
     , temporal_spread(SEQ_SCHEDULING_TEMPORAL_SPREAD)
     , decimation_precision(SEQ_DECIMATION_PRECISION_LOW)
     , optimization_timeout(SEQ_Z3_SOLVER_TIMEOUT)
@@ -573,7 +576,7 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver_
 		    decimated_polygon = objects_to_print[i].pgns_at_height[j].second;
 		    decimated_polygon.make_counter_clockwise();
 		}
-		if (!check_PolygonSize(solver_configuration, SEQ_SLICER_SCALE_FACTOR, decimated_polygon))
+		if (!check_PolygonSizeFitToPlate(solver_configuration, SEQ_SLICER_SCALE_FACTOR, decimated_polygon))
 		{
 		    #ifdef DEBUG
 		    {
@@ -998,7 +1001,7 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration                
 		    decimated_polygon.make_counter_clockwise();
 		}
 		
-		if (!check_PolygonSize(solver_configuration, SEQ_SLICER_SCALE_FACTOR, decimated_polygon))
+		if (!check_PolygonSizeFitToPlate(solver_configuration, SEQ_SLICER_SCALE_FACTOR, decimated_polygon))
 		{
 		    #ifdef DEBUG
 		    {

@@ -714,7 +714,7 @@ void prepare_ExtruderPolygons(const SolverConfiguration                  &solver
 		decimated_polygon.make_counter_clockwise();
 	    }
 	    
-	    if (!check_PolygonSize(solver_configuration, SEQ_SLICER_SCALE_FACTOR, decimated_polygon))
+	    if (!check_PolygonSizeFitToPlate(solver_configuration, SEQ_SLICER_SCALE_FACTOR, decimated_polygon))
 	    {
 		#ifdef DEBUG
 		{
@@ -779,32 +779,40 @@ void prepare_UnreachableZonePolygons(const SolverConfiguration                  
 				     const std::vector<std::vector<Slic3r::Polygon> > &extruder_box_level_polygons,					
 				     std::vector<Slic3r::Polygon>                     &unreachable_polygons)
 {
-    std::vector<Slic3r::Polygon> scaled_unreachable_polygons;
+    std::vector<std::vector<Slic3r::Polygon> > scaled_unreachable_polygons;
     
     for (unsigned int i = 0; i < extruder_convex_level_polygons.size(); ++i)
     {
+	std::vector<Slic3r::Polygon> scaled_level_unreachable_polygons;	
 	extend_PolygonConvexUnreachableZone(solver_configuration,
 					    polygon,
 					    extruder_convex_level_polygons[i],
-					    scaled_unreachable_polygons);
+					    scaled_level_unreachable_polygons);
+	scaled_unreachable_polygons.push_back(scaled_level_unreachable_polygons);
     }
 
     for (unsigned int i = 0; i < extruder_box_level_polygons.size(); ++i)
     {
+	std::vector<Slic3r::Polygon> scaled_level_unreachable_polygons;	
 	extend_PolygonBoxUnreachableZone(solver_configuration,
 					 polygon,
 					 extruder_box_level_polygons[i],
-					 scaled_unreachable_polygons);	
+					 scaled_level_unreachable_polygons);
+	scaled_unreachable_polygons.push_back(scaled_level_unreachable_polygons);
     }
+    scaled_unreachable_polygons = simplify_UnreachableZonePolygons(scaled_unreachable_polygons);
 
     for (unsigned int i = 0; i < scaled_unreachable_polygons.size(); ++i)
     {
-	Polygon scale_down_polygon;
+	for (unsigned int j = 0; j < scaled_unreachable_polygons[i].size(); ++j)
+	{	
+	    Polygon scale_down_polygon;
 	
-	scaleDown_PolygonForSequentialSolver(scaled_unreachable_polygons[i],
-					     scale_down_polygon);
-	scale_down_polygon.make_counter_clockwise();
-	unreachable_polygons.push_back(scale_down_polygon);
+	    scaleDown_PolygonForSequentialSolver(scaled_unreachable_polygons[i][j],
+						 scale_down_polygon);
+	    scale_down_polygon.make_counter_clockwise();
+	    unreachable_polygons.push_back(scale_down_polygon);
+	}
     }    
 }
 
@@ -816,40 +824,48 @@ void prepare_UnreachableZonePolygons(const SolverConfiguration                  
 				     const std::vector<std::vector<Slic3r::Polygon> > &extruder_box_level_polygons,					
 				     std::vector<Slic3r::Polygon>                     &unreachable_polygons)
 {
-    std::vector<Slic3r::Polygon> scaled_unreachable_polygons;
+    std::vector<std::vector<Slic3r::Polygon> > scaled_unreachable_polygons;    
     assert(extruder_convex_level_polygons.size() == convex_level_polygons.size());
     
     for (unsigned int i = 0; i < extruder_convex_level_polygons.size(); ++i)
     {
-	extend_PolygonConvexUnreachableZone(solver_configuration,
-					   convex_level_polygons[i],
-					   extruder_convex_level_polygons[i],
-					   scaled_unreachable_polygons);
+	    std::vector<Slic3r::Polygon> scaled_level_unreachable_polygons;
+	    extend_PolygonConvexUnreachableZone(solver_configuration,
+						convex_level_polygons[i],
+						extruder_convex_level_polygons[i],
+						scaled_level_unreachable_polygons);
+	    scaled_unreachable_polygons.push_back(scaled_level_unreachable_polygons);
     }
 
     assert(extruder_box_level_polygons.size() == box_level_polygons.size());
     
     for (unsigned int i = 0; i < extruder_box_level_polygons.size(); ++i)
     {
+	std::vector<Slic3r::Polygon> scaled_level_unreachable_polygons;
 	extend_PolygonBoxUnreachableZone(solver_configuration,
-					box_level_polygons[i],
-					extruder_box_level_polygons[i],
-					scaled_unreachable_polygons);	
+					 box_level_polygons[i],
+					 extruder_box_level_polygons[i],
+					 scaled_level_unreachable_polygons);
+	scaled_unreachable_polygons.push_back(scaled_level_unreachable_polygons);
     }
+    scaled_unreachable_polygons = simplify_UnreachableZonePolygons(scaled_unreachable_polygons);    
 
     for (unsigned int i = 0; i < scaled_unreachable_polygons.size(); ++i)
     {
-	Polygon scale_down_polygon;
-	
-	scaleDown_PolygonForSequentialSolver(scaled_unreachable_polygons[i],
-					     scale_down_polygon);
-	scale_down_polygon.make_counter_clockwise();	
-	unreachable_polygons.push_back(scale_down_polygon);
+	for (unsigned int j = 0; j < scaled_unreachable_polygons[i].size(); ++j)
+	{	
+	    Polygon scale_down_polygon;
+	    
+	    scaleDown_PolygonForSequentialSolver(scaled_unreachable_polygons[i][j],
+						 scale_down_polygon);
+	    scale_down_polygon.make_counter_clockwise();	
+	    unreachable_polygons.push_back(scale_down_polygon);
+	}
     }
 }
 
 
-bool check_PolygonSize(const SolverConfiguration &solver_configuration, const Slic3r::Polygon &polygon)
+bool check_PolygonSizeFitToPlate(const SolverConfiguration &solver_configuration, const Slic3r::Polygon &polygon)
 {
     BoundingBox polygon_box = get_extents(polygon);
 
@@ -869,7 +885,7 @@ bool check_PolygonSize(const SolverConfiguration &solver_configuration, const Sl
 }
 
 
-bool check_PolygonSize(const SolverConfiguration &solver_configuration, coord_t scale_factor, const Slic3r::Polygon &polygon)
+bool check_PolygonSizeFitToPlate(const SolverConfiguration &solver_configuration, coord_t scale_factor, const Slic3r::Polygon &polygon)
 {
     BoundingBox polygon_box = get_extents(polygon);
 
@@ -889,6 +905,73 @@ bool check_PolygonSize(const SolverConfiguration &solver_configuration, coord_t 
 }
 
 
+/*----------------------------------------------------------------*/
+
+bool check_PolygonConsumation(const std::vector<Slic3r::Polygon> &polygons, const std::vector<Slic3r::Polygon> &consumer_polygons)
+{
+    std::vector<Slic3r::Polygon> polygons_to_clip;
+    std::vector<Slic3r::Polygon> next_polygons_to_clip;	       
+
+    polygons_to_clip = polygons;
+				    
+    for (unsigned int poly_cons = 0; poly_cons < consumer_polygons.size(); ++poly_cons)
+    {
+	for (unsigned int clip_poly = 0; clip_poly < polygons_to_clip.size(); ++clip_poly)
+	{
+	    Slic3r::Polygons clip_result;
+	    clip_result = diff(polygons_to_clip[clip_poly], consumer_polygons[poly_cons]);
+	    
+	    for (const auto& clipped_polygon: clip_result)
+	    {
+		next_polygons_to_clip.push_back(clipped_polygon);
+	    }
+	}
+	polygons_to_clip = next_polygons_to_clip;
+    }
+    
+    if (polygons_to_clip.empty())
+    {
+	return true;
+    }
+    return false;
+}
+
+
+std::vector<std::vector<Slic3r::Polygon> > simplify_UnreachableZonePolygons(const std::vector<std::vector<Slic3r::Polygon> > &unreachable_polygons)
+{
+    std::vector<std::vector<Slic3r::Polygon> > simplified_unreachable_polygons;
+
+    for (unsigned int i = 0; i < unreachable_polygons.size(); ++i)
+    {
+	bool consumed = false;
+	
+	for (unsigned int j = 0; j < unreachable_polygons.size(); ++j)
+	{
+	    if (i != j)
+	    {
+		double area_i = calc_PolygonUnreachableZoneArea(unreachable_polygons[i]);
+		double area_j = calc_PolygonUnreachableZoneArea(unreachable_polygons[j]);
+
+		if (area_j > area_i)
+		{
+		    if (check_PolygonConsumation(unreachable_polygons[i], unreachable_polygons[j]))
+		    {
+			consumed = true;
+			break;
+		    }
+		}
+	    }
+	}
+	if (!consumed)
+	{
+	    simplified_unreachable_polygons.push_back(unreachable_polygons[i]);
+	}
+    }
+
+    return simplified_unreachable_polygons;
+}
+
+
 void glue_LowObjects(std::vector<SolvableObject> &solvable_objects)
 {
     int low = 0;
@@ -900,18 +983,15 @@ void glue_LowObjects(std::vector<SolvableObject> &solvable_objects)
 
 	if (2 * polygon_area > unreachable_area)
 	{
-	    printf("Low: %d\n", solvable_objects[i].id);
 	    if (++low >= 2)
 	    {
 		assert(i > 0);
-		printf("---> gluing: %d -> %d\n", solvable_objects[i-1].id, solvable_objects[i].id);
 		solvable_objects[i-1].lepox_to_next = true;
 		low = 1;
 	    }
 	}
 	else
 	{
-	    printf("noLow: %d\n", solvable_objects[i].id);
 	    low = 0;
 	}
     }
@@ -934,6 +1014,27 @@ double calc_PolygonArea(const Slic3r::Polygon &polygon)
     }
 
     return area;    
+}
+
+
+
+double calc_PolygonUnreachableZoneArea(const std::vector<Slic3r::Polygon> &unreachable_polygons)
+{
+    Polygons overlapping_polygons;
+
+    for (const auto& unreachable_polygon: unreachable_polygons)
+    {
+	overlapping_polygons.push_back(unreachable_polygon);
+    }
+    ExPolygons union_polygons = union_ex(overlapping_polygons);
+
+    double area = 0;
+    for (const auto& union_polygon: union_polygons)
+    {
+	area += union_polygon.area();
+    }
+
+    return area;
 }
 
 

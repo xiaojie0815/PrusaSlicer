@@ -994,7 +994,8 @@ void introduce_SequentialPolygonWeakNonoverlapping(z3::solver                   
 						   const std::vector<Slic3r::Polygon>               &polygons,
 						   const std::vector<std::vector<Slic3r::Polygon> > &unreachable_polygons);
 
-void introduce_ConsequentialPolygonWeakNonoverlapping(z3::solver                         &Solver,
+void introduce_ConsequentialPolygonWeakNonoverlapping(const SolverConfiguration          &solver_configuration,
+						      z3::solver                         &Solver,
 						      z3::context                        &Context,
 						      const z3::expr_vector              &dec_vars_X,
 						      const z3::expr_vector              &dec_vars_Y,
@@ -1007,7 +1008,8 @@ void introduce_ConsequentialPolygonWeakNonoverlapping(z3::solver                
 						      const std::vector<Slic3r::Polygon> &polygons,
 						      const std::vector<Slic3r::Polygon> &unreachable_polygons);
 
-void introduce_ConsequentialPolygonWeakNonoverlapping(z3::solver                                       &Solver,
+void introduce_ConsequentialPolygonWeakNonoverlapping(const SolverConfiguration                        &solver_configuration,
+						      z3::solver                                       &Solver,
 						      z3::context                                      &Context,
 						      const z3::expr_vector                            &dec_vars_X,
 						      const z3::expr_vector                            &dec_vars_Y,
@@ -1339,7 +1341,8 @@ void build_SequentialWeakPolygonNonoverlapping(z3::solver                       
 					       const std::vector<int>                           &undecided,
 					       string_map                                       &dec_var_names_map);
 
-void build_ConsequentialWeakPolygonNonoverlapping(z3::solver                         &Solver,
+void build_ConsequentialWeakPolygonNonoverlapping(const SolverConfiguration          &solver_configuration,
+						  z3::solver                         &Solver,
 						  z3::context                        &Context,
 						  const std::vector<Slic3r::Polygon> &polygons,
 						  const std::vector<Slic3r::Polygon> &unreachable_polygons,
@@ -1353,7 +1356,8 @@ void build_ConsequentialWeakPolygonNonoverlapping(z3::solver                    
 						  const std::vector<int>             &undecided,
 						  string_map                         &dec_var_names_map);
 
-void build_ConsequentialWeakPolygonNonoverlapping(z3::solver                                       &Solver,
+void build_ConsequentialWeakPolygonNonoverlapping(const SolverConfiguration                        &solver_configuration,
+						  z3::solver                                       &Solver,
 						  z3::context                                      &Context,
 						  const std::vector<Slic3r::Polygon>               &polygons,
 						  const std::vector<std::vector<Slic3r::Polygon> > &unreachable_polygons,

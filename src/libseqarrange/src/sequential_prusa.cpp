@@ -242,7 +242,6 @@ int solve_SequentialPrint(const CommandParameters &command_parameters)
 		if (!objects_to_print[i].pgns_at_height[j].second.points.empty())
 		{
 		    Polygon decimated_polygon;
-		    //ground_PolygonByFirstPoint(objects_to_print[i].pgns_at_height[j].second);
 
 		    if (command_parameters.decimation)
 		    {
@@ -264,7 +263,7 @@ int solve_SequentialPrint(const CommandParameters &command_parameters)
 			decimated_polygon = objects_to_print[i].pgns_at_height[j].second;
 			decimated_polygon.make_counter_clockwise();
 		    }
-		    if (!check_PolygonSize(solver_configuration, SEQ_SLICER_SCALE_FACTOR, decimated_polygon))
+		    if (!check_PolygonSizeFitToPlate(solver_configuration, SEQ_SLICER_SCALE_FACTOR, decimated_polygon))
 		    {
 			printf("Object too large to fit onto plate [ID:%d RID:%d].\n", original_index_map[i], i);
 			return -1;
@@ -362,7 +361,6 @@ int solve_SequentialPrint(const CommandParameters &command_parameters)
 
     vector<int> remaining_polygons;
     vector<int> polygon_index_map;
-    //vector<int> original_index_map;
     vector<int> decided_polygons;
 
     for (unsigned int index = 0; index < polygons.size(); ++index)

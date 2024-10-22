@@ -9,6 +9,8 @@
  */
 /*================================================================*/
 
+#include <libslic3r/Geometry/ConvexHull.hpp>
+
 #include "seq_defs.hpp"
 
 #include "seq_sequential.hpp"
@@ -2895,6 +2897,92 @@ void introduce_ConsequentialPolygonExternalFixedPolygon(z3::solver              
 }
 
 
+void introduce_ConsequentialPolygonExternalFixedGroupPolygon(z3::solver                         &Solver,
+							     z3::context                        &Context,
+							     const z3::expr                     &dec_var_X1,
+							     const z3::expr                     &dec_var_Y1,
+							     const z3::expr                     &dec_var_T1,
+							     const Slic3r::Polygon              &polygon,
+							     const std::vector<Slic3r::Polygon> &unreachable_polygons,
+							     const Rational                     &dec_value_group_min_T,
+							     const Rational                     &dec_value_group_max_T,
+							     const Slic3r::Polygon              &group_polygon,
+							     const std::vector<Slic3r::Polygon> &group_unreachable_polygons)
+{
+    for (unsigned int poly2 = 0; poly2 < group_unreachable_polygons.size(); ++poly2)
+    {
+	for (unsigned int p1 = 0; p1 < polygon.points.size(); ++p1)
+	{
+	    const Point &point1 = polygon.points[p1];
+	    
+	    introduce_ConsequentialPointOutsideFixedPolygon(Solver,
+							    Context,
+							    dec_var_X1 + point1.x(),
+							    dec_var_Y1 + point1.y(),
+							    dec_var_T1,
+							    Rational(0),
+							    Rational(0),
+							    dec_value_group_min_T,
+							    group_unreachable_polygons[poly2]);
+	}
+    }
+
+    for (unsigned int poly2 = 0; poly2 < group_unreachable_polygons.size(); ++poly2)
+    {
+	for (unsigned int p2 = 0; p2 < group_unreachable_polygons[poly2].points.size(); ++p2)
+	{
+	    const Point &pro_point2 = group_unreachable_polygons[poly2].points[p2];
+	    
+	    introduce_ConsequentialFixedPointOutsidePolygon(Solver,
+							    Context,
+							    pro_point2.x(),
+							    pro_point2.y(),
+							    dec_var_T1,
+							    dec_var_X1,
+							    dec_var_Y1,
+							    dec_value_group_min_T,
+							    polygon);
+	}
+    }
+
+    for (unsigned int poly1 = 0; poly1 < unreachable_polygons.size(); ++poly1)
+    {
+	for (unsigned int p2 = 0; p2 < group_polygon.points.size(); ++p2)
+	{
+	    const Point &point2 = group_polygon.points[p2];
+	    
+	    introduce_ConsequentialFixedPointOutsidePolygon(Solver,
+							    Context,
+							    point2.x(),
+							    point2.y(),
+							    dec_value_group_max_T,
+							    dec_var_X1,
+							    dec_var_Y1,
+							    dec_var_T1,
+							    unreachable_polygons[poly1]);
+	}
+    }
+
+    for (unsigned int poly1 = 0; poly1 < unreachable_polygons.size(); ++poly1)
+    {
+	for (unsigned int p1 = 0; p1 < unreachable_polygons[poly1].points.size(); ++p1)
+	{
+	    const Point &pro_point1 = unreachable_polygons[poly1].points[p1];
+	    
+	    introduce_ConsequentialPointOutsideFixedPolygon(Solver,
+							    Context,
+							    dec_var_X1 + pro_point1.x(),
+							    dec_var_Y1 + pro_point1.y(),
+							    dec_value_group_max_T,
+							    Rational(0),
+							    Rational(0),
+							    dec_var_T1,
+							    group_polygon);
+	}
+    }    
+}
+
+
 /*----------------------------------------------------------------*/
 
 void introduce_PolygonWeakNonoverlapping(z3::solver                         &Solver,
@@ -3171,7 +3259,8 @@ void introduce_SequentialPolygonWeakNonoverlapping(z3::solver                   
 }
 
 
-void introduce_ConsequentialPolygonWeakNonoverlapping(z3::solver                         &Solver,
+void introduce_ConsequentialPolygonWeakNonoverlapping(const SolverConfiguration          &solver_configuration,
+						      z3::solver                         &Solver,
 						      z3::context                        &Context,
 						      const z3::expr_vector              &dec_vars_X,
 						      const z3::expr_vector              &dec_vars_Y,
@@ -3192,7 +3281,8 @@ void introduce_ConsequentialPolygonWeakNonoverlapping(z3::solver                
 	_unreachable_polygons[poly].push_back(unreachable_polygons[poly]);
     }    
     
-    introduce_ConsequentialPolygonWeakNonoverlapping(Solver,
+    introduce_ConsequentialPolygonWeakNonoverlapping(solver_configuration,
+						     Solver,
 						     Context,
 						     dec_vars_X,
 						     dec_vars_Y,
@@ -3207,7 +3297,8 @@ void introduce_ConsequentialPolygonWeakNonoverlapping(z3::solver                
 }
 
 
-void introduce_ConsequentialPolygonWeakNonoverlapping(z3::solver                                       &Solver,
+void introduce_ConsequentialPolygonWeakNonoverlapping(const SolverConfiguration                        &solver_configuration,
+						      z3::solver                                       &Solver,
 						      z3::context                                      &Context,
 						      const z3::expr_vector                            &dec_vars_X,
 						      const z3::expr_vector                            &dec_vars_Y,
@@ -3219,7 +3310,7 @@ void introduce_ConsequentialPolygonWeakNonoverlapping(z3::solver                
 						      const std::vector<int>                           &undecided,
 						      const std::vector<Slic3r::Polygon>               &polygons,
 						      const std::vector<std::vector<Slic3r::Polygon> > &unreachable_polygons)
-{
+{        
     for (unsigned int i = 0; i < undecided.size() - 1; ++i)
     {
 	for (unsigned int j = i + 1; j < undecided.size(); ++j)
@@ -3244,27 +3335,124 @@ void introduce_ConsequentialPolygonWeakNonoverlapping(z3::solver                
 	}
     }
 
-    for (unsigned int i = 0; i < undecided.size(); ++i)
+    if (fixed.size() < (unsigned int)solver_configuration.fixed_object_grouping_limit)
     {
-	for (unsigned int j = 0; j < fixed.size(); ++j)
+	for (unsigned int i = 0; i < undecided.size(); ++i)
+	{
+	    for (unsigned int j = 0; j < fixed.size(); ++j)
+	    {
+                #ifdef DEBUG
+		{
+		    printf("PoFP: %d,%d\n", undecided[i], fixed[j]);
+		}
+	        #endif
+		introduce_ConsequentialPolygonExternalFixedPolygon(Solver,
+								   Context,
+								   dec_vars_X[undecided[i]],
+								   dec_vars_Y[undecided[i]],
+								   dec_vars_T[undecided[i]],
+								   polygons[undecided[i]],
+								   unreachable_polygons[undecided[i]],
+								   dec_values_X[fixed[j]],
+								   dec_values_Y[fixed[j]],
+								   dec_values_T[fixed[j]],
+								   polygons[fixed[j]],
+								   unreachable_polygons[fixed[j]]);
+	    }
+	}
+    }
+    else
+    {
+	for (unsigned int i = 0; i < undecided.size(); ++i)
+	{
+	    for (unsigned int j = fixed.size() - (unsigned int)solver_configuration.fixed_object_grouping_limit; j < fixed.size(); ++j)
+	    {
+                #ifdef DEBUG
+		{
+		    printf("PoFP: %d,%d\n", undecided[i], fixed[j]);
+		}
+	        #endif
+		introduce_ConsequentialPolygonExternalFixedPolygon(Solver,
+								   Context,
+								   dec_vars_X[undecided[i]],
+								   dec_vars_Y[undecided[i]],
+								   dec_vars_T[undecided[i]],
+								   polygons[undecided[i]],
+								   unreachable_polygons[undecided[i]],
+								   dec_values_X[fixed[j]],
+								   dec_values_Y[fixed[j]],
+								   dec_values_T[fixed[j]],
+								   polygons[fixed[j]],
+								   unreachable_polygons[fixed[j]]);
+	    }
+	}
+	
+	Slic3r::Polygons flat_polygons;
+	for (unsigned int i = 0; i < fixed.size() - (unsigned int)solver_configuration.fixed_object_grouping_limit; ++i)
+	{
+	    Polygon fixed_polygon = polygons[fixed[i]];
+	    
+	    for (unsigned int p = 0; p < fixed_polygon.points.size(); ++p)
+	    {		
+		fixed_polygon.points[p] += Point(dec_values_X[fixed[i]].as_double(), dec_values_Y[fixed[i]].as_double());
+	    }
+	    flat_polygons.push_back(fixed_polygon);
+	}
+	
+	Slic3r::Polygons flat_unreachable_polygons;
+	for (unsigned int i = 0; i < fixed.size() - (unsigned int)solver_configuration.fixed_object_grouping_limit; ++i)
+	{
+	    for (unsigned int j = 0; j < unreachable_polygons[fixed[i]].size(); ++j)
+	    {
+		Polygon fixed_polygon = unreachable_polygons[fixed[i]][j];
+		
+		for (unsigned int p = 0; p < fixed_polygon.points.size(); ++p)
+		{		
+		    fixed_polygon.points[p] += Point(dec_values_X[fixed[i]].as_double(), dec_values_Y[fixed[i]].as_double());
+		}
+		flat_unreachable_polygons.push_back(fixed_polygon);
+	    }
+	}
+	Polygon flat_hull = Slic3r::Geometry::convex_hull(flat_polygons);    
+	Polygon flat_unreachable_hull = Slic3r::Geometry::convex_hull(flat_unreachable_polygons);
+	std::vector<Slic3r::Polygon> flat_unreachable_hulls;
+	flat_unreachable_hulls.push_back(flat_unreachable_hull);
+	
+	assert(!fixed.empty());
+	Rational dec_value_flat_min_T = dec_values_T[fixed[0]];
+	Rational dec_value_flat_max_T = dec_values_T[fixed[0]];
+	
+	for (unsigned int i = 1; i < fixed.size() - (unsigned int)solver_configuration.fixed_object_grouping_limit; ++i)
+	{
+	    if (dec_values_T[fixed[i]] < dec_value_flat_min_T)
+	    {
+		dec_value_flat_min_T = dec_values_T[fixed[i]];
+	    }	
+	    if (dec_values_T[fixed[i]] > dec_value_flat_max_T)
+	    {
+		dec_value_flat_max_T = dec_values_T[fixed[i]];
+	    }
+	}
+	
+	for (unsigned int i = 0; i < undecided.size(); ++i)
 	{
             #ifdef DEBUG
 	    {
-		printf("PoFP: %d,%d\n", undecided[i], fixed[j]);
+		printf("PoGROUP: %d\n", undecided[i]);
 	    }
 	    #endif
-	    introduce_ConsequentialPolygonExternalFixedPolygon(Solver,
-							       Context,
-							       dec_vars_X[undecided[i]],
-							       dec_vars_Y[undecided[i]],
-							       dec_vars_T[undecided[i]],
-							       polygons[undecided[i]],
-							       unreachable_polygons[undecided[i]],
-							       dec_values_X[fixed[j]],
-							       dec_values_Y[fixed[j]],
-							       dec_values_T[fixed[j]],
-							       polygons[fixed[j]],
-							       unreachable_polygons[fixed[j]]);
+	    
+	    introduce_ConsequentialPolygonExternalFixedGroupPolygon(Solver,
+								    Context,
+								    dec_vars_X[undecided[i]],
+								    dec_vars_Y[undecided[i]],
+								    dec_vars_T[undecided[i]],
+								    polygons[undecided[i]],
+								    unreachable_polygons[undecided[i]],
+								    dec_value_flat_min_T,
+								    dec_value_flat_max_T,							    
+								    flat_hull,
+								    flat_unreachable_hulls);
 	}
     }
 }
@@ -6766,7 +6954,8 @@ void build_SequentialWeakPolygonNonoverlapping(z3::solver                       
 }
 
 
-void build_ConsequentialWeakPolygonNonoverlapping(z3::solver                         &Solver,
+void build_ConsequentialWeakPolygonNonoverlapping(const SolverConfiguration          &solver_configuration,
+						  z3::solver                         &Solver,
 						  z3::context                        &Context,
 						  const std::vector<Slic3r::Polygon> &polygons,
 						  const std::vector<Slic3r::Polygon> &unreachable_polygons,
@@ -6788,7 +6977,8 @@ void build_ConsequentialWeakPolygonNonoverlapping(z3::solver                    
 	_unreachable_polygons[poly].push_back(unreachable_polygons[poly]);
     }    
 
-    build_ConsequentialWeakPolygonNonoverlapping(Solver,
+    build_ConsequentialWeakPolygonNonoverlapping(solver_configuration,
+						 Solver,
 						 Context,
 						 polygons,
 						 _unreachable_polygons,
@@ -6804,7 +6994,8 @@ void build_ConsequentialWeakPolygonNonoverlapping(z3::solver                    
 }
 
 
-void build_ConsequentialWeakPolygonNonoverlapping(z3::solver                                       &Solver,
+void build_ConsequentialWeakPolygonNonoverlapping(const SolverConfiguration                        &solver_configuration,
+						  z3::solver                                       &Solver,
 						  z3::context                                      &Context,
 						  const std::vector<Slic3r::Polygon>               &polygons,
 						  const std::vector<std::vector<Slic3r::Polygon> > &unreachable_polygons,
@@ -6842,7 +7033,8 @@ void build_ConsequentialWeakPolygonNonoverlapping(z3::solver                    
 	dec_var_names_map[name] = i;	
     }
     
-    introduce_ConsequentialPolygonWeakNonoverlapping(Solver,
+    introduce_ConsequentialPolygonWeakNonoverlapping(solver_configuration,
+						     Solver,
 						     Context,
 						     dec_vars_X,
 						     dec_vars_Y,
@@ -10085,7 +10277,8 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 	    build_start = clock();
 	}
 	#endif
-	build_ConsequentialWeakPolygonNonoverlapping(z_solver,
+	build_ConsequentialWeakPolygonNonoverlapping(solver_configuration,
+						     z_solver,
 						     z_context,
 						     polygons,
 						     unreachable_polygons,
@@ -10368,7 +10561,8 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 	}
 	#endif
 	
-	build_ConsequentialWeakPolygonNonoverlapping(z_solver,
+	build_ConsequentialWeakPolygonNonoverlapping(solver_configuration,
+						     z_solver,
 						     z_context,
 						     polygons,
 						     unreachable_polygons,

@@ -78,6 +78,7 @@ struct SolverConfiguration
     int max_refines;
     
     int object_group_size;
+    int fixed_object_grouping_limit;    
     int temporal_spread;
 
     DecimationPrecision decimation_precision;   
