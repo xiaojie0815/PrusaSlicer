@@ -104,7 +104,7 @@ protected:
     void request_compatible_printers_SLA();
     void run_script_bridge(const wxString& script) override { run_script(script); }
     void on_dpi_changed(const wxRect &suggested_rect) override;
-
+    void on_reload_event(const std::string& message_data) override;
 private:
     std::string& m_ret_val;
 };

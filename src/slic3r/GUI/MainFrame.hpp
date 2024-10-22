@@ -237,6 +237,8 @@ public:
     bool    get_printer_webview_tab_added() const { return m_printer_webview_added; }
     void    set_printer_webview_api_key(const std::string& key);
     void    set_printer_webview_credentials(const std::string& usr, const std::string& psk);
+    bool    is_any_webview_selected();
+    void    reload_selected_webview();
 
     void    refresh_account_menu(bool avatar = false);
 

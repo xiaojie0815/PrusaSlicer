@@ -868,7 +868,9 @@ void MainFrame::remove_connect_webview_tab()
 
 void MainFrame::show_connect_tab(const wxString& url)
 {
-    assert(m_connect_webview_added);
+    if (!m_connect_webview_added) {
+        return;
+    }
     m_tabpanel->SetSelection(m_tabpanel->FindPage(m_connect_webview));
     m_connect_webview->set_load_default_url_on_next_error(true);
     m_connect_webview->load_url(url);
@@ -982,6 +984,29 @@ void MainFrame::set_printer_webview_api_key(const std::string& key)
 void MainFrame::set_printer_webview_credentials(const std::string& usr, const std::string& psk)
 {
     m_printer_webview->set_credentials(usr, psk);
+}
+
+bool MainFrame::is_any_webview_selected()
+{
+    int selection = m_tabpanel->GetSelection();
+    if ( selection == m_tabpanel->FindPage(m_printables_webview)) 
+        return true;
+    if (m_connect_webview_added && selection == m_tabpanel->FindPage(m_connect_webview)) 
+        return true;
+    if (m_printer_webview_added && selection == m_tabpanel->FindPage(m_printer_webview)) 
+        return true;
+    return false;
+}
+
+void MainFrame::reload_selected_webview()
+{
+    int selection = m_tabpanel->GetSelection();
+    if ( selection == m_tabpanel->FindPage(m_printables_webview)) 
+       m_printables_webview->do_reload();
+    if (m_connect_webview_added && selection == m_tabpanel->FindPage(m_connect_webview)) 
+        m_connect_webview->do_reload();
+    if (m_printer_webview_added && selection == m_tabpanel->FindPage(m_printer_webview)) 
+        m_printer_webview->do_reload();
 }
 
 void Slic3r::GUI::MainFrame::refresh_account_menu(bool avatar/* = false */)
@@ -1686,6 +1711,10 @@ void MainFrame::init_menubar_as_editor()
                 wxFULLSCREEN_NOSTATUSBAR | wxFULLSCREEN_NOBORDER | wxFULLSCREEN_NOCAPTION); }, 
             this, []() { return true; }, [this]() { return this->IsFullScreen(); }, this);
 #endif // __APPLE__
+
+        viewMenu->AppendSeparator();
+        append_menu_item(viewMenu, wxID_ANY, _L("&Reload WebView"), _L("Reload WebView"), 
+            [this](wxCommandEvent&) { reload_selected_webview(); }, "", nullptr, [this]() {return is_any_webview_selected(); }, this);
     }
 
     // Help menu

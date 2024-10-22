@@ -58,10 +58,11 @@ void WebViewPanel::load_url(const wxString& url)
 }
 
 
-WebViewPanel::WebViewPanel(wxWindow *parent, const wxString& default_url, const std::vector<std::string>& message_handler_names, const std::string& loading_html/* = "loading"*/)
+WebViewPanel::WebViewPanel(wxWindow *parent, const wxString& default_url, const std::vector<std::string>& message_handler_names, const std::string& loading_html, const std::string& error_html)
     : wxPanel(parent, wxID_ANY, wxDefaultPosition, wxDefaultSize)
     , m_default_url (default_url)
     , m_loading_html(loading_html)
+    , m_error_html(error_html)
     , m_script_message_hadler_names(message_handler_names)
 {
     topsizer = new wxBoxSizer(wxVERTICAL);
@@ -188,7 +189,9 @@ void WebViewPanel::on_show(wxShowEvent& evt)
 {
     m_shown = evt.IsShown();
     if (evt.IsShown() && m_load_default_url) {
-        load_url(m_default_url);
+        m_load_default_url = false;
+        //load_url(m_default_url);
+        load_error_page();
     }
 }
 
@@ -207,7 +210,7 @@ void WebViewPanel::on_idle(wxIdleEvent& WXUNUSED(evt))
                 m_load_default_url_on_next_error = false;
                 load_url(m_default_url);
             } else { 
-                load_url(GUI::format_wxstr("file://%1%/web/connection_failed.html", boost::filesystem::path(resources_dir()).generic_string()));
+                load_url(GUI::format_wxstr("file://%1%/web/%2%.html", boost::filesystem::path(resources_dir()).generic_string(), m_error_html));
             }
         }
     }
@@ -271,6 +274,7 @@ void WebViewPanel::on_reload_button(wxCommandEvent& WXUNUSED(evt))
 
 void WebViewPanel::on_script_message(wxWebViewEvent& evt)
 {
+    BOOST_LOG_TRIVIAL(error) << "unhandled script message: " << evt.GetString();
 }
 
 void WebViewPanel::on_navigation_request(wxWebViewEvent &evt) 
@@ -465,12 +469,34 @@ case type: \
         WX_ERROR_CASE(wxWEBVIEW_NAV_ERR_OTHER);
     }
 
-    BOOST_LOG_TRIVIAL(error) << "WebViewPanel error: " << category;
+    BOOST_LOG_TRIVIAL(error) << this <<" WebViewPanel error: " << category;
     load_error_page();
 #ifdef DEBUG_URL_PANEL
     m_info->ShowMessage(wxString("An error occurred loading ") + evt.GetURL() + "\n" +
         "'" + category + "'", wxICON_ERROR);
 #endif
+}
+
+void WebViewPanel::do_reload()
+{
+    if (!m_browser) {
+        return;
+    }
+    const wxString current_url = m_browser->GetCurrentURL();
+    if (current_url.StartsWith(m_default_url))
+    {
+        m_browser->Reload();
+        return;
+    }
+    load_default_url();
+}
+
+void WebViewPanel::load_default_url()
+{
+     if (!m_browser) {
+        return;
+     }
+    load_url(m_default_url);
 }
 
 void WebViewPanel::sys_color_changed()
@@ -481,7 +507,7 @@ void WebViewPanel::sys_color_changed()
 }
 
 ConnectWebViewPanel::ConnectWebViewPanel(wxWindow* parent)
-    : WebViewPanel(parent, GUI::from_u8(Utils::ServiceConfig::instance().connect_url()), { "_prusaSlicer" }, "connect_loading")
+    : WebViewPanel(parent, GUI::from_u8(Utils::ServiceConfig::instance().connect_url()), { "_prusaSlicer" }, "connect_loading_reload", "connect_connection_failed")
 {  
     // m_browser->RegisterHandler(wxSharedPtr<wxWebViewHandler>(new WebViewHandler("https")));
 
@@ -702,6 +728,11 @@ void ConnectWebViewPanel::on_connect_action_error(const std::string &message_dat
 
 }
 
+void ConnectWebViewPanel::on_reload_event(const std::string& message_data)
+{
+    load_default_url();
+}
+
 void ConnectWebViewPanel::logout()
 {
     wxString script = L"window._prusaConnect_v1.logout()";
@@ -747,7 +778,7 @@ void ConnectWebViewPanel::on_connect_action_print(const std::string& message_dat
 }
 
 PrinterWebViewPanel::PrinterWebViewPanel(wxWindow* parent, const wxString& default_url)
-    : WebViewPanel(parent, default_url, {})
+    : WebViewPanel(parent, default_url, {"ExternalApp"}, "other_loading_reload", "other_connection_failed")
 {
     if (!m_browser)
         return;
@@ -757,6 +788,7 @@ PrinterWebViewPanel::PrinterWebViewPanel(wxWindow* parent, const wxString& defau
     m_browser->EnableAccessToDevTools();
     m_browser->EnableContextMenu();
 #endif
+
 }
 
 void PrinterWebViewPanel::on_loaded(wxWebViewEvent& evt)
@@ -768,6 +800,11 @@ void PrinterWebViewPanel::on_loaded(wxWebViewEvent& evt)
     } else if (!m_usr.empty() && !m_psk.empty()) {
         send_credentials();
     }
+}
+void PrinterWebViewPanel::on_script_message(wxWebViewEvent& evt)
+{
+    // Only reload messages are being sent now.
+    load_default_url();
 }
 
 void PrinterWebViewPanel::send_api_key()
@@ -817,7 +854,7 @@ void PrinterWebViewPanel::sys_color_changed()
 
 
 PrintablesWebViewPanel::PrintablesWebViewPanel(wxWindow* parent)
-    : WebViewPanel(parent, GUI::from_u8(Utils::ServiceConfig::instance().printables_url()), { "ExternalApp" }, "loading")
+    : WebViewPanel(parent, GUI::from_u8(Utils::ServiceConfig::instance().printables_url()), { "ExternalApp" }, "other_loading_reload", "other_connection_failed")
 {  
     m_browser->Bind(wxEVT_WEBVIEW_LOADED, &PrintablesWebViewPanel::on_loaded, this); 
     m_events["accessTokenExpired"] = std::bind(&PrintablesWebViewPanel::on_printables_event_access_token_expired, this, std::placeholders::_1);
@@ -899,7 +936,7 @@ void PrintablesWebViewPanel::on_navigation_request(wxWebViewEvent &evt)
 
 void PrintablesWebViewPanel::load_default_url()
 {
-    std::string actual_default_url = get_url_lang_theme(Utils::ServiceConfig::instance().printables_url());
+    std::string actual_default_url = get_url_lang_theme(Utils::ServiceConfig::instance().printables_url() + "/homepage");
     const std::string access_token = wxGetApp().plater()->get_user_account()->get_access_token();
     
     // in case of opening printables logged out - delete cookies and localstorage to get rid of last login

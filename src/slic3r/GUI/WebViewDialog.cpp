@@ -618,6 +618,15 @@ void PrinterPickWebViewDialog::on_dpi_changed(const wxRect &suggested_rect)
     Refresh();
 }
 
+void PrinterPickWebViewDialog::on_reload_event(const std::string& message_data)
+{
+    if (!m_browser) {
+        return;
+    }
+    m_browser->LoadURL(m_default_url);
+}
+
+
 LoginWebViewDialog::LoginWebViewDialog(wxWindow *parent, std::string &ret_val, const wxString& url, wxEvtHandler* evt_handler)
     : WebViewDialog(parent, url, _L("Log in dialog"), wxSize(50 * wxGetApp().em_unit(), 80 * wxGetApp().em_unit()), {})
     , m_ret_val(ret_val)

@@ -45,7 +45,6 @@ wxWebView* WebView::CreateWebView(wxWindow * parent, const wxString& url, const 
 #endif
         for (const std::string& handler : message_handlers) {
             if (!webView->AddScriptMessageHandler(Slic3r::GUI::into_u8(handler))) {
-                // TODO: dialog to user !!!
                 //wxLogError("Could not add script message handler");
                 BOOST_LOG_TRIVIAL(error) << __FUNCTION__ << "Could not add script message handler " << handler;
             }

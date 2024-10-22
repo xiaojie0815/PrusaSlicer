@@ -286,10 +286,8 @@ void load_request(wxWebView* web_view, const std::string& address, const std::st
     if (FAILED(wv2_2->NavigateWithWebResourceRequest(webResourceRequest.get())))
     {
         return;
-    }
-   
+    } 
 }
-
 
 } // namespace Slic3r::GUI
 #endif // WIN32

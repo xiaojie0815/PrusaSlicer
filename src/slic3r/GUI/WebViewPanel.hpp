@@ -23,7 +23,7 @@ namespace Slic3r::GUI {
 class WebViewPanel : public wxPanel
 {
 public:
-    WebViewPanel(wxWindow *parent, const wxString& default_url, const std::vector<std::string>& message_handler_names, const std::string& loading_html = "loading");
+    WebViewPanel(wxWindow *parent, const wxString& default_url, const std::vector<std::string>& message_handler_names, const std::string& loading_html, const std::string& error_html);
     virtual ~WebViewPanel();
 
     void load_url(const wxString& url);
@@ -58,6 +58,8 @@ public:
 
     wxString get_default_url() const { return m_default_url; }
     void set_default_url(const wxString& url) { m_default_url = url; }
+    virtual void do_reload();
+    virtual void load_default_url();
 
     virtual void sys_color_changed();
 
@@ -98,6 +100,7 @@ protected:
     bool m_reached_default_url {false};
 
     std::string m_loading_html;
+    std::string m_error_html;
     //DECLARE_EVENT_TABLE()
 
     bool m_load_error_page { false };
@@ -124,6 +127,7 @@ protected:
     void run_script_bridge(const wxString& script) override {run_script(script); }
     void on_page_will_load() override;
     void on_connect_action_error(const std::string &message_data) override;
+    void on_reload_event(const std::string& message_data) override;
 private:
     static wxString get_login_script(bool refresh);
     static wxString get_logout_script();
@@ -137,6 +141,7 @@ public:
     PrinterWebViewPanel(wxWindow* parent, const wxString& default_url);
     
     void on_loaded(wxWebViewEvent& evt);
+    void on_script_message(wxWebViewEvent& evt) override;
 
     void send_api_key();
     void send_credentials();
@@ -184,7 +189,7 @@ private:
      void on_printables_event_print_gcode(const std::string& message_data);
      void on_reload_event(const std::string& message_data);
 
-     void load_default_url();
+     void load_default_url() override;
      std::string get_url_lang_theme(const wxString& url);
 
      std::map<std::string, std::function<void(const std::string&)>> m_events;
