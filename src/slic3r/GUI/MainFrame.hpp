@@ -224,7 +224,8 @@ public:
     void    on_account_will_refresh();
     void    on_account_did_refresh(const std::string& token);
     void    on_account_logout();
-    void    show_connect_tab(const wxString &url);
+    void    show_connect_tab(const wxString& url);
+    void    show_printables_tab(const std::string& url);
 
     void    add_printables_webview_tab();
     void    remove_printables_webview_tab();

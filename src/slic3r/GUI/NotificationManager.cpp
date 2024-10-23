@@ -936,9 +936,8 @@ void NotificationManager::ProgressBarNotification::render_text(const float win_s
 			render_cancel_button(win_size_x, win_size_y, win_pos_x, win_pos_y);
 		render_bar(win_size_x, win_size_y, win_pos_x, win_pos_y);
 	}
-
-	
 }
+
 void NotificationManager::ProgressBarNotification::render_bar(const float win_size_x, const float win_size_y, const float win_pos_x, const float win_pos_y)
 {
 	ImVec4 orange_color			= ImVec4(.99f, .313f, .0f, 1.0f);
@@ -1072,6 +1071,51 @@ void NotificationManager::ProgressBarWithCancelNotification::render_bar(const fl
 	ImGui::SetCursorPosY(win_size_y / 2 + win_size_y / 6 - (m_multiline ? 0 : m_line_height / 4));
 	ImGuiPureWrap::text(text.c_str());
 }
+
+//------URLDownloadWithPrintablesLinkNotification----------------
+void NotificationManager::URLDownloadWithPrintablesLinkNotification::init()
+{
+	PopNotification::init();
+	//m_lines_count++;
+	if (m_endlines.empty()) {
+		m_endlines.push_back(0);
+	}
+
+    m_lines_count = 3;
+    m_multiline = true;
+	while (m_endlines.size() < 3)
+		m_endlines.push_back(m_endlines.back());
+	
+	if(m_state == EState::Shown)
+		m_state = EState::NotFading;
+}
+bool NotificationManager::URLDownloadWithPrintablesLinkNotification::on_text_click()
+{
+    m_hypertext_callback_override(m_hypertext);
+    return false;
+}
+void NotificationManager::URLDownloadWithPrintablesLinkNotification::render_text(const float win_size_x, const float win_size_y, const float win_pos_x, const float win_pos_y)
+{
+    assert(m_multiline);
+    assert(m_text1.size() >= m_endlines[0]  || m_text1.size() >= m_endlines[1]);
+    if(m_endlines[0] > m_text1.size() || m_endlines[1] > m_text1.size())
+    	return;
+    // 1 lines text (what doesn't fit, wont show), 1 line hypertext, 1 line bar
+    ImGui::SetCursorPosX(m_left_indentation);
+    ImGui::SetCursorPosY(m_line_height / 4);
+    ImGuiPureWrap::text(m_text1.substr(0, m_endlines[0]).c_str());
+       
+    ImGui::SetCursorPosX(m_left_indentation);
+    ImGui::SetCursorPosY(m_line_height + m_line_height / 4);
+    std::string line = _u8L("Open Printables project page");
+    //ImGuiPureWrap::text(line.c_str());
+       render_hypertext(m_left_indentation, m_line_height + m_line_height / 4, line);
+    
+    if (m_has_cancel_button)
+    	render_cancel_button(win_size_x, win_size_y, win_pos_x, win_pos_y);
+    render_bar(win_size_x, win_size_y, win_pos_x, win_pos_y);
+}
+
 
 //------URLDownloadNotification----------------
 
@@ -2493,6 +2537,19 @@ void NotificationManager::push_download_URL_progress_notification(size_t id, con
 	// push new one
 	NotificationData data{ NotificationType::URLDownload, NotificationLevel::ProgressBarNotificationLevel, 5, _u8L("Download") + ": " + text };
 	push_notification_data(std::make_unique<NotificationManager::URLDownloadNotification>(data, m_id_provider, m_evt_handler, id, user_action_callback), 0);
+}
+
+void NotificationManager::push_download_URL_progress_notification_with_printables_link(size_t id, const std::string& text, const std::string& url, std::function<bool(DownloaderUserAction, int)> user_action_callback, std::function<void(std::string)> hypertext_callback)
+{
+	// If already exists
+	for (std::unique_ptr<PopNotification>& notification : m_pop_notifications) {
+		if (notification->get_type() == NotificationType::URLDownload && dynamic_cast<URLDownloadNotification*>(notification.get())->get_download_id() == id) {
+			return;
+		}
+	}
+	// push new one
+	NotificationData data{ NotificationType::URLDownload, NotificationLevel::ProgressBarNotificationLevel, 30, _u8L("Download") + ": " + text, url };
+	push_notification_data(std::make_unique<NotificationManager::URLDownloadWithPrintablesLinkNotification>(data, m_id_provider, m_evt_handler, id, user_action_callback, hypertext_callback), 0);
 }
 
 void NotificationManager::set_download_URL_progress(size_t id, float percentage)

@@ -4112,13 +4112,46 @@ void GUI_App::show_printer_webview_tab()
     mainframe->show_printer_webview_tab(preset_bundle->physical_printers.get_selected_printer_config());
 }
 
-void GUI_App::printables_request(const std::string& url)
+
+void GUI_App::printables_download_request(const std::string& download_url, const std::string& model_url)
+{
+    //this->mainframe->select_tab(size_t(0));
+
+    //lets always init so if the download dest folder was changed, new dest is used 
+    boost::filesystem::path dest_folder(app_config->get("url_downloader_dest"));
+    if (dest_folder.empty() || !boost::filesystem::is_directory(dest_folder)) {
+        std::string msg = _u8L("Could not start URL download. Destination folder is not set. Please choose destination folder in Configuration Wizard.");
+        BOOST_LOG_TRIVIAL(error) << msg;
+        show_error(nullptr, msg);
+        return;
+    }
+    m_downloader->init(dest_folder);
+    m_downloader->start_download_printables(download_url, false, model_url, this);
+}
+void GUI_App::printables_slice_request(const std::string& download_url, const std::string& model_url)
 {
     this->mainframe->select_tab(size_t(0));
-    start_download(url);
+    
+    //lets always init so if the download dest folder was changed, new dest is used 
+    boost::filesystem::path dest_folder(app_config->get("url_downloader_dest"));
+    if (dest_folder.empty() || !boost::filesystem::is_directory(dest_folder)) {
+        std::string msg = _u8L("Could not start URL download. Destination folder is not set. Please choose destination folder in Configuration Wizard.");
+        BOOST_LOG_TRIVIAL(error) << msg;
+        show_error(nullptr, msg);
+        return;
+    }
+    m_downloader->init(dest_folder);
+    m_downloader->start_download_printables(download_url, true, model_url, this);
+}
+void GUI_App::printables_print_request(const std::string& download_url, const std::string& model_url)
+{
+
 }
 
-
+void GUI_App::open_link_in_printables(const std::string& url)
+{
+    mainframe->show_printables_tab(url);
+}
 
 bool LogGui::ignorred_message(const wxString& msg)
 {    

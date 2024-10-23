@@ -875,7 +875,15 @@ void MainFrame::show_connect_tab(const wxString& url)
     m_connect_webview->set_load_default_url_on_next_error(true);
     m_connect_webview->load_url(url);
 }
-
+void MainFrame::show_printables_tab(const std::string& url)
+{
+     if (!m_printables_webview_added) {
+        return;
+    }
+    m_tabpanel->SetSelection(m_tabpanel->FindPage(m_printables_webview));
+    m_printables_webview->set_load_default_url_on_next_error(true);
+    m_printables_webview->load_url_from_outside(url);
+}
 void MainFrame::add_printables_webview_tab()
 {
     if (m_printables_webview_added) {
@@ -886,8 +894,7 @@ void MainFrame::add_printables_webview_tab()
     wxWindow* page = m_printables_webview;
     const wxString text(L"Printables");
     const std::string bmp_name = "";
-    bool bSelect = false;
-    m_tabpanel->InsertNewPage(n, page, text, bmp_name, bSelect);
+    m_tabpanel->InsertNewPage(n, page, text, bmp_name, false);
     m_printables_webview->load_default_url_delayed();
     m_printables_webview_added = true;
 }

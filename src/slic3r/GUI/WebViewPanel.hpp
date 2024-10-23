@@ -180,20 +180,36 @@ public:
     void sys_color_changed() override;
 
     void logout();
-    void login(const std::string access_token);
-    void send_refreshed_token(const std::string access_token);
+    void login(const std::string& access_token);
+    void send_refreshed_token(const std::string& access_token);
     void send_will_refresh();
+    void load_url_from_outside(const std::string& url);
 private:
      void handle_message(const std::string& message);
      void on_printables_event_access_token_expired(const std::string& message_data);
-     void on_printables_event_print_gcode(const std::string& message_data);
      void on_reload_event(const std::string& message_data);
-
+     void on_printables_event_print_gcode(const std::string& message_data);
+     void on_printables_event_download_file(const std::string& message_data);
+     void on_printables_event_slice_file(const std::string& message_data);
+     void on_printables_event_required_login(const std::string& message_data);
      void load_default_url() override;
      std::string get_url_lang_theme(const wxString& url);
+     void show_download_notification(const std::string& filename);
 
      std::map<std::string, std::function<void(const std::string&)>> m_events;
 
+/*
+Eventy Slicer -> Printables
+accessTokenWillChange
+WebUI zavola event predtim nez udela refresh access tokenu proti Prusa Accountu na Printables to bude znamenat pozastaveni requestu Mobile app muze chtit udelat refresh i bez explicitni predchozi printables zadosti skrz accessTokenExpired event
+accessTokenChange
+window postMessage JSON stringify { event 'accessTokenChange' token 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVC' }
+volani po uspesne rotaci tokenu
+historyBack
+navigace zpet triggerovana z mobilni aplikace
+historyForward
+navigace vpred triggerovana z mobilni aplikace
+*/
 };
 } // namespace Slic3r::GUI
 

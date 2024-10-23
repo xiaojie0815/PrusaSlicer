@@ -190,8 +190,7 @@ void WebViewPanel::on_show(wxShowEvent& evt)
     m_shown = evt.IsShown();
     if (evt.IsShown() && m_load_default_url) {
         m_load_default_url = false;
-        //load_url(m_default_url);
-        load_error_page();
+        load_url(m_default_url);
     }
 }
 
@@ -239,6 +238,8 @@ void WebViewPanel::on_back_button(wxCommandEvent& WXUNUSED(evt))
 {
     if (!m_browser)
         return;
+    if (!m_browser->CanGoBack())
+        return;
     m_browser->GoBack();
 }
 
@@ -248,6 +249,8 @@ void WebViewPanel::on_back_button(wxCommandEvent& WXUNUSED(evt))
 void WebViewPanel::on_forward_button(wxCommandEvent& WXUNUSED(evt))
 {
     if (!m_browser)
+        return;
+    if (!m_browser->CanGoForward())
         return;
     m_browser->GoForward();
 }
@@ -469,7 +472,7 @@ case type: \
         WX_ERROR_CASE(wxWEBVIEW_NAV_ERR_OTHER);
     }
 
-    BOOST_LOG_TRIVIAL(error) << this <<" WebViewPanel error: " << category;
+    BOOST_LOG_TRIVIAL(error) << this <<" WebViewPanel error: " << category << " url: " << evt.GetURL();
     load_error_page();
 #ifdef DEBUG_URL_PANEL
     m_info->ShowMessage(wxString("An error occurred loading ") + evt.GetURL() + "\n" +
@@ -857,9 +860,14 @@ PrintablesWebViewPanel::PrintablesWebViewPanel(wxWindow* parent)
     : WebViewPanel(parent, GUI::from_u8(Utils::ServiceConfig::instance().printables_url()), { "ExternalApp" }, "other_loading_reload", "other_connection_failed")
 {  
     m_browser->Bind(wxEVT_WEBVIEW_LOADED, &PrintablesWebViewPanel::on_loaded, this); 
+
     m_events["accessTokenExpired"] = std::bind(&PrintablesWebViewPanel::on_printables_event_access_token_expired, this, std::placeholders::_1);
-    m_events["printGcode"] = std::bind(&PrintablesWebViewPanel::on_printables_event_print_gcode, this, std::placeholders::_1);
     m_events["reloadHomePage"] = std::bind(&PrintablesWebViewPanel::on_reload_event, this, std::placeholders::_1);
+    m_events["printGcode"] = std::bind(&PrintablesWebViewPanel::on_printables_event_print_gcode, this, std::placeholders::_1);
+    m_events["downloadFile"] = std::bind(&PrintablesWebViewPanel::on_printables_event_download_file, this, std::placeholders::_1);
+    m_events["sliceFile"] = std::bind(&PrintablesWebViewPanel::on_printables_event_slice_file, this, std::placeholders::_1);
+    m_events["requiredLogin"] = std::bind(&PrintablesWebViewPanel::on_printables_event_required_login, this, std::placeholders::_1);
+
 }
 
 void PrintablesWebViewPanel::handle_message(const std::string& message)
@@ -888,50 +896,16 @@ void PrintablesWebViewPanel::handle_message(const std::string& message)
         m_events[event_string](message);
     }
 }
-void PrintablesWebViewPanel::on_printables_event_access_token_expired(const std::string& message_data)
-{
-    // accessTokenExpired
-    // Printables pozaduje refresh access tokenu, muze byt volano nekolikrat.Nechme na Mobilni aplikaci at zaridi to ze zareaguje jen jednou
-}
-void PrintablesWebViewPanel::on_printables_event_print_gcode(const std::string& message_data)
-{
-    // printGcode
-    // Uzivatel kliknul na tlacitko tisk u gcode. Dalsi posilane atributy jsou url, material, printer, nozzlediam
-}
-void PrintablesWebViewPanel::on_reload_event(const std::string& message_data)
-{
-    load_default_url();
-}
-/*
-Eventy Slicer -> Printables
-accessTokenWillChange
-WebUI zavola event predtim nez udela refresh access tokenu proti Prusa Accountu na Printables to bude znamenat pozastaveni requestu Mobile app muze chtit udelat refresh i bez explicitni predchozi printables zadosti skrz accessTokenExpired event
-accessTokenChange
-window postMessage JSON stringify { event 'accessTokenChange' token 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVC' }
-volani po uspesne rotaci tokenu
-historyBack
-navigace zpet triggerovana z mobilni aplikace
-historyForward
-navigace vpred triggerovana z mobilni aplikace
-*/
 
 void PrintablesWebViewPanel::on_navigation_request(wxWebViewEvent &evt)
 {
     const wxString url = evt.GetURL();
-    // download with url
-    if (url.StartsWith(L"prusaslicer")) {
-        evt.Veto();
-        wxGetApp().printables_request(into_u8(url));
-        return;
-    }
     if (url.StartsWith(m_default_url)) {
         m_reached_default_url = true;
     } else if (m_reached_default_url) {
         BOOST_LOG_TRIVIAL(info) << evt.GetURL() <<  " does not start with default url. Vetoing.";
         evt.Veto();
     }
-    
-  
 }
 
 void PrintablesWebViewPanel::load_default_url()
@@ -1055,7 +1029,7 @@ void PrintablesWebViewPanel::logout()
 #endif // 
     
 }
-void PrintablesWebViewPanel::login(const std::string access_token)
+void PrintablesWebViewPanel::login(const std::string& access_token)
 {
     if (!m_shown) {
         return;
@@ -1076,7 +1050,7 @@ void PrintablesWebViewPanel::login(const std::string access_token)
     
     run_script("window.location.reload();");
 }
-void PrintablesWebViewPanel::send_refreshed_token(const std::string access_token)
+void PrintablesWebViewPanel::send_refreshed_token(const std::string& access_token)
 {
     if (m_load_default_url) {
         return;
@@ -1097,6 +1071,11 @@ void PrintablesWebViewPanel::send_will_refresh()
     run_script(script);
 }
 
+void PrintablesWebViewPanel::load_url_from_outside(const std::string& url)
+{
+    load_url(from_u8(Utils::ServiceConfig::instance().printables_url() + url));
+}
+
 void PrintablesWebViewPanel::on_script_message(wxWebViewEvent& evt)
 {
     BOOST_LOG_TRIVIAL(error) << "received message from Printables: " << evt.GetString();
@@ -1109,6 +1088,159 @@ void PrintablesWebViewPanel::sys_color_changed()
         load_url(GUI::from_u8(get_url_lang_theme(m_browser->GetCurrentURL())));
     }
     WebViewPanel::sys_color_changed();
+}
+
+void PrintablesWebViewPanel::on_printables_event_access_token_expired(const std::string& message_data)
+{
+    // accessTokenExpired
+    // Printables pozaduje refresh access tokenu, muze byt volano nekolikrat.Nechme na Mobilni aplikaci at zaridi to ze zareaguje jen jednou
+
+    // We do no react on this event now - Our Acount managment should know when to renew our tokens.
+}
+
+void PrintablesWebViewPanel::on_reload_event(const std::string& message_data)
+{
+    // Event from our error / loading html pages
+    load_default_url();
+}
+void PrintablesWebViewPanel::on_printables_event_print_gcode(const std::string& message_data)
+{
+    BOOST_LOG_TRIVIAL(error) << __FUNCTION__<< " " << message_data;
+}
+void PrintablesWebViewPanel::on_printables_event_download_file(const std::string& message_data)
+{
+    BOOST_LOG_TRIVIAL(error) << __FUNCTION__ << " " << message_data;
+    // { "event": "downloadFile", "url": "https://media.printables.com/somesecure.stl", "modelUrl": "https://www.printables.com/model/123" }
+    std::string download_url;
+    std::string model_url;
+    try {
+        std::stringstream ss(message_data);
+        pt::ptree ptree;
+        pt::read_json(ss, ptree);
+        if (const auto url = ptree.get_optional<std::string>("url"); url) {
+            download_url = *url;
+        }
+        if (const auto url = ptree.get_optional<std::string>("modelUrl"); url) {
+            model_url = *url;
+        }
+    } catch (const std::exception &e) {
+        BOOST_LOG_TRIVIAL(error) << "Could not parse printables message. " << e.what();
+        return;
+    }  
+    assert(!download_url.empty() && !model_url.empty());
+    boost::filesystem::path url_path(download_url);
+    show_download_notification(url_path.filename().string());
+    wxGetApp().printables_download_request(download_url, model_url);
+}
+void PrintablesWebViewPanel::on_printables_event_slice_file(const std::string& message_data)
+{
+    BOOST_LOG_TRIVIAL(error) << __FUNCTION__ << " " << message_data;
+    // { "event": "sliceFile", "url": "https://media.printables.com/somesecure.zip", "modelUrl": "https://www.printables.com/model/123" }
+    std::string download_url;
+    std::string model_url;
+    try {
+        std::stringstream ss(message_data);
+        pt::ptree ptree;
+        pt::read_json(ss, ptree);
+        if (const auto url = ptree.get_optional<std::string>("url"); url) {
+            download_url = *url;
+        }
+        if (const auto url = ptree.get_optional<std::string>("modelUrl"); url) {
+            model_url = *url;
+        }
+    } catch (const std::exception &e) {
+        BOOST_LOG_TRIVIAL(error) << "Could not parse printables message. " << e.what();
+        return;
+    }  
+    assert(!download_url.empty() && !model_url.empty());
+    wxGetApp().printables_slice_request(download_url, model_url);
+}
+
+void PrintablesWebViewPanel::on_printables_event_required_login(const std::string& message_data)
+{
+    BOOST_LOG_TRIVIAL(error) << __FUNCTION__ << " " << message_data;
+}
+
+void PrintablesWebViewPanel::show_download_notification(const std::string& filename)
+{
+    std::string message = GUI::format(_u8L("Downloading %1%"),filename);
+    std::string script = GUI::format(R"(
+    // Inject custom CSS
+    var style = document.createElement('style');
+    style.innerHTML = `
+        body {
+            /* Add your body styles here */
+        }
+        .notification-popup {
+            position: fixed;
+            right: 10px;
+            bottom: 10px;
+            background-color: #333333; /* Dark background */
+            padding: 10px;
+            border-radius: 6px; /* Slightly rounded corners */
+            color: #ffffff; /* White text */
+            font-family: Arial, sans-serif;
+            font-size: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.3); /* Add a subtle shadow */
+            min-width: 350px; /* Ensure it has a minimum width */
+            min-height: 50px;
+        }
+
+        .notification-popup a:hover {
+            text-decoration: underline; /* Underline on hover */
+        }
+        .notification-popup .close-button {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #ffa500; /* Orange border for the button */
+            border-radius: 4px;
+            text-align: center;
+            font-size: 16px;
+            line-height: 16px;
+            cursor: pointer;
+            padding-top: 1px; 
+        }
+        .notification-popup .close-button:hover {
+            background-color: #ffa500; /* Orange background on hover */
+            color: #333333; /* Dark color for the "X" on hover */
+        }
+        .notification-popup .close-button:before {
+            content: 'X';
+            color: #ffa500; /* Orange "X" */
+            font-weight: bold;
+        }
+    `;
+    document.head.appendChild(style);
+
+    // Define the notification functions
+    function appendNotification() {
+        const body = document.getElementsByTagName('body')[0];
+        const notifDiv = document.createElement('div');
+        notifDiv.innerHTML = `
+                    <div>
+                    <b>PrusaSlicer: </b>%1%
+                    </div>
+                `;
+        notifDiv.className = 'notification-popup';
+        notifDiv.id = 'slicer-notification';
+        body.appendChild(notifDiv);
+
+        window.setTimeout(removeNotification, 5000);
+    }
+
+    function removeNotification() {
+        const notifDiv = document.getElementById('slicer-notification');
+        if (notifDiv)
+            notifDiv.remove();
+    }
+
+    appendNotification();
+)", message);
+    run_script(script);
 }
 
 } // namespace slic3r::GUI

@@ -639,7 +639,7 @@ void LoginWebViewDialog::on_navigation_request(wxWebViewEvent &evt)
 {
     wxString url = evt.GetURL();
     if (url.starts_with(L"prusaslicer")) {
-        delete_cookies(m_browser, "https://account.prusa3d.com");
+        delete_cookies(m_browser, Utils::ServiceConfig::instance().account_url());
         delete_cookies(m_browser, "https://accounts.google.com");
         delete_cookies(m_browser, "https://appleid.apple.com");
         delete_cookies(m_browser, "https://facebook.com");
