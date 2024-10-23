@@ -4962,6 +4962,10 @@ bool Plater::load_files(const wxArrayString& filenames, bool delete_after_load/*
         return false;
 
     // searches for project files
+
+    bool load_just_one_file = paths.size() == 1;
+    bool load_config = true;
+
     for (std::vector<fs::path>::const_reverse_iterator it = paths.rbegin(); it != paths.rend(); ++it) {
         std::string filename = (*it).filename().string();
 
@@ -4970,7 +4974,7 @@ bool Plater::load_files(const wxArrayString& filenames, bool delete_after_load/*
             BOOST_LOG_TRIVIAL(warning) << "File with .zip extension is 3mf project, opening as it would have .3mf extension: " << *it;
             handle_as_project = true;
         }
-        if (handle_as_project) {
+        if (handle_as_project && load_just_one_file) {
             ProjectDropDialog::LoadType load_type = ProjectDropDialog::LoadType::Unknown;
             {
                 if ((boost::algorithm::iends_with(filename, ".3mf") && !is_project_3mf(it->string())) ||
@@ -5022,9 +5026,31 @@ bool Plater::load_files(const wxArrayString& filenames, bool delete_after_load/*
 
             return true;
         } else if (boost::algorithm::iends_with(filename, ".zip")) {
+            if (!load_just_one_file) {
+                WarningDialog dlg(static_cast<wxWindow*>(this), 
+                                  format_wxstr(_L("You have several files for loading and \"%1%\" is one of them.\n"
+                                                  "Please note that only one .zip file can be loaded at a time.\n"
+                                                  "In this case we can load just \"%1%\".\n\n"
+                                                  "Would you like to continue anyway?"), filename),
+                    format_wxstr("%1% - %2%", SLIC3R_APP_NAME, _L("Drag and drop several files")), wxYES_NO);
+                if (dlg.ShowModal() == wxID_NO)
+                    return false;
+            }
             return preview_zip_archive(*it);
-            
         }
+        else if (handle_as_project)
+            load_config = false;
+    }
+
+    if (!load_config) {
+        // Means that we DnDing several files and 3mf file(s) is/are among selection
+        // And as a result we need to upload just a geometry from all files
+        WarningDialog dlg(static_cast<wxWindow*>(this), _L("You have several files for loading.\n"
+                                                           "Please note that only geometry will be uploaded from all 3mf files.\n\n"
+                                                           "Would you like to continue anyway?"),
+                          format_wxstr("%1% - %2%", SLIC3R_APP_NAME,  _L("Drag and drop several files")), wxYES_NO);
+        if (dlg.ShowModal() == wxID_NO)
+            return false;
     }
 
     // other files
@@ -5045,7 +5071,7 @@ bool Plater::load_files(const wxArrayString& filenames, bool delete_after_load/*
         }
     }
     Plater::TakeSnapshot snapshot(this, snapshot_label);
-    load_files(paths);
+    load_files(paths, true, load_config);
 
     return true;
 }
