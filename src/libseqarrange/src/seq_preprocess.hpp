@@ -193,12 +193,15 @@ void prepare_UnreachableZonePolygons(const SolverConfiguration                  
 				     const std::vector<std::vector<Slic3r::Polygon> > &extruder_box_level_polygons,
 				     std::vector<Slic3r::Polygon>                     &unreachable_polygons);    
 
-bool check_PolygonSize(const SolverConfiguration &solver_configuration, const Slic3r::Polygon &polygon);
-bool check_PolygonSize(const SolverConfiguration &solver_configuration, coord_t scale_factor, const Slic3r::Polygon &polygon);    
-        
-void simplify_ConvexUnreachablePolygons(const std::vector<std::vector<Slic3r::Polygon> > &unreachable_convex_polygons,
-					std::vector<Slic3r::Polygon>                     &simplified_unreachable_polygons);
+bool check_PolygonSizeFitToPlate(const SolverConfiguration &solver_configuration, const Slic3r::Polygon &polygon);
+bool check_PolygonSizeFitToPlate(const SolverConfiguration &solver_configuration, coord_t scale_factor, const Slic3r::Polygon &polygon);    
 
+    
+/*----------------------------------------------------------------*/
+
+bool check_PolygonConsumation(const std::vector<Slic3r::Polygon> &polygons, const std::vector<Slic3r::Polygon> &consumer_polygons);    
+std::vector<std::vector<Slic3r::Polygon> > simplify_UnreachableZonePolygons(const std::vector<std::vector<Slic3r::Polygon> > &unreachable_polygons);
+    
 void glue_LowObjects(std::vector<SolvableObject> &solvable_ojects);
 
 
@@ -206,6 +209,7 @@ void glue_LowObjects(std::vector<SolvableObject> &solvable_ojects);
 
 double calc_PolygonArea(const Slic3r::Polygon &polygon);
 
+double calc_PolygonUnreachableZoneArea(const std::vector<Slic3r::Polygon> &unreachable_polygons);    
 double calc_PolygonUnreachableZoneArea(const Slic3r::Polygon              &polygon,
 				       const std::vector<Slic3r::Polygon> &unreachable_polygons);
 

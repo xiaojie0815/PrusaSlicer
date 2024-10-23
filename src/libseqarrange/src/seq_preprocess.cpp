@@ -135,10 +135,10 @@ const std::vector<Slic3r::Polygon> SEQ_UNREACHABLE_POLYGON_NOZZLE_LEVEL_MK4 =
 const std::vector<Slic3r::Polygon> SEQ_UNREACHABLE_POLYGON_EXTRUDER_LEVEL_MK4 =
 {
     {   /* fan - hand tailored */
-	{ -1000000, -21000000},	
+	{ -10000000, -21000000},	
 	{ 37000000, -21000000},
 	{ 37000000,  44000000},
-	{ -1000000,  44000000}
+	{ -10000000,  44000000}
 
 	/* fan - original from decimator
 	{  87952801,    3665480},	
@@ -148,14 +148,14 @@ const std::vector<Slic3r::Polygon> SEQ_UNREACHABLE_POLYGON_EXTRUDER_LEVEL_MK4 =
 	{ 107889619,    2905295},		
 	{ 102396166,   55454515},	
 	{ 101386126,   58737097},	
-	{  93053422,   62777197},	
-	{  87447788,   59999636},	
-	{  70782970,   28440457},	
+	{  93 053 422,   62777197},	
+	{  87 447 788,   59999636},	
+	{  70 782 970,   28440457},	
 
 	// nozzle
-	{ -29076068,  18872356},	
-	{ -29001876,  18872356},	
-	{ -29001876,  18952646},	
+	{ -29 076 068,  18 872 356},	
+	{ -29 001 876,  18 872 356},	
+	{ -29 001 876,  18 952 646},	
 	{ -29076068,  18952646},	
 
  */
@@ -956,6 +956,11 @@ std::vector<std::vector<Slic3r::Polygon> > simplify_UnreachableZonePolygons(cons
 		{
 		    if (check_PolygonConsumation(unreachable_polygons[i], unreachable_polygons[j]))
 		    {
+			#ifdef DEBUG
+			{
+			    printf("Consumed: %d vs %d\n", i, j);
+			}
+			#endif
 			consumed = true;
 			break;
 		    }
@@ -963,7 +968,7 @@ std::vector<std::vector<Slic3r::Polygon> > simplify_UnreachableZonePolygons(cons
 	    }
 	}
 	if (!consumed)
-	{
+	{	    
 	    simplified_unreachable_polygons.push_back(unreachable_polygons[i]);
 	}
     }
