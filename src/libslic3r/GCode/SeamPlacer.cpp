@@ -297,7 +297,7 @@ boost::variant<Point, Scarf::Scarf> finalize_seam_position(
         Scarf::Scarf scarf{};
         scarf.entire_loop = region->config().scarf_seam_entire_loop;
         scarf.max_segment_length = region->config().scarf_seam_max_segment_length;
-        scarf.start_height = region->config().scarf_seam_start_height.get_abs_value(1.0);
+        scarf.start_height = std::min(region->config().scarf_seam_start_height.get_abs_value(1.0), 1.0);
 
         const double offset{scarf.entire_loop ? 0.0 : region->config().scarf_seam_length.value};
         const std::optional<Geometry::PointOnLine> outter_scarf_start_point{Geometry::offset_along_lines(

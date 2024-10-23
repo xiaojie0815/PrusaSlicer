@@ -2699,6 +2699,7 @@ void PrintConfigDef::init_fff_params()
     def->tooltip = L("Start height of the scarf joint specified as fraction of the current layer height.");
     def->sidetext = L(" %");
     def->min = 0;
+    def->max = 100;
     def->mode = comAdvanced;
     def->set_default_value(new ConfigOptionPercent(0));
 
