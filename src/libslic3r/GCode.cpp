@@ -3057,7 +3057,19 @@ std::string GCodeGenerator::extrude_perimeters(
             perimeter.extrusion_entity, print_instance.object_layer_to_print_id, print_instance.instance_id
         );
 
-        if (!m_wipe.enabled() && perimeter.extrusion_entity->role().is_external_perimeter() && m_layer != nullptr && m_config.perimeters.value > 1) {
+        const bool is_extruding{
+            !perimeter.smooth_path.empty()
+            && !perimeter.smooth_path.front().path.empty()
+            && perimeter.smooth_path.front().path.front().e_fraction > 0
+        };
+
+        if (
+            !m_wipe.enabled()
+            && perimeter.extrusion_entity->role().is_external_perimeter()
+            && m_layer != nullptr
+            && m_config.perimeters.value > 1
+            && is_extruding
+        ) {
             // Only wipe inside if the wipe along the perimeter is disabled.
             // Make a little move inwards before leaving loop.
             if (std::optional<Point> pt = wipe_hide_seam(perimeter.smooth_path, perimeter.reversed, scale_(EXTRUDER_CONFIG(nozzle_diameter))); pt) {
