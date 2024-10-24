@@ -479,7 +479,7 @@ public: // draw function for debug
     static void draw(SVG &               svg,
                      const VoronoiGraph &graph,
                      const Lines &       lines,
-                     coord_t             width,
+                     const SampleConfig &config,
                      bool                pointer_caption = false);
     static void draw(SVG &                svg,
                      const VD::edge_type &edge,
@@ -490,7 +490,8 @@ public: // draw function for debug
                      const VoronoiGraph::Nodes &path,
                      coord_t                    width,
                      const char *               color,
-                     bool                       finish = false);
+                     bool                       finish = false,
+                     bool caption = false);
     static void draw(SVG &                       svg,
                      const VoronoiGraph::ExPath &path,
                      coord_t                     width);

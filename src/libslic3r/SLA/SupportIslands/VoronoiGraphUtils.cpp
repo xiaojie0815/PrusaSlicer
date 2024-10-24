@@ -1301,18 +1301,43 @@ double VoronoiGraphUtils::outline_angle(const VoronoiGraph::Node::Neighbor &neig
 void VoronoiGraphUtils::draw(SVG &               svg,
                              const VoronoiGraph &graph,
                              const Lines &       lines,
-                             coord_t             width,
+                             const SampleConfig &config,
                              bool                pointer_caption)
 {
-    LineUtils::draw(svg, lines, "black", 0., true);
+    coord_t width = config.head_radius / 10;
+    LineUtils::draw(svg, lines, "black", width, false);
 
     auto print_address = [&](const Point& p, const char* prefix, void * addr, const char* color){
         if (pointer_caption) {
             std::stringstream ss;
             ss << prefix << std::hex << reinterpret_cast<intptr_t>(addr);
             std::string s = ss.str();
-            svg.draw_text(p, s.c_str(), color);
+            svg.draw_text(p, s.c_str(), color, 6);
         }
+    };
+
+    std::vector<const char *> skeleton_colors{
+        "yellow", // thin (min+max belowe thin)
+        "yellowgreen", // on way to thin (max is above thin)
+        "limegreen", // between (inside histerezis)
+        "forestgreen", // on way to thick (min is belove thick)
+        "darkgreen" // thick (min+max above thick)
+    };
+    auto get_color = [&](const VoronoiGraph::Node::Neighbor &n) {
+        if (n.min_width() > config.max_width_for_center_support_line){
+            return skeleton_colors[4];
+        } else if (n.max_width() < config.min_width_for_outline_support){
+            return skeleton_colors[0];
+        } else if (n.min_width() < config.max_width_for_center_support_line &&
+                   n.max_width() > config.min_width_for_outline_support){
+            return skeleton_colors[2];
+        } else if (n.min_width() < config.min_width_for_outline_support){
+            return skeleton_colors[1];
+        } else if (n.max_width() > config.max_width_for_center_support_line) {
+            return skeleton_colors[3];
+        }
+        assert(false);
+        return "gray";        
     };
 
     for (const auto &[key, value] : graph.data) {
@@ -1328,10 +1353,13 @@ void VoronoiGraphUtils::draw(SVG &               svg,
                                                             Point(0., 2e6));
             print_address(p, "neighbor ptr ", (void *) &n, "gray");
             if (is_second) continue;
-            std::string width_str = "width min=" + std::to_string(n.min_width()) +
-                                    " max=" + std::to_string(n.max_width());
-            svg.draw_text(center + Point(-6e6, 0.), width_str.c_str(), "gray");
-            draw(svg, *n.edge, lines, "gray", width);
+            const char *color = get_color(n);
+            if (pointer_caption) {
+                std::string width_str = "width min=" + std::to_string(n.min_width()) +
+                                        " max=" + std::to_string(n.max_width());
+                svg.draw_text(center + Point(-6e6, 0.), width_str.c_str(), color, 6);
+            }
+            draw(svg, *n.edge, lines, color, width);
         }
     }
 }
@@ -1358,7 +1386,8 @@ void VoronoiGraphUtils::draw(SVG &                      svg,
                              const VoronoiGraph::Nodes &path,
                              coord_t                    width,
                              const char *               color,
-                             bool                       finish)
+                             bool                       finish,
+                            bool caption)
 {
     const VoronoiGraph::Node *prev_node = (finish) ? path.back() : nullptr;
     int                       index     = 0;
@@ -1372,9 +1401,10 @@ void VoronoiGraphUtils::draw(SVG &                      svg,
         Point from = to_point(prev_node->vertex);
         Point to   = to_point(node->vertex);
         svg.draw(Line(from, to), color, width);
-
-        svg.draw_text(from, std::to_string(index - 1).c_str(), color);
-        svg.draw_text(to, std::to_string(index).c_str(), color);
+        if (caption) {
+            svg.draw_text(from, std::to_string(index - 1).c_str(), color, 6);
+            svg.draw_text(to, std::to_string(index).c_str(), color, 6);
+        }
         prev_node = node;
     }
 }

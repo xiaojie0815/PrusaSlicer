@@ -124,9 +124,10 @@ SVG draw_island(const std::string &path, const ExPolygon &island, const ExPolygo
 }
 SVG draw_island_graph(const std::string &path, const ExPolygon &island, 
     const ExPolygon &simplified_island, const VoronoiGraph& skeleton,
-    const VoronoiGraph::ExPath& longest_path, const Lines& lines, coord_t width) {
+    const VoronoiGraph::ExPath& longest_path, const Lines& lines, const SampleConfig &config) {
     SVG svg = draw_island(path, island, simplified_island);
-    VoronoiGraphUtils::draw(svg, skeleton, lines, width);
+    VoronoiGraphUtils::draw(svg, skeleton, lines, config, true /*print Pointer address*/);
+    coord_t width = config.head_radius / 10;
     VoronoiGraphUtils::draw(svg, longest_path.nodes, width, "orange");
     return svg;
 }
@@ -176,7 +177,7 @@ SupportIslandPoints SampleIslandUtils::uniform_cover_island(
     longest_path = VoronoiGraphUtils::create_longest_path(start_node);
 
 #ifdef OPTION_TO_STORE_ISLAND // add voronoi diagram with longest path into image
-    if (!path.empty()) draw_island_graph(path, island, simplified_island, skeleton, longest_path, lines, config.head_radius / 10);
+    if (!path.empty()) draw_island_graph(path, island, simplified_island, skeleton, longest_path, lines, config);
 #endif // OPTION_TO_STORE_ISLAND
 
     SupportIslandPoints samples = sample_expath(longest_path, lines, config);
@@ -184,7 +185,7 @@ SupportIslandPoints SampleIslandUtils::uniform_cover_island(
 #ifdef OPTION_TO_STORE_ISLAND
     Points samples_before_align = to_points(samples);
     if (!path.empty()) {
-        SVG svg = draw_island_graph(path, island, simplified_island, skeleton, longest_path, lines, config.head_radius / 10);
+        SVG svg = draw_island_graph(path, island, simplified_island, skeleton, longest_path, lines, config);
         draw(svg, samples, config.head_radius);
     }
 #endif // OPTION_TO_STORE_ISLAND
@@ -193,13 +194,17 @@ SupportIslandPoints SampleIslandUtils::uniform_cover_island(
     SampleIslandUtils::align_samples(samples, island, config);
 #ifdef OPTION_TO_STORE_ISLAND
     if (!path.empty()) {
-        SVG svg = draw_island_graph(path, island, simplified_island, skeleton, longest_path, lines, config.head_radius / 10);
-        draw(svg, samples, config.head_radius);
+        SVG svg = draw_island(path, island, simplified_island);
+        coord_t width = config.head_radius / 5;
+        VoronoiGraphUtils::draw(svg, longest_path.nodes, width, "darkorange");
+        VoronoiGraphUtils::draw(svg, skeleton, lines, config, false /*print Pointer address*/);
+        
         Lines align_moves;
         align_moves.reserve(samples.size());
         for (size_t i = 0; i < samples.size(); ++i)
             align_moves.push_back(Line(samples[i]->point, samples_before_align[i]));
-        svg.draw(align_moves, "lightgray");
+        svg.draw(align_moves, "lightgray", width);
+        draw(svg, samples, config.head_radius);
     }
 #endif // OPTION_TO_STORE_ISLAND
     return samples;
@@ -1130,7 +1135,6 @@ SupportIslandPoints SampleIslandUtils::sample_expath(
             coord_t support_in = config.max_distance + already_supported;                                 
             center_starts.emplace_back(position->neighbor, support_in, start_path);
         } else {
-            assert(position.has_value());
             done.insert(start_node);
             coord_t support_in = config.minimal_distance_from_outline;
             center_starts.emplace_back(neighbor, support_in);
@@ -1263,15 +1267,14 @@ std::optional<VoronoiGraph::Position> SampleIslandUtils::sample_center(
     std::set<const VoronoiGraph::Node *> &done,
     SupportIslandPoints &                 results,
     const Lines &                         lines,
-    const SampleConfig &                  config)
+    const SampleConfig &                  config,
+    // sign that there was added point on start.path
+    // used to distiquish whether add support point on island edge
+    bool is_continous)
 {
     // Current place to sample
     CenterStart start(nullptr, {}, {});
     if (!pop_start(start, new_starts, done)) return {};
-
-    // sign that there was added point on start.path
-    // used to distiquish whether add support point on island edge
-    bool is_continous = false;
 
     // Loop over thin part of island which need to be sampled on the voronoi skeleton.
     while (!is_continous || start.neighbor->max_width() <= config.max_width_for_center_support_line) {
@@ -1489,16 +1492,16 @@ SampleIslandUtils::Field SampleIslandUtils::create_field(
     //   line index, vector<next line index + 2x shortening points>
     std::map<size_t, WideTinyChanges> wide_tiny_changes;
 
-    coord_t minimal_edge_length = std::max(config.max_distance / 2, 2*config.minimal_distance_from_outline);
-    coord_t half_max_distance = config.max_distance / 2;
-    // cut lines at place where neighbor has width = min_width_for_outline_support
-    // neighbor must be in direction from wide part to tiny part of island
-    auto add_wide_tiny_change =
-        [minimal_edge_length, half_max_distance, &wide_tiny_changes,
-        &lines, &tiny_starts, &tiny_done]
-    (const VoronoiGraph::Position &position, const VoronoiGraph::Node *source_node)->bool{
-        if (VoronoiGraphUtils::ends_in_distanace(position, minimal_edge_length))
-            return false; // no change only rich outline
+    // Prepare data for field outline,
+    // when field transit into tiny part of island
+    auto add_wide_tiny_change_only = [&wide_tiny_changes, &lines, &tiny_done]
+    (const VoronoiGraph::Position &position){            
+        Point p1, p2;
+        std::tie(p1, p2) = VoronoiGraphUtils::point_on_lines(position, lines);
+        const VoronoiGraph::Node::Neighbor *neighbor = position.neighbor;
+        const VD::edge_type *edge = neighbor->edge;
+        size_t               i1   = edge->cell()->source_index();
+        size_t               i2   = edge->twin()->cell()->source_index();
 
         // function to add sorted change from wide to tiny
         // stored uder line index or line shorten in point b
@@ -1513,13 +1516,6 @@ SampleIslandUtils::Field SampleIslandUtils::create_field(
             }
         };
 
-        Point p1, p2;
-        std::tie(p1, p2) = VoronoiGraphUtils::point_on_lines(position, lines);
-        const VoronoiGraph::Node::Neighbor *neighbor = position.neighbor;
-        const VD::edge_type *edge = neighbor->edge;
-        size_t               i1   = edge->cell()->source_index();
-        size_t               i2   = edge->twin()->cell()->source_index();
-
         const Line &l1 = lines[i1];
         if (VoronoiGraphUtils::is_opposit_direction(edge, l1)) {
             // line1 is shorten on side line1.a --> line2 is shorten on side line2.b
@@ -1528,8 +1524,22 @@ SampleIslandUtils::Field SampleIslandUtils::create_field(
             // line1 is shorten on side line1.b
             add(p1, p2, i1, i2);
         }
-        coord_t support_in = neighbor->length() * position.ratio + half_max_distance;
-        CenterStart tiny_start(neighbor, support_in, {source_node});
+    };
+    
+    coord_t minimal_edge_length = std::max(config.max_distance / 2, 2*config.minimal_distance_from_outline);
+    coord_t half_max_distance = config.max_distance / 2;
+    // cut lines at place where neighbor has width = min_width_for_outline_support
+    // neighbor must be in direction from wide part to tiny part of island
+    auto add_wide_tiny_change = [minimal_edge_length, half_max_distance,
+        add_wide_tiny_change_only, &tiny_starts, &tiny_done]
+    (const VoronoiGraph::Position &position, const VoronoiGraph::Node *source_node)->bool{
+        if (VoronoiGraphUtils::ends_in_distanace(position, minimal_edge_length))
+            return false; // no change only rich outline
+
+        add_wide_tiny_change_only(position);
+        
+        coord_t support_in = position.neighbor->length() * position.ratio + half_max_distance;
+        CenterStart tiny_start(position.neighbor, support_in, {source_node});
         tiny_starts.push_back(tiny_start);
         tiny_done.insert(source_node);
         return true;
@@ -1543,6 +1553,7 @@ SampleIslandUtils::Field SampleIslandUtils::create_field(
 
     std::set<const VoronoiGraph::Node*> done;
     done.insert(wide_tiny_neighbor->node);
+
     //                                    prev node         ,           node
     using ProcessItem = std::pair<const VoronoiGraph::Node *, const VoronoiGraph::Node *>;
     // initial proccess item from tiny part to wide part of island
@@ -1575,7 +1586,18 @@ SampleIslandUtils::Field SampleIslandUtils::create_field(
                     if(add_wide_tiny_change(position, node))
                         continue;
                 }
-                if (done.find(neighbor.node) != done.end()) continue; // loop back
+                if (done.find(neighbor.node) != done.end()) continue; // loop back into field
+
+                // Detection that wide part do not continue over already sampled tiny part
+                // Caused by histereze of wide condition.
+                if (auto it = std::find_if(tiny_starts.begin(), tiny_starts.end(), 
+                    [twin=VoronoiGraphUtils::get_twin(neighbor)](const SampleIslandUtils::CenterStart& start)->bool{ 
+                        return twin == start.neighbor; });
+                    it != tiny_starts.end()) {
+                    add_wide_tiny_change_only(VoronoiGraph::Position(&neighbor, 1.));
+                    tiny_starts.erase(it);
+                    continue;
+                }
                 if (next_node == nullptr) { 
                     next_node = neighbor.node;
                 } else {
@@ -1993,10 +2015,10 @@ void SampleIslandUtils::draw(SVG &        svg,
 
 void SampleIslandUtils::draw(SVG &                      svg,
                              const SupportIslandPoints &supportIslandPoints,
-                             double                     size,
-                             const char *               color,
+                             coord_t                     radius,
                              bool                       write_type)
 {
+    const char *color = nullptr;
     for (const auto &p : supportIslandPoints) {
         switch (p->type) {
         case SupportIslandPoint::Type::center_line1:
@@ -2016,11 +2038,11 @@ void SampleIslandUtils::draw(SVG &                      svg,
         case SupportIslandPoint::Type::two_points:
         default: color = "black";
         }
-        svg.draw(p->point, color, size);
+        svg.draw(p->point, color, radius);
         if (write_type && p->type != SupportIslandPoint::Type::undefined) {
             auto type_name = SupportIslandPoint::to_string(p->type);
-            Point start     = p->point + Point(size, 0.);
-            svg.draw_text(start, std::string(type_name).c_str(), color);
+            Point start = p->point + Point(radius, 0);
+            svg.draw_text(start, std::string(type_name).c_str(), color, 8);
         }
     }
 }

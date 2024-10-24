@@ -267,13 +267,16 @@ public:
     /// <param name="results">Result of sampling</param>
     /// <param name="lines">Source line for VD. To decide position of change from tiny to wide part</param>
     /// <param name="config">Parameters for sampling</param>
+    /// <param name="is_continous">Already place sample on path</param>
     /// <returns>Wide neighbor, start of field when exists</returns>
     static std::optional<VoronoiGraph::Position> sample_center(
         CenterStarts &                        new_starts,
         std::set<const VoronoiGraph::Node *> &done,
         SupportIslandPoints &                 results,
         const Lines &                         lines,
-        const SampleConfig &                  config);
+        const SampleConfig &                  config,
+        bool is_continous = false
+    );
 
 private:
     /// <summary>
@@ -390,8 +393,7 @@ public :
 
     static void draw(SVG &                      svg,
                      const SupportIslandPoints &supportIslandPoints,
-                     double      size,
-                     const char *color = "lightgreen",
+                     coord_t radius,
                      bool write_type    = true);
 };
 

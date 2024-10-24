@@ -51,6 +51,13 @@ struct SupportPointGeneratorConfig{
 
     // Configuration for sampling island
     SampleConfig island_configuration = SampleConfigFactory::create(head_diameter);
+
+    // To be able support same 2d area multipletimes,
+    // It is neccessary to remove support point form near KDTree structure
+    
+    // Must be greater than surface texture and lower than self supporting area
+    // May be use maximal island distance
+    float removing_delta = scale_(5.);
 };
 
 struct LayerPart; // forward decl.

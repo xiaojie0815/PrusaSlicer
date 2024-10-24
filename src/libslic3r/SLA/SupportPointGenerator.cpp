@@ -60,6 +60,8 @@ public:
                         return shape.contains(p);
                     });
             });
+        if (it == indices.end())
+            return; // no point to remove
         indices.erase(it, indices.end());
         m_tree.clear();
         m_tree.build(indices); // consume indices
@@ -235,8 +237,7 @@ void support_part_overhangs(
         Point dp = support_point.position_on_layer - p;
         if (std::abs(dp.x()) > r) return false;
         if (std::abs(dp.y()) > r) return false;
-        double r2 = static_cast<double>(r);
-        r2 *= r2;
+        double r2 = sqr(static_cast<double>(r));
         return dp.cast<double>().squaredNorm() < r2;
     };
 
@@ -246,7 +247,7 @@ void support_part_overhangs(
             near_points.add(LayerSupportPoint{
                 SupportPoint{
                     Vec3f{unscale<float>(p.x()), unscale<float>(p.y()), part_z},
-                    /* head_front_radius */ 0.4f,
+                    /* head_front_radius */ config.head_diameter / 2,
                     SupportPointType::slope
                 },
                 /* position_on_layer */ p,
@@ -278,7 +279,7 @@ void support_island(const LayerPart &part, NearPoints& near_points, float part_z
                     unscale<float>(sample->point.y()), 
                     part_z
                 },
-                /* head_front_radius */ 0.4f,
+                /* head_front_radius */ cfg.head_diameter / 2,
                 SupportPointType::island
             },
             /* position_on_layer */ sample->point,
@@ -481,12 +482,10 @@ void prepare_supports_for_layer(LayerSupportPoints &supports, float layer_z,
 /// </summary>
 /// <param name="near_points"></param>
 /// <param name="part"></param>
-void remove_supports_out_of_part(NearPoints& near_points, const LayerPart &part) { 
-    
-    // Must be greater than surface texture and lower than self supporting area
-    // May be use maximal island distance
-    float delta = scale_(5.);
-    ExPolygons extend_shape = offset_ex(*part.shape, delta, ClipperLib::jtSquare);
+/// <param name="config"></param>
+void remove_supports_out_of_part(NearPoints& near_points, const LayerPart &part,
+    const SupportPointGeneratorConfig &config) {
+    ExPolygons extend_shape = offset_ex(*part.shape, config.removing_delta, ClipperLib::jtSquare);
     near_points.remove_out_of(extend_shape);
 }
 
@@ -660,7 +659,7 @@ LayerSupportPoints Slic3r::sla::generate_support_points(
                 assert(layer_id != 0);
                 const LayerParts &prev_layer_parts = layers[layer_id - 1].parts;
                 NearPoints near_points = create_near_points(prev_layer_parts, part, prev_grids);
-                remove_supports_out_of_part(near_points, part);
+                remove_supports_out_of_part(near_points, part, config);
                 support_part_overhangs(part, config, near_points, layer.print_z, maximal_radius);
                 grids.push_back(std::move(near_points));
             }
