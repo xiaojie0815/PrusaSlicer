@@ -1503,8 +1503,9 @@ void TabPrint::build()
 
         optgroup = page->new_optgroup(L("Reducing printing time"));
         category_path = "infill_42#";
+        optgroup->append_single_option_line("automatic_infill_combination");
+        optgroup->append_single_option_line("automatic_infill_combination_max_layer_height");
         optgroup->append_single_option_line("infill_every_layers", category_path + "combine-infill-every-x-layers");
-        // optgroup->append_single_option_line("infill_only_where_needed", category_path + "only-infill-where-needed");
 
         optgroup = page->new_optgroup(L("Advanced"));
         optgroup->append_single_option_line("solid_infill_every_layers", category_path + "solid-infill-every-x-layers");
@@ -1662,6 +1663,7 @@ void TabPrint::build()
         optgroup->append_single_option_line("solid_infill_extrusion_width");
         optgroup->append_single_option_line("top_infill_extrusion_width");
         optgroup->append_single_option_line("support_material_extrusion_width");
+        optgroup->append_single_option_line("automatic_extrusion_widths");
 
         optgroup = page->new_optgroup(L("Overlap"));
         optgroup->append_single_option_line("infill_overlap");

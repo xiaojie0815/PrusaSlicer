@@ -140,6 +140,8 @@ enum class NotificationType
     BedTemperaturesDiffer,
     // Notification that shrinkage compensations for the used filaments differ.
     ShrinkageCompensationsDiffer,
+    // Notification about using wipe tower with different nozzle diameters.
+    WipeTowerNozzleDiameterDiffer,
 };
 
 class NotificationManager
