@@ -320,89 +320,88 @@ void GCodeProcessor::TimeMachine::calculate_time(GCodeProcessorResult& result, P
         // detect actual speed moves required to render toolpaths using actual speed
         if (mode == PrintEstimatedStatistics::ETimeMode::Normal) {
             GCodeProcessorResult::MoveVertex& curr_move = result.moves[block.move_id];
-            if (curr_move.type != EMoveType::Extrude &&
-                curr_move.type != EMoveType::Travel &&
-                curr_move.type != EMoveType::Wipe)
-              continue;
+            if (curr_move.type == EMoveType::Extrude ||
+                curr_move.type == EMoveType::Travel ||
+                curr_move.type == EMoveType::Wipe) {
+                assert(curr_move.actual_feedrate == 0.0f);
 
-            assert(curr_move.actual_feedrate == 0.0f);
+                GCodeProcessorResult::MoveVertex& prev_move = result.moves[block.move_id - 1];
+                const bool interpolate = (prev_move.type == curr_move.type);
+                if (!interpolate &&
+                    prev_move.type != EMoveType::Extrude &&
+                    prev_move.type != EMoveType::Travel &&
+                    prev_move.type != EMoveType::Wipe)
+                    prev_move.actual_feedrate = block.feedrate_profile.entry;
 
-            GCodeProcessorResult::MoveVertex& prev_move = result.moves[block.move_id - 1];
-            const bool interpolate = (prev_move.type == curr_move.type);
-            if (!interpolate &&
-                prev_move.type != EMoveType::Extrude &&
-                prev_move.type != EMoveType::Travel &&
-                prev_move.type != EMoveType::Wipe)
-                prev_move.actual_feedrate = block.feedrate_profile.entry;
-
-            if (EPSILON < block.trapezoid.accelerate_until && block.trapezoid.accelerate_until < block.distance - EPSILON) {
-                const float t = block.trapezoid.accelerate_until / block.distance;
-                const Vec3f position = lerp(prev_move.position, curr_move.position, t);
-                if ((position - prev_move.position).norm() > EPSILON &&
-                    (position - curr_move.position).norm() > EPSILON) {
-                    const float delta_extruder = interpolate ? lerp(prev_move.delta_extruder, curr_move.delta_extruder, t) : curr_move.delta_extruder;
-                    const float feedrate = interpolate ? lerp(prev_move.feedrate, curr_move.feedrate, t) : curr_move.feedrate;
-                    const float width = interpolate ? lerp(prev_move.width, curr_move.width, t) : curr_move.width;
-                    const float height = interpolate ? lerp(prev_move.height, curr_move.height, t) : curr_move.height;
-                    const float mm3_per_mm = interpolate ? lerp(prev_move.mm3_per_mm, curr_move.mm3_per_mm, t) : curr_move.mm3_per_mm;
-                    const float fan_speed = interpolate ? lerp(prev_move.fan_speed, curr_move.fan_speed, t) : curr_move.fan_speed;
-                    const float temperature = interpolate ? lerp(prev_move.temperature, curr_move.temperature, t) : curr_move.temperature;
-                    actual_speed_moves.push_back({
-                        block.move_id,
-                        position,
-                        block.trapezoid.cruise_feedrate,
-                        delta_extruder,
-                        feedrate,
-                        width,
-                        height,
-                        mm3_per_mm,
-                        fan_speed,
-                        temperature
-                    });
+                if (EPSILON < block.trapezoid.accelerate_until && block.trapezoid.accelerate_until < block.distance - EPSILON) {
+                    const float t = block.trapezoid.accelerate_until / block.distance;
+                    const Vec3f position = lerp(prev_move.position, curr_move.position, t);
+                    if ((position - prev_move.position).norm() > EPSILON &&
+                        (position - curr_move.position).norm() > EPSILON) {
+                        const float delta_extruder = interpolate ? lerp(prev_move.delta_extruder, curr_move.delta_extruder, t) : curr_move.delta_extruder;
+                        const float feedrate = interpolate ? lerp(prev_move.feedrate, curr_move.feedrate, t) : curr_move.feedrate;
+                        const float width = interpolate ? lerp(prev_move.width, curr_move.width, t) : curr_move.width;
+                        const float height = interpolate ? lerp(prev_move.height, curr_move.height, t) : curr_move.height;
+                        const float mm3_per_mm = interpolate ? lerp(prev_move.mm3_per_mm, curr_move.mm3_per_mm, t) : curr_move.mm3_per_mm;
+                        const float fan_speed = interpolate ? lerp(prev_move.fan_speed, curr_move.fan_speed, t) : curr_move.fan_speed;
+                        const float temperature = interpolate ? lerp(prev_move.temperature, curr_move.temperature, t) : curr_move.temperature;
+                        actual_speed_moves.push_back({
+                            block.move_id,
+                            position,
+                            block.trapezoid.cruise_feedrate,
+                            delta_extruder,
+                            feedrate,
+                            width,
+                            height,
+                            mm3_per_mm,
+                            fan_speed,
+                            temperature
+                        });
+                    }
                 }
-            }
 
-            const bool has_deceleration = block.trapezoid.deceleration_distance(block.distance) > EPSILON;
-            if (has_deceleration && block.trapezoid.decelerate_after > block.trapezoid.accelerate_until + EPSILON) {
-                const float t = block.trapezoid.decelerate_after / block.distance;
-                const Vec3f position = lerp(prev_move.position, curr_move.position, t);
-                if ((position - prev_move.position).norm() > EPSILON &&
-                    (position - curr_move.position).norm() > EPSILON) {
-                    const float delta_extruder = interpolate ? lerp(prev_move.delta_extruder, curr_move.delta_extruder, t) : curr_move.delta_extruder;
-                    const float feedrate = interpolate ? lerp(prev_move.feedrate, curr_move.feedrate, t) : curr_move.feedrate;
-                    const float width = interpolate ? lerp(prev_move.width, curr_move.width, t) : curr_move.width;
-                    const float height = interpolate ? lerp(prev_move.height, curr_move.height, t) : curr_move.height;
-                    const float mm3_per_mm = interpolate ? lerp(prev_move.mm3_per_mm, curr_move.mm3_per_mm, t) : curr_move.mm3_per_mm;
-                    const float fan_speed = interpolate ? lerp(prev_move.fan_speed, curr_move.fan_speed, t) : curr_move.fan_speed;
-                    const float temperature = interpolate ? lerp(prev_move.temperature, curr_move.temperature, t) : curr_move.temperature;
-                    actual_speed_moves.push_back({
-                        block.move_id,
-                        position,
-                        block.trapezoid.cruise_feedrate,
-                        delta_extruder,
-                        feedrate,
-                        width,
-                        height,
-                        mm3_per_mm,
-                        fan_speed,
-                        temperature
-                    });
+                const bool has_deceleration = block.trapezoid.deceleration_distance(block.distance) > EPSILON;
+                if (has_deceleration && block.trapezoid.decelerate_after > block.trapezoid.accelerate_until + EPSILON) {
+                    const float t = block.trapezoid.decelerate_after / block.distance;
+                    const Vec3f position = lerp(prev_move.position, curr_move.position, t);
+                    if ((position - prev_move.position).norm() > EPSILON &&
+                        (position - curr_move.position).norm() > EPSILON) {
+                        const float delta_extruder = interpolate ? lerp(prev_move.delta_extruder, curr_move.delta_extruder, t) : curr_move.delta_extruder;
+                        const float feedrate = interpolate ? lerp(prev_move.feedrate, curr_move.feedrate, t) : curr_move.feedrate;
+                        const float width = interpolate ? lerp(prev_move.width, curr_move.width, t) : curr_move.width;
+                        const float height = interpolate ? lerp(prev_move.height, curr_move.height, t) : curr_move.height;
+                        const float mm3_per_mm = interpolate ? lerp(prev_move.mm3_per_mm, curr_move.mm3_per_mm, t) : curr_move.mm3_per_mm;
+                        const float fan_speed = interpolate ? lerp(prev_move.fan_speed, curr_move.fan_speed, t) : curr_move.fan_speed;
+                        const float temperature = interpolate ? lerp(prev_move.temperature, curr_move.temperature, t) : curr_move.temperature;
+                        actual_speed_moves.push_back({
+                            block.move_id,
+                            position,
+                            block.trapezoid.cruise_feedrate,
+                            delta_extruder,
+                            feedrate,
+                            width,
+                            height,
+                            mm3_per_mm,
+                            fan_speed,
+                            temperature
+                        });
+                    }
                 }
-            }
 
-            const bool is_cruise_only = block.trapezoid.is_cruise_only(block.distance);
-            actual_speed_moves.push_back({
-                block.move_id,
-                std::nullopt,
-                (is_cruise_only || !has_deceleration) ? block.trapezoid.cruise_feedrate : block.feedrate_profile.exit,
-                std::nullopt,
-                std::nullopt,
-                std::nullopt,
-                std::nullopt,
-                std::nullopt,
-                std::nullopt,
-                std::nullopt
-            });
+                const bool is_cruise_only = block.trapezoid.is_cruise_only(block.distance);
+                actual_speed_moves.push_back({
+                    block.move_id,
+                    std::nullopt,
+                    (is_cruise_only || !has_deceleration) ? block.trapezoid.cruise_feedrate : block.feedrate_profile.exit,
+                    std::nullopt,
+                    std::nullopt,
+                    std::nullopt,
+                    std::nullopt,
+                    std::nullopt,
+                    std::nullopt,
+                    std::nullopt
+                });
+            }
         }
         g1_times_cache.push_back({ block.g1_line_id, block.remaining_internal_g1_lines, float(time) });
         // update times for remaining time to printer stop placeholders
