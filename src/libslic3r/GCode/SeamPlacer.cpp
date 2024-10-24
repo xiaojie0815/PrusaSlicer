@@ -40,8 +40,6 @@ ObjectLayerPerimeters get_perimeters(
             print_object->layers(), params.perimeter.elephant_foot_compensation
         )};
         const std::vector<Geometry::BoundedPolygons> projected{
-            print_object->config().seam_position == spRandom ?
-            Geometry::convert_to_geometry(extrusions) :
             Geometry::project_to_geometry(extrusions, params.max_distance)
         };
         Perimeters::LayerPerimeters perimeters{Perimeters::create_perimeters(projected, layer_infos, painting, params.perimeter)};
@@ -137,7 +135,7 @@ Params Placer::get_params(const DynamicPrintConfig &config) {
     params.max_distance = 5.0;
     params.perimeter.oversampling_max_distance = 0.2;
     params.perimeter.embedding_threshold = 0.5;
-    params.perimeter.painting_radius = 0.1;
+    params.perimeter.painting_radius = 0.05;
     params.perimeter.simplification_epsilon = 0.001;
     params.perimeter.smooth_angle_arm_length = 0.5;
     params.perimeter.sharp_angle_arm_length = 0.25;

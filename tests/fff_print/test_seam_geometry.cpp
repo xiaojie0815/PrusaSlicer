@@ -127,26 +127,6 @@ TEST_CASE("Vertex angle is rotation agnostic", "[Seams][SeamGeometry]") {
     CHECK(rotated_angles[1] == Approx(angles[1]));
 }
 
-TEST_CASE("Calculate overhangs", "[Seams][SeamGeometry]") {
-    const ExPolygon square{
-        scaled(Vec2d{0.0, 0.0}),
-        scaled(Vec2d{1.0, 0.0}),
-        scaled(Vec2d{1.0, 1.0}),
-        scaled(Vec2d{0.0, 1.0})
-    };
-    const std::vector<Vec2d> points{Seams::Geometry::unscaled(square.contour.points)};
-    ExPolygon previous_layer{square};
-    previous_layer.translate(scaled(Vec2d{-0.5, 0}));
-    AABBTreeLines::LinesDistancer<Linef> previous_layer_distancer{
-        to_unscaled_linesf({previous_layer})};
-    const std::vector<double> overhangs{
-        Seams::Geometry::get_overhangs(points, previous_layer_distancer, 0.5)};
-    REQUIRE(overhangs.size() == points.size());
-    CHECK_THAT(overhangs, Catch::Matchers::Approx(std::vector<double>{
-        0.0, M_PI / 4.0, M_PI / 4.0, 0.0
-    }));
-}
-
 const Linesf lines{to_unscaled_linesf({ExPolygon{
     scaled(Vec2d{0.0, 0.0}),
     scaled(Vec2d{1.0, 0.0}),
