@@ -436,14 +436,27 @@ PrinterPickWebViewDialog::PrinterPickWebViewDialog(wxWindow* parent, std::string
     : WebViewDialog(parent
         , GUI::from_u8(Utils::ServiceConfig::instance().connect_select_printer_url())
         , _L("Choose a printer")
-        , wxSize(std::max(parent->GetClientSize().x / 4 * 3, 150 * wxGetApp().em_unit()), std::max(parent->GetClientSize().y / 6 * 5, 100 * wxGetApp().em_unit()))
+        , wxSize(parent->GetClientSize().x / 4 * 3, parent->GetClientSize().y/ 5 * 4)
         ,{"_prusaSlicer"}
         , "connect_loading")
     , m_ret_val(ret_val)
 {
-    SetMinSize(wxSize(std::max(parent->GetClientSize().x / 2, 100 * wxGetApp().em_unit()), std::max(parent->GetClientSize().y / 2, 50 * wxGetApp().em_unit())));
+    SetMinSize(wxSize(std::max(parent->GetClientSize().x / 2, 100 * wxGetApp().em_unit()), std::max(parent->GetClientSize().y / 2, 70 * wxGetApp().em_unit())));
     Centre();
 }
+
+void PrinterPickWebViewDialog::on_dpi_changed(const wxRect &suggested_rect)
+{
+    wxWindow *parent = GetParent();
+    const wxSize &size = wxSize(
+        std::max(parent->GetClientSize().x / 2, 100 * wxGetApp().em_unit()),
+        std::max(parent->GetClientSize().y / 2, 70 * wxGetApp().em_unit())
+    );
+    SetMinSize(size);
+    Fit();
+    Refresh();
+}
+
 void PrinterPickWebViewDialog::on_show(wxShowEvent& evt)
 {
     /*
@@ -607,17 +620,7 @@ void PrinterPickWebViewDialog::request_compatible_printers_SLA()
     wxString script = GUI::format_wxstr("window._prusaConnect_v1.requestCompatiblePrinter(%1%)", request);
     run_script(script);
 }
-void PrinterPickWebViewDialog::on_dpi_changed(const wxRect &suggested_rect)
-{
-    wxWindow *parent = GetParent();
-    const wxSize &size = wxSize(
-        std::max(parent->GetClientSize().x / 2, 100 * wxGetApp().em_unit()),
-        std::max(parent->GetClientSize().y / 2, 50 * wxGetApp().em_unit())
-    );
-    SetMinSize(size);
-    Fit();
-    Refresh();
-}
+
 
 void PrinterPickWebViewDialog::on_reload_event(const std::string& message_data)
 {
