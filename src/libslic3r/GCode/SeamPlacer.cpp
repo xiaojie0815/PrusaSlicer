@@ -131,7 +131,7 @@ Params Placer::get_params(const DynamicPrintConfig &config) {
     params.staggered_inner_seams = config.opt_bool("staggered_inner_seams");
 
     params.max_nearest_detour = 1.0;
-    params.rear_tolerance = 0.2;
+    params.rear_tolerance = 1.0;
     params.rear_y_offset = 20;
     params.aligned.jump_visibility_threshold = 0.6;
     params.max_distance = 5.0;
