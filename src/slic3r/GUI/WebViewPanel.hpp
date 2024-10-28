@@ -8,6 +8,7 @@
 #include "GUI_Utils.hpp"
 #include "UserAccountSession.hpp"
 #include "ConnectRequestHandler.hpp"
+#include "slic3r/Utils/ServiceConfig.hpp"
 
 #ifdef DEBUG_URL_PANEL
 #include <wx/infobar.h>
@@ -179,11 +180,11 @@ public:
     void on_script_message(wxWebViewEvent& evt) override;
     void sys_color_changed() override;
 
-    void logout();
-    void login(const std::string& access_token);
+    void logout(const std::string& override_url = std::string());
+    void login(const std::string& access_token, const std::string& override_url = std::string());
     void send_refreshed_token(const std::string& access_token);
     void send_will_refresh();
-    void load_url_from_outside(const std::string& url);
+    void set_next_show_url(const std::string& url) {m_next_show_url = Utils::ServiceConfig::instance().printables_url() + url; }
 private:
      void handle_message(const std::string& message);
      void on_printables_event_access_token_expired(const std::string& message_data);
@@ -197,7 +198,7 @@ private:
      void show_download_notification(const std::string& filename);
 
      std::map<std::string, std::function<void(const std::string&)>> m_events;
-
+     std::string m_next_show_url;
 /*
 Eventy Slicer -> Printables
 accessTokenWillChange

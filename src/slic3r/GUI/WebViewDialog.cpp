@@ -630,6 +630,31 @@ void PrinterPickWebViewDialog::on_reload_event(const std::string& message_data)
     m_browser->LoadURL(m_default_url);
 }
 
+PrintablesConnectUploadDialog::PrintablesConnectUploadDialog(wxWindow* parent, const std::string url)
+    : WebViewDialog(parent
+        , GUI::from_u8(url)
+        , _L("Choose a printer")
+        , wxSize(parent->GetClientSize().x / 4 * 3, parent->GetClientSize().y/ 5 * 4)
+        ,{"_prusaSlicer"}
+        , "connect_loading")
+{
+    SetMinSize(wxSize(std::max(parent->GetClientSize().x / 2, 100 * wxGetApp().em_unit()), std::max(parent->GetClientSize().y / 2, 70 * wxGetApp().em_unit())));
+    Centre();
+}
+
+void PrintablesConnectUploadDialog::on_dpi_changed(const wxRect &suggested_rect)
+{
+    wxWindow *parent = GetParent();
+    const wxSize &size = wxSize(
+        std::max(parent->GetClientSize().x / 2, 100 * wxGetApp().em_unit()),
+        std::max(parent->GetClientSize().y / 2, 70 * wxGetApp().em_unit())
+    );
+    SetMinSize(size);
+    Fit();
+    Refresh();
+}
+
+
 
 LoginWebViewDialog::LoginWebViewDialog(wxWindow *parent, std::string &ret_val, const wxString& url, wxEvtHandler* evt_handler)
     : WebViewDialog(parent, url, _L("Log in dialog"), wxSize(50 * wxGetApp().em_unit(), 80 * wxGetApp().em_unit()), {})

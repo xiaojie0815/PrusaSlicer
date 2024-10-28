@@ -109,6 +109,15 @@ private:
     std::string& m_ret_val;
 };
 
+class PrintablesConnectUploadDialog : public WebViewDialog
+{
+public:
+    PrintablesConnectUploadDialog(wxWindow* parent, const std::string url);
+protected:
+    void on_dpi_changed(const wxRect &suggested_rect) override;
+
+};
+
 class LoginWebViewDialog : public WebViewDialog
 {
 public:

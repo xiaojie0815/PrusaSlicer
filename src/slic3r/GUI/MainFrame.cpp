@@ -880,9 +880,12 @@ void MainFrame::show_printables_tab(const std::string& url)
      if (!m_printables_webview_added) {
         return;
     }
-    m_tabpanel->SetSelection(m_tabpanel->FindPage(m_printables_webview));
+    // we have to set next url first, than show the tab
+    // printables_tab has to reload on show everytime
+    // so it is not possible load_url right after show
     m_printables_webview->set_load_default_url_on_next_error(true);
-    m_printables_webview->load_url_from_outside(url);
+    m_printables_webview->set_next_show_url(url);
+    m_tabpanel->SetSelection(m_tabpanel->FindPage(m_printables_webview));
 }
 void MainFrame::add_printables_webview_tab()
 {

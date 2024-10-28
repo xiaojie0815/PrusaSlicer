@@ -6017,6 +6017,18 @@ bool load_secret(const std::string& id, const std::string& opt, std::string& usr
 #endif // wxUSE_SECRETSTORE 
 }
 }
+
+
+void Plater::printables_to_connect_gcode(const std::string& url)
+{
+    {
+        PrintablesConnectUploadDialog dialog(this, url);
+        if (dialog.ShowModal() != wxID_OK) {
+            return;
+        }
+    }   
+}
+
 void Plater::connect_gcode()
 {
     assert(p->user_account->is_logged());

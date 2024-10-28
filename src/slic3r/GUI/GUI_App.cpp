@@ -4145,7 +4145,12 @@ void GUI_App::printables_slice_request(const std::string& download_url, const st
 }
 void GUI_App::printables_print_request(const std::string& download_url, const std::string& model_url)
 {
+    plater()->printables_to_connect_gcode(Utils::ServiceConfig::instance().printables_url() + model_url);
+}
 
+void GUI_App::printables_login_request()
+{
+    plater_->get_user_account()->do_login();
 }
 
 void GUI_App::open_link_in_printables(const std::string& url)

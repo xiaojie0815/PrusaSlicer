@@ -439,6 +439,7 @@ public:
     void            printables_download_request(const std::string& download_url, const std::string& model_url);
     void            printables_slice_request(const std::string& download_url, const std::string& model_url);
     void            printables_print_request(const std::string& download_url, const std::string& model_url);
+    void            printables_login_request();
     void            open_link_in_printables(const std::string& url);
 private:
     bool            on_init_inner();

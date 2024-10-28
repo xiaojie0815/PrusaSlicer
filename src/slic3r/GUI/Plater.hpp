@@ -229,6 +229,7 @@ public:
     void send_gcode_inner(DynamicPrintConfig* physical_printer_config);
 	void eject_drive();
     void connect_gcode();
+    void printables_to_connect_gcode(const std::string& url);
     std::string get_upload_filename();
 
     void take_snapshot(const std::string &snapshot_name);
