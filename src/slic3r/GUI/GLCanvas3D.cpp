@@ -3146,7 +3146,13 @@ void GLCanvas3D::on_key(wxKeyEvent& evt)
         }
     }
 
-    if (keyCode != WXK_TAB
+    const GLGizmosManager::EType gizmo_type = m_gizmos.get_current_type();
+    if (keyCode == WXK_ALT && (gizmo_type == GLGizmosManager::FdmSupports ||
+                               gizmo_type == GLGizmosManager::Seam ||
+                               gizmo_type == GLGizmosManager::MmuSegmentation)) {
+        // Prevents focusing on the menu bar when ALT is pressed in painting gizmos (FdmSupports, Seam, and MmuSegmentation).
+        evt.Skip(false);
+    } else if (keyCode != WXK_TAB
         && keyCode != WXK_LEFT
         && keyCode != WXK_UP
         && keyCode != WXK_RIGHT
