@@ -2588,12 +2588,10 @@ namespace Slic3r {
                 assert(index < geometry.custom_supports.size());
                 assert(index < geometry.custom_seam.size());
                 assert(index < geometry.mm_segmentation.size());
-                if (! geometry.custom_supports[index].empty())
-                    volume->supported_facets.set_triangle_from_string(i, geometry.custom_supports[index]);
-                if (! geometry.custom_seam[index].empty())
-                    volume->seam_facets.set_triangle_from_string(i, geometry.custom_seam[index]);
-                if (! geometry.mm_segmentation[index].empty())
-                    volume->mm_segmentation_facets.set_triangle_from_string(i, geometry.mm_segmentation[index]);
+
+                volume->supported_facets.set_triangle_from_string(i, geometry.custom_supports[index]);
+                volume->seam_facets.set_triangle_from_string(i, geometry.custom_seam[index]);
+                volume->mm_segmentation_facets.set_triangle_from_string(i, geometry.mm_segmentation[index]);
             }
             volume->supported_facets.shrink_to_fit();
             volume->seam_facets.shrink_to_fit();

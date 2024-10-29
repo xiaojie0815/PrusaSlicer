@@ -1611,6 +1611,26 @@ static indexed_triangle_set_with_color extract_mesh_with_color(const ModelVolume
     return volume.mm_segmentation_facets.get_all_facets_strict_with_colors(volume);
 }
 
+static std::vector<ColorPolygons> slice_model_volume_with_color(const ModelVolume &model_volume, const std::vector<float> &layer_zs, const PrintObject &print_object)
+{
+    const indexed_triangle_set_with_color mesh_with_color = extract_mesh_with_color(model_volume);
+    const Transform3d                     trafo           = print_object.trafo_centered() * model_volume.get_matrix();
+    const MeshSlicingParams               slicing_params{trafo};
+
+    std::vector<ColorPolygons> color_polygons_per_layer = slice_mesh(mesh_with_color, layer_zs, slicing_params);
+
+    // Replace default painted color (TriangleStateType::NONE) with volume extruder.
+    if (const int volume_extruder_id = model_volume.extruder_id(); volume_extruder_id > 0 && model_volume.is_mm_painted()) {
+        for (ColorPolygons &color_polygons : color_polygons_per_layer) {
+            for (ColorPolygon &color_polygon : color_polygons) {
+                std::replace(color_polygon.colors.begin(), color_polygon.colors.end(), static_cast<uint8_t>(TriangleStateType::NONE), static_cast<uint8_t>(volume_extruder_id));
+            }
+        }
+    }
+
+    return color_polygons_per_layer;
+}
+
 std::vector<std::vector<ExPolygons>> multi_material_segmentation_by_painting(const PrintObject &print_object, const std::function<void()> &throw_on_cancel_callback)
 {
     const size_t                                   num_extruders = print_object.print()->config().nozzle_diameter.size();
@@ -1659,11 +1679,7 @@ std::vector<std::vector<ExPolygons>> multi_material_segmentation_by_painting(con
     BOOST_LOG_TRIVIAL(debug) << "MM segmentation - Slicing painted triangles - Begin";
     const std::vector<float> layer_zs = get_print_object_layers_zs(layers);
     for (const ModelVolume *mv : print_object.model_object()->volumes) {
-        const indexed_triangle_set_with_color mesh_with_color = extract_mesh_with_color(*mv);
-        const Transform3d                     trafo           = print_object.trafo_centered() * mv->get_matrix();
-        const MeshSlicingParams               slicing_params{trafo};
-
-        std::vector<ColorPolygons> color_polygons_per_layer = slice_mesh(mesh_with_color, layer_zs, slicing_params);
+        std::vector<ColorPolygons> color_polygons_per_layer = slice_model_volume_with_color(*mv, layer_zs, print_object);
 
         tbb::parallel_for(tbb::blocked_range<size_t>(0, num_layers), [&color_polygons_per_layer, &color_polygons_lines_layers, &throw_on_cancel_callback](const tbb::blocked_range<size_t> &range) {
             for (size_t layer_idx = range.begin(); layer_idx < range.end(); ++layer_idx) {

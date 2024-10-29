@@ -1658,6 +1658,9 @@ TriangleSelector::TriangleSplittingData TriangleSelector::serialize() const {
             out.data.triangles_to_split.emplace_back(i, int(out.data.bitstream.size()));
             // out the triangle bits.
             out.serialize(i);
+        } else if (!tr.is_split()) {
+            assert(tr.get_state() == TriangleStateType::NONE);
+            out.data.used_states[static_cast<int>(TriangleStateType::NONE)] = true;
         }
 
     // May be stored onto Undo / Redo stack, thus conserve memory.
