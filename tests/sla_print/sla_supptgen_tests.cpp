@@ -353,10 +353,11 @@ ExPolygon load_svg(const std::string& svg_filepath) {
 
 ExPolygons createTestIslands(double size)
 {
+    std::string dir = std::string(TEST_DATA_DIR PATH_SEPARATOR) + "sla_islands/";
     bool useFrogLeg = false;    
     // need post reorganization of longest path
     ExPolygons result = {
-        //load_svg("C:/Users/Filip Sykala/Downloads/lm_issue.svg"),
+        load_svg(dir + "lm_issue.svg"), // change from thick to thin and vice versa on circle
         // one support point
         ExPolygon(PolygonUtils::create_equilateral_triangle(size)), 
         ExPolygon(PolygonUtils::create_square(size)),

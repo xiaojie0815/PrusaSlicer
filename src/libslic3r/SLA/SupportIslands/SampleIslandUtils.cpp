@@ -21,7 +21,7 @@
 
 // comment definition of NDEBUG to enable assert()
 //#define NDEBUG
-//#define SLA_SAMPLE_ISLAND_UTILS_STORE_FIELD_TO_SVG
+//#define SLA_SAMPLE_ISLAND_UTILS_STORE_FIELD_TO_SVG_PATH "C:/data/temp/Field_<<COUNTER>>.svg"
 //#define SLA_SAMPLE_ISLAND_UTILS_STORE_ALIGNED_TO_SVG_PATH "C:/data/temp/align/island_<<COUNTER>>_aligned.svg"
 
 //#define SLA_SAMPLE_ISLAND_UTILS_STORE_ALIGN_ONCE_TO_SVG_PATH "C:/data/temp/align_once/iter_<<COUNTER>>.svg"
@@ -1142,9 +1142,7 @@ SupportIslandPoints SampleIslandUtils::sample_expath(
         // IMPROVE: check side branches on start path
     } else {
         // start sample field
-        VoronoiGraph::Position field_start =
-            VoronoiGraphUtils::get_position_with_width(
-                neighbor, config.min_width_for_outline_support, lines);
+        VoronoiGraph::Position field_start{neighbor, .1e-5};
         sample_field(field_start, points, center_starts, done, lines, config);
     }
 
@@ -1678,10 +1676,30 @@ SampleIslandUtils::Field SampleIslandUtils::create_field(
             }
             done.insert(index);
 
+            auto is_before_first_change = [&wide_tiny_changes, input_index, &lines]
+                (const Point& point_on_input_line) {
+                // is current change into first index line lay before first change?
+                auto input_change_item = wide_tiny_changes.find(input_index);
+                if(input_change_item == wide_tiny_changes.end())
+                    return true;
+
+                const WideTinyChanges &changes = input_change_item->second;
+                LineUtils::SortFromAToB pred(lines[input_index]);
+                for (const WideTinyChange &change : changes) {
+                    if (pred.compare(change.new_b, point_on_input_line))
+                        // Exist input change before 
+                        return false;
+                }
+                // It is before first index
+                return true;
+            };
+
             // change into first index - loop is finished by change
-            if (index != input_index &&
-                input_index == change.next_line_index)
+            if (index != input_index && 
+                input_index == change.next_line_index && 
+                is_before_first_change(change.next_new_a)) {
                 return false;
+            }
 
             index = change.next_line_index;
             change_item = wide_tiny_changes.find(index);
@@ -1698,6 +1716,7 @@ SampleIslandUtils::Field SampleIslandUtils::create_field(
     size_t input_index2 = tiny_wide_neighbor->edge->twin()->cell()->source_index();
     size_t input_index  = std::min(input_index1, input_index2); // Why select min index?
     size_t outline_index = input_index;
+    // Done indexes is used to detect holes in field
     std::set<size_t> done_indexes;
     do {
         if (!insert_changes(outline_index, points, done_indexes, input_index))
@@ -1725,20 +1744,19 @@ SampleIslandUtils::Field SampleIslandUtils::create_field(
     std::tie(field.inner, field.field_2_inner) =
         outline_offset(field.border, config.minimal_distance_from_outline);
 
-#ifdef SLA_SAMPLE_ISLAND_UTILS_STORE_FIELD_TO_SVG
+#ifdef SLA_SAMPLE_ISLAND_UTILS_STORE_FIELD_TO_SVG_PATH
     {
         const char *source_line_color = "black";
         bool draw_source_line_indexes = true;
         bool draw_border_line_indexes = false;
         bool draw_field_source_indexes = true;
         static int  counter   = 0;
-        std::string file_name = "field_" + std::to_string(counter++) + ".svg";
-
-        SVG svg(file_name, LineUtils::create_bounding_box(lines));
+        SVG svg(replace_first(SLA_SAMPLE_ISLAND_UTILS_STORE_FIELD_TO_SVG_PATH, 
+        "<<COUNTER>>", std::to_string(counter++)).c_str(),LineUtils::create_bounding_box(lines));
         LineUtils::draw(svg, lines, source_line_color, 0., draw_source_line_indexes);
         draw(svg, field, draw_border_line_indexes, draw_field_source_indexes);
     }
-#endif //SLA_SAMPLE_ISLAND_UTILS_STORE_FIELD_TO_SVG
+#endif //SLA_SAMPLE_ISLAND_UTILS_STORE_FIELD_TO_SVG_PATH
     return field;
 }
 
@@ -1999,6 +2017,8 @@ void SampleIslandUtils::draw(SVG &        svg,
             svg.draw_text(middle_point, text.c_str(), source_index_text_color);
         }
 
+    if (field.inner.empty())
+        return;
     // draw inner
     Lines inner_lines = to_lines(field.inner);
     LineUtils::draw(svg, inner_lines, inner_line_color, 0.,
@@ -2052,7 +2072,7 @@ bool SampleIslandUtils::is_visualization_disabled()
 #ifndef NDEBUG
     return false;
 #endif
-#ifdef SLA_SAMPLE_ISLAND_UTILS_STORE_FIELD_TO_SVG
+#ifdef SLA_SAMPLE_ISLAND_UTILS_STORE_FIELD_TO_SVG_PATH
     return false;
 #endif
 #ifdef SLA_SAMPLE_ISLAND_UTILS_STORE_ALIGN_ONCE_TO_SVG_PATH
