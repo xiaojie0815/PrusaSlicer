@@ -100,7 +100,7 @@ public:
     /// Can move?
     /// </summary>
     /// <returns>FALSE</returns>
-    virtual bool can_move() const override { return false; }
+    bool can_move() const override { return false; }
 
     /// <summary>
     /// No move!
@@ -108,7 +108,7 @@ public:
     /// </summary>
     /// <param name="destination">Wanted position</param>
     /// <returns>No move means zero distance</returns>
-    virtual coord_t move(const Point &destination) { return 0; }
+    coord_t move(const Point &destination) override { return 0; }
 };
 
 /// <summary>

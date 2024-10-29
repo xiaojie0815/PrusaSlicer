@@ -817,7 +817,7 @@ void GLGizmoSlaSupports::draw_island_config() {
 #ifdef OPTION_TO_STORE_ISLAND
     bool store_islands = !sample_config.path.empty();
     if (ImGui::Checkbox("StoreIslands", &store_islands)) {
-        if (store_islands = true)
+        if (store_islands == true)
             sample_config.path = "C:/data/temp/island<<order>>.svg";
     } else if (ImGui::IsItemHovered())
         ImGui::SetTooltip("Store islands in file\n<<order>> is replaced by island order number");
@@ -896,7 +896,7 @@ void GLGizmoSlaSupports::draw_island_config() {
         ImGui::SetTooltip("Minimal width to be supported by outline\nMust be smaller or equal to thin max width(to make hysteresis)");
 
     ImGui::Text("head radius is set to %.2f", unscale<float>(sample_config.head_radius));
-    ImGui::Text("Alignment stop criteria: min_move(%.0f um), iter(%d x), max_VD_move(%.2f mm)", unscale<float>(sample_config.minimal_move)*1000, sample_config.count_iteration, 
+    ImGui::Text("Alignment stop criteria: min_move(%.0f um), iter(%d x), max_VD_move(%.2f mm)", unscale<float>(sample_config.minimal_move)*1000, (int)sample_config.count_iteration, 
         unscale<float>(sample_config.max_align_distance)
     );            
 

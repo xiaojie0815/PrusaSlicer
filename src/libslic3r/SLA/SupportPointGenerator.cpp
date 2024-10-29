@@ -356,6 +356,7 @@ bool contain_point(const Point &p, const Points &sorted_points) {
     return it->x() == p.x() && it->y() == p.y();
 };
 
+#ifndef NDEBUG
 bool exist_same_points(const ExPolygon &shape, const Points& prev_points) {
     auto shape_points = to_points(shape);
     return shape_points.end() !=
@@ -363,6 +364,7 @@ bool exist_same_points(const ExPolygon &shape, const Points& prev_points) {
             return contain_point(p, prev_points);
         });
 }
+#endif // NDEBUG
 
 Points sample_overhangs(const LayerPart& part, double dist2) {
     const ExPolygon &shape = *part.shape;

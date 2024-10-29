@@ -34,11 +34,8 @@ using Halfedge_handle = VD::Halfedge_handle;
 using Ccb_halfedge_circulator = VD::Ccb_halfedge_circulator;
 
 namespace{
-Vec2d to_point_d(const Site_2 &s) { return {s.x(), s.y()}; }
-Slic3r::Point to_point(const Site_2 &s) {
-    // conversion from double to coor_t
-    return Slic3r::Point(s.x(), s.y());
-}
+// conversion from double to coor_t
+Slic3r::Point to_point(const Site_2 &s) { return Slic3r::Point(s.x(), s.y()); }
 
 /// <summary>
 /// Create line segment lay between given points with distance limited by maximal_distance

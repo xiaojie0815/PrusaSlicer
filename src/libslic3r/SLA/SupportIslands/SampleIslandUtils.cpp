@@ -620,6 +620,7 @@ void SampleIslandUtils::align_samples(SupportIslandPoints &samples,
     
 }
 
+#ifndef NDEBUG
 namespace {
 bool is_points_in_distance(const Slic3r::Point & p,
                            const Slic3r::Points &points,
@@ -633,6 +634,7 @@ bool is_points_in_distance(const Slic3r::Point & p,
     return true;
 }
 } // namespace
+#endif // NDEBUG
 
 coord_t SampleIslandUtils::align_once(
     SupportIslandPoints &samples, 
@@ -1492,7 +1494,7 @@ SampleIslandUtils::Field SampleIslandUtils::create_field(
 
     // Prepare data for field outline,
     // when field transit into tiny part of island
-    auto add_wide_tiny_change_only = [&wide_tiny_changes, &lines, &tiny_done]
+    auto add_wide_tiny_change_only = [&wide_tiny_changes, &lines]
     (const VoronoiGraph::Position &position){            
         Point p1, p2;
         std::tie(p1, p2) = VoronoiGraphUtils::point_on_lines(position, lines);
@@ -1827,7 +1829,6 @@ SupportIslandPoints SampleIslandUtils::sample_outline(
     using RestrictionPtr = std::shared_ptr<SupportOutlineIslandPoint::Restriction>;
     auto add_sample = [&](size_t index, const RestrictionPtr& restriction, coord_t &last_support) {
         using Position = SupportOutlineIslandPoint::Position;
-        const Line &  line = restriction->lines[index];
         const double &line_length_double = restriction->lengths[index];
         coord_t line_length = static_cast<coord_t>(std::round(line_length_double));
         if (last_support + line_length > sample_distance) {
