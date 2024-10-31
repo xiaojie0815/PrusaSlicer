@@ -42,7 +42,7 @@ public:
     virtual void on_script_message(wxWebViewEvent& evt);
 
     void on_idle(wxIdleEvent& evt);
-    void on_loaded(wxWebViewEvent& evt);
+    virtual void on_loaded(wxWebViewEvent& evt);
     void on_url(wxCommandEvent& evt);
     virtual void on_back_button(wxCommandEvent& evt);
     virtual void on_forward_button(wxCommandEvent& evt);
@@ -144,7 +144,6 @@ protected:
 private:
     static wxString get_login_script(bool refresh);
     static wxString get_logout_script();
-    void on_user_token(UserAccountSuccessEvent& e);
     void on_user_logged_out(UserAccountSuccessEvent& e);
 };
 
@@ -153,25 +152,20 @@ class PrinterWebViewPanel : public WebViewPanel
 public:
     PrinterWebViewPanel(wxWindow* parent, const wxString& default_url);
     
-    void on_loaded(wxWebViewEvent& evt);
+    void on_loaded(wxWebViewEvent& evt) override;
     void on_script_message(wxWebViewEvent& evt) override;
-
     void send_api_key();
     void send_credentials();
     void set_api_key(const std::string &key)
     {
-        if (m_api_key != key) {
-            clear();
-            m_api_key = key;
-        }
+        clear();
+        m_api_key = key;
     }
     void set_credentials(const std::string &usr, const std::string &psk)
     {
-        if (m_usr != usr || m_psk != psk) {
-            clear();
-            m_usr = usr;
-            m_psk = psk;
-        }
+        clear();
+        m_usr = usr;
+        m_psk = psk;
     }
     void clear() { m_api_key.clear(); m_usr.clear(); m_psk.clear(); m_api_key_sent = false; }
     void sys_color_changed() override;
@@ -187,7 +181,7 @@ class PrintablesWebViewPanel : public WebViewPanel
 public:
     PrintablesWebViewPanel(wxWindow* parent);
     void on_navigation_request(wxWebViewEvent &evt) override;
-    void on_loaded(wxWebViewEvent& evt);
+    void on_loaded(wxWebViewEvent& evt) override;
     void after_on_show(wxShowEvent& evt) override;
     void on_script_message(wxWebViewEvent& evt) override;
     void sys_color_changed() override;

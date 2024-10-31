@@ -919,14 +919,14 @@ void MainFrame::remove_printables_webview_tab()
 
 void MainFrame::show_printer_webview_tab(DynamicPrintConfig* dpc)
 {
+    
+    remove_printer_webview_tab();
     // if physical printer is selected
     if (dpc && dpc->option<ConfigOptionEnum<PrintHostType>>("host_type")->value != htPrusaConnect) {
         std::string url = dpc->opt_string("print_host");
-
         if (url.find("http://") != 0 && url.find("https://") != 0) {
             url = "http://" + url;
         }
-
         // set password / api key
         if (dynamic_cast<const ConfigOptionEnum<AuthorizationType>*>(dpc->option("printhost_authorization_type"))->value == AuthorizationType::atKeyPassword) {
             set_printer_webview_api_key(dpc->opt_string("printhost_apikey"));
@@ -934,26 +934,14 @@ void MainFrame::show_printer_webview_tab(DynamicPrintConfig* dpc)
         else {
             set_printer_webview_credentials(dpc->opt_string("printhost_user"), dpc->opt_string("printhost_password"));
         }
-        // add printer or change url
-        if (get_printer_webview_tab_added()) {
-            set_printer_webview_tab_url(from_u8(url));
-        }
-        else {
-            add_printer_webview_tab(from_u8(url));
-        }
-    }
-    // if physical printer isn't selected, so delete page from TopBar
-    else {
-        if (m_tabpanel->GetPageText(m_tabpanel->GetSelection()) == _L("Physical Printer"))
-            select_tab(size_t(0));
-        remove_printer_webview_tab();
+        add_printer_webview_tab(from_u8(url));
     }
 }
 
 void MainFrame::add_printer_webview_tab(const wxString& url)
 {
     if (m_printer_webview_added) {
-        set_printer_webview_tab_url(url);
+        //set_printer_webview_tab_url(url);
         return;
     }
     m_printer_webview_added = true;
@@ -967,27 +955,12 @@ void MainFrame::remove_printer_webview_tab()
     if (!m_printer_webview_added) {
         return;
     }
+    if (m_tabpanel->GetPageText(m_tabpanel->GetSelection()) == _L("Physical Printer"))
+            select_tab(size_t(0));
     m_printer_webview_added = false;
     m_printer_webview->Hide();
     m_tabpanel->RemovePage(m_tabpanel->FindPage(m_printer_webview));
     m_printer_webview->destroy_browser();
-}
-void MainFrame::set_printer_webview_tab_url(const wxString& url)
-{
-    if (!m_printer_webview_added) {
-        add_printer_webview_tab(url);
-        return;
-    }
-    // TODO: this will reset already filled credential when bundle loaded,
-    //  what's the reason of clearing credentials here?
-    //m_printer_webview->clear();
-    m_printer_webview->set_default_url(url);
-
-    if (m_tabpanel->GetSelection() == m_tabpanel->FindPage(m_printer_webview)) {
-        m_printer_webview->load_url(url);
-    } else {
-        m_printer_webview->load_default_url_delayed();
-    }
 }
 
 void MainFrame::set_printer_webview_api_key(const std::string& key)
@@ -1726,7 +1699,7 @@ void MainFrame::init_menubar_as_editor()
 #endif // __APPLE__
 
         viewMenu->AppendSeparator();
-        append_menu_item(viewMenu, wxID_ANY, _L("&Reload WebView"), _L("Reload WebView"), 
+        append_menu_item(viewMenu, wxID_ANY, _L("&Reload Web Content") + "\tF5", _L("Reload WebView"), 
             [this](wxCommandEvent&) { reload_selected_webview(); }, "", nullptr, [this]() {return is_any_webview_selected(); }, this);
     }
 

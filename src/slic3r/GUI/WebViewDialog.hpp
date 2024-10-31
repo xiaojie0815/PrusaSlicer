@@ -24,7 +24,7 @@ namespace GUI {
 class WebViewDialog : public DPIDialog
 {
 public:
-    WebViewDialog(wxWindow* parent, const wxString& url, const wxString& dialog_name, const wxSize& size, const std::vector<std::string>& message_handler_names, const std::string& loading_html = "loading");
+    WebViewDialog(wxWindow* parent, const wxString& url, const wxString& dialog_name, const wxSize& size, const std::vector<std::string>& message_handler_names, const std::string& loading_html = "other_loading");
     virtual ~WebViewDialog();
 
     virtual void on_show(wxShowEvent& evt) {};

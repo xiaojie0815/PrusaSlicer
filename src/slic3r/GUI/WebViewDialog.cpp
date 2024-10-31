@@ -30,7 +30,7 @@ namespace pt = boost::property_tree;
 namespace Slic3r {
 namespace GUI {
 
-WebViewDialog::WebViewDialog(wxWindow* parent, const wxString& url, const wxString& dialog_name, const wxSize& size, const std::vector<std::string>& message_handler_names, const std::string& loading_html/* = "loading"*/)
+WebViewDialog::WebViewDialog(wxWindow* parent, const wxString& url, const wxString& dialog_name, const wxSize& size, const std::vector<std::string>& message_handler_names, const std::string& loading_html/* = "other_loading"*/)
     : DPIDialog(parent, wxID_ANY, dialog_name, wxDefaultPosition, size, wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER)
     , m_loading_html(loading_html)
     , m_script_message_hadler_names (message_handler_names)
@@ -158,7 +158,7 @@ void WebViewDialog::on_idle(wxIdleEvent& WXUNUSED(evt))
         wxSetCursor(wxNullCursor);
         if (m_load_error_page) {
             m_load_error_page = false;
-            m_browser->LoadURL(GUI::format_wxstr("file://%1%/web/connection_failed.html", boost::filesystem::path(resources_dir()).generic_string()));
+            m_browser->LoadURL(GUI::format_wxstr("file://%1%/web/error_no_reload.html", boost::filesystem::path(resources_dir()).generic_string()));
         }
     }
 #ifdef DEBUG_URL_PANEL

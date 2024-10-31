@@ -234,7 +234,6 @@ public:
 
     void    add_printer_webview_tab(const wxString& url);
     void    remove_printer_webview_tab();
-    void    set_printer_webview_tab_url(const wxString& url);
     bool    get_printer_webview_tab_added() const { return m_printer_webview_added; }
     void    set_printer_webview_api_key(const std::string& key);
     void    set_printer_webview_credentials(const std::string& usr, const std::string& psk);

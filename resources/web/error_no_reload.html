@@ -16,29 +16,6 @@
             background-color: #f6f6f6;
             color: #333;
         }
-        .reload-button {
-            display: inline-block;
-            padding: 12px 24px;
-            font-size: 16px;
-            color: black;
-            background-color: white;
-            border: 2px solid black;
-            border-radius: 5px;
-            cursor: pointer;
-            text-transform: uppercase;
-            font-weight: bold;
-            transition: background-color 0.3s ease, color 0.3s ease;
-        }
-
-        .reload-button:hover {
-            background-color: black;
-            color: white;
-        }
-
-        .reload-button:focus {
-            outline: none;
-            box-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
-        }
   </style>
 </head>
 <body>
@@ -99,7 +76,6 @@
       </svg>
     </p>
     <p style="font-size: 24px;">Something went wrong.</p>
-    <button class="reload-button" onclick="window.ExternalApp.postMessage(JSON.stringify({ event: 'reloadHomePage' }))">Reload</button>
   </div>
 </div>
 </body>

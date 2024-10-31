@@ -34,7 +34,7 @@ ConfigWizardWebViewPage::ConfigWizardWebViewPage(ConfigWizard *parent)
         append(fail_text);
         return;
     }
-    WebView::webview_create(m_browser, this, p_user_account->generate_login_redirect_url(), {});
+    WebView::webview_create(m_browser, this, p_user_account->generate_login_redirect_url(), {"ExternalApp"});
     
     if (logged) {
         // TRN Config wizard page with a log in web.
@@ -49,11 +49,13 @@ ConfigWizardWebViewPage::ConfigWizardWebViewPage(ConfigWizard *parent)
     append(m_browser_sizer, 1, wxEXPAND);
 
     m_browser_sizer->Show(!logged);
+    Layout();
 
     // Connect the webview events
     Bind(wxEVT_WEBVIEW_ERROR, &ConfigWizardWebViewPage::on_error, this, m_browser->GetId());
     Bind(wxEVT_WEBVIEW_NAVIGATING, &ConfigWizardWebViewPage::on_navigation_request, this, m_browser->GetId());
     Bind(wxEVT_IDLE, &ConfigWizardWebViewPage::on_idle, this);
+    Bind(wxEVT_WEBVIEW_SCRIPT_MESSAGE_RECEIVED, &ConfigWizardWebViewPage::on_script_message, this, m_browser->GetId());
 }
 
 bool ConfigWizardWebViewPage::login_changed()
@@ -115,7 +117,7 @@ void ConfigWizardWebViewPage::on_idle(wxIdleEvent &WXUNUSED(evt)) {
         if (!m_vetoed && m_load_error_page) {
             m_load_error_page = false;
             m_browser->LoadURL(GUI::format_wxstr(
-                "file://%1%/web/connection_failed.html",
+                "file://%1%/web/other_error.html",
                 boost::filesystem::path(resources_dir()).generic_string()
             ));
         }
@@ -147,4 +149,11 @@ void ConfigWizardWebViewPage::on_navigation_request(wxWebViewEvent &evt)
         }
     }
 }
+
+void ConfigWizardWebViewPage::on_script_message(wxWebViewEvent& evt)
+{
+    // only reaload button on erro page
+    m_browser->LoadURL(p_user_account->generate_login_redirect_url());
+}
+
 }} // namespace Slic3r::GUI

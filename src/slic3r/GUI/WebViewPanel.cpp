@@ -166,26 +166,7 @@ WebViewPanel::WebViewPanel(wxWindow *parent, const wxString& default_url, const 
         return;
     }
     m_do_late_webview_create = false;
-
-    m_browser = WebView::webview_new();   
-    if (!m_browser) {
-        wxStaticText* text = new wxStaticText(this, wxID_ANY, _L("Failed to load a web browser."));
-        topsizer->Add(text, 0, wxALIGN_LEFT | wxBOTTOM, 10);
-        return;
-    }
-    WebView::webview_create(m_browser,this, GUI::format_wxstr("file://%1%/web/%2%.html", boost::filesystem::path(resources_dir()).generic_string(), m_loading_html), m_script_message_hadler_names);
-    if (Utils::ServiceConfig::instance().webdev_enabled()) {
-        m_browser->EnableContextMenu();
-        m_browser->EnableAccessToDevTools();
-    }
-    topsizer->Add(m_browser, wxSizerFlags().Expand().Proportion(1));
-
-
-    // Connect the webview events
-    Bind(wxEVT_WEBVIEW_ERROR, &WebViewPanel::on_error, this, m_browser->GetId());
-    Bind(wxEVT_WEBVIEW_SCRIPT_MESSAGE_RECEIVED, &WebViewPanel::on_script_message, this, m_browser->GetId());
-    Bind(wxEVT_WEBVIEW_NAVIGATING, &WebViewPanel::on_navigation_request, this, m_browser->GetId());
-
+    late_create();
 }
 
 void WebViewPanel::late_create()
@@ -265,6 +246,14 @@ void WebViewPanel::on_idle(wxIdleEvent& WXUNUSED(evt))
                 load_default_url();
             } else { 
                 load_url(GUI::format_wxstr("file://%1%/web/%2%.html", boost::filesystem::path(resources_dir()).generic_string(), m_error_html));
+                // This is a fix of broken message handling after error.
+                // F.e. if there is an error but we do AddUserScript & Reload, the handling will break.
+                // So we just reset the handler here.
+                if (!m_script_message_hadler_names.empty()) {
+                    m_browser->RemoveScriptMessageHandler(Slic3r::GUI::from_u8(m_script_message_hadler_names.front()));
+                    bool b = m_browser->AddScriptMessageHandler(Slic3r::GUI::from_u8(m_script_message_hadler_names.front()));
+                }
+                
             }
         }
     }
@@ -433,6 +422,9 @@ void WebViewPanel::on_run_script_custom(wxCommandEvent& WXUNUSED(evt))
 
 void WebViewPanel::on_add_user_script(wxCommandEvent& WXUNUSED(evt))
 {
+    if (!m_browser) {
+        return;
+    }
     wxString userScript = "window.wx_test_var = 'wxWidgets webview sample';";
     wxTextEntryDialog dialog
     (
@@ -572,12 +564,9 @@ void WebViewPanel::sys_color_changed()
 }
 
 ConnectWebViewPanel::ConnectWebViewPanel(wxWindow* parent)
-    : WebViewPanel(parent, GUI::from_u8(Utils::ServiceConfig::instance().connect_url()), { "_prusaSlicer" }, "connect_loading_reload", "connect_connection_failed", false)
+    : WebViewPanel(parent, GUI::from_u8(Utils::ServiceConfig::instance().connect_url()), { "_prusaSlicer" }, "connect_loading", "connect_error", false)
 {  
-    // m_browser->RegisterHandler(wxSharedPtr<wxWebViewHandler>(new WebViewHandler("https")));
-
     auto* plater = wxGetApp().plater();
-    //plater->Bind(EVT_UA_ID_USER_SUCCESS, &ConnectWebViewPanel::on_user_token, this);
     plater->Bind(EVT_UA_LOGGEDOUT, &ConnectWebViewPanel::on_user_logged_out, this);
 }
 
@@ -588,7 +577,7 @@ void ConnectWebViewPanel::late_create()
         return;
     }
     
-    // from ConnectWebViewPanel::on_user_token
+    // This code used to be inside plater->Bind(EVT_UA_ID_USER_SUCCESS, &ConnectWebViewPanel::on_user_token, this)
     auto access_token = wxGetApp().plater()->get_user_account()->get_access_token();
     assert(!access_token.empty());
 
@@ -600,7 +589,6 @@ void ConnectWebViewPanel::late_create()
 
 ConnectWebViewPanel::~ConnectWebViewPanel()
 {
-    //m_browser->Unbind(EVT_UA_ID_USER_SUCCESS, &ConnectWebViewPanel::on_user_token, this);
 }
 
 wxString ConnectWebViewPanel::get_login_script(bool refresh)
@@ -748,28 +736,19 @@ wxString ConnectWebViewPanel::get_logout_script()
 
 void ConnectWebViewPanel::on_page_will_load()
 {
+    if (!m_browser) {
+        return;
+    }
     auto javascript = get_login_script(false);
     BOOST_LOG_TRIVIAL(debug) << "RunScript " << javascript << "\n";
     m_browser->AddUserScript(javascript);
 }
 
-void ConnectWebViewPanel::on_user_token(UserAccountSuccessEvent& e)
-{
-    e.Skip();
-    /*
-    auto access_token = wxGetApp().plater()->get_user_account()->get_access_token();
-    assert(!access_token.empty());
-
-    wxString javascript = get_login_script(true);
-    BOOST_LOG_TRIVIAL(debug) << "RunScript " << javascript << "\n";
-    m_browser->RunScriptAsync(javascript);
-    resend_config();
-    */
-}
-
 void ConnectWebViewPanel::on_user_logged_out(UserAccountSuccessEvent& e)
 {
     e.Skip();
+    if (!m_browser)
+        return;
     // clear token from session storage
     m_browser->RunScriptAsync(get_logout_script());
 }
@@ -864,16 +843,16 @@ void ConnectWebViewPanel::on_connect_action_print(const std::string& message_dat
 }
 
 PrinterWebViewPanel::PrinterWebViewPanel(wxWindow* parent, const wxString& default_url)
-    : WebViewPanel(parent, default_url, {"ExternalApp"}, "other_loading_reload", "other_error", false)
+    : WebViewPanel(parent, default_url, {"ExternalApp"}, "other_loading", "other_error", false)
 {
 }
-
 
 void PrinterWebViewPanel::on_loaded(wxWebViewEvent& evt)
 {
     if (evt.GetURL().IsEmpty())
         return;
     m_load_default_url_on_next_error = false;
+    
     if (!m_api_key.empty()) {
         send_api_key();
     } else if (!m_usr.empty() && !m_psk.empty()) {
@@ -908,7 +887,6 @@ void PrinterWebViewPanel::send_api_key()
     sessionStorage.setItem('apiKey', '%s');
 )",
     key);
-
     m_browser->RemoveAllUserScripts();
     BOOST_LOG_TRIVIAL(debug) << "RunScript " << script << "\n";
     m_browser->AddUserScript(script);
@@ -933,7 +911,7 @@ void PrinterWebViewPanel::sys_color_changed()
 
 
 PrintablesWebViewPanel::PrintablesWebViewPanel(wxWindow* parent)
-    : WebViewPanel(parent, GUI::from_u8(Utils::ServiceConfig::instance().printables_url()), { "ExternalApp" }, "other_loading_reload", "other_error", false)
+    : WebViewPanel(parent, GUI::from_u8(Utils::ServiceConfig::instance().printables_url()), { "ExternalApp" }, "other_loading", "other_error", false)
 {  
     
 
@@ -979,7 +957,7 @@ void PrintablesWebViewPanel::on_navigation_request(wxWebViewEvent &evt)
     const wxString url = evt.GetURL();
     if (url.StartsWith(m_default_url)) {
         m_reached_default_url = true;
-    } else if (m_reached_default_url) {
+    } else if (m_reached_default_url && url.StartsWith("http")) {
         BOOST_LOG_TRIVIAL(info) << evt.GetURL() <<  " does not start with default url. Vetoing.";
         evt.Veto();
     }
@@ -1068,7 +1046,7 @@ void PrintablesWebViewPanel::after_on_show(wxShowEvent& evt)
 
 void PrintablesWebViewPanel::logout(const std::string& override_url/* = std::string()*/)
 {
-    if (!m_shown) {
+    if (!m_shown || !m_browser) {
         return;
     }
     delete_cookies(m_browser, Utils::ServiceConfig::instance().printables_url());
@@ -1113,6 +1091,9 @@ void PrintablesWebViewPanel::login(const std::string& access_token, const std::s
 
 void PrintablesWebViewPanel::load_default_url()
 {
+    if (!m_browser) {
+        return;
+    }
     std::string actual_default_url = get_url_lang_theme(from_u8(Utils::ServiceConfig::instance().printables_url() + "/homepage"));
     const std::string access_token = wxGetApp().plater()->get_user_account()->get_access_token();
     
@@ -1161,7 +1142,7 @@ void PrintablesWebViewPanel::on_script_message(wxWebViewEvent& evt)
 
 void PrintablesWebViewPanel::sys_color_changed()
 {
-    if (m_shown) {
+    if (m_shown && m_browser) {
         load_url(GUI::from_u8(get_url_lang_theme(m_browser->GetCurrentURL())));
     }
     WebViewPanel::sys_color_changed();
@@ -1182,8 +1163,6 @@ void PrintablesWebViewPanel::on_reload_event(const std::string& message_data)
 }
 void PrintablesWebViewPanel::on_printables_event_print_gcode(const std::string& message_data)
 {
-    BOOST_LOG_TRIVIAL(error) << __FUNCTION__<< " " << message_data;
-
     // { "event": "downloadFile", "url": "https://media.printables.com/somesecure.stl", "modelUrl": "https://www.printables.com/model/123" }
     std::string download_url;
     std::string model_url;
