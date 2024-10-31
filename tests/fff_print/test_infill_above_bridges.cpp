@@ -61,7 +61,7 @@ TEST_CASE("Separate infill above bridges", "[PrepareInfill]") {
         draw_surfaces(layer_0, "layer_0.svg");
     }
 
-    PrepareInfill::separate_infill_above_bridges({layer_0, layer_1});
+    PrepareInfill::separate_infill_above_bridges({layer_0, layer_1}, 0);
 
     if constexpr (debug_files) {
         draw_surfaces(layer_1, "layer_1.svg");

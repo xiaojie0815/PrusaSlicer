@@ -16,7 +16,7 @@ namespace Slic3r::PrepareInfill {
         }
     }
 
-    void separate_infill_above_bridges(const SurfaceRefs &surfaces) {
+    void separate_infill_above_bridges(const SurfaceRefs &surfaces, const double expand_offset) {
         if (surfaces.empty()) {
             return;
         }
@@ -28,6 +28,9 @@ namespace Slic3r::PrepareInfill {
                 for (const Surface *bridge : region.get().filter_by_type(stBottomBridge)) {
                     bridges.push_back(bridge->expolygon);
                 }
+            }
+            if (expand_offset > 0) {
+                bridges = offset_ex(bridges, scale_(expand_offset));
             }
             mark_as_infill_above_bridge(bridges, layer);
             previous_layer = &layer;

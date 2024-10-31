@@ -10,7 +10,7 @@ namespace Slic3r::PrepareInfill {
     using SurfaceRefsByRegion = std::vector<SurfaceCollectionRef>;
     using SurfaceRefs = std::vector<SurfaceRefsByRegion>;
 
-    void separate_infill_above_bridges(const SurfaceRefs &surfaces);
+    void separate_infill_above_bridges(const SurfaceRefs &surfaces, const double expand_offset);
 }
 
 #endif // slic3r_InfillAboveBridges_hpp_

@@ -727,6 +727,16 @@ void PrintConfigDef::init_fff_params()
     def->mode = comAdvanced;
     def->set_default_value(new ConfigOptionFloat(60));
 
+    def = this->add("over_bridge_speed", coFloatOrPercent);
+    def->label = L("Over bridges");
+    def->category = L("Speed");
+    def->tooltip = L("Speed for printing solid infill above bridges. Set to 0 to use solid infill speed. "
+                    "If set as percentage, the speed is calculated over solid infill speed. ");
+    def->sidetext = L("mm/s or %");
+    def->min = 0;
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionFloatOrPercent(0, false));
+
     def             = this->add("enable_dynamic_overhang_speeds", coBool);
     def->label      = L("Enable dynamic overhang speeds");
     def->category   = L("Speed");
