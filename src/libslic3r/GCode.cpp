@@ -3387,6 +3387,8 @@ std::string GCodeGenerator::_extrude(
             speed = m_config.get_abs_value("infill_speed");
         } else if (path_attr.role == ExtrusionRole::SolidInfill) {
             speed = m_config.get_abs_value("solid_infill_speed");
+        } else if (path_attr.role == ExtrusionRole::InfillOverBridge) {
+            speed = 10;
         } else if (path_attr.role == ExtrusionRole::TopSolidInfill) {
             speed = m_config.get_abs_value("top_solid_infill_speed");
         } else if (path_attr.role == ExtrusionRole::Ironing) {

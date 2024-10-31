@@ -64,6 +64,7 @@
 #include "libslic3r/TriangleSelector.hpp"
 #include "tcbspan/span.hpp"
 #include "libslic3r/Point.hpp"
+#include "libslic3r/InfillAboveBridges.hpp"
 
 using namespace std::literals;
 
@@ -411,6 +412,19 @@ void PrintObject::prepare_infill()
         layer->export_region_fill_surfaces_to_svg_debug("9_prepare_infill-final");
     } // for each layer
 #endif /* SLIC3R_DEBUG_SLICE_PROCESSING */
+
+
+    PrepareInfill::SurfaceRefs surfaces;
+    for (const Layer *layer : m_layers) {
+        surfaces.emplace_back();
+        for (size_t region_id = 0; region_id < this->num_printing_regions(); ++ region_id) {
+            LayerRegion *layerm = layer->m_regions[region_id];
+            if (!layerm->fill_surfaces().empty()) {
+                surfaces.back().push_back(std::ref(layerm->m_fill_surfaces));
+            }
+        }
+    }
+    PrepareInfill::separate_infill_above_bridges(surfaces);
 
     this->set_done(posPrepareInfill);
 }

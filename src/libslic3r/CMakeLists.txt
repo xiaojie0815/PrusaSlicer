@@ -245,6 +245,8 @@ set(SLIC3R_SOURCES
     Geometry/VoronoiUtils.hpp
     Geometry/VoronoiUtils.cpp
     Geometry/VoronoiVisualUtils.hpp
+    InfillAboveBridges.hpp
+    InfillAboveBridges.cpp
     JumpPointSearch.cpp
     JumpPointSearch.hpp
     KDTreeIndirect.hpp
