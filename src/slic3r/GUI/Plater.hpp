@@ -100,6 +100,8 @@ public:
     Print& active_fff_print();
     SLAPrint& active_sla_print();
 
+    std::vector<std::unique_ptr<Print>>& get_fff_prints();
+
     void new_project();
     void load_project();
     void load_project(const wxString& filename);

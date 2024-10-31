@@ -510,7 +510,7 @@ private:
 
     GLVolumeCollection m_volumes;
 #if SLIC3R_OPENGL_ES
-    TriangleMesh m_wipe_tower_mesh;
+    std::vector<TriangleMesh> m_wipe_tower_meshes;
 #endif // SLIC3R_OPENGL_ES
     GCodeViewer m_gcode_viewer;
 

@@ -528,8 +528,6 @@ struct Plater::priv
 
     void on_object_select(SimpleEvent&);
     void on_right_click(RBtnEvent&);
-    void on_wipetower_moved(Vec3dEvent&);
-    void on_wipetower_rotated(Vec3dEvent&);
     void on_update_geometry(Vec3dsEvent<2>&);
     void on_3dcanvas_mouse_dragging_started(SimpleEvent&);
     void on_3dcanvas_mouse_dragging_finished(SimpleEvent&);
@@ -1599,7 +1597,10 @@ std::vector<size_t> Plater::priv::load_files(const std::vector<fs::path>& input_
     GLGizmoSimplify::add_simplify_suggestion_notification(
         obj_idxs, model.objects, *notification_manager);
 
-    if (s_multiple_beds.update_after_load_or_arrange(model, q->build_volume(), [this]() {q->canvas3D()->check_volumes_outside_state(); }))
+    if (s_multiple_beds.update_after_load_or_arrange(model, q->build_volume(), [this]() {
+            q->canvas3D()->check_volumes_outside_state();
+            s_multiple_beds.ensure_wipe_towers_on_beds(model, fff_prints);
+         }))
         update();
 
     return obj_idxs;
@@ -3384,17 +3385,6 @@ void Plater::priv::on_right_click(RBtnEvent& evt)
         q->PopupMenu(menu, position);
         canvas.clear_popup_menu_position();
     }
-}
-
-void Plater::priv::on_wipetower_moved(Vec3dEvent &evt)
-{
-    model.wipe_tower().position = Vec2d(evt.data[0], evt.data[1]);
-}
-
-void Plater::priv::on_wipetower_rotated(Vec3dEvent& evt)
-{
-    model.wipe_tower().position = Vec2d(evt.data[0], evt.data[1]);
-    model.wipe_tower().rotation = Geometry::rad2deg(evt.data(2));
 }
 
 void Plater::priv::on_update_geometry(Vec3dsEvent<2>&)
@@ -6792,7 +6782,10 @@ void Plater::arrange(Worker &w, bool selected)
                             concat_strings(names, "\n")));
         }
 
-        s_multiple_beds.update_after_load_or_arrange(model(), build_volume(), [this]() { canvas3D()->check_volumes_outside_state(); });
+        s_multiple_beds.update_after_load_or_arrange(model(), build_volume(), [this]() {
+            canvas3D()->check_volumes_outside_state();
+            s_multiple_beds.ensure_wipe_towers_on_beds(model(), get_fff_prints());
+        });
 
         update(static_cast<unsigned int>(UpdateParams::FORCE_FULL_SCREEN_REFRESH));
         wxGetApp().obj_manipul()->set_dirty();
@@ -7287,6 +7280,11 @@ bool Plater::PopupMenu(wxMenu *menu, const wxPoint& pos)
 void Plater::bring_instance_forward()
 {
     p->bring_instance_forward();
+}
+
+std::vector<std::unique_ptr<Print>>& Plater::get_fff_prints()
+{
+    return p->fff_prints;
 }
 
 wxMenu* Plater::object_menu()           { return p->menus.object_menu();            }
