@@ -17,6 +17,7 @@
 
 
 #include <wx/webview.h>
+#include <wx/display.h>
 
 #include <boost/log/trivial.hpp>
 #include <boost/property_tree/ptree.hpp>
@@ -436,23 +437,23 @@ PrinterPickWebViewDialog::PrinterPickWebViewDialog(wxWindow* parent, std::string
     : WebViewDialog(parent
         , GUI::from_u8(Utils::ServiceConfig::instance().connect_select_printer_url())
         , _L("Choose a printer")
-        , wxSize(parent->GetClientSize().x / 4 * 3, parent->GetClientSize().y/ 5 * 4)
+        , wxSize(parent->GetClientSize().x / 4 * 3, parent->GetClientSize().y/ 4 * 3)
         ,{"_prusaSlicer"}
         , "connect_loading")
     , m_ret_val(ret_val)
 {
-    SetMinSize(wxSize(std::max(parent->GetClientSize().x / 2, 100 * wxGetApp().em_unit()), std::max(parent->GetClientSize().y / 2, 70 * wxGetApp().em_unit())));
+    
+    wxDisplay display(wxDisplay::GetFromWindow(this));
+    wxRect geometry = display.GetGeometry();
+    SetMinSize(wxSize(geometry.GetWidth() / 2, geometry.GetHeight() / 2));
     Centre();
 }
 
 void PrinterPickWebViewDialog::on_dpi_changed(const wxRect &suggested_rect)
 {
-    wxWindow *parent = GetParent();
-    const wxSize &size = wxSize(
-        std::max(parent->GetClientSize().x / 2, 100 * wxGetApp().em_unit()),
-        std::max(parent->GetClientSize().y / 2, 70 * wxGetApp().em_unit())
-    );
-    SetMinSize(size);
+    wxDisplay display(wxDisplay::GetFromWindow(this));
+    wxRect geometry = display.GetGeometry();
+    SetMinSize(wxSize(geometry.GetWidth() / 2, geometry.GetHeight() / 2));
     Fit();
     Refresh();
 }
@@ -634,22 +635,21 @@ PrintablesConnectUploadDialog::PrintablesConnectUploadDialog(wxWindow* parent, c
     : WebViewDialog(parent
         , GUI::from_u8(url)
         , _L("Choose a printer")
-        , wxSize(parent->GetClientSize().x / 4 * 3, parent->GetClientSize().y/ 5 * 4)
+        , wxSize(parent->GetClientSize().x / 4 * 3, parent->GetClientSize().y/ 4 * 3)
         ,{"_prusaSlicer"}
         , "connect_loading")
 {
-    SetMinSize(wxSize(std::max(parent->GetClientSize().x / 2, 100 * wxGetApp().em_unit()), std::max(parent->GetClientSize().y / 2, 70 * wxGetApp().em_unit())));
+    wxDisplay display(wxDisplay::GetFromWindow(this));
+    wxRect geometry = display.GetGeometry();
+    SetMinSize(wxSize(geometry.GetWidth() / 2, geometry.GetHeight() / 2));
     Centre();
 }
 
 void PrintablesConnectUploadDialog::on_dpi_changed(const wxRect &suggested_rect)
 {
-    wxWindow *parent = GetParent();
-    const wxSize &size = wxSize(
-        std::max(parent->GetClientSize().x / 2, 100 * wxGetApp().em_unit()),
-        std::max(parent->GetClientSize().y / 2, 70 * wxGetApp().em_unit())
-    );
-    SetMinSize(size);
+    wxDisplay display(wxDisplay::GetFromWindow(this));
+    wxRect geometry = display.GetGeometry();
+    SetMinSize(wxSize(geometry.GetWidth() / 2, geometry.GetHeight() / 2));
     Fit();
     Refresh();
 }
