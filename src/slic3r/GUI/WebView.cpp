@@ -10,7 +10,7 @@
 
 #include <boost/log/trivial.hpp>
 
-wxWebView* WebView::CreateWebView(wxWindow * parent, const wxString& url, const std::vector<std::string>& message_handlers)
+wxWebView* WebView::webview_new()
 {
 #if wxUSE_WEBVIEW_EDGE
     bool backend_available = wxWebView::IsBackendAvailable(wxWebViewBackendEdge);
@@ -22,6 +22,10 @@ wxWebView* WebView::CreateWebView(wxWindow * parent, const wxString& url, const 
     if (backend_available)
         webView = wxWebView::New();
     
+    return webView;
+}
+void WebView::webview_create(wxWebView* webView, wxWindow *parent, const wxString& url, const std::vector<std::string>& message_handlers)
+{
     if (webView) {
         wxString correct_url = url.empty() ? wxString("") : wxURI(url).BuildURI();
         wxString user_agent = Slic3r::GUI::format_wxstr("%1%/%2% (%3%)",SLIC3R_APP_FULL_NAME, SLIC3R_VERSION, Slic3r::platform_to_string(Slic3r::platform()));
@@ -57,5 +61,4 @@ wxWebView* WebView::CreateWebView(wxWindow * parent, const wxString& url, const 
         // TODO: dialog to user !!!
         BOOST_LOG_TRIVIAL(error) << "Failed to create wxWebView object.";
     }
-    return webView;
 }

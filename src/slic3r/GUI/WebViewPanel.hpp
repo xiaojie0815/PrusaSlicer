@@ -24,17 +24,25 @@ namespace Slic3r::GUI {
 class WebViewPanel : public wxPanel
 {
 public:
-    WebViewPanel(wxWindow *parent, const wxString& default_url, const std::vector<std::string>& message_handler_names, const std::string& loading_html, const std::string& error_html);
+    WebViewPanel(wxWindow *parent, const wxString& default_url, const std::vector<std::string>& message_handler_names, const std::string& loading_html, const std::string& error_html, bool do_create);
     virtual ~WebViewPanel();
+    void destroy_browser();
+    void set_create_browser() {m_do_late_webview_create = true; m_load_default_url = true; }
 
     void load_url(const wxString& url);
     void load_default_url_delayed();
     void load_error_page();
 
-    virtual void on_show(wxShowEvent& evt);
+    // Let WebViewPanel do on_show so it can create webview properly
+    // and load default page
+    // override after_on_show for more actions in on_show
+    void on_show(wxShowEvent& evt);
+    virtual void after_on_show(wxShowEvent& evt) {}
+
     virtual void on_script_message(wxWebViewEvent& evt);
 
     void on_idle(wxIdleEvent& evt);
+    void on_loaded(wxWebViewEvent& evt);
     void on_url(wxCommandEvent& evt);
     virtual void on_back_button(wxCommandEvent& evt);
     virtual void on_forward_button(wxCommandEvent& evt);
@@ -57,7 +65,7 @@ public:
     void On_enable_dev_tools(wxCommandEvent& evt);
     virtual void on_navigation_request(wxWebViewEvent &evt);
 
-    wxString get_default_url() const { return m_default_url; }
+    virtual wxString get_default_url() const { return m_default_url; }
     void set_default_url(const wxString& url) { m_default_url = url; }
     virtual void do_reload();
     virtual void load_default_url();
@@ -67,6 +75,8 @@ public:
     void set_load_default_url_on_next_error(bool val) { m_load_default_url_on_next_error = val; }
 
 protected:
+    virtual void late_create();
+
     virtual void on_page_will_load();
 
     wxWebView* m_browser { nullptr };
@@ -107,6 +117,7 @@ protected:
     bool m_load_error_page { false };
     bool m_shown { false };
     bool m_load_default_url_on_next_error { false };
+    bool m_do_late_webview_create {false};
 
     std::vector<std::string> m_script_message_hadler_names;
 }; 
@@ -121,6 +132,7 @@ public:
     void sys_color_changed() override;
     void on_navigation_request(wxWebViewEvent &evt) override;
 protected:
+    void late_create() override;
     void on_connect_action_request_login(const std::string &message_data) override;
     void on_connect_action_select_printer(const std::string& message_data) override;
     void on_connect_action_print(const std::string& message_data) override;
@@ -176,7 +188,7 @@ public:
     PrintablesWebViewPanel(wxWindow* parent);
     void on_navigation_request(wxWebViewEvent &evt) override;
     void on_loaded(wxWebViewEvent& evt);
-    void on_show(wxShowEvent& evt) override;
+    void after_on_show(wxShowEvent& evt) override;
     void on_script_message(wxWebViewEvent& evt) override;
     void sys_color_changed() override;
 
@@ -184,6 +196,7 @@ public:
     void login(const std::string& access_token, const std::string& override_url = std::string());
     void send_refreshed_token(const std::string& access_token);
     void send_will_refresh();
+    wxString get_default_url() const override;
     void set_next_show_url(const std::string& url) {m_next_show_url = Utils::ServiceConfig::instance().printables_url() + url; }
 private:
      void handle_message(const std::string& message);
@@ -194,7 +207,7 @@ private:
      void on_printables_event_slice_file(const std::string& message_data);
      void on_printables_event_required_login(const std::string& message_data);
      void load_default_url() override;
-     std::string get_url_lang_theme(const wxString& url);
+     std::string get_url_lang_theme(const wxString& url) const;
      void show_download_notification(const std::string& filename);
 
      std::map<std::string, std::function<void(const std::string&)>> m_events;

@@ -41,6 +41,17 @@ WebViewPanel::~WebViewPanel()
 #endif
 }
 
+void WebViewPanel::destroy_browser()
+{
+    if (!m_browser || m_do_late_webview_create) {
+        return;
+    }
+    topsizer->Detach(m_browser);
+    m_browser->Destroy();
+    m_browser = nullptr;
+}
+
+
 void WebViewPanel::load_url(const wxString& url)
 {
     if (!m_browser)
@@ -53,12 +64,13 @@ void WebViewPanel::load_url(const wxString& url)
 #ifdef DEBUG_URL_PANEL
     m_url->SetLabelText(url);
 #endif
-    m_browser->LoadURL(url);
+    wxString correct_url = url.empty() ? wxString("") : wxURI(url).BuildURI();
+    m_browser->LoadURL(correct_url);
     m_browser->SetFocus();
 }
 
 
-WebViewPanel::WebViewPanel(wxWindow *parent, const wxString& default_url, const std::vector<std::string>& message_handler_names, const std::string& loading_html, const std::string& error_html)
+WebViewPanel::WebViewPanel(wxWindow *parent, const wxString& default_url, const std::vector<std::string>& message_handler_names, const std::string& loading_html, const std::string& error_html, bool do_create)
     : wxPanel(parent, wxID_ANY, wxDefaultPosition, wxDefaultSize)
     , m_default_url (default_url)
     , m_loading_html(loading_html)
@@ -109,19 +121,10 @@ WebViewPanel::WebViewPanel(wxWindow *parent, const wxString& default_url, const 
 #endif
 
     SetSizer(topsizer);
+    
+    Bind(wxEVT_SHOW, &WebViewPanel::on_show, this);
+    Bind(wxEVT_IDLE, &WebViewPanel::on_idle, this);
 
-    // Create the webview
-    m_browser = WebView::CreateWebView(this, /*m_default_url*/ GUI::format_wxstr("file://%1%/web/%2%.html", boost::filesystem::path(resources_dir()).generic_string(), m_loading_html), m_script_message_hadler_names);
-    if (Utils::ServiceConfig::instance().webdev_enabled()) {
-        m_browser->EnableContextMenu();
-        m_browser->EnableAccessToDevTools();
-    }
-    if (!m_browser) {
-        wxStaticText* text = new wxStaticText(this, wxID_ANY, _L("Failed to load a web browser."));
-        topsizer->Add(text, 0, wxALIGN_LEFT | wxBOTTOM, 10);
-        return;
-    }
-    topsizer->Add(m_browser, wxSizerFlags().Expand().Proportion(1));
 #ifdef DEBUG_URL_PANEL
     // Create the Tools menu
     m_tools_menu = new wxMenu();
@@ -139,16 +142,6 @@ WebViewPanel::WebViewPanel(wxWindow *parent, const wxString& default_url, const 
     m_context_menu = m_tools_menu->AppendCheckItem(wxID_ANY, "Enable Context Menu");
     m_dev_tools = m_tools_menu->AppendCheckItem(wxID_ANY, "Enable Dev Tools");
 
-#endif
-
-    Bind(wxEVT_SHOW, &WebViewPanel::on_show, this);
-
-    // Connect the webview events
-    Bind(wxEVT_WEBVIEW_ERROR, &WebViewPanel::on_error, this, m_browser->GetId());
-    Bind(wxEVT_WEBVIEW_SCRIPT_MESSAGE_RECEIVED, &WebViewPanel::on_script_message, this, m_browser->GetId());
-    Bind(wxEVT_WEBVIEW_NAVIGATING, &WebViewPanel::on_navigation_request, this, m_browser->GetId());
-
-#ifdef DEBUG_URL_PANEL
     // Connect the button events
     Bind(wxEVT_BUTTON, &WebViewPanel::on_back_button, this, m_button_back->GetId());
     Bind(wxEVT_BUTTON, &WebViewPanel::on_forward_button, this, m_button_forward->GetId());
@@ -166,8 +159,59 @@ WebViewPanel::WebViewPanel(wxWindow *parent, const wxString& default_url, const 
     Bind(wxEVT_MENU, &WebViewPanel::on_run_script_custom, this, m_script_custom->GetId());
     Bind(wxEVT_MENU, &WebViewPanel::on_add_user_script, this, addUserScript->GetId());
 #endif
-    //Connect the idle events
-    Bind(wxEVT_IDLE, &WebViewPanel::on_idle, this);
+
+    // Create the webview
+    if (!do_create) {
+        m_do_late_webview_create = true;
+        return;
+    }
+    m_do_late_webview_create = false;
+
+    m_browser = WebView::webview_new();   
+    if (!m_browser) {
+        wxStaticText* text = new wxStaticText(this, wxID_ANY, _L("Failed to load a web browser."));
+        topsizer->Add(text, 0, wxALIGN_LEFT | wxBOTTOM, 10);
+        return;
+    }
+    WebView::webview_create(m_browser,this, GUI::format_wxstr("file://%1%/web/%2%.html", boost::filesystem::path(resources_dir()).generic_string(), m_loading_html), m_script_message_hadler_names);
+    if (Utils::ServiceConfig::instance().webdev_enabled()) {
+        m_browser->EnableContextMenu();
+        m_browser->EnableAccessToDevTools();
+    }
+    topsizer->Add(m_browser, wxSizerFlags().Expand().Proportion(1));
+
+
+    // Connect the webview events
+    Bind(wxEVT_WEBVIEW_ERROR, &WebViewPanel::on_error, this, m_browser->GetId());
+    Bind(wxEVT_WEBVIEW_SCRIPT_MESSAGE_RECEIVED, &WebViewPanel::on_script_message, this, m_browser->GetId());
+    Bind(wxEVT_WEBVIEW_NAVIGATING, &WebViewPanel::on_navigation_request, this, m_browser->GetId());
+
+}
+
+void WebViewPanel::late_create()
+{
+    m_do_late_webview_create = false;
+    m_browser = WebView::webview_new();
+   
+    if (!m_browser) {
+        wxStaticText* text = new wxStaticText(this, wxID_ANY, _L("Failed to load a web browser."));
+        topsizer->Add(text, 0, wxALIGN_LEFT | wxBOTTOM, 10);
+        return;
+    }
+    WebView::webview_create(m_browser,this, GUI::format_wxstr("file://%1%/web/%2%.html", boost::filesystem::path(resources_dir()).generic_string(), m_loading_html), m_script_message_hadler_names);
+ 
+    if (Utils::ServiceConfig::instance().webdev_enabled()) {
+        m_browser->EnableContextMenu();
+        m_browser->EnableAccessToDevTools();
+    }
+    topsizer->Add(m_browser, wxSizerFlags().Expand().Proportion(1));
+
+    // Connect the webview events
+    Bind(wxEVT_WEBVIEW_ERROR, &WebViewPanel::on_error, this, m_browser->GetId());
+    Bind(wxEVT_WEBVIEW_SCRIPT_MESSAGE_RECEIVED, &WebViewPanel::on_script_message, this, m_browser->GetId());
+    Bind(wxEVT_WEBVIEW_NAVIGATING, &WebViewPanel::on_navigation_request, this, m_browser->GetId());
+    Bind(wxEVT_WEBVIEW_LOADED, &WebViewPanel::on_loaded, this, m_browser->GetId());
+    Layout();
 }
 
 void WebViewPanel::load_default_url_delayed()
@@ -178,8 +222,9 @@ void WebViewPanel::load_default_url_delayed()
 
 void WebViewPanel::load_error_page()
 {
-    if (!m_browser)
+    if (!m_browser || m_do_late_webview_create) {
         return;
+    }
 
     m_browser->Stop();
     m_load_error_page = true;    
@@ -188,15 +233,25 @@ void WebViewPanel::load_error_page()
 void WebViewPanel::on_show(wxShowEvent& evt)
 {
     m_shown = evt.IsShown();
-    if (evt.IsShown() && m_load_default_url) {
-        m_load_default_url = false;
-        load_url(m_default_url);
+    if (!m_shown) {
+        return;
     }
+    if (m_do_late_webview_create) {
+        m_do_late_webview_create = false;
+        late_create();
+    }
+    if (m_load_default_url) {
+        m_load_default_url = false;
+        load_default_url();
+        return;
+    }
+
+    after_on_show(evt);
 }
 
 void WebViewPanel::on_idle(wxIdleEvent& WXUNUSED(evt))
 {
-    if (!m_browser)
+    if (!m_browser || m_do_late_webview_create)
         return;
     if (m_browser->IsBusy()) {
         wxSetCursor(wxCURSOR_ARROWWAIT);
@@ -216,6 +271,13 @@ void WebViewPanel::on_idle(wxIdleEvent& WXUNUSED(evt))
 #ifdef DEBUG_URL_PANEL
     m_button_stop->Enable(m_browser->IsBusy());
 #endif
+}
+
+void WebViewPanel::on_loaded(wxWebViewEvent& evt)
+{
+    if (evt.GetURL().IsEmpty())
+        return;
+    m_load_default_url_on_next_error = false;
 }
 
 /**
@@ -496,9 +558,9 @@ void WebViewPanel::do_reload()
 
 void WebViewPanel::load_default_url()
 {
-     if (!m_browser) {
+     if (!m_browser || m_do_late_webview_create) {
         return;
-     }
+    }
     load_url(m_default_url);
 }
 
@@ -510,18 +572,35 @@ void WebViewPanel::sys_color_changed()
 }
 
 ConnectWebViewPanel::ConnectWebViewPanel(wxWindow* parent)
-    : WebViewPanel(parent, GUI::from_u8(Utils::ServiceConfig::instance().connect_url()), { "_prusaSlicer" }, "connect_loading_reload", "connect_connection_failed")
+    : WebViewPanel(parent, GUI::from_u8(Utils::ServiceConfig::instance().connect_url()), { "_prusaSlicer" }, "connect_loading_reload", "connect_connection_failed", false)
 {  
     // m_browser->RegisterHandler(wxSharedPtr<wxWebViewHandler>(new WebViewHandler("https")));
 
     auto* plater = wxGetApp().plater();
-    plater->Bind(EVT_UA_ID_USER_SUCCESS, &ConnectWebViewPanel::on_user_token, this);
+    //plater->Bind(EVT_UA_ID_USER_SUCCESS, &ConnectWebViewPanel::on_user_token, this);
     plater->Bind(EVT_UA_LOGGEDOUT, &ConnectWebViewPanel::on_user_logged_out, this);
+}
+
+void ConnectWebViewPanel::late_create()
+{
+    WebViewPanel::late_create();
+     if (!m_browser) {
+        return;
+    }
+    
+    // from ConnectWebViewPanel::on_user_token
+    auto access_token = wxGetApp().plater()->get_user_account()->get_access_token();
+    assert(!access_token.empty());
+
+    wxString javascript = get_login_script(true);
+    BOOST_LOG_TRIVIAL(debug) << "RunScript " << javascript << "\n";
+    m_browser->RunScriptAsync(javascript);
+    resend_config();
 }
 
 ConnectWebViewPanel::~ConnectWebViewPanel()
 {
-    m_browser->Unbind(EVT_UA_ID_USER_SUCCESS, &ConnectWebViewPanel::on_user_token, this);
+    //m_browser->Unbind(EVT_UA_ID_USER_SUCCESS, &ConnectWebViewPanel::on_user_token, this);
 }
 
 wxString ConnectWebViewPanel::get_login_script(bool refresh)
@@ -677,6 +756,7 @@ void ConnectWebViewPanel::on_page_will_load()
 void ConnectWebViewPanel::on_user_token(UserAccountSuccessEvent& e)
 {
     e.Skip();
+    /*
     auto access_token = wxGetApp().plater()->get_user_account()->get_access_token();
     assert(!access_token.empty());
 
@@ -684,6 +764,7 @@ void ConnectWebViewPanel::on_user_token(UserAccountSuccessEvent& e)
     BOOST_LOG_TRIVIAL(debug) << "RunScript " << javascript << "\n";
     m_browser->RunScriptAsync(javascript);
     resend_config();
+    */
 }
 
 void ConnectWebViewPanel::on_user_logged_out(UserAccountSuccessEvent& e)
@@ -738,6 +819,9 @@ void ConnectWebViewPanel::on_reload_event(const std::string& message_data)
 
 void ConnectWebViewPanel::logout()
 {
+    if (!m_browser || m_do_late_webview_create) {
+        return;
+    }
     wxString script = L"window._prusaConnect_v1.logout()";
     run_script(script);
 
@@ -755,7 +839,6 @@ void ConnectWebViewPanel::logout()
     );
     BOOST_LOG_TRIVIAL(debug) << "RunScript " << javascript << "\n";
     m_browser->RunScript(javascript);
-
 }
 
 void ConnectWebViewPanel::sys_color_changed()
@@ -781,23 +864,16 @@ void ConnectWebViewPanel::on_connect_action_print(const std::string& message_dat
 }
 
 PrinterWebViewPanel::PrinterWebViewPanel(wxWindow* parent, const wxString& default_url)
-    : WebViewPanel(parent, default_url, {"ExternalApp"}, "other_loading_reload", "other_error")
+    : WebViewPanel(parent, default_url, {"ExternalApp"}, "other_loading_reload", "other_error", false)
 {
-    if (!m_browser)
-        return;
-
-    m_browser->Bind(wxEVT_WEBVIEW_LOADED, &PrinterWebViewPanel::on_loaded, this);
-#ifndef NDEBUG
-    m_browser->EnableAccessToDevTools();
-    m_browser->EnableContextMenu();
-#endif
-
 }
+
 
 void PrinterWebViewPanel::on_loaded(wxWebViewEvent& evt)
 {
     if (evt.GetURL().IsEmpty())
         return;
+    m_load_default_url_on_next_error = false;
     if (!m_api_key.empty()) {
         send_api_key();
     } else if (!m_usr.empty() && !m_psk.empty()) {
@@ -857,9 +933,9 @@ void PrinterWebViewPanel::sys_color_changed()
 
 
 PrintablesWebViewPanel::PrintablesWebViewPanel(wxWindow* parent)
-    : WebViewPanel(parent, GUI::from_u8(Utils::ServiceConfig::instance().printables_url()), { "ExternalApp" }, "other_loading_reload", "other_error")
+    : WebViewPanel(parent, GUI::from_u8(Utils::ServiceConfig::instance().printables_url()), { "ExternalApp" }, "other_loading_reload", "other_error", false)
 {  
-    m_browser->Bind(wxEVT_WEBVIEW_LOADED, &PrintablesWebViewPanel::on_loaded, this); 
+    
 
     m_events["accessTokenExpired"] = std::bind(&PrintablesWebViewPanel::on_printables_event_access_token_expired, this, std::placeholders::_1);
     m_events["reloadHomePage"] = std::bind(&PrintablesWebViewPanel::on_reload_event, this, std::placeholders::_1);
@@ -868,6 +944,7 @@ PrintablesWebViewPanel::PrintablesWebViewPanel(wxWindow* parent)
     m_events["sliceFile"] = std::bind(&PrintablesWebViewPanel::on_printables_event_slice_file, this, std::placeholders::_1);
     m_events["requiredLogin"] = std::bind(&PrintablesWebViewPanel::on_printables_event_required_login, this, std::placeholders::_1);
 
+   
 }
 
 void PrintablesWebViewPanel::handle_message(const std::string& message)
@@ -908,15 +985,21 @@ void PrintablesWebViewPanel::on_navigation_request(wxWebViewEvent &evt)
     }
 }
 
+wxString PrintablesWebViewPanel::get_default_url() const
+{
+    return GUI::from_u8(get_url_lang_theme(GUI::from_u8(Utils::ServiceConfig::instance().printables_url() + "/homepage")));
+}
+
 void PrintablesWebViewPanel::on_loaded(wxWebViewEvent& evt)
 {
 #ifdef _WIN32
     // This is needed only once after add_request_authorization
     remove_request_authorization(m_browser);
 #endif
+    m_load_default_url_on_next_error = false;
 }
 
-std::string PrintablesWebViewPanel::get_url_lang_theme(const wxString& url)
+std::string PrintablesWebViewPanel::get_url_lang_theme(const wxString& url) const
 {
     // situations and reaction:
     // 1) url is just a path (no query no fragment) -> query with lang and theme is added 
@@ -967,17 +1050,8 @@ std::string PrintablesWebViewPanel::get_url_lang_theme(const wxString& url)
     return url_string + "?" + new_params;
 }
 
-void PrintablesWebViewPanel::on_show(wxShowEvent& evt)
+void PrintablesWebViewPanel::after_on_show(wxShowEvent& evt)
 {
-    m_shown = evt.IsShown();
-    if (!m_shown) {
-        return;
-    }
-    if (m_load_default_url) {
-        m_load_default_url = false;
-        load_default_url();
-        return;
-    }
     // in case login changed, resend login / logout
     // DK1: it seems to me, it is safer to do login / logout (where logout means requesting the page again)
     // on every show of panel,

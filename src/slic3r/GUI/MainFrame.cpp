@@ -850,7 +850,7 @@ void MainFrame::add_connect_webview_tab()
     const std::string bmp_name = "";
     bool bSelect = false;
     m_tabpanel->InsertNewPage(n, page, text, bmp_name, bSelect);
-    m_connect_webview->load_default_url_delayed();
+    m_connect_webview->set_create_browser();
     m_connect_webview_added = true;
 }
 void MainFrame::remove_connect_webview_tab()
@@ -864,6 +864,7 @@ void MainFrame::remove_connect_webview_tab()
     m_tabpanel->RemovePage(size_t(n));
     m_connect_webview_added = false;
     m_connect_webview->logout();
+    m_connect_webview->destroy_browser();
 }
 
 void MainFrame::show_connect_tab(const wxString& url)
@@ -898,7 +899,7 @@ void MainFrame::add_printables_webview_tab()
     const wxString text(L"Printables");
     const std::string bmp_name = "";
     m_tabpanel->InsertNewPage(n, page, text, bmp_name, false);
-    m_printables_webview->load_default_url_delayed();
+    m_printables_webview->set_create_browser();
     m_printables_webview_added = true;
 }
 
@@ -913,6 +914,7 @@ void MainFrame::remove_printables_webview_tab()
         m_tabpanel->SetSelection(0);
     m_tabpanel->RemovePage(size_t(n));
     m_printables_webview_added = false;
+    m_printables_webview->destroy_browser();
 }
 
 void MainFrame::show_printer_webview_tab(DynamicPrintConfig* dpc)
@@ -958,7 +960,7 @@ void MainFrame::add_printer_webview_tab(const wxString& url)
     // add as the last (rightmost) panel
     m_tabpanel->AddNewPage(m_printer_webview, _L("Physical Printer"), "");
     m_printer_webview->set_default_url(url);
-    m_printer_webview->load_default_url_delayed();
+    m_printer_webview->set_create_browser();
 }
 void MainFrame::remove_printer_webview_tab()
 {
@@ -968,6 +970,7 @@ void MainFrame::remove_printer_webview_tab()
     m_printer_webview_added = false;
     m_printer_webview->Hide();
     m_tabpanel->RemovePage(m_tabpanel->FindPage(m_printer_webview));
+    m_printer_webview->destroy_browser();
 }
 void MainFrame::set_printer_webview_tab_url(const wxString& url)
 {

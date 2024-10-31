@@ -74,16 +74,19 @@ WebViewDialog::WebViewDialog(wxWindow* parent, const wxString& url, const wxStri
     SetSizerAndFit(topsizer);
 
     // Create the webview
-    m_browser = WebView::CreateWebView(this, GUI::format_wxstr("file://%1%/web/%2%.html", boost::filesystem::path(resources_dir()).generic_string(), m_loading_html), m_script_message_hadler_names);
-    if (Utils::ServiceConfig::instance().webdev_enabled()) {
-        m_browser->EnableContextMenu();
-        m_browser->EnableAccessToDevTools();
-    }
+    m_browser = WebView::webview_new();
     if (!m_browser) {
         wxStaticText* text = new wxStaticText(this, wxID_ANY, _L("Failed to load a web browser."));
         topsizer->Add(text, 0, wxALIGN_LEFT | wxBOTTOM, 10);
         return;
     }
+    WebView::webview_create(m_browser, this, GUI::format_wxstr("file://%1%/web/%2%.html", boost::filesystem::path(resources_dir()).generic_string(), m_loading_html), m_script_message_hadler_names);
+    
+    if (Utils::ServiceConfig::instance().webdev_enabled()) {
+        m_browser->EnableContextMenu();
+        m_browser->EnableAccessToDevTools();
+    }
+    
 
     topsizer->Add(m_browser, wxSizerFlags().Expand().Proportion(1));
 
