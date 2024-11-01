@@ -827,10 +827,8 @@ static std::vector<ExPolygons> extract_colored_segments(const std::vector<Colore
                 segmented_polygon.points.emplace_back(Geometry::VoronoiUtils::to_point(next_vertex).cast<coord_t>());
                 edge->color(VD_ANNOTATION::DELETED);
 
-                if (next_vertex.color() == VD_ANNOTATION::VERTEX_ON_CONTOUR || next_vertex.color() == VD_ANNOTATION::DELETED) {
-                    assert(next_vertex.color() == VD_ANNOTATION::VERTEX_ON_CONTOUR);
+                if (next_vertex.color() == VD_ANNOTATION::VERTEX_ON_CONTOUR || next_vertex.color() == VD_ANNOTATION::DELETED)
                     break;
-                }
 
                 edge = edge->twin();
             } while (edge = edge->twin()->next(), edge != cell_range.edge_begin);
