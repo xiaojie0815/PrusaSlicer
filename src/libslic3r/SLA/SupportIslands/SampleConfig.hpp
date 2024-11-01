@@ -69,10 +69,10 @@ struct SampleConfig
     
     // Sample outline of Field by this value
     // Less than max_distance
-    coord_t outline_sample_distance = 2; 
+    coord_t outline_sample_distance = 2;
 
     // Maximal distance over Voronoi diagram edges to find closest point during aligning Support point
-    coord_t max_align_distance = 0; // [nano meter]
+    coord_t max_align_distance = 0; // [scaled mm -> nanometers]
 
     // There is no need to calculate with precisse island
     // NOTE: Slice of Cylinder bottom has tip of trinagles on contour

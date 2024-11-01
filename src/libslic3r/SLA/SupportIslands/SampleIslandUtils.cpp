@@ -210,30 +210,9 @@ SupportIslandPoints SampleIslandUtils::uniform_cover_island(
     return samples;
 }
 
-std::vector<Slic3r::Vec2f> SampleIslandUtils::sample_expolygon(
-    const ExPolygon &expoly, float samples_per_mm2)
-{
-    static const float mm2_area = static_cast<float>(scale_(1) * scale_(1));
-    // Equilateral triangle area = (side * height) / 2
-    float triangle_area = mm2_area / samples_per_mm2;
-    // Triangle area = sqrt(3) / 4 * "triangle side"
-    static const float coef1         = sqrt(3.) / 4.;
-    coord_t            triangle_side = static_cast<coord_t>(
-        std::round(sqrt(triangle_area * coef1)));
 
-    Points points = sample_expolygon(expoly, triangle_side);
 
-    std::vector<Vec2f> result;
-    result.reserve(points.size());
-    std::transform(points.begin(), points.end(), std::back_inserter(result), 
-        [](const Point &p)->Vec2f { return unscale(p).cast<float>(); });
-
-    return result;
-}
-
-Slic3r::Points SampleIslandUtils::sample_expolygon(const ExPolygon &expoly,
-                                                   coord_t triangle_side)
-{
+Slic3r::Points SampleIslandUtils::sample_expolygon(const ExPolygon &expoly, coord_t triangle_side){
     const Points &points = expoly.contour.points;
     assert(!points.empty());
     // get y range
@@ -245,9 +224,8 @@ Slic3r::Points SampleIslandUtils::sample_expolygon(const ExPolygon &expoly,
         else if (max_y < point.y())
             max_y = point.y();
     }
-
-    coord_t triangle_side_2 = triangle_side / 2;
-    static const float coef2           = sqrt(3.) / 2.;
+    coord_t half_triangle_side = triangle_side / 2;
+    static const float coef2 = sqrt(3.) / 2.;
     coord_t triangle_height = static_cast<coord_t>(std::round(triangle_side * coef2));
 
     // IMPROVE: use line end y
@@ -271,8 +249,7 @@ Slic3r::Points SampleIslandUtils::sample_expolygon(const ExPolygon &expoly,
     Points result;
     size_t start_index = 0;
     bool is_odd = false;
-    for (coord_t y = min_y + triangle_height / 2; y < max_y;
-         y += triangle_height) {
+    for (coord_t y = min_y + triangle_height / 2; y < max_y; y += triangle_height) {
         is_odd = !is_odd;
         std::vector<coord_t> intersections;
         bool increase_start_index = true;
@@ -299,17 +276,43 @@ Slic3r::Points SampleIslandUtils::sample_expolygon(const ExPolygon &expoly,
         for (size_t index = 0; index + 1 < intersections.size(); index += 2) {
             coord_t start_x = intersections[index];
             coord_t end_x   = intersections[index + 1];
-            if (is_odd) start_x += triangle_side_2;
+            if (is_odd) start_x += half_triangle_side;
             coord_t div = start_x / triangle_side;
             if (start_x > 0) div += 1;
             coord_t x = div * triangle_side;
-            if (is_odd) x -= triangle_side_2;
+            if (is_odd) x -= half_triangle_side;
             while (x < end_x) {
                 result.emplace_back(x, y);
                 x += triangle_side;
             }
         }
     }
+    return result;
+}
+
+Slic3r::Points SampleIslandUtils::sample_expolygon_with_centering(const ExPolygon &expoly, coord_t triangle_side) {
+    assert(!expoly.contour.empty());
+    if (expoly.contour.empty())
+        return {};
+    // to unify sampling of rotated expolygon offset and rotate pattern by centroid and farrest point
+    Point center = expoly.contour.centroid();
+    Point extrem = expoly.contour.front(); // the farest point from center
+    // NOTE: ignore case with multiple same distance points
+    double extrem_distance_sq = -1.;
+    for (const Point &point : expoly.contour.points) {
+        Point from_center = point - center;
+        double distance_sq = from_center.cast<double>().squaredNorm();
+        if (extrem_distance_sq < distance_sq) {
+            extrem_distance_sq = distance_sq;
+            extrem = point;
+        }
+    }
+    double angle = atan2(extrem.y() - center.y(), extrem.x() - center.x());
+    ExPolygon expoly_tr = expoly; // copy
+    expoly_tr.rotate(angle, center);
+    Points result = sample_expolygon(expoly_tr, triangle_side);
+    for (Point &point : result)
+        point.rotate(-angle, center);
     return result;
 }
 
@@ -1090,13 +1093,13 @@ SupportIslandPoints SampleIslandUtils::sample_expath(
         // 2) Two support points have to stretch island even if haed is not fully under island.
         if (path.length < config.max_length_for_two_support_points) {
             coord_t max_distance_by_length = static_cast<coord_t>(path.length / 4);
-            coord_t max_distance = std::min(config.half_distance, max_distance_by_length);
+            coord_t max_distance = std::min(config.maximal_distance_from_outline, max_distance_by_length);
             
             // Be carefull tiny island could contain overlapped support points
             assert(max_distance < (static_cast<coord_t>(path.length / 2) - config.head_radius));
 
             coord_t min_width = 2 * config.head_radius; //minimal_distance_from_outline; 
-            return create_side_points(path.nodes, lines, min_width, max_distance);
+            return create_side_points(path.nodes, lines, min_width, config.maximal_distance_from_outline);
         }
 
         // othewise sample path
@@ -1144,7 +1147,7 @@ SupportIslandPoints SampleIslandUtils::sample_expath(
         // IMPROVE: check side branches on start path
     } else {
         // start sample field
-        VoronoiGraph::Position field_start{neighbor, .1e-5};
+        VoronoiGraph::Position field_start{neighbor, 0.f};
         sample_field(field_start, points, center_starts, done, lines, config);
     }
 
@@ -1166,18 +1169,14 @@ void SampleIslandUtils::sample_field(const VoronoiGraph::Position &field_start,
                                      const SampleConfig &config)
 {
     auto field = create_field(field_start, center_starts, done, lines, config);
+    if (field.inner.empty())
+        return; // no inner part
     SupportIslandPoints outline_support = sample_outline(field, config);
     points.insert(points.end(), std::move_iterator(outline_support.begin()),
                   std::move_iterator(outline_support.end()));
-
-    // Erode island to not sampled island around border,
-    // minimal value must be -config.minimal_distance_from_outline
-    Polygons polygons = offset(field.border,
-                               -2.f * config.minimal_distance_from_outline,
-                               ClipperLib::jtSquare);
-    if (polygons.empty()) return;
+    // Inner must survive after sample field for aligning supports(move along outline)
     auto inner = std::make_shared<ExPolygon>(field.inner);    
-    Points inner_points = sample_expolygon(*inner, config.max_distance);    
+    Points inner_points = sample_expolygon_with_centering(*inner, config.max_distance);    
     std::transform(inner_points.begin(), inner_points.end(), std::back_inserter(points), 
         [&](const Point &point) { 
             return std::make_unique<SupportIslandInnerPoint>(
@@ -1327,7 +1326,7 @@ std::optional<VoronoiGraph::Position> SampleIslandUtils::sample_center(
 
     // create field start
     auto result = VoronoiGraphUtils::get_position_with_width(
-        start.neighbor, config.min_width_for_outline_support, lines
+        start.neighbor, config.max_width_for_center_support_line, lines
     );
 
     // sample rest of neighbor before field
@@ -1449,6 +1448,102 @@ bool SampleIslandUtils::create_sample_center_end(
     return true;
 }
 
+// Help functions for create field
+namespace {
+// Data type object represents one island change from wide to tiny part
+// It is stored inside map under source line index
+struct WideTinyChange{
+    // new coordinate for line.b point
+    Point new_b;
+    // new coordinate for next line.a point
+    Point next_new_a;
+    // index to lines
+    size_t next_line_index;
+
+    WideTinyChange(Point new_b, Point next_new_a, size_t next_line_index)
+        : new_b(new_b)
+        , next_new_a(next_new_a)
+        , next_line_index(next_line_index)
+    {}
+
+    // is used only when multi wide tiny change are on same Line
+    struct SortFromAToB
+    {
+        LineUtils::SortFromAToB compare;
+        SortFromAToB(const Line &line) : compare(line) {}            
+        bool operator()(const WideTinyChange &left,
+                        const WideTinyChange &right)
+        {
+            return compare.compare(left.new_b, right.new_b);
+        }
+    };
+};
+using WideTinyChanges = std::vector<WideTinyChange>;
+
+/// <summary>
+/// create offsetted field
+/// </summary>
+/// <param name="island">source field</param>
+/// <param name="offset_delta">distance from outline</param>
+/// <returns>offseted field
+/// First  - offseted island outline
+/// Second - map for convert source field index to result border index
+/// </returns>
+std::pair<Slic3r::ExPolygon, std::map<size_t, size_t>>
+outline_offset(const Slic3r::ExPolygon &island, float offset_delta)
+{
+    Polygons polygons = offset(island, -offset_delta, ClipperLib::jtSquare);
+    if (polygons.empty()) return {}; // no place for support point
+    assert(polygons.front().is_counter_clockwise());
+    ExPolygon offseted(polygons.front());
+    for (size_t i = 1; i < polygons.size(); ++i) {
+        Polygon &hole = polygons[i];
+        assert(hole.is_clockwise());
+        offseted.holes.push_back(hole);
+    }
+
+    // TODO: Connect indexes for convert during creation of offset
+    // !! this implementation was fast for develop BUT NOT for running !!
+    const double angle_tolerace = 1e-4;
+    const double distance_tolerance = 20.;
+    Lines island_lines = to_lines(island);
+    Lines offset_lines = to_lines(offseted);
+    // Convert index map from island index to offseted index
+    std::map<size_t, size_t> converter;
+    for (size_t island_line_index = 0; island_line_index < island_lines.size(); ++island_line_index) {
+        const Line &island_line = island_lines[island_line_index];
+        Vec2d dir1 = LineUtils::direction(island_line).cast<double>();
+        dir1.normalize();
+        for (size_t offset_line_index = 0; offset_line_index < offset_lines.size(); ++offset_line_index) {
+            const Line &offset_line = offset_lines[offset_line_index];
+            Vec2d dir2 = LineUtils::direction(offset_line).cast<double>();
+            dir2.normalize();
+            double  angle    = acos(dir1.dot(dir2));
+            // not similar direction
+            
+            if (fabs(angle) > angle_tolerace) continue;
+
+            Point offset_middle = LineUtils::middle(offset_line);
+            Point island_middle = LineUtils::middle(island_line);
+            Point diff_middle   = offset_middle - island_middle;
+            if (fabs(diff_middle.x()) > 2 * offset_delta || 
+                fabs(diff_middle.y()) > 2 * offset_delta)
+                continue;
+
+            double distance = island_line.perp_distance_to(offset_middle);
+            if (fabs(distance - offset_delta) > distance_tolerance)
+                continue;
+
+            // found offseted line
+            converter[island_line_index] = offset_line_index;
+            break;            
+        }
+    }
+
+    return {offseted, converter};
+}
+
+} // namespace
 
 SampleIslandUtils::Field SampleIslandUtils::create_field(
     const VoronoiGraph::Position & field_start,
@@ -1458,36 +1553,7 @@ SampleIslandUtils::Field SampleIslandUtils::create_field(
     const SampleConfig &config)
 {
     using VD = Slic3r::Geometry::VoronoiDiagram;
-
-    // DTO represents one island change from wide to tiny part
-    // it is stored inside map under source line index
-    struct WideTinyChange{
-        // new coordinate for line.b point
-        Point new_b;
-        // new coordinate for next line.a point
-        Point next_new_a;
-        // index to lines
-        size_t next_line_index;
-
-        WideTinyChange(Point new_b, Point next_new_a, size_t next_line_index)
-            : new_b(new_b)
-            , next_new_a(next_new_a)
-            , next_line_index(next_line_index)
-        {}
-
-        // is used only when multi wide tiny change are on same Line
-        struct SortFromAToB
-        {
-            LineUtils::SortFromAToB compare;
-            SortFromAToB(const Line &line) : compare(line) {}            
-            bool operator()(const WideTinyChange &left,
-                            const WideTinyChange &right)
-            {
-                return compare.compare(left.new_b, right.new_b);
-            }
-        };
-    };
-    using WideTinyChanges = std::vector<WideTinyChange>;
+    
     // store shortening of outline segments
     //   line index, vector<next line index + 2x shortening points>
     std::map<size_t, WideTinyChanges> wide_tiny_changes;
@@ -1726,6 +1792,7 @@ SampleIslandUtils::Field SampleIslandUtils::create_field(
         inser_point_b(outline_index, points, done_indexes);
     } while (outline_index != input_index);
 
+    assert(points.size() >= 3);
     Field field;
     field.border.contour = Polygon(points);
     // finding holes
@@ -1742,10 +1809,9 @@ SampleIslandUtils::Field SampleIslandUtils::create_field(
         }
     }
     field.source_indexe_for_change = source_indexe_for_change;
-    field.source_indexes = std::move(source_indexes);
+    field.source_indexes = std::move(source_indexes);    
     std::tie(field.inner, field.field_2_inner) =
-        outline_offset(field.border, config.minimal_distance_from_outline);
-
+        outline_offset(field.border, (float)config.minimal_distance_from_outline);
 #ifdef SLA_SAMPLE_ISLAND_UTILS_STORE_FIELD_TO_SVG_PATH
     {
         const char *source_line_color = "black";
@@ -1759,61 +1825,9 @@ SampleIslandUtils::Field SampleIslandUtils::create_field(
         draw(svg, field, draw_border_line_indexes, draw_field_source_indexes);
     }
 #endif //SLA_SAMPLE_ISLAND_UTILS_STORE_FIELD_TO_SVG_PATH
+    assert(!field.border.empty());
+    assert(!field.inner.empty());
     return field;
-}
-
-std::pair<Slic3r::ExPolygon, std::map<size_t, size_t>>
-SampleIslandUtils::outline_offset(const Slic3r::ExPolygon &island,
-                                  coord_t                  offset_distance)
-{
-    Polygons polygons = offset(island, -offset_distance, ClipperLib::jtSquare);
-    if (polygons.empty()) return {}; // no place for support point
-    assert(polygons.front().is_counter_clockwise());
-    ExPolygon offseted(polygons.front());
-    for (size_t i = 1; i < polygons.size(); ++i) {
-        Polygon &hole = polygons[i];
-        assert(hole.is_clockwise());
-        offseted.holes.push_back(hole);
-    }
-
-    // TODO: Connect indexes for convert during creation of offset
-    // !! this implementation was fast for develop BUT NOT for running !!
-    const double angle_tolerace = 1e-4;
-    const double distance_tolerance = 20.;
-    Lines island_lines = to_lines(island);
-    Lines offset_lines = to_lines(offseted);
-    // Convert index map from island index to offseted index
-    std::map<size_t, size_t> converter;
-    for (size_t island_line_index = 0; island_line_index < island_lines.size(); ++island_line_index) {
-        const Line &island_line = island_lines[island_line_index];
-        Vec2d dir1 = LineUtils::direction(island_line).cast<double>();
-        dir1.normalize();
-        for (size_t offset_line_index = 0; offset_line_index < offset_lines.size(); ++offset_line_index) {
-            const Line &offset_line = offset_lines[offset_line_index];
-            Vec2d dir2 = LineUtils::direction(offset_line).cast<double>();
-            dir2.normalize();
-            double  angle    = acos(dir1.dot(dir2));
-            // not similar direction
-            
-            if (fabs(angle) > angle_tolerace) continue;
-
-            Point offset_middle = LineUtils::middle(offset_line);
-            Point island_middle = LineUtils::middle(island_line);
-            Point diff_middle   = offset_middle - island_middle;
-            if (fabs(diff_middle.x()) > 2 * offset_distance ||
-                fabs(diff_middle.y()) > 2 * offset_distance) continue;
-
-            double distance = island_line.perp_distance_to(offset_middle);
-            if (fabs(distance - offset_distance) > distance_tolerance)
-                continue;
-
-            // found offseted line
-            converter[island_line_index] = offset_line_index;
-            break;            
-        }
-    }
-
-    return {offseted, converter};
 }
 
 SupportIslandPoints SampleIslandUtils::sample_outline(
@@ -1833,7 +1847,7 @@ SupportIslandPoints SampleIslandUtils::sample_outline(
         coord_t line_length = static_cast<coord_t>(std::round(line_length_double));
         if (last_support + line_length > sample_distance) {
             do {
-                double ratio = (sample_distance - last_support) / line_length_double;
+                float ratio = static_cast<float>((sample_distance - last_support) / line_length_double);
                 result.emplace_back(
                     std::make_unique<SupportOutlineIslandPoint>(
                         Position(index, ratio), restriction,

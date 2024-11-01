@@ -37,18 +37,12 @@ public:
     /// <summary>
     /// Uniform sample expolygon area by points inside Equilateral triangle center
     /// </summary>
-    /// <param name="expoly">Input area to sample. (scaled)</param>
-    /// <param name="samples_per_mm2">Density of sampling.</param>
-    /// <returns>Samples - 2d unscaled coordinates [in mm]</returns>
-    static std::vector<Vec2f> sample_expolygon(const ExPolygon &expoly, float samples_per_mm2);
-
-    /// <summary>
-    /// Uniform sample expolygon area by points inside Equilateral triangle center
-    /// </summary>
     /// <param name="expoly">Input area to sample.(scaled)</param>
     /// <param name="triangle_side">Distance between samples.</param>
     /// <returns>Uniform samples(scaled)</returns>
     static Points sample_expolygon(const ExPolygon &expoly, coord_t triangle_side);
+    /// Offset sampling pattern by centroid and farrest point from centroid
+    static Points sample_expolygon_with_centering(const ExPolygon &expoly, coord_t triangle_side);
 
     /// <summary>
     /// Create support point on edge defined by neighbor
@@ -370,19 +364,6 @@ public :
     /// <returns>support for outline</returns>
     static SupportIslandPoints sample_outline(const Field &       field,
                                               const SampleConfig &config);
-private:
-    /// <summary>
-    /// create offsetted field
-    /// </summary>
-    /// <param name="island">source field</param>
-    /// <param name="offset_distance">distance from outline</param>
-    /// <returns>offseted field
-    /// First  - offseted island outline
-    /// Second - map for convert source field index to result border index
-    /// </returns>
-    static std::pair<Slic3r::ExPolygon, std::map<size_t, size_t>>
-    outline_offset(const Slic3r::ExPolygon &island, coord_t offset_distance);
-
     // debug draw functions
 public :
     static bool is_visualization_disabled();
