@@ -248,7 +248,6 @@ GLVolume::GLVolume(float r, float g, float b, float a)
     , is_outside(false)
     , hover(HS_None)
     , is_modifier(false)
-    , is_wipe_tower(false)
     , is_extrusion_path(false)
     , force_native_color(false)
     , force_neutral_color(false)
@@ -500,11 +499,11 @@ int GLVolumeCollection::load_object_volume(
 }
 
 #if SLIC3R_OPENGL_ES
-int GLVolumeCollection::load_wipe_tower_preview(
+GLVolume* GLVolumeCollection::load_wipe_tower_preview(
     float pos_x, float pos_y, float width, float depth, const std::vector<std::pair<float, float>>& z_and_depth_pairs, float height, float cone_angle,
     float rotation_angle, bool size_unknown, float brim_width, size_t idx, TriangleMesh* out_mesh)
 #else
-int GLVolumeCollection::load_wipe_tower_preview(
+GLVolume* GLVolumeCollection::load_wipe_tower_preview(
     float pos_x, float pos_y, float width, float depth, const std::vector<std::pair<float, float>>& z_and_depth_pairs, float height, float cone_angle,
     float rotation_angle, bool size_unknown, float brim_width, size_t idx)
 #endif // SLIC3R_OPENGL_ES
@@ -591,9 +590,8 @@ int GLVolumeCollection::load_wipe_tower_preview(
         mesh.merge(cone_mesh);
     }
 
-
-    volumes.emplace_back(new GLVolume(color));
-    GLVolume& v = *volumes.back();
+    GLVolume* result{new GLVolume(color)};
+    GLVolume& v = *result;
 #if SLIC3R_OPENGL_ES
     if (out_mesh != nullptr)
         *out_mesh = mesh;
@@ -607,9 +605,10 @@ int GLVolumeCollection::load_wipe_tower_preview(
     v.composite_id = GLVolume::CompositeID(INT_MAX - idx, 0, 0);
     v.geometry_id.first = 0;
     v.geometry_id.second = wipe_tower_instance_id(idx).id;
-    v.is_wipe_tower = true;
+    v.wipe_tower_bed_index = idx;
     v.shader_outside_printer_detection_enabled = !size_unknown;
-    return int(volumes.size() - 1);
+
+    return result;
 }
 
 // Load SLA auxiliary GLVolumes (for support trees or pad).
@@ -803,7 +802,7 @@ void GLVolumeCollection::render(GLVolumeCollection::ERenderType type, bool disab
         const int obj_idx = volume.first->object_idx();
         const int vol_idx = volume.first->volume_idx();
         const bool render_as_mmu_painted = is_render_as_mmu_painted_enabled && !volume.first->selected &&
-            !volume.first->is_outside && volume.first->hover == GLVolume::HS_None && !volume.first->is_wipe_tower && obj_idx >= 0 && vol_idx >= 0 &&
+            !volume.first->is_outside && volume.first->hover == GLVolume::HS_None && !volume.first->is_wipe_tower() && obj_idx >= 0 && vol_idx >= 0 &&
             !model_objects[obj_idx]->volumes[vol_idx]->mm_segmentation_facets.empty() &&
             type != GLVolumeCollection::ERenderType::Transparent; // to filter out shells (not very nice)
         volume.first->set_render_color(true);
@@ -882,7 +881,7 @@ void GLVolumeCollection::render(GLVolumeCollection::ERenderType type, bool disab
             shader->set_uniform("print_volume.xy_data", m_print_volume.data);
             shader->set_uniform("print_volume.z_data", m_print_volume.zs);
             shader->set_uniform("volume_world_matrix", world_matrix);
-            shader->set_uniform("slope.actived", m_slope.active && !volume.first->is_modifier && !volume.first->is_wipe_tower);
+            shader->set_uniform("slope.actived", m_slope.active && !volume.first->is_modifier && !volume.first->is_wipe_tower());
             shader->set_uniform("slope.volume_world_normal_matrix", static_cast<Matrix3f>(world_matrix_inv_transp.cast<float>()));
             shader->set_uniform("slope.normal_z", m_slope.normal_z);
 
@@ -1012,7 +1011,7 @@ void GLVolumeCollection::update_colors_by_extruder(const DynamicPrintConfig* con
     }
 
     for (GLVolume* volume : volumes) {
-        if (volume == nullptr || volume->is_modifier || volume->is_wipe_tower || volume->is_sla_pad() || volume->is_sla_support())
+        if (volume == nullptr || volume->is_modifier || volume->is_wipe_tower() || volume->is_sla_pad() || volume->is_sla_support())
             continue;
 
         int extruder_id = volume->extruder_id - 1;

@@ -1032,6 +1032,7 @@ wxDEFINE_EVENT(EVT_GLCANVAS_OBJECT_SELECT, SimpleEvent);
 wxDEFINE_EVENT(EVT_GLCANVAS_RIGHT_CLICK, RBtnEvent);
 wxDEFINE_EVENT(EVT_GLCANVAS_REMOVE_OBJECT, SimpleEvent);
 wxDEFINE_EVENT(EVT_GLCANVAS_ARRANGE, SimpleEvent);
+wxDEFINE_EVENT(EVT_GLCANVAS_ARRANGE_CURRENT_BED, SimpleEvent);
 wxDEFINE_EVENT(EVT_GLCANVAS_SELECT_ALL, SimpleEvent);
 wxDEFINE_EVENT(EVT_GLCANVAS_QUESTION_MARK, SimpleEvent);
 wxDEFINE_EVENT(EVT_GLCANVAS_INCREASE_INSTANCES, Event<int>);
@@ -1318,7 +1319,18 @@ PrinterTechnology GLCanvas3D::current_printer_technology() const
 
 bool GLCanvas3D::is_arrange_alignment_enabled() const
 {
-    return m_config ? is_XL_printer(*m_config) && !this->get_wipe_tower_info() : false;
+    if (m_config == nullptr) {
+        return false;
+    }
+    if (!is_XL_printer(*m_config)) {
+        return false;
+    }
+    for (const WipeTowerInfo &wti : this->get_wipe_tower_infos()) {
+        if (bool{wti}) {
+            return false;
+        }
+    }
+    return true;
 }
 
 GLCanvas3D::GLCanvas3D(wxGLCanvas *canvas, Bed3D &bed)
@@ -1370,6 +1382,9 @@ GLCanvas3D::GLCanvas3D(wxGLCanvas *canvas, Bed3D &bed)
     });
     m_arrange_settings_dialog.on_arrange_btn([]{
         wxGetApp().plater()->arrange();
+    });
+    m_arrange_settings_dialog.on_arrange_bed_btn([]{
+        wxGetApp().plater()->arrange_current_bed();
     });
 }
 
@@ -1491,7 +1506,7 @@ bool GLCanvas3D::check_volumes_outside_state(GLVolumeCollection& volumes, ModelI
     const std::vector<unsigned int> volumes_idxs = volumes_to_process_idxs();
     for (unsigned int vol_idx : volumes_idxs) {
         GLVolume* volume = volumes.volumes[vol_idx];
-        if (!volume->is_modifier && (volume->shader_outside_printer_detection_enabled || (!volume->is_wipe_tower && volume->composite_id.volume_id >= 0))) {
+        if (!volume->is_modifier && (volume->shader_outside_printer_detection_enabled || (!volume->is_wipe_tower() && volume->composite_id.volume_id >= 0))) {
             BuildVolume::ObjectState state;
             int bed_idx = -1;
             if (volume_below(*volume))
@@ -1571,7 +1586,7 @@ void GLCanvas3D::toggle_model_objects_visibility(bool visible, const ModelObject
 {
     std::vector<std::shared_ptr<SceneRaycasterItem>>* raycasters = get_raycasters_for_picking(SceneRaycaster::EType::Volume);
     for (GLVolume* vol : m_volumes.volumes) {
-        if (vol->is_wipe_tower)
+        if (vol->is_wipe_tower())
             vol->is_active = (visible && mo == nullptr);
         else {
             if ((mo == nullptr || m_model->objects[vol->composite_id.object_id] == mo)
@@ -2283,7 +2298,7 @@ void GLCanvas3D::reload_scene(bool refresh_immediately, bool force_full_scene_re
             instance_ids_selected.emplace_back(volume->geometry_id.second);
         if (mvs == nullptr || force_full_scene_refresh) {
             // This GLVolume will be released.
-            if (volume->is_wipe_tower) {
+            if (volume->is_wipe_tower()) {
 #if SLIC3R_OPENGL_ES
                 m_wipe_tower_meshes.clear();
 #endif // SLIC3R_OPENGL_ES
@@ -2454,9 +2469,7 @@ void GLCanvas3D::reload_scene(bool refresh_immediately, bool force_full_scene_re
         const float ca = dynamic_cast<const ConfigOptionFloat*>(m_config->option("wipe_tower_cone_angle"))->value;
 
         if (extruders_count > 1 && wt && !co) {
-            
-
-            for (size_t bed_idx = 0; bed_idx < s_multiple_beds.get_number_of_beds(); ++bed_idx) {
+            for (size_t bed_idx = 0; bed_idx < s_multiple_beds.get_max_beds(); ++bed_idx) {
                 const Print *print = wxGetApp().plater()->get_fff_prints()[bed_idx].get();
 
                 const float x = m_model->get_wipe_tower_vector()[bed_idx].position.x();
@@ -2471,24 +2484,36 @@ void GLCanvas3D::reload_scene(bool refresh_immediately, bool force_full_scene_re
                 const double height = height_real < 0.f ? std::max(m_model->max_z(), 10.0) : height_real;
                 if (depth != 0.) {
 #if SLIC3R_OPENGL_ES
-                        if (bed_idx >= m_wipe_tower_meshes.size())
-                            m_wipe_tower_meshes.resize(bed_idx + 1);
-                        int volume_idx_wipe_tower_new = m_volumes.load_wipe_tower_preview(
-                            x, y, w, depth, z_and_depth_pairs, (float)height, ca, a, !is_wipe_tower_step_done,
-                            bw, bed_idx, &m_wipe_tower_meshes[bed_idx]);
+                    if (bed_idx >= m_wipe_tower_meshes.size())
+                        m_wipe_tower_meshes.resize(bed_idx + 1);
+                    GLVolume* volume = m_volumes.load_wipe_tower_preview(
+                        x, y, w, depth, z_and_depth_pairs, (float)height, ca, a, !is_wipe_tower_step_done,
+                        bw, bed_idx, &m_wipe_tower_meshes[bed_idx]);
 #else
-                        int volume_idx_wipe_tower_new = m_volumes.load_wipe_tower_preview(
-                            x, y, w, depth, z_and_depth_pairs, (float)height, ca, a, !is_wipe_tower_step_done,
-                            bw, bed_idx);
+                    GLVolume* volume = m_volumes.load_wipe_tower_preview(
+                        x, y, w, depth, z_and_depth_pairs, (float)height, ca, a, !is_wipe_tower_step_done,
+                        bw, bed_idx);
 #endif // SLIC3R_OPENGL_ES
+                    const BoundingBoxf3& bb = volume->bounding_box();
+                    m_wipe_tower_bounding_boxes[bed_idx] = BoundingBoxf{to_2d(bb.min), to_2d(bb.max)};
+                    if(bed_idx < s_multiple_beds.get_number_of_beds()) {
+                        m_volumes.volumes.emplace_back(volume);
+                        const auto volume_idx_wipe_tower_new{static_cast<int>(m_volumes.volumes.size() - 1)};
                         auto it = volume_idxs_wipe_towers_old.find(m_volumes.volumes.back()->geometry_id.second);
                         if (it != volume_idxs_wipe_towers_old.end())
                             map_glvolume_old_to_new[it->second] = volume_idx_wipe_tower_new;
                         m_volumes.volumes.back()->set_volume_offset(m_volumes.volumes.back()->get_volume_offset() + s_multiple_beds.get_bed_translation(bed_idx));
+                    } else {
+                        delete volume;
                     }
+                }
             }
             s_multiple_beds.ensure_wipe_towers_on_beds(wxGetApp().plater()->model(), wxGetApp().plater()->get_fff_prints());
+        } else {
+            m_wipe_tower_bounding_boxes.fill(std::nullopt);
         }
+    } else {
+        m_wipe_tower_bounding_boxes.fill(std::nullopt);
     }
 
     update_volumes_colors_by_extruder();
@@ -2917,6 +2942,8 @@ void GLCanvas3D::on_char(wxKeyEvent& evt)
         case 'b': { zoom_to_bed(); break; }
         case 'C':
         case 'c': { m_gcode_viewer.toggle_gcode_window_visibility(); m_dirty = true; request_extra_frame(); break; }
+        case 'D':
+        case 'd': { post_event(SimpleEvent(EVT_GLCANVAS_ARRANGE_CURRENT_BED)); break; }
         case 'E':
         case 'e': { m_labels.show(!m_labels.is_shown()); m_dirty = true; break; }
         case 'G':
@@ -3834,7 +3861,7 @@ void GLCanvas3D::on_mouse(wxMouseEvent& evt)
             if (!m_hover_volume_idxs.empty()) {
                 // if right clicking on volume, propagate event through callback (shows context menu)
                 int volume_idx = get_first_hover_volume_idx();
-                if (!m_volumes.volumes[volume_idx]->is_wipe_tower // no context menu for the wipe tower
+                if (!m_volumes.volumes[volume_idx]->is_wipe_tower() // no context menu for the wipe tower
                     && (m_gizmos.get_current_type() != GLGizmosManager::SlaSupports && m_gizmos.get_current_type() != GLGizmosManager::Measure))  // disable context menu when the gizmo is open
                 {
                     // forces the selection of the volume
@@ -3859,7 +3886,7 @@ void GLCanvas3D::on_mouse(wxMouseEvent& evt)
             if (!m_mouse.dragging) {
                 // do not post the event if the user is panning the scene
                 // or if right click was done over the wipe tower
-                const bool post_right_click_event = (m_hover_volume_idxs.empty() || !m_volumes.volumes[get_first_hover_volume_idx()]->is_wipe_tower) &&
+                const bool post_right_click_event = (m_hover_volume_idxs.empty() || !m_volumes.volumes[get_first_hover_volume_idx()]->is_wipe_tower()) &&
                     m_gizmos.get_current_type() != GLGizmosManager::Measure;
                 if (post_right_click_event)
                     post_event(RBtnEvent(EVT_GLCANVAS_RIGHT_CLICK, { logical_pos, m_hover_volume_idxs.empty() }));
@@ -4020,7 +4047,7 @@ void GLCanvas3D::do_move(const std::string& snapshot_type)
                 model_object->invalidate_bounding_box();
             }
         }
-        else if (m_selection.is_wipe_tower() && v->is_wipe_tower && m_selection.contains_volume(vol_id)) {
+        else if (m_selection.is_wipe_tower() && v->is_wipe_tower() && m_selection.contains_volume(vol_id)) {
             // Move a wipe tower proxy.
             for (size_t bed_idx = 0; bed_idx < s_multiple_beds.get_max_beds(); ++bed_idx) {
                 if (v->geometry_id.second == wipe_tower_instance_id(bed_idx).id) {
@@ -4101,7 +4128,7 @@ void GLCanvas3D::do_rotate(const std::string& snapshot_type)
 
     for (const GLVolume* v : m_volumes.volumes) {
         ++v_id;
-        if (v->is_wipe_tower) {
+        if (v->is_wipe_tower()) {
             if (m_selection.contains_volume(v_id)) {
                 for (size_t bed_idx = 0; bed_idx < s_multiple_beds.get_max_beds(); ++bed_idx) {
                     if (v->geometry_id.second == wipe_tower_instance_id(bed_idx).id) {
@@ -4424,22 +4451,23 @@ void GLCanvas3D::update_ui_from_settings()
         wxGetApp().plater()->enable_collapse_toolbar(wxGetApp().app_config->get_bool("show_collapse_button") || !wxGetApp().sidebar().IsShown());
 }
 
-GLCanvas3D::WipeTowerInfo GLCanvas3D::get_wipe_tower_info() const
+std::vector<GLCanvas3D::WipeTowerInfo> GLCanvas3D::get_wipe_tower_infos() const
 {
-    WipeTowerInfo wti;
-    
-    for (const GLVolume* vol : m_volumes.volumes) {
-        if (vol->is_wipe_tower) {
-            wti.m_pos = Vec2d(m_model->wipe_tower().position.x(),
-                            m_model->wipe_tower().position.y());
-            wti.m_rotation = (M_PI/180.) * m_model->wipe_tower().rotation;
-            const BoundingBoxf3& bb = vol->bounding_box();
-            wti.m_bb = BoundingBoxf{to_2d(bb.min), to_2d(bb.max)};
-            break;
+    std::vector<WipeTowerInfo> result;
+
+    for (size_t bed_idx = 0; bed_idx < s_multiple_beds.get_max_beds(); ++bed_idx) {
+        if (m_wipe_tower_bounding_boxes[bed_idx]) {
+            const ModelWipeTower &wipe_tower{m_model->wipe_tower(bed_idx)};
+            WipeTowerInfo wti;
+            wti.m_pos = Vec2d(wipe_tower.position.x(), wipe_tower.position.y());
+            wti.m_rotation = (M_PI/180.) * wipe_tower.rotation;
+            wti.m_bb = *m_wipe_tower_bounding_boxes[bed_idx];
+            wti.m_bed_index = bed_idx;
+            result.push_back(std::move(wti));
         }
     }
-    
-    return wti;
+
+    return result;
 }
 
 Linef3 GLCanvas3D::mouse_ray(const Point& mouse_pos)
@@ -4536,7 +4564,7 @@ void GLCanvas3D::update_sequential_clearance(bool force_contours_generation)
 
     // second: fill temporary cache with data from volumes
     for (const GLVolume* v : m_volumes.volumes) {
-        if (v->is_wipe_tower)
+        if (v->is_wipe_tower())
             continue;
 
         const int object_idx = v->object_idx();
@@ -4713,9 +4741,9 @@ bool GLCanvas3D::_render_undo_redo_stack(const bool is_undo, float pos_x)
     return action_taken;
 }
 
-bool GLCanvas3D::_render_arrange_menu(float pos_x)
+bool GLCanvas3D::_render_arrange_menu(float pos_x, bool current_bed)
 {
-    m_arrange_settings_dialog.render(pos_x, m_main_toolbar.get_height());
+    m_arrange_settings_dialog.render(pos_x, m_main_toolbar.get_height(), current_bed);
     return true;
 }
 
@@ -4730,7 +4758,7 @@ void GLCanvas3D::_render_thumbnail_internal(ThumbnailData& thumbnail_data, const
     GLVolumePtrs visible_volumes;
 
     for (GLVolume* vol : volumes.volumes) {
-        if (!vol->is_modifier && !vol->is_wipe_tower && (!thumbnail_params.parts_only || vol->composite_id.volume_id >= 0)) {
+        if (!vol->is_modifier && !vol->is_wipe_tower() && (!thumbnail_params.parts_only || vol->composite_id.volume_id >= 0)) {
             if (!thumbnail_params.printable_only || is_visible(*vol)) {
                 if (s_multiple_beds.is_glvolume_on_thumbnail_bed(wxGetApp().model(), vol->composite_id.object_id, vol->composite_id.instance_id))
                     visible_volumes.emplace_back(vol);
@@ -5161,7 +5189,23 @@ bool GLCanvas3D::_init_main_toolbar()
     item.right.toggable = true;
     item.right.render_callback = [this](float left, float right, float, float) {
         if (m_canvas != nullptr)
-            _render_arrange_menu(0.5f * (left + right));
+            _render_arrange_menu(0.5f * (left + right), false);
+    };
+    if (!m_main_toolbar.add_item(item))
+        return false;
+
+    item.name = "arrangecurrent";
+    item.icon_filename = "arrange_current.svg";
+    item.tooltip =
+        _u8L("Arrange current bed") + " [D]\n"
+        + _u8L("Arrange selection on current bed") + " [Shift+D]\n";
+    item.sprite_id = sprite_id++;
+    item.left.action_callback = [this]() { if (m_canvas != nullptr) wxPostEvent(m_canvas, SimpleEvent(EVT_GLTOOLBAR_ARRANGE_CURRENT_BED)); };
+    item.enabling_callback = []()->bool { return wxGetApp().plater()->can_arrange(); };
+    item.right.toggable = true;
+    item.right.render_callback = [this](float left, float right, float, float) {
+        if (m_canvas != nullptr)
+            _render_arrange_menu(0.5f * (left + right), true);
     };
     if (!m_main_toolbar.add_item(item))
         return false;
@@ -6980,6 +7024,11 @@ bool GLCanvas3D::_deactivate_arrange_menu()
         return true;
     }
 
+    if (m_main_toolbar.is_item_pressed("arrangecurrent")) {
+        m_main_toolbar.force_right_action(m_main_toolbar.get_item_id("arrangecurrent"), *this);
+        return true;
+    }
+
     return false;
 }
 
@@ -7022,10 +7071,10 @@ const SLAPrint* GLCanvas3D::sla_print() const
     return (m_process == nullptr) ? nullptr : m_process->sla_print();
 }
 
-void GLCanvas3D::WipeTowerInfo::apply_wipe_tower(Vec2d pos, double rot)
+void GLCanvas3D::WipeTowerInfo::apply_wipe_tower(Vec2d pos, double rot, int bed_index)
 {
-    wxGetApp().plater()->model().wipe_tower().position = pos;
-    wxGetApp().plater()->model().wipe_tower().rotation = (180. / M_PI) * rot;
+    wxGetApp().plater()->model().wipe_tower(bed_index).position = pos;
+    wxGetApp().plater()->model().wipe_tower(bed_index).rotation = (180. / M_PI) * rot;
 }
 
 void GLCanvas3D::RenderTimer::Notify()

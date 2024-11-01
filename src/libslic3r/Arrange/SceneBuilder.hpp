@@ -42,7 +42,7 @@ class DynamicPrintConfig;
 
 namespace arr2 {
 
-using SelectionPredicate = std::function<bool()>;
+using SelectionPredicate = std::function<bool(int)>;
 
 // Objects implementing this interface should know how to present the wipe tower
 // as an Arrangeable. If the wipe tower is not present, the overloads of visit() shouldn't do
@@ -55,6 +55,7 @@ public:
     virtual void visit(std::function<void(Arrangeable &)>) = 0;
     virtual void visit(std::function<void(const Arrangeable &)>) const = 0;
     virtual void set_selection_predicate(SelectionPredicate pred) = 0;
+    virtual ObjectID get_id() const = 0;
 };
 
 // Something that has a bounding box and can be displaced by arbitrary 2D offset and rotated
@@ -110,7 +111,7 @@ public:
 
     virtual std::vector<bool> selected_objects() const = 0;
     virtual std::vector<bool> selected_instances(int obj_id) const = 0;
-    virtual bool is_wipe_tower() const = 0;
+    virtual bool is_wipe_tower_selected(int wipe_tower_index) const = 0;
 };
 
 class FixedSelection : public Slic3r::arr2::SelectionMask
@@ -138,7 +139,7 @@ public:
                                                 std::vector<bool>{};
     }
 
-    bool is_wipe_tower() const override { return m_wp; }
+    bool is_wipe_tower_selected(int) const override { return m_wp; }
 };
 
 // Common part of any Arrangeable which is a wipe tower
@@ -148,13 +149,16 @@ struct ArrangeableWipeTowerBase: public Arrangeable
 
     Polygon poly;
     SelectionPredicate selection_pred;
+    int bed_index{0};
 
     ArrangeableWipeTowerBase(
         const ObjectID &objid,
         Polygon shape,
-        SelectionPredicate selection_predicate = [] { return false; })
+        int bed_index,
+        SelectionPredicate selection_predicate = [](int){ return false; })
         : oid{objid},
           poly{std::move(shape)},
+          bed_index{bed_index},
           selection_pred{std::move(selection_predicate)}
     {}
 
@@ -174,13 +178,17 @@ struct ArrangeableWipeTowerBase: public Arrangeable
 
     bool is_selected() const override
     {
-        return selection_pred();
+        return selection_pred(bed_index);
     }
 
     int get_bed_index() const override;
     bool assign_bed(int /*bed_idx*/) override;
 
     int priority() const override { return 1; }
+
+    std::optional<int> bed_constraint() const override {
+        return this->bed_index;
+    }
 
     void transform(const Vec2d &transl, double rot) override {}
 
@@ -194,15 +202,18 @@ class SceneBuilder;
 
 struct InstPos { size_t obj_idx = 0, inst_idx = 0; };
 
+using BedConstraints = std::map<ObjectID, int>;
+
 // Implementing ArrangeableModel interface for PrusaSlicer's Model, ModelObject, ModelInstance data
 // hierarchy
 class ArrangeableSlicerModel: public ArrangeableModel
 {
 protected:
     AnyPtr<Model> m_model;
-    AnyPtr<WipeTowerHandler> m_wth; // Determines how wipe tower is handled
+    std::vector<AnyPtr<WipeTowerHandler>> m_wths; // Determines how wipe tower is handled
     AnyPtr<VirtualBedHandler> m_vbed_handler; // Determines how virtual beds are handled
     AnyPtr<const SelectionMask> m_selmask;  // Determines which objects are selected/unselected
+    BedConstraints m_bed_constraints;
 
 private:
     friend class SceneBuilder;
@@ -234,7 +245,8 @@ class SceneBuilder: public SceneBuilderBase<SceneBuilder>
 {
 protected:
     AnyPtr<Model> m_model;
-    AnyPtr<WipeTowerHandler> m_wipetower_handler;
+    std::vector<AnyPtr<WipeTowerHandler>> m_wipetower_handlers;
+    BedConstraints m_bed_constraints;
     AnyPtr<VirtualBedHandler> m_vbed_handler;
     AnyPtr<const SelectionMask> m_selection;
 
@@ -259,18 +271,18 @@ public:
 
     using SceneBuilderBase<SceneBuilder>::set_bed;
 
-    SceneBuilder &&set_bed(const DynamicPrintConfig &cfg);
-    SceneBuilder &&set_bed(const Print &print);
+    SceneBuilder &&set_bed(const DynamicPrintConfig &cfg, const BedsGrid::Gap &gap);
+    SceneBuilder &&set_bed(const Print &print, const BedsGrid::Gap &gap);
 
-    SceneBuilder && set_wipe_tower_handler(WipeTowerHandler &wth)
+    SceneBuilder && set_wipe_tower_handlers(std::vector<AnyPtr<WipeTowerHandler>> &&handlers)
     {
-        m_wipetower_handler = &wth;
+        m_wipetower_handlers = std::move(handlers);
         return std::move(*this);
     }
 
-    SceneBuilder && set_wipe_tower_handler(AnyPtr<WipeTowerHandler> wth)
+    SceneBuilder && set_bed_constraints(BedConstraints &&bed_constraints)
     {
-        m_wipetower_handler = std::move(wth);
+        m_bed_constraints = std::move(bed_constraints);
         return std::move(*this);
     }
 
@@ -293,13 +305,6 @@ public:
     void build_scene(Scene &sc) && override;
 
     void build_arrangeable_slicer_model(ArrangeableSlicerModel &amodel);
-};
-
-struct MissingWipeTowerHandler : public WipeTowerHandler
-{
-    void visit(std::function<void(Arrangeable &)>) override {}
-    void visit(std::function<void(const Arrangeable &)>) const override {}
-    void set_selection_predicate(std::function<bool()>) override {}
 };
 
 // Only a physical bed, non-zero bed index values are discarded.
@@ -368,28 +373,14 @@ public:
 
 class GridStriderVBedHandler: public VirtualBedHandler
 {
-    // This vbed handler defines a grid of virtual beds with a large number
-    // of columns so that it behaves as XStrider for regular cases.
-    // The goal is to handle objects residing at world coordinates
-    // not representable with scaled coordinates. Combining XStrider with
-    // YStrider takes care of the X and Y axis to be mapped into the physical
-    // bed's coordinate region (which is representable in scaled coords)
-    static const int Cols;
-    static const int HalfCols;
-    static const int Offset;
-
     XStriderVBedHandler m_xstrider;
     YStriderVBedHandler m_ystrider;
 
 public:
-    GridStriderVBedHandler(const BoundingBox &bedbb,
-                           coord_t            gap)
-        : m_xstrider{bedbb, gap}
-        , m_ystrider{bedbb, gap}
+    GridStriderVBedHandler(const BoundingBox &bedbb, const BedsGrid::Gap &gap)
+        : m_xstrider{bedbb, gap.x()}
+        , m_ystrider{bedbb, gap.y()}
     {}
-
-    Vec2i raw2grid(int bedidx) const;
-    int grid2raw(const Vec2i &crd) const;
 
     int get_bed_index(const VBedPlaceable &obj) const override;
     bool assign_bed(VBedPlaceable &inst, int bed_idx) override;
@@ -451,13 +442,15 @@ class ArrangeableModelInstance : public Arrangeable, VBedPlaceable
     VBedHPtr *m_vbedh;
     const SelectionMask *m_selmask;
     InstPos m_pos_within_model;
+    std::optional<int> m_bed_constraint;
 
 public:
     explicit ArrangeableModelInstance(InstPtr *mi,
                                       VBedHPtr *vbedh,
                                       const SelectionMask *selmask,
-                                      const InstPos &pos)
-        : m_mi{mi}, m_vbedh{vbedh}, m_selmask{selmask}, m_pos_within_model{pos}
+                                      const InstPos &pos,
+                                      const std::optional<int> bed_constraint)
+        : m_mi{mi}, m_vbedh{vbedh}, m_selmask{selmask}, m_pos_within_model{pos}, m_bed_constraint(bed_constraint)
     {
         assert(m_mi != nullptr && m_vbedh != nullptr);
     }
@@ -473,6 +466,8 @@ public:
 
     int        get_bed_index() const override { return m_vbedh->get_bed_index(*this); }
     bool       assign_bed(int bed_idx) override;
+
+    std::optional<int> bed_constraint() const override { return m_bed_constraint; }
 
     // VBedPlaceable:
     BoundingBoxf bounding_box() const override { return to_2d(instance_bounding_box(*m_mi)); }
