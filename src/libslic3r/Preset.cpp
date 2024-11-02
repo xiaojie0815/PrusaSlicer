@@ -334,7 +334,7 @@ void Preset::normalize(DynamicPrintConfig &config)
             first_layer_height->percent = false;
         }
 
-    handle_legacy_sla(config);
+ //   handle_legacy_sla(config); // it looks like the best place for call it, is handle_legacy_composite
 }
 
 std::string Preset::remove_invalid_keys(DynamicPrintConfig &config, const DynamicPrintConfig &default_config)
