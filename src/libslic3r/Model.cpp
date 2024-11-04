@@ -2302,14 +2302,6 @@ bool model_has_parameter_modifiers_in_objects(const Model &model)
     return false;
 }
 
-bool model_has_multi_part_objects(const Model &model)
-{
-    for (const ModelObject *model_object : model.objects)
-    	if (model_object->volumes.size() != 1 || ! model_object->volumes.front()->is_model_part())
-    		return true;
-    return false;
-}
-
 bool model_has_advanced_features(const Model &model)
 {
 	auto config_is_advanced = [](const ModelConfig &config) {

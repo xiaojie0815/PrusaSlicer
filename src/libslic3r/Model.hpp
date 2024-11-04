@@ -1449,9 +1449,6 @@ extern bool model_fuzzy_skin_data_changed(const ModelObject &mo, const ModelObje
 // If the model has object(s) which contains a modofoer, then it is currently not supported by the SLA mode.
 // Either the model cannot be loaded, or a SLA printer has to be activated.
 bool model_has_parameter_modifiers_in_objects(const Model& model);
-// If the model has multi-part objects, then it is currently not supported by the SLA mode.
-// Either the model cannot be loaded, or a SLA printer has to be activated.
-bool model_has_multi_part_objects(const Model &model);
 // If the model has advanced features, then it cannot be processed in simple mode.
 bool model_has_advanced_features(const Model &model);
 

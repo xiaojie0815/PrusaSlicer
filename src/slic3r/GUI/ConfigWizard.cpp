@@ -3311,9 +3311,10 @@ bool ConfigWizard::priv::apply_config(AppConfig *app_config, PresetBundle *prese
     const auto enabled_vendors = appconfig_new.vendors();
     const auto enabled_vendors_old = app_config->vendors();
 
-    bool suppress_sla_printer = model_has_multi_part_objects(wxGetApp().model());
+    bool show_info_msg = false;
+    bool suppress_sla_printer = model_has_parameter_modifiers_in_objects(wxGetApp().model());
     PrinterTechnology preferred_pt = ptAny;
-    auto get_preferred_printer_technology = [enabled_vendors, enabled_vendors_old, suppress_sla_printer](const std::string& bundle_name, const Bundle& bundle) {
+    auto get_preferred_printer_technology = [enabled_vendors, enabled_vendors_old, suppress_sla_printer, &show_info_msg](const std::string& bundle_name, const Bundle& bundle) {
         const auto config = enabled_vendors.find(bundle_name);
         PrinterTechnology pt = ptAny;
         if (config != enabled_vendors.end()) {
@@ -3323,17 +3324,21 @@ bool ConfigWizard::priv::apply_config(AppConfig *app_config, PresetBundle *prese
                     pt = model.technology;
                     const auto config_old = enabled_vendors_old.find(bundle_name);
                     if (config_old == enabled_vendors_old.end() || config_old->second.find(model.id) == config_old->second.end()) {
-                        // if preferred printer model has SLA printer technology it's important to check the model for multi-part state
-                        if (pt == ptSLA && suppress_sla_printer)
+                        // if preferred printer model has SLA printer technology it's important to check the model for modifiers
+                        if (pt == ptSLA && suppress_sla_printer) {
+                            show_info_msg = true;
                             continue;
+                        }
                         return pt;
                     }
 
                     if (const auto model_it_old = config_old->second.find(model.id);
                         model_it_old == config_old->second.end() || model_it_old->second != model_it->second) {
-                        // if preferred printer model has SLA printer technology it's important to check the model for multi-part state
-                        if (pt == ptSLA && suppress_sla_printer)
+                        // if preferred printer model has SLA printer technology it's important to check the model for modifiers
+                        if (pt == ptSLA && suppress_sla_printer) {
+                            show_info_msg = true;
                             continue;
+                        }
                         return pt;
                     }
                 }
@@ -3355,8 +3360,9 @@ bool ConfigWizard::priv::apply_config(AppConfig *app_config, PresetBundle *prese
         }
     }
 
-    if (preferred_pt == ptSLA && !wxGetApp().may_switch_to_SLA_preset(caption))
-        return false;
+    if (show_info_msg)
+        show_info(nullptr, _L("It's impossible to print object(s) which contains parameter modifiers with SLA technology.\n\n"
+                              "SLA-printer preset will not be selected"), caption);
 
     bool check_unsaved_preset_changes = page_welcome->reset_user_profile();
     if (check_unsaved_preset_changes)
