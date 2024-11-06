@@ -586,9 +586,9 @@ void PrinterPickWebViewDialog::request_compatible_printers_FFF() {
         "\"filament_abrasive\": %6%,"
         "\"high_flow\": %7%"
         "}"
-        , filament_type_serialized, nozzle_diameter_serialized, printer_model_serialized, uuid, filename, nozzle_high_flow_serialized, filament_abrasive_serialized);
+        , filament_type_serialized, nozzle_diameter_serialized, printer_model_serialized, uuid, filename, filament_abrasive_serialized, nozzle_high_flow_serialized);
 
-    wxString script = GUI::format_wxstr("window._prusaConnect_v1.requestCompatiblePrinter(%1%)", request);
+    wxString script = GUI::format_wxstr("window._prusaConnect_v2.requestCompatiblePrinter(%1%)", request);
     run_script(script);
 }
 void PrinterPickWebViewDialog::request_compatible_printers_SLA()
@@ -621,7 +621,7 @@ void PrinterPickWebViewDialog::request_compatible_printers_SLA()
         "\"filename\": \"%4%\" "
         "}", material_type_serialized, printer_model_serialized, uuid, filename);
 
-    wxString script = GUI::format_wxstr("window._prusaConnect_v1.requestCompatiblePrinter(%1%)", request);
+    wxString script = GUI::format_wxstr("window._prusaConnect_v2.requestCompatiblePrinter(%1%)", request);
     run_script(script);
 }
 

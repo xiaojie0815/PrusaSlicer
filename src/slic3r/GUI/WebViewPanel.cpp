@@ -801,7 +801,7 @@ void ConnectWebViewPanel::logout()
     if (!m_browser || m_do_late_webview_create) {
         return;
     }
-    wxString script = L"window._prusaConnect_v1.logout()";
+    wxString script = L"window._prusaConnect_v2.logout()";
     run_script(script);
 
     Plater* plater = wxGetApp().plater();

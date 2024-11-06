@@ -98,7 +98,7 @@ void ConnectRequestHandler::on_connect_action_request_config(const std::string& 
     wxString language = GUI::wxGetApp().current_language_code();
     language = language.SubString(0, 1);
     const std::string init_options = GUI::format("{\"accessToken\": \"%4%\",\"clientVersion\": \"%1%\", \"colorMode\": \"%2%\", \"language\": \"%3%\"}", SLIC3R_VERSION, dark_mode, language, token );  
-    wxString script = GUI::format_wxstr("window._prusaConnect_v1.init(%1%)", init_options);
+    wxString script = GUI::format_wxstr("window._prusaConnect_v2.init(%1%)", init_options);
     run_script_bridge(script);
     
 }
