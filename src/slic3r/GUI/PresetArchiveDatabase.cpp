@@ -182,12 +182,15 @@ std::string escape_path_by_element(const std::string& path_string)
 	return ret_val;
 }
 
-void add_authorization_header(Http& http)
+bool add_authorization_header(Http& http)
 {
+    if (wxApp::GetInstance() == nullptr)
+        return false;
     const std::string access_token = GUI::wxGetApp().plater()->get_user_account()->get_access_token();
     if (!access_token.empty()) {
         http.header("Authorization", "Bearer " + access_token);
     }
+    return true;
 }
 
 }
@@ -204,7 +207,8 @@ bool OnlineArchiveRepository::get_file_inner(const std::string& url, const fs::p
 		tmp_path.string());
 
 	auto http = Http::get(url);
-    add_authorization_header(http);
+    if (!add_authorization_header(http))
+        return false;
     http
 		.timeout_max(30)
 		.on_progress([](Http::Progress, bool& cancel) {
@@ -881,7 +885,8 @@ bool sync_inner(std::string& manifest, PresetUpdaterUIStatus* ui_status)
 	bool ret = false;
     std::string url = Utils::ServiceConfig::instance().preset_repo_repos_url();
     auto http = Http::get(std::move(url));
-    add_authorization_header(http);
+    if (!add_authorization_header(http))
+        return false;
     http
 		.timeout_max(30)
 		.on_error([&](std::string body, std::string error, unsigned http_status) {

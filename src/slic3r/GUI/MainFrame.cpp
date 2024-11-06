@@ -714,9 +714,9 @@ void MainFrame::init_tabpanel()
     });
 
     m_plater = new Plater(this, this);
+    wxGetApp().plater_ = m_plater;
     m_plater->Hide();
 
-    wxGetApp().plater_ = m_plater;
 
     if (wxGetApp().is_editor())
         create_preset_tabs();
