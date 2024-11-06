@@ -102,6 +102,7 @@ public:
     SLAPrint& active_sla_print();
 
     std::vector<std::unique_ptr<Print>>& get_fff_prints();
+    const std::vector<GCodeProcessorResult>& get_gcode_results() const;
 
     void new_project();
     void load_project();

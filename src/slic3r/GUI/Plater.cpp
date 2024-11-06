@@ -2228,10 +2228,6 @@ unsigned int Plater::priv::update_background_process(bool force_validation, bool
         glsafe(glPixelStorei(GL_UNPACK_ALIGNMENT, curr_unpack_alignment));
     }
 
-
-
-
-
     // Just redraw the 3D canvas without reloading the scene to consume the update of the layer height profile.
     if (view3D->is_layers_editing_enabled())
         view3D->get_wxglcanvas()->Refresh();
@@ -2945,6 +2941,9 @@ void Plater::priv::set_current_panel(wxPanel* panel)
     panel_sizer->Layout();
 
     if (current_panel == view3D) {
+
+        s_multiple_beds.stop_autoslice(true);
+
         if (old_panel == preview)
             preview->get_canvas3d()->unbind_event_handlers();
 
@@ -7312,6 +7311,11 @@ void Plater::bring_instance_forward()
 std::vector<std::unique_ptr<Print>>& Plater::get_fff_prints()
 {
     return p->fff_prints;
+}
+
+const std::vector<GCodeProcessorResult>& Plater::get_gcode_results() const
+{
+    return p->gcode_results;
 }
 
 wxMenu* Plater::object_menu()           { return p->menus.object_menu();            }
