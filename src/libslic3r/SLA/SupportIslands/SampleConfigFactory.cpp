@@ -82,6 +82,7 @@ SampleConfig SampleConfigFactory::create(float support_head_diameter_in_mm)
         max_distance / 2;
     result.min_width_for_outline_support = result.max_width_for_center_support_line - 2 * head_diameter;
     result.outline_sample_distance = 3 * result.max_distance/4;
+    result.min_part_length = result.max_distance;
 
     // Align support points
     // TODO: propagate print resolution

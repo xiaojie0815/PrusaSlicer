@@ -210,8 +210,6 @@ SupportIslandPoints SampleIslandUtils::uniform_cover_island(
     return samples;
 }
 
-
-
 Slic3r::Points SampleIslandUtils::sample_expolygon(const ExPolygon &expoly, coord_t triangle_side){
     const Points &points = expoly.contour.points;
     assert(!points.empty());
@@ -1074,6 +1072,409 @@ SupportIslandPoints SampleIslandUtils::sample_center_circle(
     return result;
 }
 
+/// <summary>
+/// Separation of thin and thick part of island
+/// </summary>
+namespace {
+    
+using VD = Slic3r::Geometry::VoronoiDiagram;
+using Position = VoronoiGraph::Position;
+using Positions = std::vector<Position>;
+using Neighbor = VoronoiGraph::Node::Neighbor;
+
+/// <summary>
+/// Define narrow part of island along voronoi skeleton
+/// </summary>
+struct ThinPart
+{
+    // Transition from thick to thin part (one of the ends)
+    // NOTE: When start.ratio <= 0 than island do not contain thick part
+    Position start;
+
+    // Transition from tiny to thick part (without start position)
+    Positions ends;
+
+    bool is_only_thin_part() const { return ends.empty() && start.ratio <= 0.f; }
+};
+using ThinParts = std::vector<ThinPart>;
+
+/// <summary>
+/// Define wide(fat) part of island along voronoi skeleton
+/// </summary>
+struct ThickPart
+{
+    // Transition from Thin to thick part (one of the ends)
+    // NOTE: When start.ratio <= 0 than island do not contain thin part
+    Position start;
+
+    // Transition from thick to thin part (without start position)
+    Positions ends;
+
+    bool is_only_thick_part() const { return ends.empty() && start.ratio <= 0.f; }
+};
+using ThickParts = std::vector<ThickPart>;
+
+// Search for interfaces
+// 1. thin to min_wide
+// 2. min_wide to max_center
+// 3. max_center to Thick
+enum class IslandPartType { thin, middle, thick };
+
+struct IslandPartChange {
+    Position position;
+    size_t part_index;
+};
+using IslandPartChanges = std::vector<IslandPartChange>;
+
+/// <summary>
+/// Part of island with interfaces defined by positions
+/// </summary>
+struct IslandPart {
+    // type of island part { thin | middle | thick }
+    IslandPartType type; 
+
+    // Positions and index of island part change
+    IslandPartChanges changes;
+
+    // sum of all lengths inside of part
+    // IMPROVE: better will be length of longest path
+    // Used as rule to connect(merge) middle part of island to its biggest neighbour
+    // NOTE: No solution for island with 2 biggest neighbors with same sum_lengths. 
+    coord_t sum_lengths = 0;
+};
+using IslandParts = std::vector<IslandPart>;
+
+/// <summary>
+/// Data for process island parts' separation
+/// </summary>
+struct ProcessItem {
+    // previously processed island node
+    const VoronoiGraph::Node *prev_node;
+
+    // current island node
+    const VoronoiGraph::Node *node;
+
+    // index of island part stored in island_parts
+    // NOTE: Can't use reference because of vector reallocation
+    size_t i;
+};
+using ProcessItems = std::vector<ProcessItem>;
+
+/// <summary>
+/// Add new island part 
+/// </summary>
+/// <param name="island_parts">Already existing island parts</param>
+/// <param name="part_index">Source part index</param>
+/// <param name="to_type">Type for new added part</param>
+/// <param name="neighbor">Edge where appear change from one state to another</param>
+/// <param name="limit">min or max(min_width_for_outline_support, max_width_for_center_support_line)</param>
+/// <param name="lines">Island border</param>
+/// <param name="config">Minimal Island part length</param>
+/// <returns>index of new part inside island_parts</returns>
+size_t add_part(
+    IslandParts &island_parts,
+    size_t part_index,
+    IslandPartType to_type,
+    const Neighbor *neighbor,
+    coord_t limit,
+    const Lines &lines,
+    const SampleConfig &config
+) {
+    Position position = VoronoiGraphUtils::get_position_with_width(neighbor, limit, lines);
+
+    // Do not create part, when it is too close to island contour
+    if (VoronoiGraphUtils::ends_in_distanace(position, config.min_part_length))        
+        return part_index; // too close to border to add part, nothing to add
+
+    size_t new_part_index = island_parts.size();
+    const Neighbor *twin = VoronoiGraphUtils::get_twin(*neighbor);
+    Position twin_position(twin, 1. - position.ratio);
+    
+    if (new_part_index == 1) { // Exist only initial island
+        // NOTE: First island part is from start shorter than SampleConfig::min_part_length
+        // Which is different to rest of island.
+
+        if (VoronoiGraphUtils::ends_in_distanace(twin_position, config.min_part_length)) {
+            // First island is too close to border to create new island part
+            // First island is initialy set set thin, 
+            // but correct type is same as type in short length distance from start
+            island_parts.front().type = to_type;
+            return part_index;
+        }
+    }
+
+    island_parts[part_index].changes.push_back({position, new_part_index});
+    island_parts[part_index].sum_lengths += position.calc_distance();
+    
+    coord_t sum_lengths = twin_position.calc_distance();
+    IslandPartChanges changes{IslandPartChange{twin_position, part_index}};
+    island_parts.push_back({to_type, changes, sum_lengths});
+    return new_part_index;
+}
+
+/// <summary>
+/// Detect interface between thin, middle and thick part of island
+/// </summary>
+/// <param name="island_parts">Already existing parts</param>
+/// <param name="item_i">current part index</param>
+/// <param name="neighbor">current neigbor to investigate</param>
+/// <param name="lines">Island contour</param>
+/// <param name="config">Configuration of hysterezis</param>
+/// <returns>Next part index</returns>
+size_t detect_interface(IslandParts &island_parts, size_t item_i, const Neighbor *neighbor, const Lines &lines, const SampleConfig &config) {
+    // Range for of hysterezis between thin and thick part of island
+    coord_t min = config.min_width_for_outline_support;
+    coord_t max = config.max_width_for_center_support_line;
+
+    size_t next_part_index = item_i;
+    switch (island_parts[item_i].type) {
+    case IslandPartType::thin:
+        assert(neighbor->min_width() <= min);
+        if (neighbor->max_width() < min) break; // still thin part
+        next_part_index = add_part(island_parts, item_i, IslandPartType::middle, neighbor, min, lines, config);
+        if (next_part_index == item_i) break; // short part of island
+        if (neighbor->max_width() < max) return next_part_index; // no thick part          
+        return add_part(island_parts, next_part_index, IslandPartType::thick, neighbor, max, lines, config);
+    case IslandPartType::middle:
+        assert(neighbor->min_width() >= min || neighbor->max_width() <= max);
+        if (neighbor->min_width() < min) {
+            return add_part(island_parts, item_i, IslandPartType::thin, neighbor, min, lines, config);
+        } else if (neighbor->max_width() > max) {
+            return add_part(island_parts, item_i, IslandPartType::thick, neighbor, max, lines, config);
+        }
+        break;// still middle part
+    case IslandPartType::thick:
+        assert(neighbor->max_width() >= max);        
+        if (neighbor->max_width() > max) break; // still thick part
+        next_part_index = add_part(island_parts, item_i, IslandPartType::middle, neighbor, max, lines, config);
+        if (next_part_index == item_i) break; // short part of island
+        if (neighbor->min_width() > min) return next_part_index; // no thin part
+        return add_part(island_parts, next_part_index, IslandPartType::thin, neighbor, min, lines, config);        
+    default: assert(false); // unknown part type
+    }
+
+    // without new interface between island parts
+    island_parts[item_i].sum_lengths += static_cast<coord_t>(neighbor->length());
+    return item_i; 
+}
+
+/// <summary>
+/// Merge two island parts defined by index
+/// NOTE: Do not sum IslandPart::sum_lengths on purpose to be independent on the merging order
+/// </summary>
+/// <param name="island_parts">All parts</param>
+/// <param name="index">Merge into</param>
+/// <param name="remove_index">Merge from</param>
+void merge_island_parts(IslandParts &island_parts, size_t index, size_t remove_index){
+    // merge part interfaces
+    IslandPartChanges &changes = island_parts[index].changes;
+    IslandPartChanges &remove_changes = island_parts[remove_index].changes;
+
+    // remove changes back to merged part
+    auto remove_changes_end = std::remove_if(remove_changes.begin(), remove_changes.end(), 
+        [index](const IslandPartChange &change) { return change.part_index == index; });
+
+    // remove changes into removed part
+    changes.erase(std::remove_if(changes.begin(), changes.end(), 
+        [index](const IslandPartChange &change) { return change.part_index == index; }),
+        changes.end());
+
+    // move changes from remove part to merged part
+    changes.insert(changes.end(), 
+        std::move_iterator(remove_changes.begin()),
+        std::move_iterator(remove_changes_end));
+
+    // remove island part
+    island_parts.erase(island_parts.begin() + remove_index);
+
+    // fix indices inside island part changes
+    for (IslandPart &island_part : island_parts) {
+        for (IslandPartChange &change : island_part.changes) {
+            if (change.part_index == remove_index)
+                change.part_index = index;
+            else if (change.part_index > remove_index)
+                --change.part_index;
+        }
+    }
+}
+
+/// <summary>
+/// When apper loop back to already processed part of island graph this function merge island parts
+/// </summary>
+/// <param name="island_parts">All island parts</param>
+/// <param name="item">To fix index</param>
+/// <param name="index">Index into island parts to merge</param>
+/// <param name="remove_index">Index into island parts to merge</param>
+/// <param name="process">Queue of future processing</param>
+void merge_parts_and_fix_process(IslandParts &island_parts,
+    ProcessItem &item, size_t index, size_t remove_index, ProcessItems &process) {
+    if (remove_index == index) return; // nothing to merge, loop connect to itself
+    if (remove_index < index) // remove part with bigger index
+        std::swap(remove_index, index);
+
+    // merged parts should be the same state, it is essential for alhorithm
+    assert(island_parts[index].type == island_parts[remove_index].type);
+    island_parts[index].sum_lengths += island_parts[remove_index].sum_lengths;
+    merge_island_parts(island_parts, index, remove_index);    
+
+    // fix indices in process queue
+    for (ProcessItem &p : process)
+        if (p.i == remove_index)
+            p.i = index; // swap to new index
+        else if (p.i > remove_index)
+            --p.i; // decrease index
+
+    // fix index for current item
+    if (item.i > remove_index)
+        --item.i; // decrease index
+}
+
+void merge_middle_parts_into_biggest_neighbor(IslandParts& island_parts) {
+    // Connect parts till there is no middle parts
+    for (size_t index = 0; index < island_parts.size(); ++index) {
+        const IslandPart &island_part = island_parts[index];
+        if (island_part.type != IslandPartType::middle) continue; // only middle parts
+        // there must be change into middle part island always start as thin part
+        assert(!island_part.changes.empty());
+        if (island_part.changes.empty()) continue; // weird situation
+        // find biggest neighbor island part
+        auto max_change = std::max_element(island_part.changes.begin(), island_part.changes.end(),
+            [&island_parts](const IslandPartChange &a, const IslandPartChange &b) {
+                return island_parts[a.part_index].sum_lengths <
+                    island_parts[b.part_index].sum_lengths;});
+        // NOTE: be carefull, function remove island part inside island_parts
+        merge_island_parts(island_parts, max_change->part_index, index);
+        --index; // repeat with same index
+    }
+}
+
+void merge_same_neighbor_type_parts(IslandParts &island_parts) {
+    // connect neighbor parts with same type
+    for (size_t island_part_index = 0; island_part_index < island_parts.size(); ++island_part_index) {
+        assert(island_part.type != IslandPartType::middle); // only thin or thick parts        
+        while (true) {
+            const IslandPart &island_part = island_parts[island_part_index];
+            const IslandPartChanges &changes = island_part.changes;
+            auto change_it = std::find_if(changes.begin(), changes.end(), 
+                [&island_parts, type = island_part.type](const IslandPartChange &change) {
+                    return island_parts[change.part_index].type == type;});
+            if (change_it == changes.end()) break; // no more changes
+            merge_island_parts(island_parts, island_part_index, change_it->part_index);
+        }
+    }
+}
+
+std::pair<ThinParts, ThickParts> convert_island_parts_to_thin_thick(
+    const IslandParts& island_parts, const Neighbor* start_neighbor)
+{
+    // always must be at least one island part
+    assert(!island_parts.empty());
+    // when exist only one change there can't be any changes
+    assert(island_parts.size() != 1 || island_parts.front().changes.empty());
+    // convert island parts into result
+    if (island_parts.size() == 1)
+        return island_parts.front().type == IslandPartType::thin ?
+            std::make_pair(ThinParts{ThinPart{Position{start_neighbor, -1.f}, /*ends*/ {}}}, ThickParts{}) :
+            std::make_pair(ThinParts{}, ThickParts{ThickPart{Position{start_neighbor, -1.f}, /*ends*/ {}}});
+
+    std::pair<ThinParts, ThickParts> result;
+    ThinParts& thin_parts = result.first;
+    ThickParts& thick_parts = result.second;
+    for (const IslandPart& i:island_parts) {
+        if (i.type == IslandPartType::thin) {
+            ThinPart thin_part;
+            thin_part.start = i.changes.front().position;
+            thin_parts.reserve(i.changes.size() - 1);
+            std::transform(i.changes.begin()+1, i.changes.end(), std::back_inserter(thin_part.ends),
+                [](const IslandPartChange &change) { return change.position; });
+            thin_parts.push_back(thin_part);
+        } else {
+            assert(i.type == IslandPartType::thick);
+            ThickPart thick_part;
+            thick_part.start = i.changes.front().position;
+            thick_parts.reserve(i.changes.size() - 1);
+            std::transform(i.changes.begin() + 1, i.changes.end(), std::back_inserter(thick_part.ends),
+                [](const IslandPartChange &change) { return change.position; });
+            thick_parts.push_back(thick_part);
+        }
+    }
+    return result;
+}
+
+/// <summary>
+/// Separate thin(narrow) and thick(wide) part of island
+/// </summary>
+/// <param name="path">Longest path over island</param>
+/// <param name="lines">Island border</param>
+/// <param name="config">Define border between thin and thick part</param>
+/// <returns>Thin and thick parts</returns>
+std::pair<ThinParts, ThickParts> separate_thin_thick(
+    const VoronoiGraph::ExPath &path, const Lines &lines, const SampleConfig &config
+) {
+    // Check input
+    assert(!path.nodes.empty());
+    assert(lines.size() >= 3); // at least triangle
+    assert(SampleConfigFactory::verify(config));
+
+    // Start dividing on some border of island
+    const VoronoiGraph::Node *start_node = path.nodes.front();
+
+    // CHECK that front of path is outline node
+    assert(start_node->neighbors.size() == 1);
+    if (start_node->neighbors.size() != 1)
+        return {};
+
+    const Neighbor *start_neighbor = &start_node->neighbors.front();
+    assert(start_neighbor->min_width() == 0); // first neighbor must be from outline node
+    if (start_neighbor->min_width() != 0)
+        return {};
+        
+    IslandParts island_parts{IslandPart{IslandPartType::thin, /*changes*/{}, /*sum_lengths*/0}};
+    ProcessItem item = {start_node, start_neighbor->node, 0}; // current processing item
+    ProcessItems process; // queue of nodes to process     
+    do { // iterate over all nodes in graph and collect interfaces into island_parts
+        assert(item.node != nullptr);
+        ProcessItem next_item{nullptr, nullptr, -1};
+        for (const Neighbor &neighbor: item.node->neighbors) {
+            if (neighbor.node == item.prev_node) continue; // already done
+            if (next_item.node != nullptr) // already prepared item is stored into queue
+                process.push_back(next_item); 
+
+            size_t next_part_index = detect_interface(island_parts, item.i, &neighbor, lines, config);
+            next_item = ProcessItem{item.node, neighbor.node, next_part_index};
+
+            // exist loop back?
+            auto is_oposit_item = [&next_item](const ProcessItem &p) {
+                return p.node == next_item.prev_node && p.prev_node == next_item.node;};
+            if (auto process_it = std::find_if(process.begin(), process.end(), is_oposit_item);                                
+                process_it != process.end()) {
+                // solve loop back
+                next_item.node = nullptr;
+                merge_parts_and_fix_process(island_parts, item, process_it->i, next_item.i, process);
+                // branch is already processed
+                process.erase(process_it);
+                continue;
+            }
+        }
+        // Select next node to process        
+        if (next_item.node != nullptr) {
+            item = next_item; // copy
+        } else {
+            if (process.empty()) 
+                break; // no more nodes to process            
+            item = process.back(); // copy
+            process.pop_back();            
+        }
+    } while (item.node != nullptr); // loop should end by break with empty process
+
+    merge_middle_parts_into_biggest_neighbor(island_parts);
+    merge_same_neighbor_type_parts(island_parts);
+
+    return convert_island_parts_to_thin_thick(island_parts, start_neighbor);
+}
+
+} // namespace
+
 SupportIslandPoints SampleIslandUtils::sample_expath(
     const VoronoiGraph::ExPath &path,
     const Lines &               lines,
@@ -1112,6 +1513,8 @@ SupportIslandPoints SampleIslandUtils::sample_expath(
 
     // TODO: 3) Triangle of points
     // eval outline and find three point create almost equilateral triangle
+
+    auto [thin, thick] = separate_thin_thick(path, lines, config);
 
     // IMPROVE: Erase continous sampling: Extract ExPath and than sample uniformly whole ExPath
     CenterStarts center_starts;

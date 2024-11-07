@@ -59,6 +59,8 @@ struct SampleConfig
     // Must be smaller or equal to max_width_for_center_support_line
     coord_t min_width_for_outline_support = static_cast<coord_t>(scale_(1.));
 
+    // Minimal length of island's part to create tiny&thick interface
+    coord_t min_part_length = static_cast<coord_t>(scale_(1.));
 
     // Term criteria for end of alignment
     // Minimal change in manhatn move of support position before termination

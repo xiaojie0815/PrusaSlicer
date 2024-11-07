@@ -1167,7 +1167,6 @@ coord_t VoronoiGraphUtils::get_max_width(const VoronoiGraph::Node *node)
     return max;
 }
 
-// START use instead of is_last_neighbor
 bool VoronoiGraphUtils::ends_in_distanace(const VoronoiGraph::Position &position, coord_t max_distance) {
     const VoronoiGraph::Node *node = position.neighbor->node;
     coord_t rest_distance = max_distance - position.calc_rest_distance();
