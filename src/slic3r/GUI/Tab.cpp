@@ -4404,6 +4404,13 @@ void Tab::rename_preset()
 
     assert(old_name == edited_preset.name);
 
+    if (m_type == Preset::TYPE_FILAMENT) {
+        // Filaments will be sorted inside collection after remaning,
+        // so, cache preset names for each extruder to reset them after renaming
+        m_preset_bundle->cache_extruder_filaments_names();
+    }
+
+    bool was_renamed = true;
     using namespace boost;
     try {
         // rename selected and edited presets
@@ -4426,10 +4433,18 @@ void Tab::rename_preset()
     catch (const exception& ex) {
         const std::string exception = diagnostic_information(ex);
         printf("Can't rename a preset : %s", exception.c_str());
+        was_renamed = false;
     }
 
     // sort presets after renaming
     std::sort(m_presets->begin(), m_presets->end());
+
+    if (was_renamed && m_type == Preset::TYPE_FILAMENT) {
+        // Reset extruder_filaments only if preset was renamed
+        m_preset_bundle->reset_extruder_filaments();
+        // and update compatibility for extruders after reset
+        m_preset_bundle->update_filaments_compatible(PresetSelectCompatibleType::OnlyIfWasCompatible);
+    }
     // update selection
     select_preset_by_name(new_name, true);
 
