@@ -35,6 +35,8 @@ using ColoredLines = std::vector<ColoredLine>;
 // Returns MMU segmentation based on painting in MMU segmentation gizmo
 std::vector<std::vector<ExPolygons>> multi_material_segmentation_by_painting(const PrintObject &print_object, const std::function<void()> &throw_on_cancel_callback);
 
+BoundingBox get_extents(const std::vector<ColoredLines> &colored_polygons);
+
 } // namespace Slic3r
 
 namespace boost::polygon {

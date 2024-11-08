@@ -753,10 +753,7 @@ void PrintObject::slice_volumes()
     m_print->throw_if_canceled();
 
     // Is any ModelVolume MMU painted?
-    if (const auto& volumes = this->model_object()->volumes;
-        m_print->config().nozzle_diameter.size() > 1 &&
-        std::find_if(volumes.begin(), volumes.end(), [](const ModelVolume* v) { return !v->mm_segmentation_facets.empty(); }) != volumes.end()) {
-
+    if (m_print->config().nozzle_diameter.size() > 1 && this->model_object()->is_mm_painted()) {
         // If XY Size compensation is also enabled, notify the user that XY Size compensation
         // would not be used because the object is multi-material painted.
         if (m_config.xy_size_compensation.value != 0.f) {

@@ -313,10 +313,26 @@ public:
     bool                 has_facets(TriangleStateType state) const;
     static bool          has_facets(const TriangleSplittingData &data, TriangleStateType test_state);
     int                  num_facets(TriangleStateType state) const;
+    // Get facets that pass the filter. Don't triangulate T-joints.
+    template<AdditionalMeshInfo facet_info = AdditionalMeshInfo::None>
+    typename IndexedTriangleSetType<facet_info>::type get_facets(const std::function<bool(const Triangle &)> &facet_filter) const;
     // Get facets at a given state. Don't triangulate T-joints.
     indexed_triangle_set get_facets(TriangleStateType state) const;
+    // Get all facets. Don't triangulate T-joints.
+    indexed_triangle_set get_all_facets() const;
+    // Get all facets with information about the colors of the facets. Don't triangulate T-joints.
+    indexed_triangle_set_with_color get_all_facets_with_colors() const;
+
+    // Get facets that pass the filter. Triangulate T-joints.
+    template<AdditionalMeshInfo facet_info = AdditionalMeshInfo::None>
+    typename IndexedTriangleSetType<facet_info>::type get_facets_strict(const std::function<bool(const Triangle &)> &facet_filter) const;
     // Get facets at a given state. Triangulate T-joints.
     indexed_triangle_set get_facets_strict(TriangleStateType state) const;
+    // Get all facets. Triangulate T-joints.
+    indexed_triangle_set get_all_facets_strict() const;
+    // Get all facets with information about the colord of the facetd. Triangulate T-joints.
+    indexed_triangle_set_with_color get_all_facets_strict_with_colors() const;
+
     // Get edges around the selected area by seed fill.
     std::vector<Vec2i> get_seed_fill_contour() const;
 
@@ -470,12 +486,16 @@ private:
     bool verify_triangle_midpoints(const Triangle& tr) const;
 #endif // NDEBUG
 
+    template<AdditionalMeshInfo facet_info>
     void get_facets_strict_recursive(
         const Triangle                              &tr,
         const Vec3i                                 &neighbors,
-        TriangleStateType                            state,
-        std::vector<stl_triangle_vertex_indices>    &out_triangles) const;
-    void get_facets_split_by_tjoints(const Vec3i &vertices, const Vec3i &neighbors, std::vector<stl_triangle_vertex_indices> &out_triangles) const;
+        const std::function<bool(const Triangle &)> &facet_filter,
+        std::vector<stl_triangle_vertex_indices>    &out_triangles,
+        std::vector<uint8_t>                        &out_colors) const;
+
+    template<AdditionalMeshInfo facet_info>
+    void get_facets_split_by_tjoints(const Vec3i &vertices, const Vec3i &neighbors, uint8_t color, std::vector<stl_triangle_vertex_indices> &out_triangles, std::vector<uint8_t> &out_colors) const;
 
     void get_seed_fill_contour_recursive(int facet_idx, const Vec3i &neighbors, const Vec3i &neighbors_propagated, std::vector<Vec2i> &edges_out) const;
 
