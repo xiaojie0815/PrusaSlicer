@@ -2310,8 +2310,17 @@ unsigned int Plater::priv::update_background_process(bool force_validation, bool
             }
             std::vector<std::string> warnings;
             std::string err = background_process.validate(&warnings);
-            if (!err.empty())
+            if (!err.empty()) {
+                if (s_multiple_beds.get_number_of_beds() > 1 && printer_technology == ptFFF) {
+                    // user changed bed seletion, 
+                    // sequential print clearance contours were changed too
+                    GLCanvas3D* canvas = view3D->get_canvas3d();
+                    GLCanvas3D::ContoursList contours;
+                    contours.contours = background_process.fff_print()->get_sequential_print_clearance_contours();
+                    canvas->set_sequential_print_clearance_contours(contours, true);
+                }
                 return return_state;
+            }
         }
     
         if (! this->delayed_error_message.empty())
