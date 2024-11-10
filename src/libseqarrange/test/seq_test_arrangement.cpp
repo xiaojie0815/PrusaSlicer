@@ -19,6 +19,10 @@
 #include <gecode/minimodel.hh>
 #include <gecode/search.hh>
 
+#define CATCH_CONFIG_EXTERNAL_INTERFACES
+#define CATCH_CONFIG_MAIN
+#include "catch2/catch.hpp"
+
 #include "seq_defs.hpp"
 
 #include "seq_test_arrangement.hpp"
@@ -81,9 +85,9 @@ public:
 };
 
 
-void test_arrangement_1(void)
+TEST_CASE("Arrangement test 1", "[Classical Arrangement]")
 {
-    printf("Testing sheet arrangement 1 ...\n");
+    printf("Testing plate arrangement 1 ...\n");
 
     SizeOptions opt("Queens");
     opt.iterations(200);
@@ -92,7 +96,7 @@ void test_arrangement_1(void)
     Script::run<Queens,LDS,SizeOptions>(opt);
     
     
-    printf("Testing sheet arrangement 1 ... finished\n");    
+    printf("Testing plate arrangement 1 ... finished\n");    
 }
 
 
@@ -140,7 +144,7 @@ public:
 };
 
 
-const int sheet_size = 9;
+const int plate_size = 9;
 
 const int Obj1_width  = 5;
 const int Obj1_height = 4;
@@ -161,7 +165,7 @@ public:
     
 public:
     ArrangementProblem()
-	: vars(*this, 6, 0, sheet_size - 1)
+	: vars(*this, 6, 0, plate_size - 1)
 	, Obj1_x(vars[0])
 	, Obj1_y(vars[1])	  
 	, Obj2_x(vars[2])
@@ -191,16 +195,16 @@ public:
 
 	nooverlap(*this, Xs, widths, Ys, heights);
 
-	rel(*this, Obj1_x + Obj1_width <= sheet_size);
-	rel(*this, Obj2_x + Obj2_width <= sheet_size);
-	rel(*this, Obj3_x + Obj3_width <= sheet_size);
+	rel(*this, Obj1_x + Obj1_width <= plate_size);
+	rel(*this, Obj2_x + Obj2_width <= plate_size);
+	rel(*this, Obj3_x + Obj3_width <= plate_size);
 
 	rel(*this, Obj2_x == Obj1_x + 5);
 	rel(*this, Obj2_y == Obj1_y + 1);
 
-	rel(*this, Obj1_y + Obj1_height <= sheet_size);
-	rel(*this, Obj2_y + Obj2_height <= sheet_size);
-	rel(*this, Obj3_y + Obj3_height <= sheet_size);		
+	rel(*this, Obj1_y + Obj1_height <= plate_size);
+	rel(*this, Obj2_y + Obj2_height <= plate_size);
+	rel(*this, Obj3_y + Obj3_height <= plate_size);		
 	
 	branch(*this, vars, INT_VAR_SIZE_MIN(), INT_VAL_MIN());
     };
@@ -236,7 +240,7 @@ public:
 };
 
 
-const int sheet_resolution = 20;
+const int plate_resolution = 20;
 const int time_resolution = 80;
 
 const int low_Obj1_width  = 5;
@@ -274,9 +278,9 @@ public:
     
 public:
     SimpleSequentialProblem()
-	: space_vars(*this, 8, 0, sheet_resolution)
+	: space_vars(*this, 8, 0, plate_resolution)
   	, time_vars(*this, 4, 0, time_resolution)
-	, kine_vars(*this, 2, 0, sheet_resolution)
+	, kine_vars(*this, 2, 0, plate_resolution)
 	  
 	, low_Obj1_x(space_vars[0])
 	, low_Obj1_y(space_vars[1])
@@ -362,15 +366,15 @@ public:
 	rel(*this, low_Obj2_t >= high_Obj1_t + high_Obj1_duration || high_Obj1_t >= low_Obj2_t + low_Obj2_duration);
 	rel(*this, low_Obj1_t >= high_Obj1_t + high_Obj1_duration || high_Obj1_t >= low_Obj1_t + low_Obj1_duration);		
 	
-	rel(*this, low_Obj1_x + low_Obj1_width <= sheet_resolution);
-	rel(*this, low_Obj2_x + low_Obj2_width <= sheet_resolution);
-	rel(*this, low_Obj3_x + low_Obj3_width <= sheet_resolution);	
-	rel(*this, high_Obj1_x + high_Obj1_width <= sheet_resolution);	
+	rel(*this, low_Obj1_x + low_Obj1_width <= plate_resolution);
+	rel(*this, low_Obj2_x + low_Obj2_width <= plate_resolution);
+	rel(*this, low_Obj3_x + low_Obj3_width <= plate_resolution);	
+	rel(*this, high_Obj1_x + high_Obj1_width <= plate_resolution);	
 
-	rel(*this, low_Obj1_y + low_Obj1_height <= sheet_resolution);
-	rel(*this, low_Obj2_y + low_Obj2_height <= sheet_resolution);
-	rel(*this, low_Obj3_y + low_Obj3_height <= sheet_resolution);	
-	rel(*this, high_Obj1_y + high_Obj1_height <= sheet_resolution);
+	rel(*this, low_Obj1_y + low_Obj1_height <= plate_resolution);
+	rel(*this, low_Obj2_y + low_Obj2_height <= plate_resolution);
+	rel(*this, low_Obj3_y + low_Obj3_height <= plate_resolution);	
+	rel(*this, high_Obj1_y + high_Obj1_height <= plate_resolution);
 	
 	rel(*this, low_Obj1_t + low_Obj1_duration <= time_resolution);
 	rel(*this, low_Obj2_t + low_Obj2_duration <= time_resolution);
@@ -436,10 +440,10 @@ public:
 };
 
 
-int complex_sheet_resolution = 30;
+int complex_plate_resolution = 30;
 
-int complex_sheet_resolution_min = 10;
-int complex_sheet_resolution_max = 200;
+int complex_plate_resolution_min = 10;
+int complex_plate_resolution_max = 200;
 
 int complex_time_resolution = 1000;
 int complex_height_threshold = 25;
@@ -482,9 +486,9 @@ public:
     
 public:
     ComplexSequentialProblem()
-	: space_vars(*this, 2 * complex_Obj_count, 0, complex_sheet_resolution)
+	: space_vars(*this, 2 * complex_Obj_count, 0, complex_plate_resolution)
   	, time_vars(*this, complex_Obj_count, 0, complex_time_resolution)
-	, kine_vars(*this, 2 * complex_Obj_count, 0, complex_sheet_resolution)
+	, kine_vars(*this, 2 * complex_Obj_count, 0, complex_plate_resolution)
     {
 	/*
 	int width_span =  max_width - min_width;
@@ -535,8 +539,8 @@ public:
 
 	for (int i = 0; i < complex_Obj_count; ++i)
 	{
-	    rel(*this, complex_Obj_x[i] + complex_Obj_widths[i] <= complex_sheet_resolution, IPL_BND);
-	    rel(*this, complex_Obj_y[i] + complex_Obj_heights[i] <= complex_sheet_resolution, IPL_BND);  
+	    rel(*this, complex_Obj_x[i] + complex_Obj_widths[i] <= complex_plate_resolution, IPL_BND);
+	    rel(*this, complex_Obj_y[i] + complex_Obj_heights[i] <= complex_plate_resolution, IPL_BND);  
 	}
 
 	for (int i = 0; i < complex_Obj_count; ++i)
@@ -617,16 +621,16 @@ public:
 };
 
 
-int complex_sheet_resolution_X = 200;
+int complex_plate_resolution_X = 200;
 
-int complex_sheet_resolution_X_min = 10;
-int complex_sheet_resolution_X_max = 200;
+int complex_plate_resolution_X_min = 10;
+int complex_plate_resolution_X_max = 200;
 
 
-int complex_sheet_resolution_Y = 30;
+int complex_plate_resolution_Y = 30;
 
-int complex_sheet_resolution_Y_min = 10;
-int complex_sheet_resolution_Y_max = 200;
+int complex_plate_resolution_Y_min = 10;
+int complex_plate_resolution_Y_max = 200;
 
 
 void generate_random_complex_objects(void)
@@ -665,11 +669,11 @@ public:
     
 public:
     ComplexSequentialProblemXY()
-	: space_vars_X(*this, 2 * complex_Obj_count, 0, complex_sheet_resolution_X)
-	, space_vars_Y(*this, 2 * complex_Obj_count, 0, complex_sheet_resolution_Y)
+	: space_vars_X(*this, 2 * complex_Obj_count, 0, complex_plate_resolution_X)
+	, space_vars_Y(*this, 2 * complex_Obj_count, 0, complex_plate_resolution_Y)
   	, time_vars(*this, complex_Obj_count, 0, complex_time_resolution)	  
-	, kine_vars_L(*this, complex_Obj_count, 0, complex_sheet_resolution_Y)
-	, kine_vars_R(*this, complex_Obj_count, 0, complex_sheet_resolution_Y)	  
+	, kine_vars_L(*this, complex_Obj_count, 0, complex_plate_resolution_Y)
+	, kine_vars_R(*this, complex_Obj_count, 0, complex_plate_resolution_Y)	  
     {
 	for (int i = 0; i < complex_Obj_count; ++i)
 	{
@@ -709,8 +713,8 @@ public:
 
 	for (int i = 0; i < complex_Obj_count; ++i)
 	{
-	    rel(*this, complex_Obj_x[i] + complex_Obj_widths[i] <= complex_sheet_resolution_X, IPL_BND);
-	    rel(*this, complex_Obj_y[i] + complex_Obj_heights[i] <= complex_sheet_resolution_Y, IPL_BND);  
+	    rel(*this, complex_Obj_x[i] + complex_Obj_widths[i] <= complex_plate_resolution_X, IPL_BND);
+	    rel(*this, complex_Obj_y[i] + complex_Obj_heights[i] <= complex_plate_resolution_Y, IPL_BND);  
 	}
 
 
@@ -794,9 +798,9 @@ public:
 };
 
 
-void test_arrangement_2(void)
+TEST_CASE("Arrangement test 2", "[Classical Arrangement]")
 { 
-    printf("Testing sheet arrangement 2 ...\n");
+    printf("Testing plate arrangement 2 ...\n");
 
     SimpleProblem *simple_problem = new SimpleProblem();
     DFS<SimpleProblem> engine(simple_problem);
@@ -810,13 +814,13 @@ void test_arrangement_2(void)
     Search::Statistics stat = engine.statistics();
     printf("Statistics: %ld, %ld, %ld, %ld, %ld\n", stat.fail, stat.node, stat.depth, stat.restart, stat.nogood);
        
-    printf("Testing sheet arrangement 2 ... finished\n");
+    printf("Testing plate arrangement 2 ... finished\n");
 }
 
 
-void test_arrangement_3(void)
+TEST_CASE("Arrangement test 3", "[Classical Arrangement]")
 { 
-    printf("Testing sheet arrangement 3 ...\n");
+    printf("Testing plate arrangement 3 ...\n");
 
     ArrangementProblem *arrangement_problem = new ArrangementProblem();
     DFS<ArrangementProblem> engine(arrangement_problem);
@@ -832,13 +836,13 @@ void test_arrangement_3(void)
     Search::Statistics stat = engine.statistics();
     printf("Statistics: %ld, %ld, %ld, %ld, %ld\n", stat.fail, stat.node, stat.depth, stat.restart, stat.nogood);
        
-    printf("Testing sheet arrangement 3 ... finished\n");
+    printf("Testing plate arrangement 3 ... finished\n");
 }
 
 
-void test_arrangement_4(void)
+TEST_CASE("Arrangement test 4", "[Classical Arrangement]")
 { 
-    printf("Testing sheet arrangement 4 ...\n");
+    printf("Testing plate arrangement 4 ...\n");
 
     SimpleSequentialProblem *sequential_problem = new SimpleSequentialProblem();
     DFS<SimpleSequentialProblem> engine(sequential_problem);
@@ -855,13 +859,13 @@ void test_arrangement_4(void)
 	getchar();
     }
        
-    printf("Testing sheet arrangement 4 ... finished\n");
+    printf("Testing plate arrangement 4 ... finished\n");
 }
 
 
-void test_arrangement_5(void)
+TEST_CASE("Arrangement test 5", "[Classical Arrangement]")
 { 
-    printf("Testing sheet arrangement 5 ...\n");
+    printf("Testing plate arrangement 5 ...\n");
     generate_random_complex_objects();
 
     ComplexSequentialProblem *sequential_problem = new ComplexSequentialProblem();
@@ -889,20 +893,20 @@ void test_arrangement_5(void)
     clock_t end = clock();
     printf("Time (CPU): %.3fs\n", (end - begin) / (double)CLOCKS_PER_SEC);    
        
-    printf("Testing sheet arrangement 5 ... finished\n");
+    printf("Testing plate arrangement 5 ... finished\n");
 }
 
 
-void test_arrangement_6(void)
+TEST_CASE("Arrangement test 6", "[Classical Arrangement]")
 { 
-    printf("Testing sheet arrangement 6 ...\n");
+    printf("Testing plate arrangement 6 ...\n");
     generate_random_complex_objects();
 
-    complex_sheet_resolution = complex_sheet_resolution_max;
+    complex_plate_resolution = complex_plate_resolution_max;
     
-    while (complex_sheet_resolution > complex_sheet_resolution_min)
+    while (complex_plate_resolution > complex_plate_resolution_min)
     {
-	printf("Trying sheet resolution = %d\n", complex_sheet_resolution);
+	printf("Trying plate resolution = %d\n", complex_plate_resolution);
 	
 	ComplexSequentialProblem *sequential_problem = new ComplexSequentialProblem();
 	
@@ -943,23 +947,23 @@ void test_arrangement_6(void)
 	}
 	delete sequential_P;	
 	
-	complex_sheet_resolution -= 1;
+	complex_plate_resolution -= 1;
 	
     }       
-    printf("Testing sheet arrangement 6 ... finished\n");
+    printf("Testing plate arrangement 6 ... finished\n");
 }
 
 
-void test_arrangement_7(void)
+TEST_CASE("Arrangement test 7", "[Classical Arrangement]")
 { 
-    printf("Testing sheet arrangement 7 ...\n");
+    printf("Testing plate arrangement 7 ...\n");
     generate_random_complex_objects();    
 
-    complex_sheet_resolution_X = complex_sheet_resolution_X_max;
+    complex_plate_resolution_X = complex_plate_resolution_X_max;
     
-    while (complex_sheet_resolution_X > complex_sheet_resolution_X_min)
+    while (complex_plate_resolution_X > complex_plate_resolution_X_min)
     {
-	printf("Trying sheet resolution X = %d, Y = %d\n", complex_sheet_resolution_X, complex_sheet_resolution_Y);
+	printf("Trying plate resolution X = %d, Y = %d\n", complex_plate_resolution_X, complex_plate_resolution_Y);
 	
 	ComplexSequentialProblemXY *sequential_problem = new ComplexSequentialProblemXY();
 	Search::Options options;
@@ -998,26 +1002,12 @@ void test_arrangement_7(void)
 	}
 	delete sequential_P;	
 	
-	complex_sheet_resolution_X -= 1;
+	complex_plate_resolution_X -= 1;
 	
     }       
-    printf("Testing sheet arrangement 7 ... finished\n");
+    printf("Testing plate arrangement 7 ... finished\n");
 }
 
 
 
 /*----------------------------------------------------------------*/
-
-int main(int UNUSED(argc), char **UNUSED(argv))
-{
-//    test_arrangement_1();
-//    test_arrangement_2();
-//    test_arrangement_3();
-//    test_arrangement_4();
-//    test_arrangement_5();
-//    test_arrangement_6();
-    test_arrangement_7();    
-    
-    return 0;
-}
-

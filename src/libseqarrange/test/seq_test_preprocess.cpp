@@ -20,6 +20,10 @@
 #include "libslic3r/Geometry/ConvexHull.hpp"
 #include "libslic3r/SVG.hpp"
 
+#define CATCH_CONFIG_EXTERNAL_INTERFACES
+#define CATCH_CONFIG_MAIN
+#include "catch2/catch.hpp"
+
 #include <z3++.h>
 
 #include "prusaparts.hpp"
@@ -76,7 +80,7 @@ Polygon scale_UP(const Polygon &polygon, double x_pos, double y_pos)
 
 std::vector<Polygon> test_polygons;
 
-void test_preprocess_1(void)
+TEST_CASE("Preprocessing test 1", "[Sequential Arrangement Preprocessing]")
 {
     clock_t start, finish;
     
@@ -109,7 +113,7 @@ void test_preprocess_1(void)
 }
 
 
-void test_preprocess_2(void)
+TEST_CASE("Preprocessing test 2", "[Sequential Arrangement Preprocessing]")
 { 
     clock_t start, finish;
     
@@ -326,7 +330,7 @@ void test_preprocess_2(void)
 }    
 
 
-void test_preprocess_3(void)
+TEST_CASE("Preprocessing test 3", "[Sequential Arrangement Preprocessing]")
 {
     clock_t start, finish;
 
@@ -595,7 +599,7 @@ void test_preprocess_3(void)
 }
 
 
-void test_preprocess_4(void)
+TEST_CASE("Preprocessing test 4", "[Sequential Arrangement Preprocessing]")
 { 
     clock_t start, finish;
     
@@ -825,7 +829,7 @@ void test_preprocess_4(void)
 }    
 
 
-void test_preprocess_5(void)
+TEST_CASE("Preprocessing test 5", "[Sequential Arrangement Preprocessing]")
 { 
     clock_t start, finish;
     
@@ -884,7 +888,7 @@ void test_preprocess_5(void)
 }
 
 
-void test_preprocess_6(void)
+TEST_CASE("Preprocessing test 6", "[Sequential Arrangement Preprocessing]")
 { 
     clock_t start, finish;
     
@@ -1121,16 +1125,3 @@ void test_preprocess_6(void)
 
 
 /*----------------------------------------------------------------*/
-
-int main(int SEQ_UNUSED(argc), char **SEQ_UNUSED(argv))
-{
-    //test_preprocess_1();
-    //test_preprocess_2();
-    //test_preprocess_3();
-    //test_preprocess_4();
-    //test_preprocess_5();
-    test_preprocess_6();
-    
-    return 0;
-}
-

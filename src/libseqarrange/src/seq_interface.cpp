@@ -222,7 +222,7 @@ bool check_ScheduledObjectsForSequentialPrintability(const SolverConfiguration  
 
 	std::vector<Rational> dec_values_X;
 	std::vector<Rational> dec_values_Y;
-	std::vector<Rational> dec_values_T;	
+	std::vector<Rational> dec_values_T;
 	
 	for (const auto& scheduled_object: scheduled_plate.scheduled_objects)
 	{   
@@ -261,7 +261,7 @@ bool check_ScheduledObjectsForSequentialPrintability(const SolverConfiguration  
 	{
 	    printf("Line check ...\n");
 	}
-	#endif 	
+	#endif
 	if (!check_PolygonLineIntersections(dec_values_X,
 					    dec_values_Y,
 					    dec_values_T,

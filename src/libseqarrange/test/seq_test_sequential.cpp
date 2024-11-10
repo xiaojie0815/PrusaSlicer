@@ -19,6 +19,10 @@
 #include "libslic3r/Geometry/ConvexHull.hpp"
 #include "libslic3r/SVG.hpp"
 
+#define CATCH_CONFIG_EXTERNAL_INTERFACES
+#define CATCH_CONFIG_MAIN
+#include "catch2/catch.hpp"
+
 #include <z3++.h>
 
 #include "seq_defs.hpp"
@@ -69,7 +73,7 @@ Polygon scale_UP(const Polygon &polygon, double x_pos, double y_pos)
 }
 
 
-void test_sequential_1(void)
+TEST_CASE("Sequential test 1", "[Sequential Arrangement Core]")
 {
     printf("Testing sequential scheduling 1 ...\n");
 
@@ -239,7 +243,7 @@ void generate_random_complex_objects(void)
 
 typedef std::basic_string<char> sString;
 
-void test_sequential_2(void)
+TEST_CASE("Sequential test 2", "[Sequential Arrangement Core]")
 {
     clock_t start, finish;
     
@@ -489,7 +493,7 @@ void generate_random_rotated_complex_objects(void)
 }
 
 
-void test_sequential_3(void)
+TEST_CASE("Sequential test 3", "[Sequential Arrangement Core]")
 {
     clock_t start, finish;
     
@@ -767,7 +771,7 @@ std::vector<Polygon> unreachable_polygons_4 = {
 };
 
 
-void test_sequential_4(void)
+TEST_CASE("Sequential test 4", "[Sequential Arrangement Core]")
 { 
     clock_t start, finish;
     
@@ -1228,7 +1232,7 @@ void test_sequential_4(void)
 }
 
 
-void test_sequential_5(void)
+TEST_CASE("Sequential test 5", "[Sequential Arrangement Core]")
 { 
     clock_t start, finish;
     
@@ -1724,8 +1728,7 @@ void test_sequential_5(void)
 }
 
 
-
-void test_sequential_6(void)
+TEST_CASE("Sequential test 6", "[Sequential Arrangement Core]")
 { 
     clock_t start, finish;
     
@@ -2017,7 +2020,7 @@ void test_sequential_6(void)
 }
 
 
-void test_sequential_7(void)
+TEST_CASE("Sequential test 7", "[Sequential Arrangement Core]")
 { 
     clock_t start, finish;
     
@@ -2297,17 +2300,4 @@ void test_sequential_7(void)
 
 
 /*----------------------------------------------------------------*/
-
-int main(int SEQ_UNUSED(argc), char **SEQ_UNUSED(argv))
-{
-    // test_sequential_1();
-    // test_sequential_2();
-    // test_sequential_3();
-    // test_sequential_4();
-    // test_sequential_5();
-    // test_sequential_6();
-    test_sequential_7();    
-    
-    return 0;
-}
 

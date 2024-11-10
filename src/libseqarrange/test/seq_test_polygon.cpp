@@ -18,6 +18,10 @@
 #include "libslic3r/Geometry/ConvexHull.hpp"
 #include "libslic3r/SVG.hpp"
 
+#define CATCH_CONFIG_EXTERNAL_INTERFACES
+#define CATCH_CONFIG_MAIN
+#include "catch2/catch.hpp"
+
 #include <z3++.h>
 
 #include "prusaparts.hpp"
@@ -45,8 +49,8 @@ using namespace Sequential;
 /*----------------------------------------------------------------*/
 
 
-void test_polygon_1(void)
-{ 
+TEST_CASE("Polygon test 1", "[Polygon]")
+{
     printf("Testing polygon 1 ...\n");
 
     Polygon polygon_1 = {{-1000000, -1000000}, {1000000, -1000000}, {1000000, 1000000}, {-1000000, 1000000} };
@@ -61,7 +65,7 @@ void test_polygon_1(void)
 }
 
 
-void test_polygon_2(void)
+TEST_CASE("Polygon test 2", "[Polygon]")
 { 
     printf("Testing polygon 2 ...\n");
 
@@ -129,9 +133,7 @@ void test_polygon_2(void)
 	    printf("%s\n", ins3 ? "yes" : "no");	    
 	    bool ins4 = is_inside(point_1 - point_2);
 	    printf("%s\n", ins4 ? "yes" : "no");	    
-	}	
-	
-	getchar();
+	}		
     }
     
     printf("Testing polygon 2 ... finished\n");
@@ -141,7 +143,7 @@ void test_polygon_2(void)
 int line_count = 4;
 Line lines[] = {{Point(100,100), Point(200,200)}, {Point(200,100), Point(100,200)}, {Point(0,0), Point(100,10)}, {Point(50,0), Point(60,100)} };
 
-void test_polygon_3(void)
+TEST_CASE("Polygon test 3", "[Polygon]")
 { 
     clock_t start, finish;
     
@@ -281,7 +283,7 @@ void test_polygon_3(void)
 }
 
 
-void test_polygon_4(void)
+TEST_CASE("Polygon test 4", "[Polygon]")
 { 
     clock_t start, finish;
     
@@ -425,7 +427,7 @@ int poly_line_count = 4;
 Line poly_lines[] = {{Point(100,100), Point(200,100)}, {Point(200,100), Point(200,200)}, {Point(200,200), Point(100,200)}, {Point(100,200), Point(100,100)} };
 
 
-void test_polygon_5(void)
+TEST_CASE("Polygon test 5", "[Polygon]")
 { 
     clock_t start, finish;
     
@@ -566,7 +568,7 @@ Polygon polygon_1 = {{0, 0}, {50, 0}, {50, 50}, {0, 50}};
 //Polygon polygon_1 = {{scale_(0), scale_(0)}, {scale_(50), scale_(0)}, {scale_(50), scale_(50)}, {scale_(0), scale_(50)}};
 
 
-void test_polygon_6(void)
+TEST_CASE("Polygon test 6", "[Polygon]")
 { 
     clock_t start, finish;
     
@@ -692,7 +694,7 @@ Polygon polygon_2 = {{0, 0}, {150, 0}, {150, 50}, {75, 120}, {0, 50} };
 //Polygon polygon_2 = {{scale_(0), scale_(0)}, {scale_(150), scale_(0)}, {scale_(150), scale_(50)}, {scale_(75), scale_(120)}, {scale_(0), scale_(50)} };
 
 
-void test_polygon_7(void)
+TEST_CASE("Polygon test 7", "[Polygon]")
 { 
     clock_t start, finish;
     
@@ -900,7 +902,7 @@ Polygon scale_UP(const Polygon &polygon, double x_pos, double y_pos)
 Polygon polygon_3 = {{40, 0}, {80, 40}, {40, 80}, {0, 40}};
 //Polygon polygon_3 = {{20, 0}, {40, 0}, {60, 30}, {30, 50}, {0, 30}};
 
-void test_polygon_8(void)
+TEST_CASE("Polygon test 8", "[Polygon]")
 { 
     clock_t start, finish;
     
@@ -1202,7 +1204,7 @@ void test_polygon_8(void)
 }
 
 
-void test_polygon_9(void)
+TEST_CASE("Polygon test 9", "[Polygon]")
 { 
     clock_t start, finish;
     
@@ -1502,7 +1504,7 @@ void test_polygon_9(void)
 
 Polygon polygon_4 = {{20, 0}, {40, 0}, {60, 30}, {30, 50}, {0, 30}};
 
-void test_polygon_10(void)
+TEST_CASE("Polygon test 10", "[Polygon]")
 { 
     clock_t start, finish;
     
@@ -1837,7 +1839,7 @@ void test_polygon_10(void)
 }
 
 
-void test_polygon_11(void)
+TEST_CASE("Polygon test 11", "[Polygon]")
 { 
     clock_t start, finish;
     
@@ -2290,7 +2292,7 @@ void test_polygon_11(void)
 }
 
 
-void test_polygon_12(void)
+TEST_CASE("Polygon test 12", "[Polygon]")
 { 
     clock_t start, finish;
     
@@ -2400,7 +2402,7 @@ void test_polygon_12(void)
 }
 
 
-void test_polygon_13(void)
+TEST_CASE("Polygon test 13", "[Polygon]")
 { 
     clock_t start, finish;
     
@@ -2556,7 +2558,7 @@ void test_polygon_13(void)
 }
 
 
-void test_polygon_14(void)
+TEST_CASE("Polygon test 14", "[Polygon]")
 { 
     clock_t start, finish;
     
@@ -2810,7 +2812,7 @@ void test_polygon_14(void)
 }
 
 
-void test_polygon_15(void)
+TEST_CASE("Polygon test 15", "[Polygon]")
 { 
     clock_t start, finish;
     
@@ -3006,7 +3008,7 @@ void test_polygon_15(void)
 }    
 
 
-void test_polygon_16(void)
+TEST_CASE("Polygon test 16", "[Polygon]")
 { 
     clock_t start, finish;
     
@@ -3034,26 +3036,3 @@ void test_polygon_16(void)
 
 
 /*----------------------------------------------------------------*/
-
-int main(int SEQ_UNUSED(argc), char **SEQ_UNUSED(argv))
-{
-    //test_polygon_1();
-    //test_polygon_2();
-    //test_polygon_3();
-    //test_polygon_4();
-    //test_polygon_5();
-    //test_polygon_6();
-    //test_polygon_7();
-    //test_polygon_8();
-    //test_polygon_9();
-    //test_polygon_10();
-    //test_polygon_11();
-    //test_polygon_12();
-    //test_polygon_13();
-    //test_polygon_14();
-    //test_polygon_15();
-    test_polygon_16();    
-    
-    return 0;
-}
-

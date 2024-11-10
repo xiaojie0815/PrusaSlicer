@@ -19,6 +19,10 @@
 #include "libslic3r/Geometry/ConvexHull.hpp"
 #include "libslic3r/SVG.hpp"
 
+#define CATCH_CONFIG_EXTERNAL_INTERFACES
+#define CATCH_CONFIG_MAIN
+#include "catch2/catch.hpp"
+
 #include <z3++.h>
 
 #include "seq_interface.hpp"
@@ -111,7 +115,7 @@ void save_import_data(const std::string           &filename,
 
 /*----------------------------------------------------------------*/
 
-void test_interface_1(void)
+TEST_CASE("Interface test 1", "[Sequential Arrangement Interface]")
 { 
     clock_t start, finish;
     
@@ -159,7 +163,7 @@ void test_interface_1(void)
 }
 
 
-void test_interface_2(void)
+TEST_CASE("Interface test 2", "[Sequential Arrangement Interface]")
 { 
     clock_t start, finish;
     
@@ -216,7 +220,7 @@ void test_interface_2(void)
 }
 
 
-void test_interface_3(void)
+TEST_CASE("Interface test 3", "[Sequential Arrangement Interface]")
 { 
     clock_t start, finish;
     
@@ -266,7 +270,7 @@ void test_interface_3(void)
 }    
 
 
-int test_interface_4(void)
+TEST_CASE("Interface test 4", "[Sequential Arrangement Interface]")
 {
     clock_t start, finish;
     
@@ -290,7 +294,7 @@ int test_interface_4(void)
     if (result != 0)
     {
 	printf("Cannot load printer geometry (code: %d).\n", result);
-	return result;
+	return;
     }
     solver_configuration.setup(printer_geometry);
     printf("Loading printer geometry ... finished\n");
@@ -320,12 +324,10 @@ int test_interface_4(void)
     
     printf("Time: %.3f\n", (finish - start) / (double)CLOCKS_PER_SEC);
     printf("Testing interface 4 ... finished\n");
-
-    return 0;
 }
 
 
-int test_interface_5(void)
+TEST_CASE("Interface test 5", "[Sequential Arrangement Interface]")
 {
     clock_t start, finish;
     
@@ -349,7 +351,7 @@ int test_interface_5(void)
     if (result != 0)
     {
 	printf("Cannot load printer geometry (code: %d).\n", result);
-	return result;
+	return;
     }
     solver_configuration.setup(printer_geometry);
     printf("Loading printer geometry ... finished\n");
@@ -396,12 +398,10 @@ int test_interface_5(void)
     printf("Checking time: %.3f\n", (finish - start) / (double)CLOCKS_PER_SEC);    
     
     printf("Testing interface 5 ... finished\n");
-
-    return 0;
 }
 
 
-int test_interface_6(void)
+TEST_CASE("Interface test 6", "[Sequential Arrangement Interface]")
 {
     clock_t start, finish;
     
@@ -430,7 +430,7 @@ int test_interface_6(void)
     if (result != 0)
     {
 	printf("Cannot load printer geometry (code: %d).\n", result);
-	return result;
+	return;
     }
     solver_configuration.setup(printer_geometry);
     printf("Loading printer geometry ... finished\n");
@@ -477,23 +477,9 @@ int test_interface_6(void)
     printf("Checking time: %.3f\n", (finish - start) / (double)CLOCKS_PER_SEC);    
     
     printf("Testing interface 6 ... finished\n");
-
-    return 0;
 }
 
 
 /*----------------------------------------------------------------*/
-
-int main(int SEQ_UNUSED(argc), char **SEQ_UNUSED(argv))
-{
-//    test_interface_1();
-//    test_interface_2();
-//    test_interface_3();
-//    test_interface_4();
-    test_interface_5();
-//    test_interface_6();
-    
-    return 0;
-}
 
 

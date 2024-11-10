@@ -8,6 +8,9 @@ set(CMAKE_CXX_EXTENSIONS False)
 find_package(Z3 REQUIRED)
 slic3r_remap_configs("z3::libz3" RelWithDebInfo Release)
 
+find_package(Catch2 2.9 REQUIRED)
+include(Catch)
+
 add_library(libseqarrange STATIC src/seq_interface.cpp src/seq_preprocess.cpp src/seq_sequential.cpp src/seq_utilities.cpp)
 target_include_directories(libseqarrange PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/include/libseqarrange)
 target_link_libraries(libseqarrange libslic3r z3::libz3)
@@ -29,7 +32,7 @@ target_link_libraries(sequential_decimator libseqarrange)
 # target_link_libraries(seq_test_arrangement libseqarrange)
 
 add_executable(seq_test_polygon test/seq_test_polygon.cpp test/prusaparts.cpp)
-target_link_libraries(seq_test_polygon libseqarrange)
+target_link_libraries(seq_test_polygon Catch2::Catch2 libseqarrange)
 target_include_directories(seq_test_polygon PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src" "${CMAKE_CURRENT_SOURCE_DIR}/include/libseqarrange")
 
 add_executable(seq_test_sequential test/seq_test_sequential.cpp)
@@ -44,3 +47,7 @@ add_executable(seq_test_interface test/seq_test_interface.cpp)
 target_link_libraries(seq_test_interface libseqarrange)
 target_include_directories(seq_test_interface PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src" "${CMAKE_CURRENT_SOURCE_DIR}/include/libseqarrange")
 
+add_test(seq_test_polygon seq_test_polygon)
+add_test(seq_test_preprocess seq_test_preprocess)
+add_test(seq_test_sequential seq_test_sequential)
+add_test(seq_test_interface seq_test_interface)
