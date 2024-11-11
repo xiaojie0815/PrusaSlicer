@@ -1215,7 +1215,7 @@ void GCodeGenerator::_do_export(Print& print, GCodeOutputStream &file, Thumbnail
     // Enable ooze prevention if configured so.
     DoExport::init_ooze_prevention(print, m_ooze_prevention);
 
-    std::string start_gcode = this->placeholder_parser_process("start_gcode", print.config().start_gcode.value, initial_extruder_id);
+    const std::string start_gcode = this->_process_start_gcode(print, initial_extruder_id);
 
     this->_print_first_layer_chamber_temperature(file, print, start_gcode, config().chamber_temperature.get_at(initial_extruder_id), false, false);
     this->_print_first_layer_bed_temperature(file, print, start_gcode, initial_extruder_id, true);
@@ -1888,15 +1888,34 @@ void GCodeGenerator::print_machine_envelope(GCodeOutputStream &file, const Print
     }
 }
 
+std::string GCodeGenerator::_process_start_gcode(const Print& print, unsigned int current_extruder_id)
+{
+    const int num_extruders            = print.config().nozzle_diameter.values.size();
+    const int bed_temperature_extruder = print.config().bed_temperature_extruder;
+    if (0 < bed_temperature_extruder && bed_temperature_extruder <= num_extruders) {
+        const int first_layer_bed_temperature = print.config().first_layer_bed_temperature.get_at(bed_temperature_extruder - 1);
+        DynamicConfig config;
+        config.set_key_value("first_layer_bed_temperature", new ConfigOptionInts(num_extruders, first_layer_bed_temperature));
+        return this->placeholder_parser_process("start_gcode", print.config().start_gcode.value, current_extruder_id, &config);
+    } else {
+        return this->placeholder_parser_process("start_gcode", print.config().start_gcode.value, current_extruder_id);
+    }
+}
+
 // Write 1st layer bed temperatures into the G-code.
 // Only do that if the start G-code does not already contain any M-code controlling an extruder temperature.
 // M140 - Set Extruder Temperature
 // M190 - Set Extruder Temperature and Wait
 void GCodeGenerator::_print_first_layer_bed_temperature(GCodeOutputStream &file, const Print &print, const std::string &gcode, unsigned int first_printing_extruder_id, bool wait)
 {
-    bool autoemit = print.config().autoemit_temperature_commands;
-    // Initial bed temperature based on the first extruder.
-    int  temp = print.config().first_layer_bed_temperature.get_at(first_printing_extruder_id);
+    const bool autoemit                    = print.config().autoemit_temperature_commands;
+    const int  num_extruders               = print.config().nozzle_diameter.values.size();
+    const int  bed_temperature_extruder    = print.config().bed_temperature_extruder;
+    const bool use_first_printing_extruder = bed_temperature_extruder <= 0 || bed_temperature_extruder > num_extruders;
+
+    // Initial bed temperature based on the first printing extruder or based on the extruded in bed_temperature_extruder.
+    int temp = print.config().first_layer_bed_temperature.get_at(use_first_printing_extruder ? first_printing_extruder_id : bed_temperature_extruder - 1);
+
     // Is the bed temperature set by the provided custom G-code?
     int  temp_by_gcode     = -1;
     bool temp_set_by_gcode = custom_gcode_sets_temperature(gcode, 140, 190, false, temp_by_gcode);
@@ -2646,7 +2665,15 @@ LayerResult GCodeGenerator::process_layer(
             if (temperature > 0 && (temperature != print.config().first_layer_temperature.get_at(extruder.id())))
                 gcode += m_writer.set_temperature(temperature, false, extruder.id());
         }
-        gcode += m_writer.set_bed_temperature(print.config().bed_temperature.get_at(first_extruder_id));
+
+        // Bed temperature for layers from the 2nd layer is based on the first printing
+        // extruder on the layer or on the extruded in bed_temperature_extruder.
+        const int  num_extruders            = print.config().nozzle_diameter.values.size();
+        const int  bed_temperature_extruder = print.config().bed_temperature_extruder;
+        const bool use_first_extruder       = bed_temperature_extruder <= 0 || bed_temperature_extruder > num_extruders;
+        const int  bed_temperature          = print.config().bed_temperature.get_at(use_first_extruder ? first_extruder_id : bed_temperature_extruder - 1);
+        gcode += m_writer.set_bed_temperature(bed_temperature);
+
         // Mark the temperature transition from 1st to 2nd layer to be finished.
         m_second_layer_things_done = true;
     }
