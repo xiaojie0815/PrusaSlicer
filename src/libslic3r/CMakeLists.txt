@@ -273,7 +273,6 @@ set(SLIC3R_SOURCES
     MeasureUtils.hpp
     CustomGCode.cpp
     CustomGCode.hpp
-    Arrange/Arrange.hpp
     Arrange/ArrangeImpl.hpp
     Arrange/Items/ArrangeItem.hpp
     Arrange/Items/ArrangeItem.cpp
