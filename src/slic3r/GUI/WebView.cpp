@@ -32,7 +32,7 @@ void WebView::webview_create(wxWebView* webView, wxWindow *parent, const wxStrin
     wxString user_agent = Slic3r::GUI::format_wxstr("%1%/%2% (%3%)",SLIC3R_APP_FULL_NAME, SLIC3R_VERSION, Slic3r::platform_to_string(Slic3r::platform()));
 #ifdef __WIN32__
     webView->SetUserAgent(user_agent);
-    webView->Create(parent, wxID_ANY, correct_url, wxDefaultPosition, wxDefaultSize);
+    webView->Create(parent, wxID_ANY, correct_url, wxDefaultPosition, wxDefaultSize, wxNO_BORDER);
     //We register the wxfs:// protocol for testing purposes
     //webView->RegisterHandler(wxSharedPtr<wxWebViewHandler>(new wxWebViewArchiveHandler("wxfs")));
     //And the memory: file system
