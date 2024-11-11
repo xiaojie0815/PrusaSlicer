@@ -29,6 +29,10 @@ set(SLIC3R_GUI_SOURCES
     GUI/UserAccount.hpp
     GUI/WebViewDialog.cpp
     GUI/WebViewDialog.hpp
+    GUI/WebViewPanel.cpp
+    GUI/WebViewPanel.hpp
+    GUI/ConnectRequestHandler.cpp
+    GUI/ConnectRequestHandler.hpp
     GUI/WebView.cpp
     GUI/WebView.hpp
     GUI/WebViewPlatformUtils.hpp

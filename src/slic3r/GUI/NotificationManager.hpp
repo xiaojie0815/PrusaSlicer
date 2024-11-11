@@ -244,6 +244,7 @@ public:
 	void set_download_progress_percentage(float percentage);
 	// Download URL progress notif
 	void push_download_URL_progress_notification(size_t id, const std::string& text, std::function<bool(DownloaderUserAction, int)> user_action_callback);
+    void push_download_URL_progress_notification_with_printables_link(size_t id, const std::string& text, const std::string& url, std::function<bool(DownloaderUserAction, int)> user_action_callback, std::function<void(std::string)> hypertext_callback);
 	void set_download_URL_progress(size_t id, float percentage);
 	void set_download_URL_paused(size_t id);
 	void set_download_URL_canceled(size_t id);
@@ -576,6 +577,22 @@ private:
 		bool							m_download_paused {false};
 		std::string						m_error_message;
 	};
+
+    class URLDownloadWithPrintablesLinkNotification : public URLDownloadNotification
+	{
+    public:
+		URLDownloadWithPrintablesLinkNotification(const NotificationData& n, NotificationIDProvider& id_provider, wxEvtHandler* evt_handler, size_t download_id, std::function<bool(DownloaderUserAction, int)> user_action_callback, std::function<void(std::string)> hypertext_callback)
+			: URLDownloadNotification(n, id_provider, evt_handler, download_id, user_action_callback)
+            , m_hypertext_callback_override(hypertext_callback)
+		{
+		}
+    protected: 
+        void	render_text(const float win_size_x, const float win_size_y,
+							const float win_pos_x, const float win_pos_y) override;
+        void    init() override;
+        bool    on_text_click() override;
+        std::function<void(std::string)> m_hypertext_callback_override;
+    };
 
 	class PrintHostUploadNotification : public ProgressBarNotification
 	{

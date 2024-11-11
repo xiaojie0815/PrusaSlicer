@@ -31,6 +31,7 @@ wxDEFINE_EVENT(EVT_UA_FAIL, UserAccountFailEvent);
 wxDEFINE_EVENT(EVT_UA_RESET, UserAccountFailEvent);
 wxDEFINE_EVENT(EVT_UA_PRUSACONNECT_PRINTER_DATA_FAIL, UserAccountFailEvent);
 wxDEFINE_EVENT(EVT_UA_REFRESH_TIME, UserAccountTimeEvent);
+wxDEFINE_EVENT(EVT_UA_ENQUEUED_REFRESH, SimpleEvent);
 
 void UserActionPost::perform(/*UNUSED*/ wxEvtHandler* evt_handler, /*UNUSED*/ const std::string& access_token, UserActionSuccessFn success_callback, UserActionFailFn fail_callback, const std::string& input) const
 {
@@ -227,6 +228,7 @@ void UserAccountSession::enqueue_test_with_refresh()
 
 void UserAccountSession::enqueue_refresh(const std::string& body)
 {
+    wxQueueEvent(p_evt_handler, new SimpleEvent(EVT_UA_ENQUEUED_REFRESH));
     std::string post_fields;
     {
         std::lock_guard<std::mutex> lock(m_credentials_mutex);
