@@ -453,17 +453,17 @@ std::vector<std::vector<GLGizmoPainterBase::ProjectedMousePosition>> GLGizmoPain
 // concludes that the event was not intended for it, it should return false.
 bool GLGizmoPainterBase::gizmo_event(SLAGizmoEventType action, const Vec2d& mouse_position, bool shift_down, bool alt_down, bool control_down)
 {
-    if (action == SLAGizmoEventType::MouseWheelUp
-     || action == SLAGizmoEventType::MouseWheelDown) {
-        if (control_down) {
+    if (action == SLAGizmoEventType::MouseWheelUp || action == SLAGizmoEventType::MouseWheelDown) {
+        // On Windows Right ALT could be reported as Left ALT + Control.
+        // In such cases, we want to prioritize ALT over Control.
+        if (!alt_down && control_down) {
             double pos = m_c->object_clipper()->get_position();
             pos = action == SLAGizmoEventType::MouseWheelDown
                       ? std::max(0., pos - 0.01)
                       : std::min(1., pos + 0.01);
             m_c->object_clipper()->set_position_by_ratio(pos, true);
             return true;
-        }
-        else if (alt_down) {
+        } else if (alt_down) {
             if (m_tool_type == ToolType::BRUSH && (m_cursor_type == TriangleSelector::CursorType::SPHERE || m_cursor_type == TriangleSelector::CursorType::CIRCLE)) {
                 m_cursor_radius = action == SLAGizmoEventType::MouseWheelDown ? std::max(m_cursor_radius - this->get_cursor_radius_step(), this->get_cursor_radius_min())
                                                                               : std::min(m_cursor_radius + this->get_cursor_radius_step(), this->get_cursor_radius_max());
