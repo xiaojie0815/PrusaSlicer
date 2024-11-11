@@ -127,6 +127,7 @@
 #include "UserAccountUtils.hpp"
 #include "DesktopIntegrationDialog.hpp"
 #include "WebViewDialog.hpp"
+#include "WebViewPanel.hpp"
 #include "ConfigWizardWebViewPage.hpp"
 #include "PresetArchiveDatabase.hpp"
 
@@ -1044,6 +1045,15 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
         this->q->Bind(EVT_UA_ENQUEUED_REFRESH, [this](SimpleEvent& evt) {
              this->main_frame->on_account_will_refresh();
         });  
+        
+        this->q->Bind(EVT_PRINTABLES_CONNECT_PRINT, [this](wxCommandEvent& evt) {
+            if (!this->user_account->is_logged()) {
+                // show login dialog instead of print dialog
+                this->user_account->do_login();
+                return;
+            }
+            this->q->printables_to_connect_gcode(into_u8(evt.GetString()));
+        });
     }
 
 	wxGetApp().other_instance_message_handler()->init(this->q);
@@ -6059,12 +6069,9 @@ bool load_secret(const std::string& id, const std::string& opt, std::string& usr
 
 void Plater::printables_to_connect_gcode(const std::string& url)
 {
-    {
-        PrintablesConnectUploadDialog dialog(this, url);
-        if (dialog.ShowModal() != wxID_OK) {
-            return;
-        }
-    }   
+    PrintablesConnectUploadDialog dialog(this, url);
+    dialog.ShowModal();
+
 }
 
 void Plater::connect_gcode()

@@ -219,13 +219,20 @@ void WebViewDialog::on_reload_button(wxCommandEvent& WXUNUSED(evt))
     m_browser->Reload();
 }
 
-
 void WebViewDialog::on_navigation_request(wxWebViewEvent &evt)
 {
+    BOOST_LOG_TRIVIAL(debug) << "WebViewDialog::on_navigation_request " << evt.GetURL();
 }
+
+void WebViewDialog::on_loaded(wxWebViewEvent &evt)
+{
+    BOOST_LOG_TRIVIAL(debug) << "WebViewDialog::on_loaded " << evt.GetURL();
+}
+
 
 void WebViewDialog::on_script_message(wxWebViewEvent& evt)
 {
+    BOOST_LOG_TRIVIAL(error) << "Unhandled script message: " << evt.GetString();
 }
 
 /**
@@ -634,13 +641,14 @@ void PrinterPickWebViewDialog::on_reload_event(const std::string& message_data)
     m_browser->LoadURL(m_default_url);
 }
 
+
 PrintablesConnectUploadDialog::PrintablesConnectUploadDialog(wxWindow* parent, const std::string url)
     : WebViewDialog(parent
-        , GUI::from_u8(url)
-        , _L("Choose a printer")
-        , wxSize(parent->GetClientSize().x / 4 * 3, parent->GetClientSize().y/ 4 * 3)
-        ,{"_prusaSlicer"}
-        , "connect_loading")
+    , GUI::from_u8(url)
+    , _L("Choose a printer")
+    , wxSize(parent->GetClientSize().x / 4 * 3, parent->GetClientSize().y/ 4 * 3)
+    ,{"_prusaSlicer"}
+    , "connect_loading")     
 {
     wxDisplay display(wxDisplay::GetFromWindow(this));
     wxRect geometry = display.GetGeometry();
@@ -657,7 +665,39 @@ void PrintablesConnectUploadDialog::on_dpi_changed(const wxRect &suggested_rect)
     Refresh();
 }
 
+void PrintablesConnectUploadDialog::on_script_message(wxWebViewEvent& evt)
+{
+    handle_message(into_u8(evt.GetString()));
+}
 
+void PrintablesConnectUploadDialog::on_connect_action_select_printer(const std::string& message_data)
+{
+    // SELECT_PRINTER request is not defined for PrintablesConnectUploadDialog
+    assert(true);
+}
+void PrintablesConnectUploadDialog::on_connect_action_print(const std::string& message_data)
+{
+     assert(true);
+}
+
+void PrintablesConnectUploadDialog::on_connect_action_webapp_ready(const std::string& message_data)
+{
+    // WEBAPP_READY request is not defined for PrintablesConnectUploadDialog
+    assert(true);
+}
+
+void PrintablesConnectUploadDialog::on_reload_event(const std::string& message_data)
+{
+    if (!m_browser) {
+        return;
+    }
+    m_browser->LoadURL(m_default_url);
+}
+
+void PrintablesConnectUploadDialog::on_connect_action_close_dialog(const std::string& message_data)
+{
+    this->EndModal(wxID_OK);
+}
 
 LoginWebViewDialog::LoginWebViewDialog(wxWindow *parent, std::string &ret_val, const wxString& url, wxEvtHandler* evt_handler)
     : WebViewDialog(parent, url, _L("Log in dialog"), wxSize(50 * wxGetApp().em_unit(), 80 * wxGetApp().em_unit()), {})

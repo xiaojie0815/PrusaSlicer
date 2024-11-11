@@ -26,7 +26,7 @@ ConnectRequestHandler::ConnectRequestHandler()
     m_actions["ERROR"] = std::bind(&ConnectRequestHandler::on_connect_action_error, this, std::placeholders::_1);
     m_actions["LOG"] = std::bind(&ConnectRequestHandler::on_connect_action_log, this, std::placeholders::_1);
     m_actions["RELOAD_HOME_PAGE"] = std::bind(&ConnectRequestHandler::on_reload_event, this, std::placeholders::_1);
-
+    m_actions["CLOSE_DIALOG"] = std::bind(&ConnectRequestHandler::on_connect_action_close_dialog, this, std::placeholders::_1);
 }
 ConnectRequestHandler::~ConnectRequestHandler()
 {

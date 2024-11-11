@@ -17,7 +17,7 @@
 class wxWebView;
 class wxWebViewEvent;
 
-wxDECLARE_EVENT(EVT_OPEN_EXTERNAL_LOGIN, wxCommandEvent);
+wxDECLARE_EVENT(EVT_PRINTABLES_CONNECT_PRINT, wxCommandEvent);
 
 namespace Slic3r::GUI {
 
@@ -141,6 +141,7 @@ protected:
     void on_page_will_load() override;
     void on_connect_action_error(const std::string &message_data) override;
     void on_reload_event(const std::string& message_data) override;
+    void on_connect_action_close_dialog(const std::string& message_data) override {assert(true);}
 private:
     static wxString get_login_script(bool refresh);
     static wxString get_logout_script();

@@ -4190,10 +4190,6 @@ void GUI_App::printables_slice_request(const std::string& download_url, const st
     m_downloader->init(dest_folder);
     m_downloader->start_download_printables(download_url, true, model_url, this);
 }
-void GUI_App::printables_print_request(const std::string& download_url, const std::string& model_url)
-{
-    plater()->printables_to_connect_gcode(Utils::ServiceConfig::instance().printables_url() + model_url);
-}
 
 void GUI_App::printables_login_request()
 {

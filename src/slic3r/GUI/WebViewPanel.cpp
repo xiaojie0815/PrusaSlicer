@@ -18,7 +18,7 @@
 
 #include <wx/webview.h>
 #include <wx/url.h>
-
+#include <curl/curl.h>
 #include <boost/log/trivial.hpp>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
@@ -29,6 +29,8 @@
 // if set to 0, the /slicer/login is invoked from WebKit (passing JWT token only to this request)
 // to set authorization cookie for all WebKit requests to Connect
 #define AUTH_VIA_FETCH_OVERRIDE 0
+
+wxDEFINE_EVENT(EVT_PRINTABLES_CONNECT_PRINT, wxCommandEvent);
 
 namespace pt = boost::property_tree;
 
@@ -1162,6 +1164,24 @@ void PrintablesWebViewPanel::on_reload_event(const std::string& message_data)
     // Event from our error / loading html pages
     load_default_url();
 }
+
+namespace {
+std::string escape_url(const std::string& unescaped)
+{
+	std::string ret_val;
+	CURL* curl = curl_easy_init();
+	if (curl) {
+		char* decoded = curl_easy_escape(curl, unescaped.c_str(), unescaped.size());
+		if (decoded) {
+			ret_val = std::string(decoded);
+			curl_free(decoded);
+		}
+		curl_easy_cleanup(curl);
+	}
+	return ret_val;
+}
+}
+
 void PrintablesWebViewPanel::on_printables_event_print_gcode(const std::string& message_data)
 {
     // { "event": "downloadFile", "url": "https://media.printables.com/somesecure.stl", "modelUrl": "https://www.printables.com/model/123" }
@@ -1182,7 +1202,9 @@ void PrintablesWebViewPanel::on_printables_event_print_gcode(const std::string& 
         return;
     }  
     assert(!download_url.empty() && !model_url.empty());
-    wxGetApp().printables_print_request(download_url, model_url);
+    wxCommandEvent* evt = new wxCommandEvent(EVT_PRINTABLES_CONNECT_PRINT);
+    evt->SetString(from_u8(Utils::ServiceConfig::instance().connect_printables_print_url()  +"?url="  + escape_url(download_url)));
+    wxQueueEvent(GUI::wxGetApp().mainframe->m_plater, evt);
 }
 void PrintablesWebViewPanel::on_printables_event_download_file(const std::string& message_data)
 {
@@ -1207,6 +1229,7 @@ void PrintablesWebViewPanel::on_printables_event_download_file(const std::string
     assert(!download_url.empty() && !model_url.empty());
     boost::filesystem::path url_path(download_url);
     show_download_notification(url_path.filename().string());
+
     wxGetApp().printables_download_request(download_url, model_url); 
 }
 void PrintablesWebViewPanel::on_printables_event_slice_file(const std::string& message_data)
@@ -1230,6 +1253,7 @@ void PrintablesWebViewPanel::on_printables_event_slice_file(const std::string& m
         return;
     }  
     assert(!download_url.empty() && !model_url.empty());
+    
     wxGetApp().printables_slice_request(download_url, model_url);
 }
 

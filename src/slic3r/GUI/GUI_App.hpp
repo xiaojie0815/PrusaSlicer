@@ -413,14 +413,6 @@ public:
     void            open_wifi_config_dialog(bool forced, const wxString& drive_path = {});
     bool            get_wifi_config_dialog_shown() const { return m_wifi_config_dialog_shown; }
     
-    void            request_login(bool show_user_info = false) {}
-    bool            check_login() { return false; }
-    void            get_login_info() {}
-    bool            is_user_login() { return true; }
-
-    void            request_user_login(int online_login) {}
-    void            request_user_logout() {}
-    int             request_user_unbind(std::string dev_id) { return 0; }
     bool            select_printer_from_connect(const std::string& cmd);
     void            select_filament_from_connect(const std::string& cmd);
     void            handle_connect_request_printer_select(const std::string& cmd);
@@ -438,7 +430,6 @@ public:
     void            request_remove_project(std::string project_id) {}
     void            printables_download_request(const std::string& download_url, const std::string& model_url);
     void            printables_slice_request(const std::string& download_url, const std::string& model_url);
-    void            printables_print_request(const std::string& download_url, const std::string& model_url);
     void            printables_login_request();
     void            open_link_in_printables(const std::string& url);
 private:

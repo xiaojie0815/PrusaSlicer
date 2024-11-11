@@ -14,6 +14,7 @@ public:
     std::string connect_select_printer_url() const { return m_connect_url + "/slicer-select-printer"; }
     std::string connect_printers_url() const { return m_connect_url + "/app/printers/"; }
     std::string connect_teams_url() const { return m_connect_url + "/app/teams"; }
+    std::string connect_printables_print_url() const { return m_connect_url + "/slicer-print"; }
 
     const std::string& account_url() const { return m_account_url; }
     const std::string& account_client_id() const { return m_account_client_id; }
