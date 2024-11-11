@@ -1,16 +1,15 @@
 #include <catch2/catch.hpp>
 #include "test_utils.hpp"
 
-#include <libslic3r/Arrange/Arrange.hpp>
-#include <libslic3r/Arrange/Items/ArrangeItem.hpp>
-#include <libslic3r/Arrange/Tasks/ArrangeTask.hpp>
-
-#include <libslic3r/Arrange/SceneBuilder.hpp>
+#include <arrange-wrapper/Arrange.hpp>
+#include <arrange-wrapper/Items/ArrangeItem.hpp>
+#include <arrange-wrapper/Tasks/ArrangeTask.hpp>
+#include <arrange-wrapper/SceneBuilder.hpp>
+#include <arrange-wrapper/ModelArrange.hpp>
 
 #include "libslic3r/Model.hpp"
 #include "libslic3r/Geometry/ConvexHull.hpp"
 #include "libslic3r/Format/3mf.hpp"
-#include "libslic3r/ModelArrange.hpp"
 
 static Slic3r::Model get_example_model_with_20mm_cube()
 {

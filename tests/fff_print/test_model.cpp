@@ -2,7 +2,7 @@
 
 #include "libslic3r/libslic3r.h"
 #include "libslic3r/Model.hpp"
-#include "libslic3r/ModelArrange.hpp"
+#include <arrange-wrapper/ModelArrange.hpp>
 
 #include <boost/nowide/cstdio.hpp>
 #include <boost/filesystem.hpp>

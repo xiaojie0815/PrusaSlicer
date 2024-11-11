@@ -3,21 +3,17 @@
 
 #include <libslic3r/Execution/ExecutionSeq.hpp>
 
-#include <libslic3r/Arrange/Core/ArrangeBase.hpp>
-#include <libslic3r/Arrange/Core/ArrangeFirstFit.hpp>
-#include <libslic3r/Arrange/Core/NFP/PackStrategyNFP.hpp>
-#include <libslic3r/Arrange/Core/NFP/RectangleOverfitPackingStrategy.hpp>
+#include <arrange/ArrangeBase.hpp>
+#include <arrange/ArrangeFirstFit.hpp>
+#include <arrange/NFP/PackStrategyNFP.hpp>
+#include <arrange/NFP/RectangleOverfitPackingStrategy.hpp>
+#include <arrange/NFP/Kernels/GravityKernel.hpp>
+#include <arrange/NFP/Kernels/TMArrangeKernel.hpp>
+#include <arrange/NFP/NFPConcave_Tesselate.hpp>
 
-#include <libslic3r/Arrange/Core/NFP/Kernels/GravityKernel.hpp>
-#include <libslic3r/Arrange/Core/NFP/Kernels/TMArrangeKernel.hpp>
-
-#include <libslic3r/Arrange/Core/NFP/NFPConcave_CGAL.hpp>
-#include <libslic3r/Arrange/Core/NFP/NFPConcave_Tesselate.hpp>
-#include <libslic3r/Arrange/Core/NFP/CircularEdgeIterator.hpp>
-
-#include <libslic3r/Arrange/Items/SimpleArrangeItem.hpp>
-#include <libslic3r/Arrange/Items/ArrangeItem.hpp>
-#include <libslic3r/Arrange/Items/TrafoOnlyArrangeItem.hpp>
+#include <arrange-wrapper/Items/SimpleArrangeItem.hpp>
+#include <arrange-wrapper/Items/ArrangeItem.hpp>
+#include <arrange-wrapper/Items/TrafoOnlyArrangeItem.hpp>
 
 #include <libslic3r/Model.hpp>
 

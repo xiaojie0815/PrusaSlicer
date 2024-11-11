@@ -5,7 +5,7 @@
 #ifndef ARRANGESETTINGSDIALOGIMGUI_HPP
 #define ARRANGESETTINGSDIALOGIMGUI_HPP
 
-#include "libslic3r/Arrange/ArrangeSettingsView.hpp"
+#include <arrange-wrapper/ArrangeSettingsView.hpp>
 #include "ImGuiWrapper.hpp"
 #include "libslic3r/AnyPtr.hpp"
 

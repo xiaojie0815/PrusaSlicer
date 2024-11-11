@@ -48,7 +48,7 @@
 #include "libslic3r/GCode/PostProcessor.hpp"
 #include "libslic3r/Model.hpp"
 #include "libslic3r/CutUtils.hpp"
-#include "libslic3r/ModelArrange.hpp"
+#include <arrange-wrapper/ModelArrange.hpp>
 #include "libslic3r/Platform.hpp"
 #include "libslic3r/Print.hpp"
 #include "libslic3r/SLAPrint.hpp"

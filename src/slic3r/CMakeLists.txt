@@ -433,6 +433,7 @@ target_link_libraries(
     libslic3r_gui
     PUBLIC
     libslic3r
+    slic3r-arrange-wrapper
     avrdude
     libcereal
     imgui

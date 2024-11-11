@@ -7,6 +7,8 @@
 #include "libslic3r/Format/OBJ.hpp"
 #include "libslic3r/Format/STL.hpp"
 
+#include <arrange-wrapper/ModelArrange.hpp>
+
 #include <cstdlib>
 #include <string>
 
@@ -14,7 +16,6 @@
 #include <boost/nowide/fstream.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/regex.hpp>
-#include <libslic3r/ModelArrange.hpp>
 
 using namespace std;
 
