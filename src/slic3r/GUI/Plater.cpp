@@ -968,7 +968,7 @@ void Plater::priv::init()
                     this->notification_manager->close_notification_of_type(NotificationType::UserAccountID);
                     // show connect tab
                     this->notification_manager->push_notification(NotificationType::UserAccountID, NotificationManager::NotificationLevel::ImportantNotificationLevel, text);
-                    
+
                     this->main_frame->on_account_login(user_account->get_access_token());
                 } else {
                     // refresh do different operations than on_account_login
@@ -1060,11 +1060,11 @@ void Plater::priv::init()
 
         this->q->Bind(EVT_UA_REFRESH_TIME, [this](UserAccountTimeEvent& evt) {
             this->user_account->set_refresh_time(evt.data);
-        });  
+        });
         this->q->Bind(EVT_UA_ENQUEUED_REFRESH, [this](SimpleEvent& evt) {
              this->main_frame->on_account_will_refresh();
-        });  
-        
+        });
+
         this->q->Bind(EVT_PRINTABLES_CONNECT_PRINT, [this](wxCommandEvent& evt) {
             if (!this->user_account->is_logged()) {
                 // show login dialog instead of print dialog
@@ -1287,7 +1287,7 @@ std::vector<size_t> Plater::priv::load_files(const std::vector<fs::path>& input_
 #ifdef __linux__
         // On Linux Constructor of the ProgressDialog calls DisableOtherWindows() function which causes a disabling of all children of the find_toplevel_parent(q)
         // And a destructor of the ProgressDialog calls ReenableOtherWindows() function which revert previously disabled children.
-        // But if printer technology will be changes during project loading, 
+        // But if printer technology will be changes during project loading,
         // then related SLA Print and Materials Settings or FFF Print and Filaments Settings will be unparent from the wxNoteBook
         // and that is why they will never be enabled after destruction of the ProgressDialog.
         // So, distroy progress_gialog if we are loading project file
@@ -1365,8 +1365,8 @@ std::vector<size_t> Plater::priv::load_files(const std::vector<fs::path>& input_
 
                 // For exporting from the 3mf we shouldn't check printer_presets for the containing information about "Print Host upload"
                 wxGetApp().load_current_presets(false);
-                // Update filament colors for the MM-printer profile in the full config 
-                // to avoid black (default) colors for Extruders in the ObjectList, 
+                // Update filament colors for the MM-printer profile in the full config
+                // to avoid black (default) colors for Extruders in the ObjectList,
                 // when for extruder colors are used filament colors
                 q->update_filament_colors_in_full_config();
                 is_project_file = true;
@@ -2131,9 +2131,16 @@ void Plater::priv::process_validation_warning(const std::vector<std::string>& wa
                 print_tab->on_value_change("support_material_auto", config.opt_bool("support_material_auto"));
                 return true;
             };
-        } else if (text == "_BED_TEMPS_DIFFER") {
-            text              = _u8L("Bed temperatures for the used filaments differ significantly.");
+        } else if (text == "_BED_TEMPS_DIFFER" || text == "_BED_TEMPS_CHANGED") {
+            text              = _u8L("Bed temperatures for the used filaments differ significantly.\n"
+                                     "For multi-material prints it is recommended to set the ");
+            hypertext = _u8L("'Bed temperature by extruder' and 'Wipe tower extruder'");
+            multiline = true;
             notification_type = NotificationType::BedTemperaturesDiffer;
+            action_fn = [](wxEvtHandler*) {
+                GUI::wxGetApp().jump_to_option("bed_temperature_extruder", Preset::Type::TYPE_PRINT, boost::nowide::widen("Multiple Extruders"));
+                return true;
+            };
         } else if (text == "_FILAMENT_SHRINKAGE_DIFFER") {
             text              = _u8L("Filament shrinkage will not be used because filament shrinkage "
                                      "for the used filaments differs significantly.");
@@ -2290,15 +2297,16 @@ unsigned int Plater::priv::update_background_process(bool force_validation, bool
         std::vector<Print::ApplyStatus>(1)
     };
 
-    // Apply new config to the possibly running background task.
+    std::vector<std::string> warnings;
+    // Apply new config to the possibly running background task and give the user feedback on warnings.
     if (printer_technology == ptFFF) {
         with_single_bed_model_fff(q->model(), s_multiple_beds.get_active_bed(), [&](){
-            invalidated = background_process.apply(q->model(), full_config);
+            invalidated = background_process.apply(q->model(), full_config, &warnings);
             apply_statuses[s_multiple_beds.get_active_bed()] = invalidated;
         });
     } else if (printer_technology == ptSLA) {
         with_single_bed_model_sla(q->model(), s_multiple_beds.get_active_bed(), [&](){
-            invalidated = background_process.apply(q->model(), full_config);
+            invalidated = background_process.apply(q->model(), full_config, &warnings);
             apply_statuses[0] = invalidated;
         });
     } else {
@@ -2378,7 +2386,6 @@ unsigned int Plater::priv::update_background_process(bool force_validation, bool
 		// The delayed error message is no more valid.
 		delayed_error_message.clear();
 		// The state of the Print changed, and it is non-zero. Let's validate it and give the user feedback on errors.
-        std::vector<std::string> warnings;
         std::string err = background_process.validate(&warnings);
         if (err.empty()) {
 			notification_manager->set_all_slicing_errors_gray(true);
@@ -3170,16 +3177,16 @@ void Plater::priv::on_slicing_update(SlicingStatusEvent &evt)
     std::vector<ObjectID> object_ids = { evt.status.warning_object_id };
     std::vector<int> warning_steps = { evt.status.warning_step };
     std::vector<int> flagss = { int(evt.status.flags) };
-    
+
     if (warning_steps.front() == -1) {
         flagss = { PrintBase::SlicingStatus::UPDATE_PRINT_STEP_WARNINGS, PrintBase::SlicingStatus::UPDATE_PRINT_OBJECT_STEP_WARNINGS };
         notification_manager->close_slicing_errors_and_warnings();
     }
-    
+
     for (int flags : flagss ) {
         if (warning_steps.front() == -1) {
             warning_steps.clear();
-            if (flags == PrintBase::SlicingStatus::UPDATE_PRINT_STEP_WARNINGS) {                
+            if (flags == PrintBase::SlicingStatus::UPDATE_PRINT_STEP_WARNINGS) {
                 int i = 0;
                 while (i < int(printer_technology == ptFFF ? psCount : slapsCount)) { warning_steps.push_back(i); ++i; }
             } else {
@@ -5242,7 +5249,7 @@ bool Plater::load_files(const wxArrayString& filenames, bool delete_after_load/*
             return true;
         } else if (boost::algorithm::iends_with(filename, ".zip")) {
             if (!load_just_one_file) {
-                WarningDialog dlg(static_cast<wxWindow*>(this), 
+                WarningDialog dlg(static_cast<wxWindow*>(this),
                                   format_wxstr(_L("You have several files for loading and \"%1%\" is one of them.\n"
                                                   "Please note that only one .zip file can be loaded at a time.\n"
                                                   "In this case we can load just \"%1%\".\n\n"
