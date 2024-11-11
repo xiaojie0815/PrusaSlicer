@@ -10,6 +10,7 @@
 #include <libslic3r/Model.hpp>
 #include <libslic3r/TriangleMeshSlicer.hpp>
 #include <libslic3r/Geometry/ConvexHull.hpp>
+#include <libslic3r/MultipleBeds.hpp>
 
 #include <libslic3r/SLAPrint.hpp>
 #include <libslic3r/Print.hpp>
@@ -312,7 +313,7 @@ arr2::SceneBuilder build_scene(Plater &plater, ArrangeSelectionMode mode)
     }
 
     if (plater.config()) {
-        const BedsGrid::Gap gap{s_multiple_beds.get_bed_gap()};
+        const Vec2crd gap{s_multiple_beds.get_bed_gap()};
         builder.set_bed(*plater.config(), gap);
     }
 

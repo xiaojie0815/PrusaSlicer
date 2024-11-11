@@ -273,8 +273,8 @@ public:
 
     using SceneBuilderBase<SceneBuilder>::set_bed;
 
-    SceneBuilder &&set_bed(const DynamicPrintConfig &cfg, const BedsGrid::Gap &gap);
-    SceneBuilder &&set_bed(const Print &print, const BedsGrid::Gap &gap);
+    SceneBuilder &&set_bed(const DynamicPrintConfig &cfg, const Vec2crd &gap);
+    SceneBuilder &&set_bed(const Print &print, const Vec2crd &gap);
 
     SceneBuilder && set_wipe_tower_handlers(std::vector<AnyPtr<WipeTowerHandler>> &&handlers)
     {
@@ -379,7 +379,7 @@ class GridStriderVBedHandler: public VirtualBedHandler
     YStriderVBedHandler m_ystrider;
 
 public:
-    GridStriderVBedHandler(const BoundingBox &bedbb, const BedsGrid::Gap &gap)
+    GridStriderVBedHandler(const BoundingBox &bedbb, const Vec2crd &gap)
         : m_xstrider{bedbb, gap.x()}
         , m_ystrider{bedbb, gap.y()}
     {}

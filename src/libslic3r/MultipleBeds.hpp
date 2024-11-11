@@ -20,7 +20,6 @@ extern bool s_beds_just_switched;
 namespace BedsGrid {
 using GridCoords = Vec2crd;
 using Index = int;
-using Gap = Vec2crd;
 Index grid_coords2index(const GridCoords &coords);
 GridCoords index2grid_coords(Index index);
 }
@@ -62,7 +61,7 @@ public:
         m_build_volume_bb = build_volume_bb;
         m_build_volume_bb_incl_model = build_volume_bb_incl_model;
     }
-    BedsGrid::Gap get_bed_gap() const;
+    Vec2crd get_bed_gap() const;
 	void   ensure_wipe_towers_on_beds(Model& model, const std::vector<std::unique_ptr<Print>>& prints);
 
 private:
