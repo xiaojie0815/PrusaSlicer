@@ -133,7 +133,7 @@ void NotificationManager::NotificationIDProvider::release_id(int) {}
 #endif
 
 //------PopNotification--------
-NotificationManager::PopNotification::PopNotification(const NotificationData &n, NotificationIDProvider &id_provider, wxEvtHandler* evt_handler) :
+NotificationManager::PopNotification::PopNotification(const NotificationData &n, NotificationIDProvider &id_provider, wxEvtHandler* evt_handler, const bool multiline) :
 	  m_data                (n)
 	, m_id_provider   		(id_provider)
 	, m_text1               (n.text1)
@@ -141,6 +141,7 @@ NotificationManager::PopNotification::PopNotification(const NotificationData &n,
 	, m_text2               (n.text2)
 	, m_evt_handler         (evt_handler)
 	, m_notification_start  (GLCanvas3D::timestamp_now())
+    , m_multiline           (multiline)
 {}
 
 void NotificationManager::PopNotification::render(GLCanvas3D& canvas, float initial_y, bool move_from_overlay, float overlay_width)
@@ -2157,10 +2158,11 @@ void NotificationManager::push_notification(NotificationType type,
                                             const std::string& hypertext,
                                             std::function<bool(wxEvtHandler*)> callback,
 											const std::string& text_after,
-                                            int timestamp)
+                                            const int timestamp,
+                                            const bool multiline)
 {
 	int duration = get_standard_duration(level);
-    push_notification_data({ type, level, duration, text, hypertext, callback, text_after }, timestamp);
+    push_notification_data({ type, level, duration, text, hypertext, callback, text_after }, timestamp, multiline);
 }
 
 void NotificationManager::push_delayed_notification(const NotificationType type, std::function<bool(void)> condition_callback, int64_t initial_delay, int64_t delay_interval)
@@ -2839,9 +2841,9 @@ void NotificationManager::push_updated_item_info_notification(InfoItemType type)
 	}
 
 }
-bool NotificationManager::push_notification_data(const NotificationData& notification_data, int timestamp)
+bool NotificationManager::push_notification_data(const NotificationData& notification_data, int timestamp, const bool multiline)
 {
-	return push_notification_data(std::make_unique<PopNotification>(notification_data, m_id_provider, m_evt_handler), timestamp);
+	return push_notification_data(std::make_unique<PopNotification>(notification_data, m_id_provider, m_evt_handler, multiline), timestamp);
 }
 bool NotificationManager::push_notification_data(std::unique_ptr<NotificationManager::PopNotification> notification, int timestamp)
 {

@@ -142,6 +142,8 @@ enum class NotificationType
     ShrinkageCompensationsDiffer,
     // Notification about using wipe tower with different nozzle diameters.
     WipeTowerNozzleDiameterDiffer,
+    // Notification about using supports with different nozzle diameters.
+    SupportNozzleDiameterDiffer,
 };
 
 class NotificationManager
@@ -181,7 +183,7 @@ public:
 	// Push a NotificationType::CustomNotification with provided notification level and 10s for RegularNotificationLevel.
 	// ErrorNotificationLevel are never faded out.
     void push_notification(NotificationType type, NotificationLevel level, const std::string& text, const std::string& hypertext = "",
-                           std::function<bool(wxEvtHandler*)> callback = std::function<bool(wxEvtHandler*)>(), const std::string& text_after = "", int timestamp = 0);
+                           std::function<bool(wxEvtHandler*)> callback = std::function<bool(wxEvtHandler*)>(), const std::string& text_after = "", int timestamp = 0, bool multiline = false);
 	// Pushes basic_notification with delay. See push_delayed_notification_data.
 	void push_delayed_notification(const NotificationType type, std::function<bool(void)> condition_callback, int64_t initial_delay, int64_t delay_interval);
 	// Removes all notifications of type from m_waiting_notifications
@@ -344,7 +346,7 @@ private:
 			Paused
 		};
 
-		PopNotification(const NotificationData &n, NotificationIDProvider &id_provider, wxEvtHandler* evt_handler);
+		PopNotification(const NotificationData &n, NotificationIDProvider &id_provider, wxEvtHandler* evt_handler, bool multiline = false);
 		virtual ~PopNotification() { if (m_id) m_id_provider.release_id(m_id); }
 		virtual void           render(GLCanvas3D& canvas, float initial_y, bool move_from_overlay, float overlay_width);
 		// close will dissapear notification on next render
@@ -855,7 +857,7 @@ private:
 
 	//pushes notification into the queue of notifications that are rendered
 	//can be used to create custom notification
-	bool push_notification_data(const NotificationData& notification_data, int timestamp);
+	bool push_notification_data(const NotificationData& notification_data, int timestamp, bool multiline = false);
 	bool push_notification_data(std::unique_ptr<NotificationManager::PopNotification> notification, int timestamp);
 	// Delayed notifications goes first to the m_waiting_notifications vector and only after remaining time is <= 0
 	// and condition callback is success, notification is regular pushed from update function.

@@ -744,13 +744,11 @@ std::string Print::validate(std::vector<std::string>* warnings) const
 		};
         for (PrintObject *object : m_objects) {
             if (object->has_support_material()) {
-				if ((object->config().support_material_extruder == 0 || object->config().support_material_interface_extruder == 0) && max_nozzle_diameter - min_nozzle_diameter > EPSILON) {
+				if (warnings != nullptr && (object->config().support_material_extruder == 0 || object->config().support_material_interface_extruder == 0) && max_nozzle_diameter - min_nozzle_diameter > EPSILON) {
                     // The object has some form of support and either support_material_extruder or support_material_interface_extruder
-                    // will be printed with the current tool without a forced tool change. Play safe, assert that all object nozzles
-                    // are of the same diameter.
-                    return _u8L("Printing with multiple extruders of differing nozzle diameters. "
-                           "If support is to be printed with the current extruder (support_material_extruder == 0 or support_material_interface_extruder == 0), "
-                           "all nozzles have to be of the same diameter.");
+                    // will be printed with the current tool without a forced tool change.
+                    // Notify the user that printing supports with different nozzle diameters is experimental and requires caution.
+                    warnings->emplace_back("_SUPPORT_NOZZLE_DIAMETER_DIFFER");
                 }
                 if (this->has_wipe_tower() && object->config().support_material_style != smsOrganic) {
     				if (object->config().support_material_contact_distance == 0) {
