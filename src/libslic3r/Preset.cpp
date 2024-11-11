@@ -456,7 +456,8 @@ static std::vector<std::string> s_Preset_print_options {
     "top_solid_layers", "top_solid_min_thickness", "bottom_solid_layers", "bottom_solid_min_thickness",
     "ensure_vertical_shell_thickness", "extra_perimeters", "extra_perimeters_on_overhangs",
     "avoid_crossing_curled_overhangs", "avoid_crossing_perimeters", "thin_walls", "overhangs",
-    "seam_position","staggered_inner_seams", "external_perimeters_first", "fill_density", "fill_pattern", "top_fill_pattern", "bottom_fill_pattern",
+    "seam_position", "staggered_inner_seams", "seam_gap_distance",
+    "external_perimeters_first", "fill_density", "fill_pattern", "top_fill_pattern", "bottom_fill_pattern",
     "scarf_seam_placement", "scarf_seam_only_on_smooth", "scarf_seam_start_height", "scarf_seam_entire_loop", "scarf_seam_length", "scarf_seam_max_segment_length", "scarf_seam_on_inner_perimeters",
     "infill_every_layers", /*"infill_only_where_needed",*/ "solid_infill_every_layers", "fill_angle", "bridge_angle",
     "solid_infill_below_area", "only_retract_when_crossing_perimeters", "infill_first",
@@ -512,6 +513,8 @@ static std::vector<std::string> s_Preset_filament_options {
     "filament_vendor", "compatible_prints", "compatible_prints_condition", "compatible_printers", "compatible_printers_condition", "inherits",
     // Shrinkage compensation
     "filament_shrinkage_compensation_xy", "filament_shrinkage_compensation_z",
+    // Seams overrides
+    "filament_seam_gap_distance"
 };
 
 static std::vector<std::string> s_Preset_machine_limits_options {

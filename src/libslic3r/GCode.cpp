@@ -2311,6 +2311,17 @@ std::pair<GCode::SmoothPath, std::size_t> split_with_seam(
 }
 } // namespace GCode
 
+static inline double get_seam_gap_distance_value(const PrintConfig &config, const unsigned extruder_id)
+{
+    const double         nozzle_diameter            = config.nozzle_diameter.get_at(extruder_id);
+    const FloatOrPercent seam_gap_distance_override = config.filament_seam_gap_distance.get_at(extruder_id);
+    if (!std::isnan(seam_gap_distance_override.value)) {
+        return seam_gap_distance_override.get_abs_value(nozzle_diameter);
+    }
+
+    return config.seam_gap_distance.get_abs_value(nozzle_diameter);
+}
+
 using GCode::ExtrusionOrder::InstancePoint;
 
 struct SmoothPathGenerator
@@ -2361,12 +2372,20 @@ struct SmoothPathGenerator
             // Clip the path to avoid the extruder to get exactly on the first point of the
             // loop; if polyline was shorter than the clipping distance we'd get a null
             // polyline, so we discard it in that case.
-            const auto nozzle_diameter{config.nozzle_diameter.get_at(extruder_id)};
-            if (enable_loop_clipping) {
+            if (const double extrusion_clipping = get_seam_gap_distance_value(config, extruder_id); enable_loop_clipping && extrusion_clipping > 0.) {
                 clip_end(
-                    result, scale_(nozzle_diameter) * LOOP_CLIPPING_LENGTH_OVER_NOZZLE_DIAMETER,
+                    result,
+                    scaled<double>(extrusion_clipping),
                     scaled<double>(GCode::ExtrusionOrder::min_gcode_segment_length)
                 );
+            } else if (enable_loop_clipping && extrusion_clipping < 0.) {
+                // Extend the extrusion slightly after the seam.
+                const double      smooth_path_extension_length     = -1. * scaled<double>(extrusion_clipping);
+                const double      smooth_path_extension_cut_length = length(result) - smooth_path_extension_length;
+                GCode::SmoothPath smooth_path_extension            = result;
+
+                clip_end(smooth_path_extension, smooth_path_extension_cut_length, scaled<double>(GCode::ExtrusionOrder::min_gcode_segment_length));
+                Slic3r::append(result, smooth_path_extension);
             }
 
             assert(validate_smooth_path(result, !enable_loop_clipping));
@@ -3057,7 +3076,19 @@ std::string GCodeGenerator::extrude_perimeters(
             perimeter.extrusion_entity, print_instance.object_layer_to_print_id, print_instance.instance_id
         );
 
-        if (!m_wipe.enabled() && perimeter.extrusion_entity->role().is_external_perimeter() && m_layer != nullptr && m_config.perimeters.value > 1) {
+        const bool is_extruding{
+            !perimeter.smooth_path.empty()
+            && !perimeter.smooth_path.front().path.empty()
+            && perimeter.smooth_path.front().path.front().e_fraction > 0
+        };
+
+        if (
+            !m_wipe.enabled()
+            && perimeter.extrusion_entity->role().is_external_perimeter()
+            && m_layer != nullptr
+            && m_config.perimeters.value > 1
+            && is_extruding
+        ) {
             // Only wipe inside if the wipe along the perimeter is disabled.
             // Make a little move inwards before leaving loop.
             if (std::optional<Point> pt = wipe_hide_seam(perimeter.smooth_path, perimeter.reversed, scale_(EXTRUDER_CONFIG(nozzle_diameter))); pt) {
