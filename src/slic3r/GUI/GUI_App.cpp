@@ -1071,6 +1071,58 @@ void GUI_App::legacy_app_config_vendor_check()
     copy_vendor_ini(vendors_to_create);  
 }
 
+std::array<std::string, 3> get_possible_app_names() {
+    const std::array<std::string, 3> suffixes{"-alpha", "-beta", ""};
+    std::array<std::string, 3> result;
+    std::transform(
+        suffixes.begin(),
+        suffixes.end(),
+        result.begin(),
+        [](const std::string &suffix){
+            return SLIC3R_APP_KEY + suffix;
+        }
+    );
+    return result;
+}
+
+constexpr bool is_linux =
+#if defined(__linux__)
+true
+#else
+false
+#endif
+;
+
+namespace fs = boost::filesystem;
+
+std::vector<fs::path> get_app_config_dir_candidates(
+    const std::string &current_app_name
+) {
+    std::vector<fs::path> candidates;
+
+    // e.g. $HOME/.config
+    const fs::path config_dir{fs::path{data_dir()}.parent_path()};
+    const std::array<std::string, 3> possible_app_names{get_possible_app_names()};
+
+    for (const std::string &possible_app_name : possible_app_names){
+        if (possible_app_name != current_app_name) {
+            candidates.emplace_back(config_dir / possible_app_name);
+        }
+    }
+
+    if constexpr (is_linux) {
+        const std::optional<fs::path> home_config_dir{get_home_config_dir()};
+        if (home_config_dir && config_dir != home_config_dir) {
+            for (const std::string &possible_app_name : possible_app_names){
+                candidates.emplace_back(*home_config_dir / possible_app_name);
+            }
+        }
+    }
+
+    return candidates;
+}
+
+
 // returns old config path to copy from if such exists,
 // returns an empty string if such config path does not exists or if it cannot be loaded.
 std::string GUI_App::check_older_app_config(Semver current_version, bool backup)
@@ -1082,22 +1134,20 @@ std::string GUI_App::check_older_app_config(Semver current_version, bool backup)
         return {};
 
     // find other version app config (alpha / beta / release)
-    std::string             config_path = app_config->config_path();
-    boost::filesystem::path parent_file_path(config_path);
-    std::string             filename = parent_file_path.filename().string();
-    parent_file_path.remove_filename().remove_filename();
+    const fs::path app_config_path{app_config->config_path()};
+    const std::string filename{app_config_path.filename().string()};
 
-    std::vector<boost::filesystem::path> candidates;
-
-    if (SLIC3R_APP_KEY "-alpha" != GetAppName()) candidates.emplace_back(parent_file_path / SLIC3R_APP_KEY "-alpha" / filename);
-    if (SLIC3R_APP_KEY "-beta" != GetAppName())  candidates.emplace_back(parent_file_path / SLIC3R_APP_KEY "-beta" / filename);
-    if (SLIC3R_APP_KEY != GetAppName())          candidates.emplace_back(parent_file_path / SLIC3R_APP_KEY / filename);
+    const std::string current_app_name{GetAppName().ToStdString()};
+    const std::vector<fs::path> app_config_dir_candidates{get_app_config_dir_candidates(
+        current_app_name
+    )};
 
     Semver last_semver = current_version;
-    for (const auto& candidate : candidates) {
+    for (const fs::path& candidate_dir : app_config_dir_candidates) {
+        const fs::path candidate{candidate_dir / filename};
         if (boost::filesystem::exists(candidate)) {
             // parse
-            boost::optional<Semver>other_semver = parse_semver_from_ini(candidate.string());
+            const boost::optional<Semver>other_semver = parse_semver_from_ini(candidate.string());
             if (other_semver && *other_semver > last_semver) {
                 last_semver = *other_semver;
                 older_data_dir_path = candidate.parent_path().string();
