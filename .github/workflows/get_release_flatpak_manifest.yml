@@ -1,4 +1,4 @@
-name: Create flatpak single file bundle
+name: Generate release version of flatpak manifest
 
 on:
   workflow_dispatch:
