@@ -8,10 +8,14 @@ on:
         required: true
         type: string
 
+  push:
+    tags:
+      - '*'
+
 jobs:
   bundle_flatpak:
     uses: Prusa-Development/PrusaSlicer-Actions/.github/workflows/get_release_flatpak_manifest.yml@master
     secrets: inherit
     with:
       actions_branch: master
-      tag: ${{ inputs.tag }}
+      tag: ${{ inputs.tag || github.ref_name }}
