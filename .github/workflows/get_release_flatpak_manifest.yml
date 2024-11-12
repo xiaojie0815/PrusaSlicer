@@ -1,0 +1,17 @@
+name: Create flatpak single file bundle
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag (e.g. version_1.2.3-rc1)'
+        required: true
+        type: string
+
+jobs:
+  bundle_flatpak:
+    uses: Prusa-Development/PrusaSlicer-Actions/.github/workflows/get_release_flatpak_manifest.yml@ms_release_flatpak_manifest
+    secrets: inherit
+    with:
+      actions_branch: ms_release_flatpak_manifest
+      tag: ${{ inputs.tag }}
