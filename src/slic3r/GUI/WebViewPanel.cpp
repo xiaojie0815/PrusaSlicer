@@ -223,6 +223,7 @@ void WebViewPanel::on_show(wxShowEvent& evt)
     if (m_do_late_webview_create) {
         m_do_late_webview_create = false;
         late_create();
+        return;
     }
     if (m_load_default_url) {
         m_load_default_url = false;
@@ -254,7 +255,7 @@ void WebViewPanel::on_idle(wxIdleEvent& WXUNUSED(evt))
                 // So we just reset the handler here.
                 if (!m_script_message_hadler_names.empty()) {
                     m_browser->RemoveScriptMessageHandler(Slic3r::GUI::from_u8(m_script_message_hadler_names.front()));
-                    bool b = m_browser->AddScriptMessageHandler(Slic3r::GUI::from_u8(m_script_message_hadler_names.front()));
+                    m_browser->AddScriptMessageHandler(Slic3r::GUI::from_u8(m_script_message_hadler_names.front()));
                 }
                 
             }
@@ -270,6 +271,10 @@ void WebViewPanel::on_loaded(wxWebViewEvent& evt)
     if (evt.GetURL().IsEmpty())
         return;
     m_load_default_url_on_next_error = false;
+    if (evt.GetURL().Find(GUI::format_wxstr("/web/%1%.html", m_loading_html)) != wxNOT_FOUND && m_load_default_url) {
+        m_load_default_url = false;
+        load_default_url();
+    }
 }
 
 /**
@@ -850,16 +855,28 @@ PrinterWebViewPanel::PrinterWebViewPanel(wxWindow* parent, const wxString& defau
 {
 }
 
+void PrinterWebViewPanel::on_navigation_request(wxWebViewEvent &evt)
+{
+    const wxString url = evt.GetURL();
+    if (url.StartsWith(m_default_url) && !m_api_key_sent) {
+        if (!m_usr.empty() && !m_psk.empty()) {
+            send_credentials();
+        }
+    }
+}
+
 void PrinterWebViewPanel::on_loaded(wxWebViewEvent& evt)
 {
     if (evt.GetURL().IsEmpty())
         return;
     m_load_default_url_on_next_error = false;
-    
+    if (evt.GetURL().Find(GUI::format_wxstr("/web/%1%.html", m_loading_html)) != wxNOT_FOUND && m_load_default_url) {
+        m_load_default_url = false;
+        load_default_url();
+        return;
+    }
     if (!m_api_key.empty()) {
         send_api_key();
-    } else if (!m_usr.empty() && !m_psk.empty()) {
-        send_credentials();
     }
 }
 void PrinterWebViewPanel::on_script_message(wxWebViewEvent& evt)
@@ -903,13 +920,10 @@ void PrinterWebViewPanel::send_credentials()
         return;
     m_browser->RemoveAllUserScripts();
     m_browser->AddUserScript("sessionStorage.removeItem('authType'); sessionStorage.removeItem('apiKey'); console.log('Session Storage cleared');");
-    m_browser->Reload();
+    // reload would be done only if called from on_loaded
+    //m_browser->Reload();
     m_api_key_sent = true;
     setup_webview_with_credentials(m_browser, m_usr, m_psk);
-}
-
-void PrinterWebViewPanel::sys_color_changed()
-{
 }
 
 
@@ -973,9 +987,17 @@ wxString PrintablesWebViewPanel::get_default_url() const
 
 void PrintablesWebViewPanel::on_loaded(wxWebViewEvent& evt)
 {
+    if (evt.GetURL().Find(GUI::format_wxstr("/web/%1%.html", m_loading_html)) != wxNOT_FOUND && m_load_default_url) {
+        m_load_default_url = false;
+        load_default_url();
+        return;
+    }
 #ifdef _WIN32
     // This is needed only once after add_request_authorization
-    remove_request_authorization(m_browser);
+    if (m_remove_request_auth) {
+        m_remove_request_auth = false;
+        remove_request_authorization(m_browser);
+    }
 #endif
     m_load_default_url_on_next_error = false;
 }
@@ -1054,7 +1076,7 @@ void PrintablesWebViewPanel::logout(const std::string& override_url/* = std::str
     }
     delete_cookies(m_browser, Utils::ServiceConfig::instance().printables_url());
     m_browser->RunScript("localStorage.clear();");
-    
+
     std::string next_url = override_url.empty() 
         ? get_url_lang_theme(m_browser->GetCurrentURL()) 
         : get_url_lang_theme(from_u8(override_url));
@@ -1110,6 +1132,7 @@ void PrintablesWebViewPanel::load_default_url()
     // add token to first request
 #ifdef _WIN32
     add_request_authorization(m_browser, m_default_url, access_token);
+    m_remove_request_auth = true;
     load_url(GUI::from_u8(actual_default_url));
 #else
     load_request(m_browser, actual_default_url, access_token);

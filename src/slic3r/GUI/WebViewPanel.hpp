@@ -155,6 +155,7 @@ public:
     
     void on_loaded(wxWebViewEvent& evt) override;
     void on_script_message(wxWebViewEvent& evt) override;
+    void on_navigation_request(wxWebViewEvent &evt) override;
     void send_api_key();
     void send_credentials();
     void set_api_key(const std::string &key)
@@ -169,7 +170,6 @@ public:
         m_psk = psk;
     }
     void clear() { m_api_key.clear(); m_usr.clear(); m_psk.clear(); m_api_key_sent = false; }
-    void sys_color_changed() override;
 private:
     std::string m_api_key;
     std::string m_usr;
@@ -207,6 +207,9 @@ private:
 
      std::map<std::string, std::function<void(const std::string&)>> m_events;
      std::string m_next_show_url;
+#ifdef _WIN32
+     bool m_remove_request_auth { false };
+#endif
 /*
 Eventy Slicer -> Printables
 accessTokenWillChange
