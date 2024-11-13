@@ -1087,14 +1087,15 @@ using Neighbor = VoronoiGraph::Node::Neighbor;
 /// </summary>
 struct ThinPart
 {
-    // Transition from thick to thin part (one of the ends)
-    // NOTE: When start.ratio <= 0 than island do not contain thick part
-    Position start;
+    // Ceneter of longest path inside island part
+    // longest path is choosen from:
+    //      shortest connection path between ends
+    //   OR farest path to node from end
+    //   OR farest path between nodes(only when ends are empty)
+    Position center;
 
     // Transition from tiny to thick part (without start position)
     Positions ends;
-
-    bool is_only_thin_part() const { return ends.empty() && start.ratio <= 0.f; }
 };
 using ThinParts = std::vector<ThinPart>;
 
@@ -1114,14 +1115,25 @@ struct ThickPart
 };
 using ThickParts = std::vector<ThickPart>;
 
+void create_thin_supports(const ThinParts &parts, SupportIslandPoints &results,
+    const Lines &lines, const SampleConfig &config) {
+    assert(!parts.empty());
+    /////////////////////// continue here
+
+}
+
 // Search for interfaces
 // 1. thin to min_wide
 // 2. min_wide to max_center
 // 3. max_center to Thick
 enum class IslandPartType { thin, middle, thick };
 
+// transition into neighbor part
 struct IslandPartChange {
-    Position position;
+    // position on the way out of island part
+    // Position::Neighbor::node is target(twin neighbor has source)
+    // Position::ration define position on connection between nodes
+    Position position; 
     size_t part_index;
 };
 using IslandPartChanges = std::vector<IslandPartChange>;
@@ -1137,7 +1149,8 @@ struct IslandPart {
     IslandPartChanges changes;
 
     // sum of all lengths inside of part
-    // IMPROVE: better will be length of longest path
+    // IMPROVE1: Separate calculation localy into function merge_middle_parts_into_biggest_neighbor
+    // IMPROVE2: better will be length of longest path
     // Used as rule to connect(merge) middle part of island to its biggest neighbour
     // NOTE: No solution for island with 2 biggest neighbors with same sum_lengths. 
     coord_t sum_lengths = 0;
@@ -1351,9 +1364,9 @@ void merge_middle_parts_into_biggest_neighbor(IslandParts& island_parts) {
 void merge_same_neighbor_type_parts(IslandParts &island_parts) {
     // connect neighbor parts with same type
     for (size_t island_part_index = 0; island_part_index < island_parts.size(); ++island_part_index) {
-        assert(island_part.type != IslandPartType::middle); // only thin or thick parts        
         while (true) {
             const IslandPart &island_part = island_parts[island_part_index];
+            assert(island_part.type != IslandPartType::middle); // only thin or thick parts        
             const IslandPartChanges &changes = island_part.changes;
             auto change_it = std::find_if(changes.begin(), changes.end(), 
                 [&island_parts, type = island_part.type](const IslandPartChange &change) {
@@ -1364,8 +1377,327 @@ void merge_same_neighbor_type_parts(IslandParts &island_parts) {
     }
 }
 
+/// <summary>
+/// Find shortest distances between changes (combination of changes)
+/// and choose the longest distance or farest node distance from changes
+/// </summary>
+/// <param name="changes">transition into different part island</param>
+/// <param name="center">[optional]Center of longest path</param>
+/// <returns>Length of island part defined as longest distance on graph inside part</returns>
+coord_t get_longest_distance(const IslandPartChanges& changes, Position* center = nullptr) {
+    const Neighbor *front_twin = VoronoiGraphUtils::get_twin(*changes.front().position.neighbor);
+    if (changes.size() == 2 && front_twin == changes.back().position.neighbor) {
+        // Special case when part lay only on one neighbor
+        if (center != nullptr){
+            *center = changes.front().position;// copy
+            center->ratio = (center->ratio + changes.back().position.ratio)/2;
+        }
+        return static_cast<coord_t>(changes.front().position.neighbor->length() *
+            (1 - changes.front().position.ratio - changes.back().position.ratio));
+    }
+
+    struct ShortestDistance{
+        coord_t distance;
+        size_t prev_node_distance_index;
+    };    
+    using ShortestDistances = std::vector<ShortestDistance>;
+    // for each island part node find distance to changes
+    struct NodeDistance {
+        // island part node
+        const VoronoiGraph::Node *node;
+        // shortest distance to node from change
+        ShortestDistances shortest_distances; // size == changes.size()
+    };
+    using NodeDistances = std::vector<NodeDistance>;
+    NodeDistances node_distances;
+
+    const coord_t no_distance = std::numeric_limits<coord_t>::max();
+    const size_t no_index = std::numeric_limits<size_t>::max();
+    size_t count = changes.size();
+    for (const IslandPartChange &change : changes) {
+        const VoronoiGraph::Node *node = VoronoiGraphUtils::get_twin(*change.position.neighbor)->node;
+        ShortestDistances shortest_distances(count, ShortestDistance{no_distance, no_index});
+        shortest_distances[&change - &changes.front()].distance = change.position.calc_distance();
+        node_distances.push_back(NodeDistance{node, std::move(shortest_distances)});
+    }
+
+    // use sorted changes for faster check of neighbors
+    IslandPartChanges sorted_changes = changes; // copy
+    std::sort(sorted_changes.begin(), sorted_changes.end(),
+        [](const IslandPartChange &a, const IslandPartChange &b) {
+            return a.position.neighbor < b.position.neighbor;
+        });
+    auto exist_part_change_for_neighbor = [&sorted_changes](const Neighbor *neighbor) {
+        auto it = std::lower_bound(sorted_changes.begin(), sorted_changes.end(), neighbor,
+            [](const IslandPartChange &change, const Neighbor *neighbor_) { 
+                return change.position.neighbor < neighbor_; });
+        if (it == sorted_changes.end()) return false;
+        return it->position.neighbor == neighbor;
+    };
+    
+    // Queue of island nodes to propagate shortest distance into their neigbors
+    // contain indices into node_distances
+    std::vector<size_t> process;
+    for (size_t i = 1; i < count; i++) process.push_back(i); // zero index is start
+    size_t next_distance_index = 0; // zero index is start
+    const Neighbor *prev_neighbor = front_twin;
+    // propagate distances into neighbors
+    while (true /* next_distance_index < node_distances.size()*/) {
+        const NodeDistance &node_distance = node_distances[next_distance_index];
+        next_distance_index = -1; // set to no value ... index > node_distances.size()
+        for (const Neighbor &neighbor : node_distance.node->neighbors) {
+            if (&neighbor == prev_neighbor) continue;
+            if (exist_part_change_for_neighbor(&neighbor))
+                continue; // change is search graph limit
+
+            // IMPROVE: use binary search
+            auto node_distance_it = std::find_if(node_distances.begin(), node_distances.end(),
+                [node = neighbor.node](const NodeDistance& d) {
+                    return d.node == node;} );
+            if (node_distance_it == node_distances.end()) {
+                // create new node distance
+                ShortestDistances new_shortest_distances = node_distance.shortest_distances; // copy
+                for (ShortestDistance &d : new_shortest_distances)
+                    if (d.distance != no_distance) {
+                        d.distance += neighbor.length();
+                        d.prev_node_distance_index = &node_distance - &node_distances.front();
+                    }
+                if (next_distance_index < node_distances.size())
+                    process.push_back(next_distance_index); // store for next processing
+                next_distance_index = node_distances.size();
+                prev_neighbor = VoronoiGraphUtils::get_twin(neighbor);
+                node_distances.push_back(NodeDistance{neighbor.node, new_shortest_distances});
+                continue;
+            }
+
+            bool exist_distance_change = false;
+            // update distances
+            for (size_t i = 0; i < count; ++i) {
+                const ShortestDistance &d = node_distance.shortest_distances[i];
+                if (d.distance == no_distance) continue;
+                coord_t new_distance = d.distance + static_cast<coord_t>(neighbor.length());                
+                if (ShortestDistance &current_distance = node_distance_it->shortest_distances[i];
+                    current_distance.distance > new_distance) {
+                    current_distance.distance = new_distance;
+                    current_distance.prev_node_distance_index = i;
+                    exist_distance_change = true;
+                }
+            }
+            if (!exist_distance_change)
+                continue; // no change in distances
+
+            size_t item_index = node_distance_it - node_distances.begin();
+            // process store unique indices into node_distances
+            if(std::find(process.begin(), process.end(), item_index) != process.end())
+                continue; // already in process
+
+            if (next_distance_index < node_distances.size())
+                process.push_back(next_distance_index); // store for next processing
+            next_distance_index = item_index;
+            prev_neighbor = VoronoiGraphUtils::get_twin(neighbor);
+        }
+
+        if (next_distance_index >= node_distances.size()){
+            if (process.empty())
+                break; // no more nodes to process
+            next_distance_index = process.back();
+            process.pop_back();
+            prev_neighbor = nullptr; // do not know previous neighbor
+            continue;
+        }
+    }
+
+    // find farest distance node from changes
+    coord_t farest_from_change = 0;
+    size_t change_index = 0;
+    NodeDistance &farest_distnace = node_distances.front();
+    for (const NodeDistance &node_distance : node_distances)
+        for (const ShortestDistance& d : node_distance.shortest_distances)
+            if (farest_from_change < d.distance) {
+                farest_from_change = d.distance;
+                change_index = &d - &node_distance.shortest_distances.front();
+                farest_distnace = node_distance;
+            }    
+    
+    // farest distance between changes
+    // till node distances do not change order than index of change is index of closest node of change
+    size_t source_change = count;
+    for (size_t i = 0; i < (count-1); ++i) {
+        const NodeDistance &node_distance = node_distances[i];
+        const ShortestDistance &distance_to_change = node_distance.shortest_distances[i];
+        for (size_t j = i+1; j < count; ++j) {
+            coord_t distance = node_distance.shortest_distances[j].distance + distance_to_change.distance;
+            if (farest_from_change < distance) {
+                // this change is farest from other changes
+                farest_from_change = distance;
+                change_index = j;
+                source_change = i;
+                farest_distnace = node_distance;
+            }
+        }
+    }
+
+    // center is not needed so return only farest distance
+    if (center == nullptr)
+        return farest_from_change;
+
+    // Next lines are for calculation of center for longest path
+    coord_t half_distance = farest_from_change / 2;
+
+    // check if center is on change neighbor
+    auto is_ceneter_on_change_neighbor = [&changes, center, half_distance](size_t change_index) {
+        const Position &position = changes[change_index].position;
+        if (position.calc_distance() < half_distance)
+            return false;
+        // center lay on neighbour with change
+        center->neighbor = position.neighbor;
+        center->ratio = position.ratio - half_distance / position.neighbor->length();
+        return true;
+    };
+    if (is_ceneter_on_change_neighbor(source_change) ||
+        is_ceneter_on_change_neighbor(change_index))
+        return farest_from_change;
+
+    NodeDistance *prev_node_distance = &farest_distnace;
+    NodeDistance *node_distance = nullptr; 
+    // iterate over longest path to find center(half distance)
+    while (prev_node_distance->shortest_distances[change_index].distance > half_distance) {
+        node_distance = prev_node_distance;
+        size_t prev_index = node_distance->shortest_distances[change_index].prev_node_distance_index;
+        // case with center on change neighbor is already handled, so prev_index should be valid
+        assert(prev_index != no_index);
+        prev_node_distance = &node_distances[prev_index];   
+    }
+
+    // case with center on change neighbor should be already handled
+    assert(node_distance != nullptr);
+    assert(node_distance->shortest_distances[change_index].distance >= half_distance);
+    assert(prev_node_distance->shortest_distances[change_index].distance <= half_distance);
+    coord_t to_half_distance = half_distance - node_distance->shortest_distances[change_index].distance;
+    // find neighbor between node_distance and prev_node_distance
+    for (const Neighbor &n : node_distance->node->neighbors) {
+        if (n.node != prev_node_distance->node) 
+            continue;
+        center->neighbor = &n;
+        center->ratio = to_half_distance / n.length();
+        return farest_from_change;
+    }
+
+    // weird situation when center is not found
+    assert(false);
+    return farest_from_change;
+}
+
+/// <summary>
+/// Remove island part with index
+/// Merge all neighbors of deleted part together and create merged part on lowest index of merged parts
+/// </summary>
+/// <param name="island_parts">All existing island parts with type only thin OR thick</param>
+/// <param name="index">index of island part to remove</param>
+/// <returns>modified part index and all removed part indices</returns>
+std::pair<size_t, std::vector<size_t>> merge_negihbor(IslandParts &island_parts, size_t index) {
+    // merge all neighbors into one part
+    std::vector<size_t> remove_indices;
+    const IslandPartChanges &changes = island_parts[index].changes;
+    // all neighbor should be the same type which is different to current one.
+    assert(std::find_if(changes.begin(), changes.end(), [&island_parts, type = island_parts[index].type]
+        (const IslandPartChange &c) { return island_parts[c.part_index].type == type; }) == changes.end());
+    remove_indices.reserve(changes.size());
+
+    // collect changes from neighbors for result part
+    IslandPartChanges modified_changes; 
+    size_t modified_index = index; // smallest index of merged parts
+    for (const IslandPartChange &change : changes) {
+        size_t remove_index = change.part_index;
+        if (remove_index < modified_index) // remove part with bigger index
+            std::swap(remove_index, modified_index);
+        remove_indices.push_back(remove_index);
+        // iterate neighbor changes and collect only changes to other neighbors
+        for (const IslandPartChange &n_change : island_parts[change.part_index].changes) {
+            if (n_change.part_index == index)
+                continue; // skip back to removed part
+            if(std::find_if(changes.begin(), changes.end(), [i = n_change.part_index]
+            (const IslandPartChange &change){ return change.part_index == i;}) == changes.end())
+                continue; // skip removed part changes
+            modified_changes.push_back(n_change);
+        }
+    }    
+    
+    // Set result part after merge
+    IslandPart& island_part = island_parts[modified_index];    
+    island_part.type = island_parts[changes.front().part_index].type; // type of neighbor
+    island_part.changes = modified_changes;
+    island_part.sum_lengths = 0; // invalid value after merge
+
+    std::sort(remove_indices.begin(), remove_indices.end());
+    // remove parts from island parts
+    for (size_t i = 1; i <= remove_indices.size(); i++)
+        island_parts.erase(island_parts.begin() + remove_indices[remove_indices.size() - i]);
+
+    // Set neighbors neighbors to point on modified_index
+    std::vector<size_t> neighbors_neighbors_indices;
+    for (const IslandPartChange &change : modified_changes)
+        neighbors_neighbors_indices.push_back(change.part_index);
+    std::sort(neighbors_neighbors_indices.begin(), neighbors_neighbors_indices.end());
+    neighbors_neighbors_indices.erase(std::unique(neighbors_neighbors_indices.begin(), 
+        neighbors_neighbors_indices.end()), neighbors_neighbors_indices.end());
+    for (size_t part_index : neighbors_neighbors_indices)
+        for (IslandPartChange &change : island_parts[part_index].changes)
+            if (std::lower_bound(remove_indices.begin(), remove_indices.end(), 
+                change.part_index) != remove_indices.end())
+                change.part_index = modified_index;
+
+    return std::make_pair(index, remove_indices);
+}
+
+/// <summary>
+/// Calculate all distances between changes(combination of changes)
+/// Choose the longest distance between change for each island part(part_length).
+/// Merge island parts in order from shortest path_length
+/// Till path_length is smaller than config::min_part_length
+/// </summary>
+/// <param name="island_parts">Only thin or thick parts</param>
+/// <param name="min_part_length">Minimal length of part to not be merged into neighbors</param>
+void merge_short_parts(IslandParts &island_parts, coord_t min_part_length) {    
+    // should be called only for multiple island parts, at least 2
+    assert(island_parts.size() > 1);
+    if (island_parts.size() <= 1) return; // nothing to merge
+
+    // only thin OR thick parts
+    assert(std::find_if(island_parts.begin(), island_parts.end(), [](const IslandPart &i)
+        {return i.type != IslandPartType::thin && i.type != IslandPartType::thick; }) == island_parts.end());
+
+    // same size as island_parts
+    std::vector<coord_t> part_lengths;
+    part_lengths.reserve(island_parts.size());
+    for (const IslandPart& island_part: island_parts)
+        part_lengths.push_back(get_longest_distance(island_part.changes));
+
+    // Merge island parts in order from shortest length
+    while(true){
+        // find smallest part
+        size_t smallest_part_index = std::min_element(part_lengths.begin(), part_lengths.end()) - part_lengths.begin();
+        if (part_lengths[smallest_part_index] >= min_part_length)
+            break; // all parts are long enough
+        
+        auto [index, remove_indices] = merge_negihbor(island_parts, smallest_part_index);
+        
+        // update part lengths
+        part_lengths[index] = get_longest_distance(island_parts[index].changes);
+        for (size_t remove_index : remove_indices) // remove lengths for removed parts
+            part_lengths.erase(part_lengths.begin() + remove_index);
+    }    
+}
+
+ThinPart create_only_thin_part(const VoronoiGraph::ExPath &path) {
+    std::optional<Position> path_center_opt = 
+        SampleIslandUtils::create_position_on_path(path.nodes, path.length / 2);
+    assert(path_center_opt.has_value());
+    return ThinPart{*path_center_opt, /*ends*/ {}};
+}
+
 std::pair<ThinParts, ThickParts> convert_island_parts_to_thin_thick(
-    const IslandParts& island_parts, const Neighbor* start_neighbor)
+    const IslandParts& island_parts, const Neighbor* start_neighbor, const VoronoiGraph::ExPath &path)
 {
     // always must be at least one island part
     assert(!island_parts.empty());
@@ -1374,7 +1706,7 @@ std::pair<ThinParts, ThickParts> convert_island_parts_to_thin_thick(
     // convert island parts into result
     if (island_parts.size() == 1)
         return island_parts.front().type == IslandPartType::thin ?
-            std::make_pair(ThinParts{ThinPart{Position{start_neighbor, -1.f}, /*ends*/ {}}}, ThickParts{}) :
+            std::make_pair(ThinParts{create_only_thin_part(path)}, ThickParts{}) :
             std::make_pair(ThinParts{}, ThickParts{ThickPart{Position{start_neighbor, -1.f}, /*ends*/ {}}});
 
     std::pair<ThinParts, ThickParts> result;
@@ -1383,9 +1715,10 @@ std::pair<ThinParts, ThickParts> convert_island_parts_to_thin_thick(
     for (const IslandPart& i:island_parts) {
         if (i.type == IslandPartType::thin) {
             ThinPart thin_part;
-            thin_part.start = i.changes.front().position;
+            // discard distance, only center is needed
+            get_longest_distance(i.changes, &thin_part.center);
             thin_parts.reserve(i.changes.size() - 1);
-            std::transform(i.changes.begin()+1, i.changes.end(), std::back_inserter(thin_part.ends),
+            std::transform(i.changes.begin() + 1, i.changes.end(), std::back_inserter(thin_part.ends),
                 [](const IslandPartChange &change) { return change.position; });
             thin_parts.push_back(thin_part);
         } else {
@@ -1406,7 +1739,8 @@ std::pair<ThinParts, ThickParts> convert_island_parts_to_thin_thick(
 /// </summary>
 /// <param name="path">Longest path over island</param>
 /// <param name="lines">Island border</param>
-/// <param name="config">Define border between thin and thick part</param>
+/// <param name="config">Define border between thin and thick part 
+/// and minimal length of separable part</param>
 /// <returns>Thin and thick parts</returns>
 std::pair<ThinParts, ThickParts> separate_thin_thick(
     const VoronoiGraph::ExPath &path, const Lines &lines, const SampleConfig &config
@@ -1414,7 +1748,6 @@ std::pair<ThinParts, ThickParts> separate_thin_thick(
     // Check input
     assert(!path.nodes.empty());
     assert(lines.size() >= 3); // at least triangle
-    assert(SampleConfigFactory::verify(config));
 
     // Start dividing on some border of island
     const VoronoiGraph::Node *start_node = path.nodes.front();
@@ -1449,7 +1782,7 @@ std::pair<ThinParts, ThickParts> separate_thin_thick(
             if (auto process_it = std::find_if(process.begin(), process.end(), is_oposit_item);                                
                 process_it != process.end()) {
                 // solve loop back
-                next_item.node = nullptr;
+                next_item.node = nullptr; // do not use item as next one
                 merge_parts_and_fix_process(island_parts, item, process_it->i, next_item.i, process);
                 // branch is already processed
                 process.erase(process_it);
@@ -1469,8 +1802,9 @@ std::pair<ThinParts, ThickParts> separate_thin_thick(
 
     merge_middle_parts_into_biggest_neighbor(island_parts);
     merge_same_neighbor_type_parts(island_parts);
+    merge_short_parts(island_parts, config.min_part_length);
 
-    return convert_island_parts_to_thin_thick(island_parts, start_neighbor);
+    return convert_island_parts_to_thin_thick(island_parts, start_neighbor, path);
 }
 
 } // namespace
@@ -1514,7 +1848,11 @@ SupportIslandPoints SampleIslandUtils::sample_expath(
     // TODO: 3) Triangle of points
     // eval outline and find three point create almost equilateral triangle
 
+    // 4) Thin and thick support
+    SupportIslandPoints result;
     auto [thin, thick] = separate_thin_thick(path, lines, config);
+    if (!thin.empty()) create_thin_supports(thin, result, lines, config);
+    //if (!thick.empty()) create_thick_supports(thick, lines, config);
 
     // IMPROVE: Erase continous sampling: Extract ExPath and than sample uniformly whole ExPath
     CenterStarts center_starts;
