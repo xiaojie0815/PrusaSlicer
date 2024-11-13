@@ -348,9 +348,9 @@ float Preview::get_moves_slider_height() const
     return 0.0f;
 }
 
-float Preview::get_layers_slider_width() const
+float Preview::get_layers_slider_width(bool disregard_visibility) const
 {
-    if (m_layers_slider && m_layers_slider->IsShown())
+    if (m_layers_slider && (m_layers_slider->IsShown() || disregard_visibility))
         return m_layers_slider->GetWidth();
     return 0.0f;
 }
