@@ -37,6 +37,7 @@ private:
     Type m_type{ Type::Custom };
     std::string m_texture_filename;
     std::string m_model_filename;
+    bool m_models_overlap;
     // Print volume bounding box exteded with axes and model.
     BoundingBoxf3 m_extended_bounding_box;
     // Print bed polygon
