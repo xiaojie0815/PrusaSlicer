@@ -3888,20 +3888,8 @@ const Preset* find_preset_by_nozzle_and_options(
     for (const Preset &preset : collection) {
         // trim repo prefix
         std::string printer_model = preset.config.opt_string("printer_model");
-        std::string vendor_repo_prefix;
-        if (preset.vendor) {
-            vendor_repo_prefix = preset.vendor->repo_prefix;
-        } else if (std::string inherits = preset.inherits(); !inherits.empty()) {
-            const Preset *parent = wxGetApp().preset_bundle->printers.find_preset(inherits);
-            if (parent && parent->vendor) {
-                vendor_repo_prefix = parent->vendor->repo_prefix;
-            }
-        }
-        if (printer_model.find(vendor_repo_prefix) == 0) {
-            printer_model = printer_model.substr(vendor_repo_prefix.size()
-            );
-            boost::trim_left(printer_model);
-        }
+        const PresetWithVendorProfile& printer_with_vendor = collection.get_preset_with_vendor_profile(preset);
+        printer_model = preset.trim_vendor_repo_prefix(printer_model, printer_with_vendor.vendor);
        
         if (!preset.is_system || printer_model != model_id)
             continue;

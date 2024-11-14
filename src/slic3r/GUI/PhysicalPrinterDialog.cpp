@@ -732,13 +732,7 @@ void PhysicalPrinterDialog::update_host_type(bool printer_change)
         if (Preset* preset = wxGetApp().preset_bundle->printers.find_preset(preset_name)) {
             std::string model_id = preset->config.opt_string("printer_model"); 
             if (preset->vendor) {
-                std::string model_id_no_pref = model_id;
-                std::string vendor_repo_prefix;
-                vendor_repo_prefix = preset->vendor->repo_prefix;
-                if (model_id_no_pref.find(vendor_repo_prefix) == 0) {
-                    model_id_no_pref = model_id_no_pref.substr(vendor_repo_prefix.size());
-                    boost::trim_left(model_id_no_pref);
-                }
+                std::string model_id_no_pref = preset->trim_vendor_repo_prefix(model_id);
                 if (preset->vendor->name.find("Prusa Research") != std::string::npos) {
                     const std::vector<VendorProfile::PrinterModel>& models = preset->vendor->models;
                     auto it = std::find_if(models.begin(), models.end(),
@@ -763,15 +757,7 @@ void PhysicalPrinterDialog::update_host_type(bool printer_change)
             break;
         }
         std::string model_id = preset->config.opt_string("printer_model");
-        // remove prefix from printer_model
-        if (preset->vendor) {
-            std::string vendor_repo_prefix;
-            vendor_repo_prefix = preset->vendor->repo_prefix;
-            if (model_id.find(vendor_repo_prefix) == 0) {
-                model_id = model_id.substr(vendor_repo_prefix.size());
-                boost::trim_left(model_id);
-            }
-        }
+        model_id = preset->trim_vendor_repo_prefix(model_id);
         if (preset->vendor && preset->vendor->name.find("Prusa Research") == std::string::npos) {
             connect.supported = false;
             break;
