@@ -1095,6 +1095,7 @@ struct ThinPart
     Position center;
 
     // Transition from tiny to thick part (without start position)
+    // sorted by address of neighbor
     Positions ends;
 };
 using ThinParts = std::vector<ThinPart>;
@@ -1115,11 +1116,94 @@ struct ThickPart
 };
 using ThickParts = std::vector<ThickPart>;
 
-void create_thin_supports(const ThinParts &parts, SupportIslandPoints &results,
-    const Lines &lines, const SampleConfig &config) {
-    assert(!parts.empty());
-    /////////////////////// continue here
+/// <summary>
+/// Generate support points for thin part of island
+/// </summary>
+/// <param name="part">One thin part of island</param>
+/// <param name="results">[OUTPUT]Set of support points</param>
+/// <param name="config">Define density of support points</param>
+void create_supports_for_thin_part(const ThinPart &part, SupportIslandPoints &results, const SampleConfig &config) {
+    struct SupportIn {
+        // want to create support in
+        coord_t support_in; // [nano meters]
+        // Neighbor to continue is not sampled yet
+        const Neighbor *neighbor;
+    };
+    using SupportIns = std::vector<SupportIn>;
 
+    coord_t support_distance = config.max_distance;
+    coord_t half_support_distance = support_distance/2;
+    
+    SupportIn curr{half_support_distance + part.center.calc_distance(), part.center.neighbor};
+    const Neighbor *twin_start = VoronoiGraphUtils::get_twin(*curr.neighbor);
+    coord_t twin_support_in = static_cast<coord_t>(twin_start->length()) - curr.support_in + support_distance;
+    
+    // Process queue
+    SupportIns process;
+    process.push_back(SupportIn{twin_support_in, twin_start});
+
+    // Loop over thin part of island to create support points on the voronoi skeleton.
+    while (true) {
+        if (curr.neighbor == nullptr) { // need to pop next one from process
+            if (process.empty()) // unique interution of while loop
+                break; // no more neighbors to process
+            curr = process.back(); // copy
+            process.pop_back();
+        }
+
+        auto part_end_it = std::lower_bound(part.ends.begin(), part.ends.end(), curr.neighbor, 
+        [](const Position &end, const Neighbor *n) { return end.neighbor < n; });
+
+        // add support on current neighbor
+        coord_t edge_length = (part_end_it == part.ends.end()) ?
+            static_cast<coord_t>(curr.neighbor->length()) :
+            part_end_it->calc_distance();        
+        while (edge_length >= curr.support_in) {
+            double ratio = curr.support_in / curr.neighbor->length();
+            VoronoiGraph::Position position(curr.neighbor, ratio);
+            results.push_back(std::make_unique<SupportCenterIslandPoint>(
+                position, &config, SupportIslandPoint::Type::center_line1));
+            curr.support_in += support_distance;
+        }
+        curr.support_in -= edge_length; 
+
+        if (part_end_it != part.ends.end()) { // on the current neighbor lay part end
+            if (curr.support_in < half_support_distance)
+                results.push_back(std::make_unique<SupportCenterIslandPoint>(
+                    *part_end_it, &config, SupportIslandPoint::Type::center_line1));
+            curr.neighbor = nullptr;
+            continue;
+        }
+
+        // detect loop on island part
+        const Neighbor *twin = VoronoiGraphUtils::get_twin(*curr.neighbor);        
+        if (auto it = std::find_if(process.begin(), process.end(), [twin](const SupportIn &p) {return p.neighbor == twin; });
+            it != process.end()) { // self loop detected
+            if (curr.support_in < half_support_distance){
+                Position position{curr.neighbor, 1.}; // fine tune position by alignment
+                results.push_back(std::make_unique<SupportCenterIslandPoint>(
+                    position, &config, SupportIslandPoint::Type::center_line1));
+            }
+            process.erase(it);            
+            curr.neighbor = nullptr;
+            continue;  
+        }
+
+        // next neighbor is short cut to not push back and pop new_starts
+        const Neighbor *next_neighbor = nullptr;
+        for (const Neighbor &node_neighbor : curr.neighbor->node->neighbors) {
+            // Check wheather node is not previous one
+            if (twin == &node_neighbor)
+                continue;            
+            if (next_neighbor == nullptr) {
+                next_neighbor = &node_neighbor;
+                continue;
+            }
+            process.push_back(SupportIn{curr.support_in, &node_neighbor});
+        }
+        // NOTE: next_neighbor is null when no next neighbor
+        curr.neighbor = next_neighbor;
+    }
 }
 
 // Search for interfaces
@@ -1715,11 +1799,14 @@ std::pair<ThinParts, ThickParts> convert_island_parts_to_thin_thick(
     for (const IslandPart& i:island_parts) {
         if (i.type == IslandPartType::thin) {
             ThinPart thin_part;
-            // discard distance, only center is needed
+            // Calculate center of longest distance, discard distance
             get_longest_distance(i.changes, &thin_part.center);
-            thin_parts.reserve(i.changes.size() - 1);
-            std::transform(i.changes.begin() + 1, i.changes.end(), std::back_inserter(thin_part.ends),
+            Positions &ends = thin_part.ends;
+            ends.reserve(i.changes.size());
+            std::transform(i.changes.begin(), i.changes.end(), std::back_inserter(ends),
                 [](const IslandPartChange &change) { return change.position; });
+            std::sort(ends.begin(), ends.end(),
+                [](const Position &a, const Position &b) { return a.neighbor < b.neighbor; });
             thin_parts.push_back(thin_part);
         } else {
             assert(i.type == IslandPartType::thick);
@@ -1851,7 +1938,7 @@ SupportIslandPoints SampleIslandUtils::sample_expath(
     // 4) Thin and thick support
     SupportIslandPoints result;
     auto [thin, thick] = separate_thin_thick(path, lines, config);
-    if (!thin.empty()) create_thin_supports(thin, result, lines, config);
+    for (const ThinPart &part : thin) create_supports_for_thin_part(part, result, config);
     //if (!thick.empty()) create_thick_supports(thick, lines, config);
 
     // IMPROVE: Erase continous sampling: Extract ExPath and than sample uniformly whole ExPath
