@@ -10,6 +10,7 @@
 #include "slic3r/GUI/WebViewPlatformUtils.hpp"
 #include "slic3r/GUI/MsgDialog.hpp"
 #include "slic3r/GUI/Field.hpp"
+#include "slic3r/Utils/Http.hpp"
 #include "libslic3r/AppConfig.hpp"
 #include "libslic3r/Config.hpp"
 
@@ -1240,8 +1241,13 @@ void PrintablesWebViewPanel::on_printables_event_required_login(const std::strin
 
 void PrintablesWebViewPanel::show_download_notification(const std::string& filename)
 {
-    std::string message_filename = GUI::format(_u8L("Downloading %1%"),filename);
-    std::string message_dest = GUI::format(_u8L("To %1%"), escape_string_cstyle(wxGetApp().app_config->get("url_downloader_dest")));
+    // Here we create a javascript that is injected to the webpage.
+    // The script contains styles and everything.
+    // There was a trouble with passing wide characters to the script (it was displayed wrong)
+    // Solution is to URL-encode the strings here and pass it.
+    // Then inside javascript decode it.
+    const std::string message_filename = Http::url_encode(GUI::format(_u8L("Downloading %1%"),filename));
+    const std::string message_dest = Http::url_encode(GUI::format(_u8L("To %1%"), wxGetApp().app_config->get("url_downloader_dest")));
     std::string script = GUI::format(R"(
     // Inject custom CSS
     var style = document.createElement('style');
@@ -1309,8 +1315,8 @@ void PrintablesWebViewPanel::show_download_notification(const std::string& filen
         const notifDiv = document.createElement('div');
         notifDiv.innerHTML = `
                     <div>
-                    <b>PrusaSlicer: </b>%1%
-                    <br>%2%
+                    <b>PrusaSlicer: </b>${decodeURIComponent('%1%')}
+                    <br>${decodeURIComponent('%2%')}
                     </div>
                 `;
         notifDiv.className = 'notification-popup';
