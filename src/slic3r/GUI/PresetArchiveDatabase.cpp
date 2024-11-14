@@ -184,7 +184,7 @@ std::string escape_path_by_element(const std::string& path_string)
 
 bool add_authorization_header(Http& http)
 {
-    if (wxApp::GetInstance() == nullptr)
+    if (wxApp::GetInstance() == nullptr || ! GUI::wxGetApp().plater())
         return false;
     const std::string access_token = GUI::wxGetApp().plater()->get_user_account()->get_access_token();
     if (!access_token.empty()) {
