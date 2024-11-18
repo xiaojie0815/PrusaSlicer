@@ -491,6 +491,20 @@ void PrintConfigDef::init_common_params()
     def->cli = ConfigOptionDef::nocli;
     def->set_default_value(new ConfigOptionEnum<AuthorizationType>(atKeyPassword));
 
+    def = this->add("profile_vendor", coString);
+    def->label = L("Profile vendor");
+    def->tooltip = L("Name of profile vendor");
+    def->mode = comAdvanced;
+    def->cli = ConfigOptionDef::nocli;
+    def->set_default_value(new ConfigOptionString(""));
+
+    def = this->add("profile_version", coString);
+    def->label = L("Profile version");
+    def->tooltip = L("Version of profile");
+    def->mode = comAdvanced;
+    def->cli = ConfigOptionDef::nocli;
+    def->set_default_value(new ConfigOptionString(""));
+
     // temporary workaround for compatibility with older Slicer
     {
         def = this->add("preset_name", coString);

@@ -46,6 +46,7 @@
 #include "libslic3r.h"
 #include "LocalesUtils.hpp"
 #include "format.hpp"
+#include "Time.hpp"
 
 #include <algorithm>
 #include <cstdlib>
@@ -950,6 +951,7 @@ void GCodeGenerator::_do_export(Print& print, GCodeOutputStream &file, Thumbnail
 
         // file data
         binary_data.file_metadata.raw_data.emplace_back("Producer", std::string(SLIC3R_APP_NAME) + " " + std::string(SLIC3R_VERSION));
+        binary_data.file_metadata.raw_data.emplace_back("Produced on", Utils::utc_timestamp());
 
         // config data
         encode_full_config(*m_print, binary_data.slicer_metadata.raw_data);
