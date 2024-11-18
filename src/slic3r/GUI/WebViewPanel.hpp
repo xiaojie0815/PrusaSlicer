@@ -203,10 +203,16 @@ private:
      void on_printables_event_required_login(const std::string& message_data);
      void load_default_url() override;
      std::string get_url_lang_theme(const wxString& url) const;
+     void define_css();
      void show_download_notification(const std::string& filename);
+     void show_loading_overlay();
+     void hide_loading_overlay();
 
      std::map<std::string, std::function<void(const std::string&)>> m_events;
      std::string m_next_show_url;
+
+     bool m_refreshing_token {false};
+     bool m_styles_defined {false};
 #ifdef _WIN32
      bool m_remove_request_auth { false };
 #endif

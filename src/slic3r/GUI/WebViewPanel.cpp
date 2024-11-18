@@ -782,6 +782,9 @@ void ConnectWebViewPanel::on_navigation_request(wxWebViewEvent &evt)
     if (m_reached_default_url && !evt.GetURL().StartsWith(m_default_url)) {
         BOOST_LOG_TRIVIAL(info) << evt.GetURL() <<  " does not start with default url. Vetoing.";
         evt.Veto();
+    } else if (m_reached_default_url && evt.GetURL().Find(GUI::format_wxstr("/web/%1%.html", m_loading_html)) != wxNOT_FOUND) {
+        // Do not allow back button to loading screen
+        evt.Veto();
     }
 }
 
@@ -859,9 +862,13 @@ void PrinterWebViewPanel::on_navigation_request(wxWebViewEvent &evt)
 {
     const wxString url = evt.GetURL();
     if (url.StartsWith(m_default_url) && !m_api_key_sent) {
+        m_reached_default_url = true;
         if (!m_usr.empty() && !m_psk.empty()) {
             send_credentials();
         }
+    } else if (m_reached_default_url && evt.GetURL().Find(GUI::format_wxstr("/web/%1%.html", m_loading_html)) != wxNOT_FOUND) {
+        // Do not allow back button to loading screen
+        evt.Veto();
     }
 }
 
@@ -977,6 +984,9 @@ void PrintablesWebViewPanel::on_navigation_request(wxWebViewEvent &evt)
     } else if (m_reached_default_url && url.StartsWith("http")) {
         BOOST_LOG_TRIVIAL(info) << evt.GetURL() <<  " does not start with default url. Vetoing.";
         evt.Veto();
+    } else if (m_reached_default_url && evt.GetURL().Find(GUI::format_wxstr("/web/%1%.html", m_loading_html)) != wxNOT_FOUND) {
+        // Do not allow back button to loading screen
+        evt.Veto();
     }
 }
 
@@ -991,6 +1001,11 @@ void PrintablesWebViewPanel::on_loaded(wxWebViewEvent& evt)
         m_load_default_url = false;
         load_default_url();
         return;
+    }
+    if (evt.GetURL().StartsWith(m_default_url)) {
+        define_css();
+    } else {
+        m_styles_defined = false;
     }
 #ifdef _WIN32
     // This is needed only once after add_request_authorization
@@ -1074,6 +1089,8 @@ void PrintablesWebViewPanel::logout(const std::string& override_url/* = std::str
     if (!m_shown || !m_browser) {
         return;
     }
+    BOOST_LOG_TRIVIAL(debug) << __FUNCTION__;
+    hide_loading_overlay(); 
     delete_cookies(m_browser, Utils::ServiceConfig::instance().printables_url());
     m_browser->RunScript("localStorage.clear();");
 
@@ -1086,17 +1103,18 @@ void PrintablesWebViewPanel::logout(const std::string& override_url/* = std::str
     // We cannot do simple reload here, it would keep the access token in the header
     load_request(m_browser, next_url, std::string());
 #endif // 
-    
+       
 }
 void PrintablesWebViewPanel::login(const std::string& access_token, const std::string& override_url/* = std::string()*/)
 {
     if (!m_shown) {
         return;
     }
+    BOOST_LOG_TRIVIAL(debug) << __FUNCTION__;
+    hide_loading_overlay();
     // We cannot add token to header as when making the first request.
     // In fact, we shall not do request here, only run scripts.
     // postMessage accessTokenWillChange -> postMessage accessTokenChange -> window.location.reload();
-
     wxString script = "window.postMessage(JSON.stringify({ event: 'accessTokenWillChange' }))";
     run_script(script);
 
@@ -1119,16 +1137,19 @@ void PrintablesWebViewPanel::load_default_url()
     if (!m_browser) {
         return;
     }
+    hide_loading_overlay();
     std::string actual_default_url = get_url_lang_theme(from_u8(Utils::ServiceConfig::instance().printables_url() + "/homepage"));
     const std::string access_token = wxGetApp().plater()->get_user_account()->get_access_token();
-    
     // in case of opening printables logged out - delete cookies and localstorage to get rid of last login
     if (access_token.empty())  {
+        BOOST_LOG_TRIVIAL(debug) << __FUNCTION__ << " logout";
         delete_cookies(m_browser, Utils::ServiceConfig::instance().printables_url());
         m_browser->AddUserScript("localStorage.clear();");
         load_url(actual_default_url);
         return;
     }
+    BOOST_LOG_TRIVIAL(debug) << __FUNCTION__ << " login";
+    
     // add token to first request
 #ifdef _WIN32
     add_request_authorization(m_browser, m_default_url, access_token);
@@ -1144,6 +1165,7 @@ void PrintablesWebViewPanel::send_refreshed_token(const std::string& access_toke
     if (m_load_default_url) {
         return;
     }
+    hide_loading_overlay();
     wxString script = GUI::format_wxstr("window.postMessage(JSON.stringify({"
         "event: 'accessTokenChange',"
         "token: '%1%'"
@@ -1162,7 +1184,7 @@ void PrintablesWebViewPanel::send_will_refresh()
 
 void PrintablesWebViewPanel::on_script_message(wxWebViewEvent& evt)
 {
-    BOOST_LOG_TRIVIAL(error) << "received message from Printables: " << evt.GetString();
+    BOOST_LOG_TRIVIAL(debug) << "received message from Printables: " << evt.GetString();
     handle_message(into_u8(evt.GetString()));
 }
 
@@ -1176,10 +1198,17 @@ void PrintablesWebViewPanel::sys_color_changed()
 
 void PrintablesWebViewPanel::on_printables_event_access_token_expired(const std::string& message_data)
 {
-    // accessTokenExpired
-    // Printables pozaduje refresh access tokenu, muze byt volano nekolikrat.Nechme na Mobilni aplikaci at zaridi to ze zareaguje jen jednou
-
-    // We do no react on this event now - Our Acount managment should know when to renew our tokens.
+    //  { "event": "accessTokenExpired:)
+    // There seems to be a situation where we get accessTokenExpired when there is active token from Slicer POW
+    // We need get new token and freeze webview until its not refreshed
+    if (m_refreshing_token) {
+        BOOST_LOG_TRIVIAL(debug) << __FUNCTION__ << " already refreshing";
+        return;
+    }
+    BOOST_LOG_TRIVIAL(debug) << __FUNCTION__;
+    m_refreshing_token = true;
+    show_loading_overlay();
+    wxGetApp().plater()->get_user_account()->request_refresh();
 }
 
 void PrintablesWebViewPanel::on_reload_event(const std::string& message_data)
@@ -1286,21 +1315,46 @@ void PrintablesWebViewPanel::on_printables_event_required_login(const std::strin
     wxGetApp().printables_login_request();
 }
 
-void PrintablesWebViewPanel::show_download_notification(const std::string& filename)
+void PrintablesWebViewPanel::define_css()
 {
-    // Here we create a javascript that is injected to the webpage.
-    // The script contains styles and everything.
-    // There was a trouble with passing wide characters to the script (it was displayed wrong)
-    // Solution is to URL-encode the strings here and pass it.
-    // Then inside javascript decode it.
-    const std::string message_filename = Http::url_encode(GUI::format(_u8L("Downloading %1%"),filename));
-    const std::string message_dest = Http::url_encode(GUI::format(_u8L("To %1%"), wxGetApp().app_config->get("url_downloader_dest")));
-    std::string script = GUI::format(R"(
-    // Inject custom CSS
-    var style = document.createElement('style');
-    style.innerHTML = `
+    if (m_styles_defined) {
+        return;
+    }
+    m_styles_defined = true;
+    BOOST_LOG_TRIVIAL(debug) << __FUNCTION__;
+    const std::string script = R"(
+        var style = document.createElement('style');
+        style.innerHTML = `
         body {
             /* Add your body styles here */
+        }
+        .slic3r-loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(127 127 127 / 50%);
+            z-index: 50;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .slic3r-loading-anim {
+            width: 60px;
+            aspect-ratio: 4;
+            --_g: no-repeat radial-gradient(circle closest-side,#000 90%,#0000);
+            background:
+                    var(--_g) 0%   50%,
+                    var(--_g) 50%  50%,
+                    var(--_g) 100% 50%;
+            background-size: calc(100%/3) 100%;
+            animation: slic3r-loading-anim 1s infinite linear;
+        }
+        @keyframes slic3r-loading-anim {
+            33%{background-size:calc(100%/3) 0%  ,calc(100%/3) 100%,calc(100%/3) 100%}
+            50%{background-size:calc(100%/3) 100%,calc(100%/3) 0%  ,calc(100%/3) 100%}
+            66%{background-size:calc(100%/3) 100%,calc(100%/3) 100%,calc(100%/3) 0%  }
         }
         .notification-popup {
             position: fixed;
@@ -1353,11 +1407,28 @@ void PrintablesWebViewPanel::show_download_notification(const std::string& filen
             color: #ffa500; /* Orange "X" */
             font-weight: bold;
         }
-    `;
-    document.head.appendChild(style);
+        `;
+        document.head.appendChild(style);       
+    )";
+    run_script(script);
+}
 
-    // Define the notification functions
-    function appendNotification() {
+void PrintablesWebViewPanel::show_download_notification(const std::string& filename)
+{
+    // There was a trouble with passing wide characters to the script (it was displayed wrong)
+    // Solution is to URL-encode the strings here and pass it.
+    // Then inside javascript decodes it.
+    const std::string message_filename = Http::url_encode(GUI::format(_u8L("Downloading %1%"),filename));
+    const std::string message_dest = Http::url_encode(GUI::format(_u8L("To %1%"), wxGetApp().app_config->get("url_downloader_dest")));
+    //std::string message_filename = GUI::format(_u8L("Downloading %1%"),filename);
+    //std::string message_dest = GUI::format(_u8L("To %1%"), escape_string_cstyle(wxGetApp().app_config->get("url_downloader_dest")));
+    std::string script = GUI::format(R"(
+        function removeNotification() {
+            const notifDiv = document.getElementById('slicer-notification');
+            if (notifDiv)
+                notifDiv.remove();
+        }
+        function appendNotification() {
         const body = document.getElementsByTagName('body')[0];
         const notifDiv = document.createElement('div');
         notifDiv.innerHTML = `
@@ -1372,16 +1443,42 @@ void PrintablesWebViewPanel::show_download_notification(const std::string& filen
 
         window.setTimeout(removeNotification, 5000);
     }
-
-    function removeNotification() {
-        const notifDiv = document.getElementById('slicer-notification');
-        if (notifDiv)
-            notifDiv.remove();
-    }
-
-    appendNotification();
-)", message_filename, message_dest);
+        appendNotification();
+    )", message_filename, message_dest);
     run_script(script);
 }
+
+void PrintablesWebViewPanel::show_loading_overlay()
+{
+    BOOST_LOG_TRIVIAL(debug) << __FUNCTION__;
+    std::string script = R"(
+        function slic3r_showLoadingOverlay() {
+            const body = document.getElementsByTagName('body')[0];
+            const overlayDiv = document.createElement('div');
+            overlayDiv.className = 'slic3r-loading-overlay'
+            overlayDiv.id = 'slic3r-loading-overlay';
+            overlayDiv.innerHTML = '<div class="slic3r-loading-anim"></div>';
+            body.appendChild(overlayDiv);
+        }
+        slic3r_showLoadingOverlay();
+    )";
+    run_script(script);
+}
+
+void PrintablesWebViewPanel::hide_loading_overlay()
+{
+    BOOST_LOG_TRIVIAL(debug) << __FUNCTION__;
+    m_refreshing_token = false;
+    std::string script = R"(
+        function slic3r_hideLoadingOverlay() {
+            const overlayDiv = document.getElementById('slic3r-loading-overlay');
+            if (overlayDiv)
+                overlayDiv.remove();
+        }
+        slic3r_hideLoadingOverlay();
+    )";
+    run_script(script);
+}
+
 
 } // namespace slic3r::GUI

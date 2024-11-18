@@ -915,11 +915,7 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
 
         this->q->Bind(EVT_OPEN_EXTERNAL_LOGIN_WIZARD, open_external_login);
         this->q->Bind(EVT_OPEN_EXTERNAL_LOGIN, open_external_login);
-    
-        //    void    on_account_login(const std::string& token);
-        // void    on_account_will_refresh();
-        // void    on_account_did_refresh(const std::string& token);
-        // void    on_account_logout();
+
         this->q->Bind(EVT_UA_LOGGEDOUT, [this](UserAccountSuccessEvent& evt) {
             user_account->clear();
             std::string text = _u8L("Logged out from Prusa Account.");
@@ -1032,7 +1028,7 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
             wxGetApp().handle_connect_request_printer_select_inner(evt.data);
         });
         this->q->Bind(EVT_UA_PRUSACONNECT_PRINTER_DATA_FAIL, [this](UserAccountFailEvent& evt) {
-            BOOST_LOG_TRIVIAL(error) << "Failed communication with Prusa Account: " << evt.data;
+            BOOST_LOG_TRIVIAL(error) << "Failed communication with Connect Printer endpoint: " << evt.data;
             user_account->on_communication_fail();
             std::string msg = _u8L("Failed to select printer from Prusa Connect.");
             this->notification_manager->close_notification_of_type(NotificationType::SelectFilamentFromConnect);

@@ -9,7 +9,6 @@
 #include <boost/regex.hpp>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
-#include <boost/beast/core/detail/base64.hpp>
 #include <curl/curl.h>
 #include <string>
 
@@ -155,7 +154,6 @@ void UserAccountSession::token_success_callback(const std::string& body)
     BOOST_LOG_TRIVIAL(debug) << "Access token refreshed";
     // Data we need
     std::string access_token, refresh_token, shared_session_key;
-    int expires_in = 300;
     try {
         std::stringstream ss(body);
         pt::ptree ptree;
@@ -164,25 +162,20 @@ void UserAccountSession::token_success_callback(const std::string& body)
         const auto access_token_optional = ptree.get_optional<std::string>("access_token");
         const auto refresh_token_optional = ptree.get_optional<std::string>("refresh_token");
         const auto shared_session_key_optional = ptree.get_optional<std::string>("shared_session_key");
-        const auto expires_in_optional = ptree.get_optional<int>("expires_in");
-
         if (access_token_optional)
             access_token = *access_token_optional;
         if (refresh_token_optional)
             refresh_token = *refresh_token_optional;
         if (shared_session_key_optional)
             shared_session_key = *shared_session_key_optional;
-        assert(expires_in_optional);
-        if (expires_in_optional)
-            expires_in = *expires_in_optional;
     }
     catch (const std::exception&) {
         std::string msg = "Could not parse server response after code exchange.";
         wxQueueEvent(p_evt_handler, new UserAccountFailEvent(EVT_UA_RESET, std::move(msg)));
         return;
     }
-
-    if (access_token.empty() || refresh_token.empty() || shared_session_key.empty()) {
+    int expires_in = Utils::get_exp_seconds(access_token);
+    if (access_token.empty() || refresh_token.empty() || shared_session_key.empty() || expires_in <= 0) {
         // just debug msg, no need to translate
         std::string msg = GUI::format("Failed read tokens after POST.\nAccess token: %1%\nRefresh token: %2%\nShared session token: %3%\nbody: %4%", access_token, refresh_token, shared_session_key, body);
         {
