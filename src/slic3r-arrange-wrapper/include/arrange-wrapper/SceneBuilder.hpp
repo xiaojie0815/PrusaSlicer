@@ -216,6 +216,7 @@ protected:
     AnyPtr<VirtualBedHandler> m_vbed_handler; // Determines how virtual beds are handled
     AnyPtr<const SelectionMask> m_selmask;  // Determines which objects are selected/unselected
     BedConstraints m_bed_constraints;
+    std::optional<std::set<ObjectID>> m_considered_instances;
 
 private:
     friend class SceneBuilder;
@@ -249,6 +250,7 @@ protected:
     AnyPtr<Model> m_model;
     std::vector<AnyPtr<WipeTowerHandler>> m_wipetower_handlers;
     BedConstraints m_bed_constraints;
+    std::optional<std::set<ObjectID>> m_considered_instances;
     AnyPtr<VirtualBedHandler> m_vbed_handler;
     AnyPtr<const SelectionMask> m_selection;
 
@@ -285,6 +287,12 @@ public:
     SceneBuilder && set_bed_constraints(BedConstraints &&bed_constraints)
     {
         m_bed_constraints = std::move(bed_constraints);
+        return std::move(*this);
+    }
+
+    SceneBuilder && set_considered_instances(std::set<ObjectID> &&considered_instances)
+    {
+        m_considered_instances = std::move(considered_instances);
         return std::move(*this);
     }
 

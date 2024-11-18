@@ -1,46 +1,5 @@
-<?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<!-- Generator: Adobe Illustrator 24.3.0, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
-
-<svg
-   version="1.0"
-   id="Layer_1"
-   x="0px"
-   y="0px"
-   viewBox="0 0 128 128"
-   enable-background="new 0 0 128 128"
-   xml:space="preserve"
-   xmlns="http://www.w3.org/2000/svg"
-   xmlns:svg="http://www.w3.org/2000/svg"><defs
-   id="defs22" />
-<g
-   id="arrange">
-	<g
-   id="g4">
-		<path
-   fill="#FFFFFF"
-   d="M120,122.5H8c-1.38,0-2.5-1.12-2.5-2.5V8c0-1.38,1.12-2.5,2.5-2.5h112c1.38,0,2.5,1.12,2.5,2.5v112    C122.5,121.38,121.38,122.5,120,122.5z M10.5,117.5h107v-107h-107V117.5z"
-   id="path2" />
-	</g>
-	<g
-   id="g8">
-		<path
-   fill="#ED6B21"
-   d="M104,58.5H24c-1.38,0-2.5-1.12-2.5-2.5V24c0-1.38,1.12-2.5,2.5-2.5h80c1.38,0,2.5,1.12,2.5,2.5v32    C106.5,57.38,105.38,58.5,104,58.5z M26.5,53.5h75v-27h-75V53.5z"
-   id="path6" />
-	</g>
-	<g
-   id="g12">
-		<path
-   fill="#ED6B21"
-   d="M48,106.5H24c-1.38,0-2.5-1.12-2.5-2.5V72c0-1.38,1.12-2.5,2.5-2.5h24c1.38,0,2.5,1.12,2.5,2.5v32    C50.5,105.38,49.38,106.5,48,106.5z M26.5,101.5h19v-27h-19V101.5z"
-   id="path10" />
-	</g>
-	<g
-   id="g16">
-		<path
-   fill="#ED6B21"
-   d="M104,106.5H64c-1.38,0-2.5-1.12-2.5-2.5V72c0-1.38,1.12-2.5,2.5-2.5h40c1.38,0,2.5,1.12,2.5,2.5v32    C106.5,105.38,105.38,106.5,104,106.5z M66.5,101.5h35v-27h-35V101.5z"
-   id="path14" />
-	</g>
-</g>
+<svg xmlns="http://www.w3.org/2000/svg" xml:space="preserve" fill-rule="evenodd" clip-rule="evenodd" image-rendering="optimizeQuality" shape-rendering="geometricPrecision" text-rendering="geometricPrecision" viewBox="0 0 128 128">
+  <path fill="#ED6B21" fill-rule="nonzero" d="M107.76 57.98H20.24c-1.51 0-2.74-1.22-2.74-2.73V20.24c0-1.51 1.23-2.74 2.74-2.74h87.52c1.51 0 2.74 1.23 2.74 2.74v35.01c0 1.51-1.23 2.73-2.74 2.73zm-84.79-5.47h82.06V22.97H22.97v29.54z"/>
+  <path fill="#FFFFFF" d="M2.73 0H16v5.47H5.47V16H0V2.73C0 1.23 1.23 0 2.73 0zM112 0h13.27c1.5 0 2.73 1.23 2.73 2.73V16h-5.47V5.47H112V0zm16 112v13.27c0 1.5-1.23 2.73-2.73 2.73H112v-5.47h10.53V112H128zM16 128H2.73A2.74 2.74 0 0 1 0 125.27V112h5.47v10.53H16V128z"/>
+  <path fill="#FFFFFF" fill-rule="nonzero" d="M46.5 110.5H20.24c-1.51 0-2.74-1.23-2.74-2.74V72.75c0-1.51 1.23-2.73 2.74-2.73H46.5c1.51 0 2.73 1.22 2.73 2.73v35.01c0 1.51-1.22 2.74-2.73 2.74zm-23.53-5.47h20.79V75.49H22.97v29.54zM107.76 110.5H64c-1.51 0-2.74-1.23-2.74-2.74V72.75c0-1.51 1.23-2.73 2.74-2.73h43.76c1.51 0 2.74 1.22 2.74 2.73v35.01c0 1.51-1.23 2.74-2.74 2.74zm-41.02-5.47h38.29V75.49H66.74v29.54z"/>
 </svg>
