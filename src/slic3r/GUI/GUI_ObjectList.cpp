@@ -2529,7 +2529,7 @@ void ObjectList::invalidate_cut_info_for_object(int obj_idx)
 
     take_snapshot(_L("Invalidate cut info"));
 
-    const CutObjectBase cut_id = init_obj->cut_id;
+    const CutId cut_id = init_obj->cut_id;
     // invalidate cut for related objects (which have the same cut_id)
     for (size_t idx = 0; idx < m_objects->size(); idx++)
         if (ModelObject* obj = object(int(idx)); obj->cut_id.is_equal(cut_id)) {
@@ -2559,7 +2559,7 @@ void ObjectList::delete_all_connectors_for_object(int obj_idx)
 
     take_snapshot(_L("Delete all connectors"));
 
-    const CutObjectBase cut_id = init_obj->cut_id;
+    const CutId cut_id = init_obj->cut_id;
     // Delete all connectors for related objects (which have the same cut_id)
     Model& model = wxGetApp().plater()->model();
     for (int idx = int(m_objects->size())-1; idx >= 0; idx--)
@@ -2682,7 +2682,7 @@ void ObjectList::part_selection_changed()
                     disable_ss_manipulation = (*m_objects)[obj_idx]->is_cut();
                 }
                 else if (selection.is_mixed() || selection.is_multiple_full_object()) {
-                    std::map<CutObjectBase, std::set<int>> cut_objects;
+                    std::map<CutId, std::set<int>> cut_objects;
 
                     // find cut objects
                     for (auto item : sels) {
