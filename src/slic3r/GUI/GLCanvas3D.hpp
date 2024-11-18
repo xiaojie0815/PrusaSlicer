@@ -512,6 +512,7 @@ private:
     // see request_extra_frame()
     bool m_extra_frame_requested;
     bool m_event_handlers_bound{ false };
+    float m_bed_selector_current_height = 0.f;
 
     GLVolumeCollection m_volumes;
 #if SLIC3R_OPENGL_ES

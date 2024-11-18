@@ -34,6 +34,7 @@
 #include "libslic3r/ClipperUtils.hpp"
 #include "libslic3r/Tesselate.hpp"
 #include "libslic3r/PrintConfig.hpp"
+#include "libslic3r/MultipleBeds.hpp"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -656,6 +657,7 @@ void GLVolumeCollection::load_object_auxiliary(
             std::shared_ptr<const indexed_triangle_set> preview_mesh_ptr = print_object->get_mesh_to_print();
             if (preview_mesh_ptr != nullptr)
                 backend_mesh = TriangleMesh(*preview_mesh_ptr);
+            backend_mesh.translate(s_multiple_beds.get_bed_translation(s_multiple_beds.get_active_bed()).cast<float>());
             if (!backend_mesh.empty()) {
                 backend_mesh.transform(mesh_trafo_inv);
                 TriangleMesh convex_hull = backend_mesh.convex_hull_3d();
@@ -670,6 +672,7 @@ void GLVolumeCollection::load_object_auxiliary(
     // Get the support mesh.
     if (milestone == SLAPrintObjectStep::slaposSupportTree) {
         TriangleMesh supports_mesh = print_object->support_mesh();
+        supports_mesh.translate(s_multiple_beds.get_bed_translation(s_multiple_beds.get_active_bed()).cast<float>());
         if (!supports_mesh.empty()) {
             supports_mesh.transform(mesh_trafo_inv);
             TriangleMesh convex_hull = supports_mesh.convex_hull_3d();
@@ -683,6 +686,7 @@ void GLVolumeCollection::load_object_auxiliary(
     // Get the pad mesh.
     if (milestone == SLAPrintObjectStep::slaposPad) {
         TriangleMesh pad_mesh = print_object->pad_mesh();
+        pad_mesh.translate(s_multiple_beds.get_bed_translation(s_multiple_beds.get_active_bed()).cast<float>());
         if (!pad_mesh.empty()) {
             pad_mesh.transform(mesh_trafo_inv);
             TriangleMesh convex_hull = pad_mesh.convex_hull_3d();

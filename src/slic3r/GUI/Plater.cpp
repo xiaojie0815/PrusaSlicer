@@ -2129,12 +2129,12 @@ unsigned int Plater::priv::update_background_process(bool force_validation, bool
 
     int active_bed = s_multiple_beds.get_active_bed();
     background_process.set_temp_output_path(active_bed);
-    background_process.set_fff_print(fff_prints[active_bed].get());
-    background_process.set_sla_print(sla_prints[active_bed].get());
+    background_process.set_fff_print(&q->active_fff_print());
+    background_process.set_sla_print(&q->active_sla_print());
     background_process.set_gcode_result(&gcode_results[active_bed]);
     background_process.select_technology(this->printer_technology);
 
-    if (s_beds_just_switched) {
+    if (s_beds_just_switched && printer_technology == ptFFF) {
         PrintBase::SlicingStatus status(q->active_fff_print(), -1);
         SlicingStatusEvent evt(EVT_SLICING_UPDATE, 0, status);
         on_slicing_update(evt);
@@ -3077,10 +3077,10 @@ void Plater::priv::on_slicing_update(SlicingStatusEvent &evt)
             warning_steps.clear();
             if (flags == PrintBase::SlicingStatus::UPDATE_PRINT_STEP_WARNINGS) {                
                 int i = 0;
-                while (i < int(psCount)) { warning_steps.push_back(i); ++i; }
+                while (i < int(printer_technology == ptFFF ? psCount : slapsCount)) { warning_steps.push_back(i); ++i; }
             } else {
                 int i = 0;
-                while (i < int(posCount)) { warning_steps.push_back(i); ++i; }
+                while (i < int(printer_technology == ptFFF ? posCount : slaposCount)) { warning_steps.push_back(i); ++i; }
                 for (const PrintObject* po : wxGetApp().plater()->active_fff_print().objects())
                     object_ids.push_back(po->id());
             }
@@ -5652,7 +5652,7 @@ void Plater::export_gcode(bool prefer_removable)
             start_dir,
             from_path(default_output_file.filename()),
             printer_technology() == ptFFF ? GUI::file_wildcards(FT_GCODE, ext) :
-                                            GUI::sla_wildcards(p->sla_prints.front()->printer_config().sla_archive_format.value.c_str(), ext),
+                                            GUI::sla_wildcards(active_sla_print().printer_config().sla_archive_format.value.c_str(), ext),
             wxFD_SAVE | wxFD_OVERWRITE_PROMPT
         );
         if (dlg.ShowModal() == wxID_OK) {
@@ -5769,7 +5769,7 @@ void Plater::export_stl_obj(bool extended, bool selection_only)
     auto mesh_to_export_sla = [&, this](const ModelObject& mo, int instance_id) {
         TriangleMesh mesh;
 
-        const SLAPrintObject *object; // LUKAS  = this->p->sla_print.get_print_object_by_model_object_id(mo.id());
+        const SLAPrintObject *object = this->active_sla_print().get_print_object_by_model_object_id(mo.id());
 
         if (!object || !object->get_mesh_to_print() || object->get_mesh_to_print()->empty()) {
             if (!extended)
@@ -7330,7 +7330,11 @@ wxMenu* Plater::multi_selection_menu()  { return p->menus.multi_selection_menu()
 
 
 Print& Plater::active_fff_print() { return *p->fff_prints[s_multiple_beds.get_active_bed()]; }
-SLAPrint& Plater::active_sla_print()  { return *p->sla_prints[s_multiple_beds.get_active_bed()]; }
+//SLAPrint& Plater::active_sla_print()  { return *p->sla_prints[s_multiple_beds.get_active_bed()]; }
+
+// For now, only use the first SLAPrint for all the beds - it means reslicing
+// everything when a bed is changed.
+SLAPrint& Plater::active_sla_print()  { return *p->sla_prints.front(); }
 
 
 SuppressBackgroundProcessingUpdate::SuppressBackgroundProcessingUpdate() :

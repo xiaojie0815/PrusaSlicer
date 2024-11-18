@@ -109,9 +109,21 @@ void GLCanvas3D::select_bed(int i, bool triggered_by_user)
     int old_bed = s_multiple_beds.get_active_bed();
     if ((i == old_bed  && !s_multiple_beds.is_autoslicing()) || i == -1)
         return;
+
+    if (current_printer_technology() == ptSLA) {
+        // Close SlaSupports or Hollow gizmos before switching beds. They rely on having access to SLAPrintObject to work.
+        if (GLGizmosManager::EType cur_giz = get_gizmos_manager().get_current_type();
+            cur_giz == GLGizmosManager::EType::SlaSupports || cur_giz == GLGizmosManager::EType::Hollow) {
+            if (! get_gizmos_manager().open_gizmo(get_gizmos_manager().get_current_type()))
+                return;
+        }
+    }
     wxGetApp().plater()->canvas3D()->m_process->stop();
     m_sequential_print_clearance.m_evaluating = true;
     reset_sequential_print_clearance();
+
+    
+     
 
     // The stop call above schedules some events that would be processed after the switch.
     // Among else, on_process_completed would be called, which would stop slicing of
@@ -6085,6 +6097,12 @@ void GLCanvas3D::_render_objects(GLVolumeCollection::ERenderType type)
     m_volumes.set_show_sinking_contours(! m_gizmos.is_hiding_instances());
     m_volumes.set_show_non_manifold_edges(!m_gizmos.is_hiding_instances() && m_gizmos.get_current_type() != GLGizmosManager::Simplify);
 
+    const Camera& camera = wxGetApp().plater()->get_camera();
+    auto trafo = camera.get_view_matrix();
+    if (current_printer_technology() == ptSLA && wxGetApp().plater()->is_preview_shown()) {
+        trafo.translate(s_multiple_beds.get_bed_translation(s_multiple_beds.get_active_bed()));
+    }
+
     GLShaderProgram* shader = wxGetApp().get_shader("gouraud");
     if (shader != nullptr) {
         shader->start_using();
@@ -6096,8 +6114,8 @@ void GLCanvas3D::_render_objects(GLVolumeCollection::ERenderType type)
         {
             if (m_picking_enabled && !m_gizmos.is_dragging() && m_layers_editing.is_enabled() && (m_layers_editing.last_object_id != -1) && (m_layers_editing.object_max_z() > 0.0f)) {
                 int object_id = m_layers_editing.last_object_id;
-                const Camera& camera = wxGetApp().plater()->get_camera();
-                m_volumes.render(type, false, camera.get_view_matrix(), camera.get_projection_matrix(), [object_id](const GLVolume& volume) {
+                
+                m_volumes.render(type, false, trafo, camera.get_projection_matrix(), [object_id](const GLVolume& volume) {
                     // Which volume to paint without the layer height profile shader?
                     return volume.is_active && (volume.is_modifier || volume.composite_id.object_id != object_id);
                     });
@@ -6107,7 +6125,7 @@ void GLCanvas3D::_render_objects(GLVolumeCollection::ERenderType type)
             else {
                 // do not cull backfaces to show broken geometry, if any
                 const Camera& camera = wxGetApp().plater()->get_camera();
-                m_volumes.render(type, m_picking_enabled, camera.get_view_matrix(), camera.get_projection_matrix(), [this](const GLVolume& volume) {
+                m_volumes.render(type, m_picking_enabled, trafo, camera.get_projection_matrix(), [this](const GLVolume& volume) {
                     return (m_render_sla_auxiliaries || volume.composite_id.volume_id >= 0);
                     });
             }
@@ -6129,7 +6147,7 @@ void GLCanvas3D::_render_objects(GLVolumeCollection::ERenderType type)
         case GLVolumeCollection::ERenderType::Transparent:
         {
             const Camera& camera = wxGetApp().plater()->get_camera();
-            m_volumes.render(type, false, camera.get_view_matrix(), camera.get_projection_matrix());
+            m_volumes.render(type, false, trafo, camera.get_projection_matrix());
             break;
         }
         }
@@ -6382,6 +6400,7 @@ void Slic3r::GUI::GLCanvas3D::_render_bed_selector()
             height = win_size.y;
             wxGetApp().imgui()->set_requires_extra_frame();
         }
+        m_bed_selector_current_height = height;
 
         float max_width = win_x_pos;
         if (is_legend_shown())
@@ -6739,7 +6758,7 @@ void GLCanvas3D::_render_camera_target_validation_box()
 }
 #endif // ENABLE_SHOW_CAMERA_TARGET
 
-static void render_sla_layer_legend(const SLAPrint& print, int layer_idx, int cnv_width)
+static void render_sla_layer_legend(const SLAPrint& print, int layer_idx, int cnv_width, float bed_sel_height)
 {
     const std::vector<double>& areas = print.print_statistics().layers_areas;
     const std::vector<double>& times = print.print_statistics().layers_times_running_total;
@@ -6750,7 +6769,7 @@ static void render_sla_layer_legend(const SLAPrint& print, int layer_idx, int cn
         const double time_until_layer = times[layer_idx];
             
         ImGuiWrapper& imgui = *wxGetApp().imgui();
-        ImGuiPureWrap::set_next_window_pos(float(cnv_width) - imgui.get_style_scaling() * 5.f, 5.f, ImGuiCond_Always, 1.0f, 0.0f);
+        ImGuiPureWrap::set_next_window_pos(float(cnv_width) - imgui.get_style_scaling() * 5.f, 5.f + bed_sel_height, ImGuiCond_Always, 1.0f, 0.0f);
         ImGui::SetNextWindowBgAlpha(0.6f);
 
         ImGuiPureWrap::begin(_u8L("Layer statistics"), ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoFocusOnAppearing);
@@ -6786,7 +6805,7 @@ void GLCanvas3D::_render_sla_slices()
         double slider_width = 0.;
         if (const Preview* preview = dynamic_cast<Preview*>(m_canvas->GetParent()))
             slider_width = preview->get_layers_slider_width();
-        render_sla_layer_legend(*print, m_layer_slider_index, get_canvas_size().get_width() - slider_width);
+        render_sla_layer_legend(*print, m_layer_slider_index, get_canvas_size().get_width() - slider_width, m_bed_selector_current_height);
     }
 
     double clip_min_z = -m_clipping_planes[0].get_data()[3];
@@ -6887,6 +6906,7 @@ void GLCanvas3D::_render_sla_slices()
             for (const SLAPrintObject::Instance& inst : obj->instances()) {
                 const Camera& camera = wxGetApp().plater()->get_camera();
                 Transform3d view_model_matrix = camera.get_view_matrix() *
+                    Geometry::translation_transform(s_multiple_beds.get_bed_translation(s_multiple_beds.get_active_bed())) *
                     Geometry::translation_transform({ unscale<double>(inst.shift.x()), unscale<double>(inst.shift.y()), 0.0 }) *
                     Geometry::rotation_transform(inst.rotation * Vec3d::UnitZ());
                 if (obj->is_left_handed())
