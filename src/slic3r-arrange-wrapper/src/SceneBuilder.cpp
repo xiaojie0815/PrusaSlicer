@@ -623,22 +623,28 @@ void ArrangeableSLAPrint::for_each_arrangeable_(Self &&self, Fn &&fn)
     InstPos pos;
     for (auto *obj : self.m_model->objects) {
         for (auto *inst : obj->instances) {
-            ArrangeableModelInstance ainst{inst, self.m_vbed_handler.get(),
-                                           self.m_selmask.get(), pos, std::nullopt};
+            if (!self.m_considered_instances || should_include_instance(inst->id(), *self.m_considered_instances)) {
+                ArrangeableModelInstance ainst{inst, self.m_vbed_handler.get(),
+                                               self.m_selmask.get(), pos, get_bed_constraint(inst->id(), self.m_bed_constraints)};
 
-            auto obj_id = inst->get_object()->id();
-            const SLAPrintObject *po =
-                self.m_slaprint->get_print_object_by_model_object_id(obj_id);
+                auto obj_id = inst->get_object()->id();
+                const SLAPrintObject *po =
+                    self.m_slaprint->get_print_object_by_model_object_id(obj_id);
 
-            if (po) {
-                auto &vbh = self.m_vbed_handler;
-                auto phtr = vbh->get_physical_bed_trafo(vbh->get_bed_index(VBedPlaceableMI{*inst}));
-                ArrangeableSLAPrintObject ainst_po{po, &ainst, phtr * inst->get_matrix()};
-                fn(ainst_po);
-            } else {
-                fn(ainst);
+                if (po) {
+                    auto &vbh = self.m_vbed_handler;
+                    auto phtr = vbh->get_physical_bed_trafo(vbh->get_bed_index(VBedPlaceableMI{*inst}));
+                    ArrangeableSLAPrintObject ainst_po{
+                        po,
+                        &ainst,
+                        get_bed_constraint(inst->id(), self.m_bed_constraints),
+                        phtr * inst->get_matrix()
+                    };
+                    fn(ainst_po);
+                } else {
+                    fn(ainst);
+                }
             }
-
             ++pos.inst_idx;
         }
         pos.inst_idx = 0;
@@ -682,7 +688,12 @@ void ArrangeableSLAPrint::visit_arrangeable_(Self &&self, const ObjectID &id, Fn
         if (po) {
             auto &vbh = self.m_vbed_handler;
             auto phtr = vbh->get_physical_bed_trafo(vbh->get_bed_index(VBedPlaceableMI{*inst}));
-            ArrangeableSLAPrintObject ainst_po{po, &ainst, phtr * inst->get_matrix()};
+            ArrangeableSLAPrintObject ainst_po{
+                po,
+                &ainst,
+                get_bed_constraint(inst->id(), self.m_bed_constraints),
+                phtr * inst->get_matrix()
+            };
             fn(ainst_po);
         } else {
             fn(ainst);

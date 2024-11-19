@@ -497,12 +497,14 @@ class ArrangeableSLAPrintObject : public Arrangeable
     const SLAPrintObject *m_po;
     Arrangeable          *m_arrbl;
     Transform3d           m_inst_trafo;
+    std::optional<int> m_bed_constraint;
 
 public:
     ArrangeableSLAPrintObject(const SLAPrintObject *po,
                               Arrangeable *arrbl,
+                              const std::optional<int> bed_constraint,
                               const Transform3d &inst_tr = Transform3d::Identity())
-        : m_po{po}, m_arrbl{arrbl}, m_inst_trafo{inst_tr}
+        : m_po{po}, m_arrbl{arrbl}, m_inst_trafo{inst_tr}, m_bed_constraint(bed_constraint)
     {}
 
     ObjectID id() const override { return m_arrbl->id(); }
@@ -523,6 +525,8 @@ public:
     {
         return m_arrbl->assign_bed(bedidx);
     }
+
+    std::optional<int> bed_constraint() const override { return m_bed_constraint; }
 
     bool is_printable() const override { return m_arrbl->is_printable(); }
     bool is_selected() const override { return m_arrbl->is_selected(); }
