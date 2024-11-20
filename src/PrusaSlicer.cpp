@@ -48,7 +48,7 @@
 #include "libslic3r/GCode/PostProcessor.hpp"
 #include "libslic3r/Model.hpp"
 #include "libslic3r/CutUtils.hpp"
-#include "libslic3r/ModelArrange.hpp"
+#include <arrange-wrapper/ModelArrange.hpp>
 #include "libslic3r/Platform.hpp"
 #include "libslic3r/Print.hpp"
 #include "libslic3r/SLAPrint.hpp"
@@ -63,6 +63,7 @@
 #include "libslic3r/BlacklistedLibraryCheck.hpp"
 #include "libslic3r/ProfilesSharingUtils.hpp"
 #include "libslic3r/Utils/DirectoriesUtils.hpp"
+#include "libslic3r/MultipleBeds.hpp"
 
 #include "PrusaSlicer.hpp"
 
@@ -388,7 +389,9 @@ int CLI::run(int argc, char **argv)
     
     // Loop through transform options.
     bool user_center_specified = false;
-    arr2::ArrangeBed bed = arr2::to_arrange_bed(get_bed_shape(m_print_config));
+
+    const Vec2crd gap{s_multiple_beds.get_bed_gap()};
+    arr2::ArrangeBed bed = arr2::to_arrange_bed(get_bed_shape(m_print_config), gap);
     arr2::ArrangeSettings arrange_cfg;
     arrange_cfg.set_distance_from_objects(min_object_distance(m_print_config));
 

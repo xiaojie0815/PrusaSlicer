@@ -921,7 +921,7 @@ void Sidebar::update_sliced_info_sizer()
     {
         if (m_plater->printer_technology() == ptSLA)
         {
-            const SLAPrintStatistics& ps = m_plater->sla_print().print_statistics();
+            const SLAPrintStatistics& ps = m_plater->active_sla_print().print_statistics();
             wxString new_label = _L("Used Material (ml)") + ":";
             const bool is_supports = ps.support_used_material > 0.0;
             if (is_supports)
@@ -965,7 +965,7 @@ void Sidebar::update_sliced_info_sizer()
         }
         else
         {
-            const PrintStatistics& ps = m_plater->fff_print().print_statistics();
+            const PrintStatistics& ps = m_plater->active_fff_print().print_statistics();
             const bool is_wipe_tower = ps.total_wipe_tower_filament > 0;
 
             bool imperial_units = wxGetApp().app_config->get_bool("use_inches");

@@ -47,6 +47,8 @@ namespace pt = boost::property_tree;
 
 #include "libslic3r/NSVGUtils.hpp"
 
+#include "libslic3r/MultipleBeds.hpp"
+
 #include <fast_float.h>
 
 // Slightly faster than sprintf("%.9g"), but there is an issue with the karma floating point formatter,
@@ -773,7 +775,7 @@ namespace Slic3r {
         }
 
         // Initialize the wipe tower position (see the end of this function):
-        model.wipe_tower.position.x() = std::numeric_limits<double>::max();
+        model.get_wipe_tower_vector().front().position.x() = std::numeric_limits<double>::max();
 
         // Read root model file
         if (start_part_stat.m_file_index < num_entries) {
@@ -850,13 +852,13 @@ namespace Slic3r {
         }
 
 
-        if (model.wipe_tower.position.x() == std::numeric_limits<double>::max()) {
+        if (model.get_wipe_tower_vector().front().position.x() == std::numeric_limits<double>::max()) {
             // This is apparently an old project from before PS 2.9.0, which saved wipe tower pos and rotation
             // into config, not into Model. Try to load it from the config file.
             // First set default in case we do not find it (these were the default values of the config options).
-            model.wipe_tower.position.x() = 180;
-            model.wipe_tower.position.y() = 140;
-            model.wipe_tower.rotation = 0.;
+            model.get_wipe_tower_vector().front().position.x() = 180;
+            model.get_wipe_tower_vector().front().position.y() = 140;
+            model.get_wipe_tower_vector().front().rotation = 0.;
 
             for (mz_uint i = 0; i < num_entries; ++i) {
                 if (mz_zip_reader_file_stat(&archive, i, &stat)) {
@@ -1607,46 +1609,61 @@ namespace Slic3r {
 
             if (main_tree.front().first != "custom_gcodes_per_print_z")
                 return;
-            pt::ptree code_tree = main_tree.front().second;
 
-            m_model->custom_gcode_per_print_z.gcodes.clear();
+            for (CustomGCode::Info& info : m_model->get_custom_gcode_per_print_z_vector())
+                info.gcodes.clear();
 
-            for (const auto& code : code_tree) {
-                if (code.first == "mode") {
-                    pt::ptree tree = code.second;
-                    std::string mode = tree.get<std::string>("<xmlattr>.value");
-                    m_model->custom_gcode_per_print_z.mode = mode == CustomGCode::SingleExtruderMode ? CustomGCode::Mode::SingleExtruder :
-                                                             mode == CustomGCode::MultiAsSingleMode  ? CustomGCode::Mode::MultiAsSingle  :
-                                                             CustomGCode::Mode::MultiExtruder;
+            for (const auto& bed_block : main_tree) {
+                if (bed_block.first != "custom_gcodes_per_print_z")
+                    continue;
+                int bed_idx = 0;
+                try {
+                    bed_block.second.get<int>("<xmlattr>.bed_idx");
+                } catch (const boost::property_tree::ptree_bad_path&) {
+                    // Probably an old project with no bed_idx info. Imagine that we saw 0.
                 }
-                if (code.first != "code")
+                if (bed_idx >= int(m_model->get_custom_gcode_per_print_z_vector().size()))
                     continue;
 
-                pt::ptree tree = code.second;
-                double print_z          = tree.get<double>      ("<xmlattr>.print_z" );
-                int extruder            = tree.get<int>         ("<xmlattr>.extruder");
-                std::string color       = tree.get<std::string> ("<xmlattr>.color"   );
+                pt::ptree code_tree = bed_block.second;
 
-                CustomGCode::Type   type;
-                std::string         extra;
-                pt::ptree attr_tree = tree.find("<xmlattr>")->second;
-                if (attr_tree.find("type") == attr_tree.not_found()) {
-                    // It means that data was saved in old version (2.2.0 and older) of PrusaSlicer
-                    // read old data ... 
-                    std::string gcode       = tree.get<std::string> ("<xmlattr>.gcode");
-                    // ... and interpret them to the new data
-                    type  = gcode == "M600"           ? CustomGCode::ColorChange : 
-                            gcode == "M601"           ? CustomGCode::PausePrint  :   
-                            gcode == "tool_change"    ? CustomGCode::ToolChange  :   CustomGCode::Custom;
-                    extra = type == CustomGCode::PausePrint ? color :
-                            type == CustomGCode::Custom     ? gcode : "";
+                for (const auto& code : code_tree) {
+                    if (code.first == "mode") {
+                        pt::ptree tree = code.second;
+                        std::string mode = tree.get<std::string>("<xmlattr>.value");
+                        m_model->get_custom_gcode_per_print_z_vector()[bed_idx].mode = mode == CustomGCode::SingleExtruderMode ? CustomGCode::Mode::SingleExtruder :
+                                                                   mode == CustomGCode::MultiAsSingleMode  ? CustomGCode::Mode::MultiAsSingle  :
+                                                                   CustomGCode::Mode::MultiExtruder;
+                    }
+                    if (code.first != "code")
+                        continue;
+
+                    pt::ptree tree = code.second;
+                    double print_z          = tree.get<double>      ("<xmlattr>.print_z" );
+                    int extruder            = tree.get<int>         ("<xmlattr>.extruder");
+                    std::string color       = tree.get<std::string> ("<xmlattr>.color"   );
+
+                    CustomGCode::Type   type;
+                    std::string         extra;
+                    pt::ptree attr_tree = tree.find("<xmlattr>")->second;
+                    if (attr_tree.find("type") == attr_tree.not_found()) {
+                        // It means that data was saved in old version (2.2.0 and older) of PrusaSlicer
+                        // read old data ... 
+                        std::string gcode       = tree.get<std::string> ("<xmlattr>.gcode");
+                        // ... and interpret them to the new data
+                        type  = gcode == "M600"           ? CustomGCode::ColorChange : 
+                                gcode == "M601"           ? CustomGCode::PausePrint  :   
+                                gcode == "tool_change"    ? CustomGCode::ToolChange  :   CustomGCode::Custom;
+                        extra = type == CustomGCode::PausePrint ? color :
+                                type == CustomGCode::Custom     ? gcode : "";
+                    }
+                    else {
+                        type  = static_cast<CustomGCode::Type>(tree.get<int>("<xmlattr>.type"));
+                        extra = tree.get<std::string>("<xmlattr>.extra");
+                    }
+                    m_model->get_custom_gcode_per_print_z_vector()[bed_idx].gcodes.push_back(CustomGCode::Item{print_z, type, extruder, color, extra});
                 }
-                else {
-                    type  = static_cast<CustomGCode::Type>(tree.get<int>("<xmlattr>.type"));
-                    extra = tree.get<std::string>("<xmlattr>.extra");
-                }
-                m_model->custom_gcode_per_print_z.gcodes.push_back(CustomGCode::Item{print_z, type, extruder, color, extra}) ;
-            }
+            }  
         }
     }
 
@@ -1664,17 +1681,29 @@ namespace Slic3r {
             pt::ptree main_tree;
             pt::read_xml(iss, main_tree);
 
-            try {
-                auto& node = main_tree.get_child("wipe_tower_information");
-                double pos_x = node.get<double>("<xmlattr>.position_x");
-                double pos_y = node.get<double>("<xmlattr>.position_y");
-                double rot_deg = node.get<double>("<xmlattr>.rotation_deg");
-                model.wipe_tower.position = Vec2d(pos_x, pos_y);
-                model.wipe_tower.rotation = rot_deg;
-            } catch (const boost::property_tree::ptree_bad_path&) {
-                // Handles missing node or attribute.
-                add_error("Error while reading wipe tower information.");
-                return;
+            for (const auto& bed_block : main_tree) {
+                if (bed_block.first != "wipe_tower_information")
+                    continue;
+                try {
+                    int bed_idx = 0;
+                    try {
+                        bed_idx = bed_block.second.get<int>("<xmlattr>.bed_idx");
+                    } catch (const boost::property_tree::ptree_bad_path&) {
+                        // Probably an old project with no bed_idx info - pretend that we saw 0.
+                    }
+                    if (bed_idx >= int(m_model->get_wipe_tower_vector().size()))
+                        continue;                
+                    double pos_x = bed_block.second.get<double>("<xmlattr>.position_x");
+                    double pos_y = bed_block.second.get<double>("<xmlattr>.position_y");
+                    double rot_deg = bed_block.second.get<double>("<xmlattr>.rotation_deg");
+                    model.get_wipe_tower_vector()[bed_idx].position = Vec2d(pos_x, pos_y);
+                    model.get_wipe_tower_vector()[bed_idx].rotation = rot_deg;
+                }
+                catch (const boost::property_tree::ptree_bad_path&) {
+                    // Handles missing node or attribute.
+                    add_error("Error while reading wipe tower information.");
+                    return;
+                }
             }
 
         }
@@ -1710,11 +1739,11 @@ namespace Slic3r {
                     value_ss >> val;
                     if (! value_ss.fail()) {
                         if (boost::starts_with(line, "wipe_tower_x"))
-                            model.wipe_tower.position.x() = val;
+                            model.get_wipe_tower_vector().front().position.x() = val;
                         else if (boost::starts_with(line, "wipe_tower_y"))
-                            model.wipe_tower.position.y() = val;
+                            model.get_wipe_tower_vector().front().position.y() = val;
                         else
-                            model.wipe_tower.rotation = val;
+                            model.get_wipe_tower_vector().front().rotation = val;
                     }
                 }
             }
@@ -3606,11 +3635,11 @@ namespace Slic3r {
             std::string opt_serialized;
             
             if (key == "wipe_tower_x")
-                opt_serialized = float_to_string_decimal_point(model.wipe_tower.position.x());
+                opt_serialized = float_to_string_decimal_point(model.get_wipe_tower_vector().front().position.x());
             else if (key == "wipe_tower_y")
-                opt_serialized = float_to_string_decimal_point(model.wipe_tower.position.y());
+                opt_serialized = float_to_string_decimal_point(model.get_wipe_tower_vector().front().position.y());
             else if (key == "wipe_tower_rotation_angle")
-                opt_serialized = float_to_string_decimal_point(model.wipe_tower.rotation);
+                opt_serialized = float_to_string_decimal_point(model.get_wipe_tower_vector().front().rotation);
             else
                 opt_serialized = config.opt_serialize(key);
 
@@ -3765,33 +3794,42 @@ bool _3MF_Exporter::_add_custom_gcode_per_print_z_file_to_archive( mz_zip_archiv
 {
     std::string out = "";
 
-    if (!model.custom_gcode_per_print_z.gcodes.empty()) {
+    if (std::any_of(model.get_custom_gcode_per_print_z_vector().begin(), model.get_custom_gcode_per_print_z_vector().end(), [](const auto& cg) { return !cg.gcodes.empty(); })) {
         pt::ptree tree;
-        pt::ptree& main_tree = tree.add("custom_gcodes_per_print_z", "");
+        for (size_t bed_idx=0; bed_idx<model.get_custom_gcode_per_print_z_vector().size(); ++bed_idx) {
+            if (bed_idx != 0 && model.get_custom_gcode_per_print_z_vector()[bed_idx].gcodes.empty()) {
+                // Always save the first bed so older slicers are able to tell
+                // that there are no color changes on it.
+                continue;
+            }
 
-        for (const CustomGCode::Item& code : model.custom_gcode_per_print_z.gcodes) {
-            pt::ptree& code_tree = main_tree.add("code", "");
+            pt::ptree& main_tree = tree.add("custom_gcodes_per_print_z", "");
+            main_tree.put("<xmlattr>.bed_idx"   , bed_idx);
 
-            // store data of custom_gcode_per_print_z
-            code_tree.put("<xmlattr>.print_z"   , code.print_z  );
-            code_tree.put("<xmlattr>.type"      , static_cast<int>(code.type));
-            code_tree.put("<xmlattr>.extruder"  , code.extruder );
-            code_tree.put("<xmlattr>.color"     , code.color    );
-            code_tree.put("<xmlattr>.extra"     , code.extra    );
+            for (const CustomGCode::Item& code : model.get_custom_gcode_per_print_z_vector()[bed_idx].gcodes) {
+                pt::ptree& code_tree = main_tree.add("code", "");
 
-            // add gcode field data for the old version of the PrusaSlicer
-            std::string gcode = code.type == CustomGCode::ColorChange ? config->opt_string("color_change_gcode")    :
-                                code.type == CustomGCode::PausePrint  ? config->opt_string("pause_print_gcode")     :
-                                code.type == CustomGCode::Template    ? config->opt_string("template_custom_gcode") :
-                                code.type == CustomGCode::ToolChange  ? "tool_change"   : code.extra; 
-            code_tree.put("<xmlattr>.gcode"     , gcode   );
+                // store data of custom_gcode_per_print_z
+                code_tree.put("<xmlattr>.print_z"   , code.print_z  );
+                code_tree.put("<xmlattr>.type"      , static_cast<int>(code.type));
+                code_tree.put("<xmlattr>.extruder"  , code.extruder );
+                code_tree.put("<xmlattr>.color"     , code.color    );
+                code_tree.put("<xmlattr>.extra"     , code.extra    );
+
+                // add gcode field data for the old version of the PrusaSlicer
+                std::string gcode = code.type == CustomGCode::ColorChange ? config->opt_string("color_change_gcode")    :
+                                    code.type == CustomGCode::PausePrint  ? config->opt_string("pause_print_gcode")     :
+                                    code.type == CustomGCode::Template    ? config->opt_string("template_custom_gcode") :
+                                    code.type == CustomGCode::ToolChange  ? "tool_change"   : code.extra; 
+                code_tree.put("<xmlattr>.gcode"     , gcode   );
+            }
+
+            pt::ptree& mode_tree = main_tree.add("mode", "");
+            // store mode of a custom_gcode_per_print_z 
+            mode_tree.put("<xmlattr>.value", model.custom_gcode_per_print_z().mode == CustomGCode::Mode::SingleExtruder ? CustomGCode::SingleExtruderMode :
+                                             model.custom_gcode_per_print_z().mode == CustomGCode::Mode::MultiAsSingle ? CustomGCode::MultiAsSingleMode :
+                                             CustomGCode::MultiExtruderMode);
         }
-
-        pt::ptree& mode_tree = main_tree.add("mode", "");
-        // store mode of a custom_gcode_per_print_z 
-        mode_tree.put("<xmlattr>.value", model.custom_gcode_per_print_z.mode == CustomGCode::Mode::SingleExtruder ? CustomGCode::SingleExtruderMode :
-                                         model.custom_gcode_per_print_z.mode == CustomGCode::Mode::MultiAsSingle ?  CustomGCode::MultiAsSingleMode :
-                                         CustomGCode::MultiExtruderMode);
 
         if (!tree.empty()) {
             std::ostringstream oss;
@@ -3818,11 +3856,19 @@ bool _3MF_Exporter::_add_wipe_tower_information_file_to_archive( mz_zip_archive&
     std::string out = "";
 
     pt::ptree tree;
-    pt::ptree& main_tree = tree.add("wipe_tower_information", "");
 
-    main_tree.put("<xmlattr>.position_x", model.wipe_tower.position.x());
-    main_tree.put("<xmlattr>.position_y", model.wipe_tower.position.y());
-    main_tree.put("<xmlattr>.rotation_deg", model.wipe_tower.rotation);
+    size_t bed_idx = 0;
+    for (const ModelWipeTower& wipe_tower : model.get_wipe_tower_vector()) {
+        pt::ptree& main_tree = tree.add("wipe_tower_information", "");
+
+        main_tree.put("<xmlattr>.bed_idx", bed_idx);
+        main_tree.put("<xmlattr>.position_x", wipe_tower.position.x());
+        main_tree.put("<xmlattr>.position_y", wipe_tower.position.y());
+        main_tree.put("<xmlattr>.rotation_deg", wipe_tower.rotation);
+        ++bed_idx;
+        if (bed_idx >= s_multiple_beds.get_number_of_beds())
+            break;
+    }
     
     std::ostringstream oss;
     boost::property_tree::write_xml(oss, tree);

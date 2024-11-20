@@ -546,7 +546,7 @@ namespace DoExport {
             }
         }
         if (ret.size() < MAX_TAGS_COUNT) {
-            const CustomGCode::Info& custom_gcode_per_print_z = print.model().custom_gcode_per_print_z;
+            const CustomGCode::Info& custom_gcode_per_print_z = print.model().custom_gcode_per_print_z();
             for (const auto& gcode : custom_gcode_per_print_z.gcodes) {
                 check(_u8L("Custom G-code"), gcode.extra);
                 if (ret.size() == MAX_TAGS_COUNT)
@@ -1314,7 +1314,7 @@ void GCodeGenerator::_do_export(Print& print, GCodeOutputStream &file, Thumbnail
         std::vector<std::pair<coordf_t, ObjectsLayerToPrint>> layers_to_print = collect_layers_to_print(print);
         // Prusa Multi-Material wipe tower.
         if (has_wipe_tower && ! layers_to_print.empty()) {
-            m_wipe_tower = std::make_unique<GCode::WipeTowerIntegration>(print.model().wipe_tower.position.cast<float>(), print.model().wipe_tower.rotation, print.config(), *print.wipe_tower_data().priming.get(), print.wipe_tower_data().tool_changes, *print.wipe_tower_data().final_purge.get());
+            m_wipe_tower = std::make_unique<GCode::WipeTowerIntegration>(print.model().wipe_tower().position.cast<float>(), print.model().wipe_tower().rotation, print.config(), *print.wipe_tower_data().priming.get(), print.wipe_tower_data().tool_changes, *print.wipe_tower_data().final_purge.get());
 
             // Set position for wipe tower generation.
             Vec3d new_position = this->writer().get_position();

@@ -86,9 +86,6 @@ private:
 
 	static inline ObjectID  generate_new_id() { return ObjectID(++ s_last_id); }
     static size_t           s_last_id;
-	
-	friend ObjectID wipe_tower_object_id();
-	friend ObjectID wipe_tower_instance_id();
 
 	friend class cereal::access;
 	friend class Slic3r::UndoRedo::StackImpl;
@@ -135,8 +132,7 @@ private:
 };
 
 // Unique object / instance ID for the wipe tower.
-extern ObjectID wipe_tower_object_id();
-extern ObjectID wipe_tower_instance_id();
+ObjectID wipe_tower_instance_id(size_t bed_idx);
 
 } // namespace Slic3r
 

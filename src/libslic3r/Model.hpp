@@ -1253,7 +1253,7 @@ private:
 
 // Note: The following class does not have to inherit from ObjectID, it is currently
 // only used for arrangement. It might be good to refactor this in future.
-class ModelWipeTower final : public ObjectBase
+class ModelWipeTower
 {
 public:
 	Vec2d		position = Vec2d(180., 140.);
@@ -1265,24 +1265,8 @@ public:
     // Assignment operator does not touch the ID!
     ModelWipeTower& operator=(const ModelWipeTower& rhs) { position = rhs.position; rotation = rhs.rotation; return *this; }
 
-
-private:
-	friend class cereal::access;
-	friend class UndoRedo::StackImpl;
-	friend class Model;
-
-    // Constructors to be only called by derived classes.
-    // Default constructor to assign a unique ID.
     explicit ModelWipeTower() {}
-    // Constructor with ignored int parameter to assign an invalid ID, to be replaced
-    // by an existing ID copied from elsewhere.
-    explicit ModelWipeTower(int) : ObjectBase(-1) {}
-    // Copy constructor copies the ID.
 	explicit ModelWipeTower(const ModelWipeTower &cfg) = default;
-
-    // Disabled methods.
-    ModelWipeTower(ModelWipeTower &&rhs) = delete;
-    ModelWipeTower& operator=(ModelWipeTower &&rhs) = delete;
 
     // For serialization / deserialization of ModelWipeTower composed into another class into the Undo / Redo stack as a separate object.
     template<typename Archive> void serialize(Archive &ar) { ar(position, rotation); }
@@ -1301,12 +1285,26 @@ public:
     ModelMaterialMap    materials;
     // Objects are owned by a model. Each model may have multiple instances, each instance having its own transformation (shift, scale, rotation).
     ModelObjectPtrs     objects;
+
+    ModelWipeTower& wipe_tower();
+    const ModelWipeTower& wipe_tower() const;
+    const ModelWipeTower& wipe_tower(const int bed_index) const;
+    ModelWipeTower& wipe_tower(const int bed_index);
+    std::vector<ModelWipeTower>& get_wipe_tower_vector() { return wipe_tower_vector; }
+    const std::vector<ModelWipeTower>& get_wipe_tower_vector() const { return wipe_tower_vector; }
+
+    CustomGCode::Info& custom_gcode_per_print_z();
+    const CustomGCode::Info& custom_gcode_per_print_z() const;
+    std::vector<CustomGCode::Info>& get_custom_gcode_per_print_z_vector() { return custom_gcode_per_print_z_vector; }
+
+private:
     // Wipe tower object.
-    ModelWipeTower	    wipe_tower;
+    std::vector<ModelWipeTower> wipe_tower_vector = std::vector<ModelWipeTower>(MAX_NUMBER_OF_BEDS);
 
     // Extensions for color print
-    CustomGCode::Info custom_gcode_per_print_z;
-    
+    std::vector<CustomGCode::Info> custom_gcode_per_print_z_vector = std::vector<CustomGCode::Info>(MAX_NUMBER_OF_BEDS);
+
+public:
     // Default constructor assigns a new ID to the model.
     Model() { assert(this->id().valid()); }
     ~Model() { this->clear_objects(); this->clear_materials(); }
@@ -1407,8 +1405,7 @@ private:
 	friend class cereal::access;
 	friend class UndoRedo::StackImpl;
 	template<class Archive> void serialize(Archive &ar) {
-		Internal::StaticSerializationWrapper<ModelWipeTower> wipe_tower_wrapper(wipe_tower);
-		ar(materials, objects, wipe_tower_wrapper);
+		ar(materials, objects, wipe_tower_vector);
     }
 };
 

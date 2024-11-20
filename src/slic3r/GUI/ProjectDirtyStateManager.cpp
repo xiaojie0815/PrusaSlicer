@@ -48,7 +48,7 @@ void ProjectDirtyStateManager::update_from_preview()
 {
     if (wxApp::GetInstance() == nullptr || wxGetApp().plater() == nullptr)
         return;
-    const bool is_dirty = m_initial_custom_gcode_per_print_z != wxGetApp().model().custom_gcode_per_print_z;
+    const bool is_dirty = m_initial_custom_gcode_per_print_z != wxGetApp().model().custom_gcode_per_print_z();
     if (m_custom_gcode_per_print_z_dirty != is_dirty) {
         m_custom_gcode_per_print_z_dirty = is_dirty;
         if (wxApp::GetInstance() != nullptr)
@@ -73,7 +73,7 @@ void ProjectDirtyStateManager::reset_initial_presets()
     for (const PresetCollection *preset_collection : app.get_active_preset_collections())
         m_initial_presets[preset_collection->type()] = preset_collection->get_selected_preset_name();
     m_initial_project_config = app.preset_bundle->project_config;
-    m_initial_custom_gcode_per_print_z = app.model().custom_gcode_per_print_z;
+    m_initial_custom_gcode_per_print_z = app.model().custom_gcode_per_print_z();
 }
 
 #if ENABLE_PROJECT_DIRTY_STATE_DEBUG_WINDOW
