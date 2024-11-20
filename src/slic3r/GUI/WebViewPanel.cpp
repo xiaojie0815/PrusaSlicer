@@ -1107,6 +1107,7 @@ void PrintablesWebViewPanel::logout(const std::string& override_url/* = std::str
     }
     BOOST_LOG_TRIVIAL(debug) << __FUNCTION__;
     hide_loading_overlay(); 
+    m_styles_defined = false;
     delete_cookies(m_browser, Utils::ServiceConfig::instance().printables_url());
     m_browser->RunScript("localStorage.clear();");
 
@@ -1128,6 +1129,7 @@ void PrintablesWebViewPanel::login(const std::string& access_token, const std::s
     }
     BOOST_LOG_TRIVIAL(debug) << __FUNCTION__;
     hide_loading_overlay();
+    m_styles_defined = false;
     // We cannot add token to header as when making the first request.
     // In fact, we shall not do request here, only run scripts.
     // postMessage accessTokenWillChange -> postMessage accessTokenChange -> window.location.reload();
@@ -1154,6 +1156,7 @@ void PrintablesWebViewPanel::load_default_url()
         return;
     }
     hide_loading_overlay();
+    m_styles_defined = false;
     std::string actual_default_url = get_url_lang_theme(from_u8(Utils::ServiceConfig::instance().printables_url() + "/homepage"));
     const std::string access_token = wxGetApp().plater()->get_user_account()->get_access_token();
     // in case of opening printables logged out - delete cookies and localstorage to get rid of last login
@@ -1230,6 +1233,7 @@ void PrintablesWebViewPanel::on_printables_event_access_token_expired(const std:
 void PrintablesWebViewPanel::on_reload_event(const std::string& message_data)
 {
     // Event from our error / loading html pages
+    m_styles_defined = false;
     load_default_url();
 }
 
