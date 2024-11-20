@@ -1186,6 +1186,11 @@ PresetUpdater::UpdateResult PresetUpdater::config_update(const Semver& old_slic3
 			}
 		}
 
+		if (!wxApp::GetInstance() || ! GUI::wxGetApp().plater()) {
+			// The main thread might have start killing the UI.
+			return R_NOOP;
+		}
+
 		// regular update
 		if (params == UpdateParams::SHOW_NOTIFICATION) {
 			p->set_waiting_updates(updates);
