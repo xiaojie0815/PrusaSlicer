@@ -1436,8 +1436,6 @@ void PrintablesWebViewPanel::show_download_notification(const std::string& filen
     // Then inside javascript decodes it.
     const std::string message_filename = Http::url_encode(GUI::format(_u8L("Downloading %1%"),filename));
     const std::string message_dest = Http::url_encode(GUI::format(_u8L("To %1%"), wxGetApp().app_config->get("url_downloader_dest")));
-    //std::string message_filename = GUI::format(_u8L("Downloading %1%"),filename);
-    //std::string message_dest = GUI::format(_u8L("To %1%"), escape_string_cstyle(wxGetApp().app_config->get("url_downloader_dest")));
     std::string script = GUI::format(R"(
         function removeNotification() {
             const notifDiv = document.getElementById('slicer-notification');
