@@ -2258,12 +2258,10 @@ std::string GCodeGenerator::generate_ramping_layer_change_gcode(
     )};
 
     std::string travel_gcode;
-    Vec3d previous_point{this->point_to_gcode(travel.front())};
     for (const Vec3crd &point : travel) {
         const Vec3d gcode_point{this->point_to_gcode(point)};
         travel_gcode += this->m_writer
-                            .get_travel_to_xyz_gcode(previous_point, gcode_point, "layer change");
-        previous_point = gcode_point;
+                            .get_travel_to_xyz_gcode(gcode_point, "layer change");
     }
     return travel_gcode;
 }
@@ -3194,9 +3192,6 @@ std::string GCodeGenerator::travel_to_first_position(const Vec3crd& point, const
     const Vec3d gcode_point = to_3d(this->point_to_gcode(point.head<2>()), unscaled(point.z()));
 
     if (!EXTRUDER_CONFIG(travel_ramping_lift) && this->last_position) {
-        Vec3d writer_position{this->writer().get_position()};
-        writer_position.z() = 0.0; // Endofrce z generation!
-        this->writer().update_position(writer_position);
         const Vec3crd from{to_3d(*this->last_position, scaled(from_z))};
         gcode = this->travel_to(
             from, point, role, "travel to first layer point", insert_gcode
@@ -3546,7 +3541,6 @@ std::string GCodeGenerator::generate_travel_gcode(
     // use G1 because we rely on paths being straight (G0 may make round paths)
     gcode += this->m_writer.set_travel_acceleration(acceleration);
 
-    Vec3d previous_point{this->point_to_gcode(travel.front())};
     bool already_inserted{false};
     for (std::size_t i{0}; i < travel.size(); ++i) {
         const Vec3crd& point{travel[i]};
@@ -3557,9 +3551,8 @@ std::string GCodeGenerator::generate_travel_gcode(
             already_inserted = true;
         }
 
-        gcode += this->m_writer.travel_to_xyz(previous_point, gcode_point, comment);
+        gcode += this->m_writer.travel_to_xyz(gcode_point, comment);
         this->last_position = point.head<2>();
-        previous_point = gcode_point;
     }
 
     if (! GCodeWriter::supports_separate_travel_acceleration(config().gcode_flavor)) {
