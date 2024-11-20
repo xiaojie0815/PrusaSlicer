@@ -26,11 +26,13 @@ void setup_webview_with_credentials(wxWebView* webview, const std::string& usern
 {
     ICoreWebView2 *webView2 = static_cast<ICoreWebView2 *>(webview->GetNativeBackend());
     if (!webView2) {
+        BOOST_LOG_TRIVIAL(error) << "setup_webview_with_credentials Failed: Webview 2 is null.";
         return;
     }
     wxCOMPtr<ICoreWebView2_10> wv2_10;
     HRESULT hr = webView2->QueryInterface(IID_PPV_ARGS(&wv2_10));
     if (FAILED(hr)) {
+        BOOST_LOG_TRIVIAL(error) << "setup_webview_with_credentials Failed: ICoreWebView2_10 is null.";
         return;        
     }
 
@@ -68,11 +70,13 @@ void remove_webview_credentials(wxWebView* webview)
 {
     ICoreWebView2 *webView2 = static_cast<ICoreWebView2 *>(webview->GetNativeBackend());
     if (!webView2) {
+        BOOST_LOG_TRIVIAL(error) << "remove_webview_credentials Failed: webView2 is null.";
         return;
     }
     wxCOMPtr<ICoreWebView2_10> wv2_10;
     HRESULT hr = webView2->QueryInterface(IID_PPV_ARGS(&wv2_10));
     if (FAILED(hr)) {
+        BOOST_LOG_TRIVIAL(error) << "remove_webview_credentials Failed: ICoreWebView2_10 is null.";
         return;
     }
 
@@ -93,6 +97,7 @@ void delete_cookies(wxWebView* webview, const std::string& url)
 {
     ICoreWebView2 *webView2 = static_cast<ICoreWebView2 *>(webview->GetNativeBackend());
     if (!webView2) {
+        BOOST_LOG_TRIVIAL(error) << "delete_cookies Failed: webView2 is null.";
         return;
     }
 
@@ -183,11 +188,13 @@ void add_request_authorization(wxWebView* webview, const wxString& address, cons
     // The filter needs to be removed to stop adding the auth header
     ICoreWebView2 *webView2 = static_cast<ICoreWebView2 *>(webview->GetNativeBackend());
     if (!webView2) {
+        BOOST_LOG_TRIVIAL(error) << "Adding request Authorization Failed: Webview 2 is null.";
         return;
     }
     wxCOMPtr<ICoreWebView2_2> wv2_2;
     HRESULT hr = webView2->QueryInterface(IID_PPV_ARGS(&wv2_2));
     if (FAILED(hr)) {
+        BOOST_LOG_TRIVIAL(error) << "Adding request Authorization Failed: QueryInterface ICoreWebView2_2 has failed.";
         return;        
     }
     filter_patern =  address + "/*";
@@ -238,8 +245,10 @@ void remove_request_authorization(wxWebView* webview)
 {
     ICoreWebView2 *webView2 = static_cast<ICoreWebView2 *>(webview->GetNativeBackend());
     if (!webView2) {
+        BOOST_LOG_TRIVIAL(error) << "remove_request_authorization Failed: webView2 is null.";
         return;
     }
+     BOOST_LOG_TRIVIAL(info) << "remove_request_authorization";
     webView2->RemoveWebResourceRequestedFilter(filter_patern.c_str(), COREWEBVIEW2_WEB_RESOURCE_CONTEXT_DOCUMENT);
     if(FAILED(webView2->remove_WebResourceRequested( m_webResourceRequestedTokenForImageBlocking))) {
         BOOST_LOG_TRIVIAL(error) << "WebView: Failed to remove resources";
@@ -256,6 +265,7 @@ void load_request(wxWebView* web_view, const std::string& address, const std::st
     
     ICoreWebView2 *webView2 = static_cast<ICoreWebView2 *>(web_view->GetNativeBackend());
     if (!webView2) {
+        BOOST_LOG_TRIVIAL(error) << "load_request Failed: webView2 is null.";
         return;
     }
    
@@ -263,12 +273,14 @@ void load_request(wxWebView* web_view, const std::string& address, const std::st
     wxCOMPtr<ICoreWebView2Environment> webViewEnvironment;
     //webViewEnvironment = static_cast<ICoreWebView2Environment *>(web_view->GetEnviroment());
     if (!webViewEnvironment.Get()) {
+        BOOST_LOG_TRIVIAL(error) << "load_request Failed: ICoreWebView2Environment is null.";
         return;
     }
 
     wxCOMPtr<ICoreWebView2Environment2> webViewEnvironment2;
     if (FAILED(webViewEnvironment->QueryInterface(IID_PPV_ARGS(&webViewEnvironment2))))
     {
+        BOOST_LOG_TRIVIAL(error) << "load_request Failed: ICoreWebView2Environment2 is null.";
         return;
     }
      wxCOMPtr<ICoreWebView2WebResourceRequest> webResourceRequest;
@@ -277,14 +289,17 @@ void load_request(wxWebView* web_view, const std::string& address, const std::st
         L"https://www.printables.com/", L"GET", NULL,
         L"Content-Type: application/x-www-form-urlencoded", &webResourceRequest)))
     {
+        BOOST_LOG_TRIVIAL(error) << "load_request Failed: CreateWebResourceRequest failed.";
         return;
     }
     wxCOMPtr<ICoreWebView2_2> wv2_2;
     if (FAILED(webView2->QueryInterface(IID_PPV_ARGS(&wv2_2)))) {
+        BOOST_LOG_TRIVIAL(error) << "load_request Failed: ICoreWebView2_2 is null.";
         return;        
     }
     if (FAILED(wv2_2->NavigateWithWebResourceRequest(webResourceRequest.get())))
     {
+        BOOST_LOG_TRIVIAL(error) << "load_request Failed: NavigateWithWebResourceRequest failed.";
         return;
     } 
 }

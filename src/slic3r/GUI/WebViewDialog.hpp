@@ -52,7 +52,7 @@ public:
     void On_enable_dev_tools(wxCommandEvent& evt);
     
     virtual void on_navigation_request(wxWebViewEvent &evt);
-    virtual void on_loaded(wxWebViewEvent &evt) {}
+    virtual void on_loaded(wxWebViewEvent &evt);
 
     void run_script(const wxString& javascript);
    
@@ -105,17 +105,25 @@ protected:
     void run_script_bridge(const wxString& script) override { run_script(script); }
     void on_dpi_changed(const wxRect &suggested_rect) override;
     void on_reload_event(const std::string& message_data) override;
+    void on_connect_action_close_dialog(const std::string& message_data) override {assert(true);}
 private:
     std::string& m_ret_val;
 };
 
-class PrintablesConnectUploadDialog : public WebViewDialog
+class PrintablesConnectUploadDialog : public WebViewDialog, public ConnectRequestHandler
 {
 public:
     PrintablesConnectUploadDialog(wxWindow* parent, const std::string url);
+    void on_script_message(wxWebViewEvent& evt) override;
 protected:
     void on_dpi_changed(const wxRect &suggested_rect) override;
 
+    void on_connect_action_select_printer(const std::string& message_data) override;
+    void on_connect_action_print(const std::string& message_data) override;
+    void on_connect_action_webapp_ready(const std::string& message_data) override;
+    void on_reload_event(const std::string& message_data) override;
+    void run_script_bridge(const wxString &script) override { run_script(script); }
+    void on_connect_action_close_dialog(const std::string& message_data) override;
 };
 
 class LoginWebViewDialog : public WebViewDialog

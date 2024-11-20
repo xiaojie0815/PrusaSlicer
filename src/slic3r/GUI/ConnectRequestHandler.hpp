@@ -29,6 +29,7 @@ protected:
     virtual void on_connect_action_select_printer(const std::string& message_data) = 0;
     virtual void on_connect_action_print(const std::string& message_data) = 0;
     virtual void on_connect_action_webapp_ready(const std::string& message_data) = 0;
+    virtual void on_connect_action_close_dialog(const std::string& message_data) = 0;
     virtual void on_reload_event(const std::string& message_data) = 0;
     virtual void run_script_bridge(const wxString &script) = 0;
 

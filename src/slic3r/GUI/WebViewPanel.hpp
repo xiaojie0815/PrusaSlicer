@@ -17,7 +17,7 @@
 class wxWebView;
 class wxWebViewEvent;
 
-wxDECLARE_EVENT(EVT_OPEN_EXTERNAL_LOGIN, wxCommandEvent);
+wxDECLARE_EVENT(EVT_PRINTABLES_CONNECT_PRINT, wxCommandEvent);
 
 namespace Slic3r::GUI {
 
@@ -141,6 +141,8 @@ protected:
     void on_page_will_load() override;
     void on_connect_action_error(const std::string &message_data) override;
     void on_reload_event(const std::string& message_data) override;
+    void on_connect_action_close_dialog(const std::string& message_data) override {assert(true);}
+    void on_user_token(UserAccountSuccessEvent& e);
 private:
     static wxString get_login_script(bool refresh);
     static wxString get_logout_script();
@@ -154,6 +156,7 @@ public:
     
     void on_loaded(wxWebViewEvent& evt) override;
     void on_script_message(wxWebViewEvent& evt) override;
+    void on_navigation_request(wxWebViewEvent &evt) override;
     void send_api_key();
     void send_credentials();
     void set_api_key(const std::string &key)
@@ -168,7 +171,6 @@ public:
         m_psk = psk;
     }
     void clear() { m_api_key.clear(); m_usr.clear(); m_psk.clear(); m_api_key_sent = false; }
-    void sys_color_changed() override;
 private:
     std::string m_api_key;
     std::string m_usr;
@@ -202,10 +204,19 @@ private:
      void on_printables_event_required_login(const std::string& message_data);
      void load_default_url() override;
      std::string get_url_lang_theme(const wxString& url) const;
+     void define_css();
      void show_download_notification(const std::string& filename);
+     void show_loading_overlay();
+     void hide_loading_overlay();
 
      std::map<std::string, std::function<void(const std::string&)>> m_events;
      std::string m_next_show_url;
+
+     bool m_refreshing_token {false};
+     bool m_styles_defined {false};
+#ifdef _WIN32
+     bool m_remove_request_auth { false };
+#endif
 /*
 Eventy Slicer -> Printables
 accessTokenWillChange

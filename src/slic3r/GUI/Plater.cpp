@@ -127,6 +127,7 @@
 #include "UserAccountUtils.hpp"
 #include "DesktopIntegrationDialog.hpp"
 #include "WebViewDialog.hpp"
+#include "WebViewPanel.hpp"
 #include "ConfigWizardWebViewPage.hpp"
 #include "PresetArchiveDatabase.hpp"
 
@@ -914,11 +915,7 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
 
         this->q->Bind(EVT_OPEN_EXTERNAL_LOGIN_WIZARD, open_external_login);
         this->q->Bind(EVT_OPEN_EXTERNAL_LOGIN, open_external_login);
-    
-        //    void    on_account_login(const std::string& token);
-        // void    on_account_will_refresh();
-        // void    on_account_did_refresh(const std::string& token);
-        // void    on_account_logout();
+
         this->q->Bind(EVT_UA_LOGGEDOUT, [this](UserAccountSuccessEvent& evt) {
             user_account->clear();
             std::string text = _u8L("Logged out from Prusa Account.");
@@ -1031,7 +1028,7 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
             wxGetApp().handle_connect_request_printer_select_inner(evt.data);
         });
         this->q->Bind(EVT_UA_PRUSACONNECT_PRINTER_DATA_FAIL, [this](UserAccountFailEvent& evt) {
-            BOOST_LOG_TRIVIAL(error) << "Failed communication with Prusa Account: " << evt.data;
+            BOOST_LOG_TRIVIAL(error) << "Failed communication with Connect Printer endpoint: " << evt.data;
             user_account->on_communication_fail();
             std::string msg = _u8L("Failed to select printer from Prusa Connect.");
             this->notification_manager->close_notification_of_type(NotificationType::SelectFilamentFromConnect);
@@ -1044,6 +1041,15 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
         this->q->Bind(EVT_UA_ENQUEUED_REFRESH, [this](SimpleEvent& evt) {
              this->main_frame->on_account_will_refresh();
         });  
+        
+        this->q->Bind(EVT_PRINTABLES_CONNECT_PRINT, [this](wxCommandEvent& evt) {
+            if (!this->user_account->is_logged()) {
+                // show login dialog instead of print dialog
+                this->user_account->do_login();
+                return;
+            }
+            this->q->printables_to_connect_gcode(into_u8(evt.GetString()));
+        });
     }
 
 	wxGetApp().other_instance_message_handler()->init(this->q);
@@ -6059,12 +6065,9 @@ bool load_secret(const std::string& id, const std::string& opt, std::string& usr
 
 void Plater::printables_to_connect_gcode(const std::string& url)
 {
-    {
-        PrintablesConnectUploadDialog dialog(this, url);
-        if (dialog.ShowModal() != wxID_OK) {
-            return;
-        }
-    }   
+    PrintablesConnectUploadDialog dialog(this, url);
+    dialog.ShowModal();
+
 }
 
 void Plater::connect_gcode()
