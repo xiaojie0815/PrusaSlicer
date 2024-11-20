@@ -447,6 +447,7 @@ target_link_libraries(
     NanoSVG::nanosvgrast
     stb_dxt
     fastfloat
+    boost_headeronly
 )
 
 if (MSVC)
