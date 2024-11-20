@@ -576,16 +576,32 @@ ConnectWebViewPanel::ConnectWebViewPanel(wxWindow* parent)
 {  
     auto* plater = wxGetApp().plater();
     plater->Bind(EVT_UA_LOGGEDOUT, &ConnectWebViewPanel::on_user_logged_out, this);
+    plater->Bind(EVT_UA_ID_USER_SUCCESS, &ConnectWebViewPanel::on_user_token, this);
 }
 
 void ConnectWebViewPanel::late_create()
 {
     WebViewPanel::late_create();
-     if (!m_browser) {
+    if (!m_browser) {
         return;
     }
     
     // This code used to be inside plater->Bind(EVT_UA_ID_USER_SUCCESS, &ConnectWebViewPanel::on_user_token, this)
+    auto access_token = wxGetApp().plater()->get_user_account()->get_access_token();
+    assert(!access_token.empty());
+
+    wxString javascript = get_login_script(true);
+    BOOST_LOG_TRIVIAL(debug) << "RunScript " << javascript << "\n";
+    m_browser->RunScriptAsync(javascript);
+    resend_config();
+}
+
+void ConnectWebViewPanel::on_user_token(UserAccountSuccessEvent& e)
+{
+    e.Skip();
+    if (!m_browser) {
+        return;
+    }
     auto access_token = wxGetApp().plater()->get_user_account()->get_access_token();
     assert(!access_token.empty());
 

@@ -553,9 +553,10 @@ void UserAccountCommunication::set_refresh_time(int seconds)
 {
     assert(m_token_timer);
     m_token_timer->Stop();
-    const auto prior_expiration_secs = 5 * 60;
-    int milliseconds = std::max((seconds - prior_expiration_secs) * 1000, 50000);
+    const auto prior_expiration_secs = std::max(seconds / 24, 10);
+    int milliseconds = std::max((seconds - prior_expiration_secs) * 1000, 1000);
     m_next_token_refresh_at = std::time(nullptr) + milliseconds / 1000;
+    BOOST_LOG_TRIVIAL(debug) << __FUNCTION__ << " " << milliseconds / 1000;
     m_token_timer->StartOnce(milliseconds);
 }
 
