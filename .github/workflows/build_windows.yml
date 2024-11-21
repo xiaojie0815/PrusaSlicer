@@ -7,11 +7,11 @@ on:
       create_pdb:
         description: 'Zip pdbs'
         default: false
-        type: bool
+        type: boolean
       create_installer:
         description: 'Create installer'
         default: false
-        type: bool
+        type: boolean
 
 jobs:
   build_win:
