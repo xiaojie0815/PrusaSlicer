@@ -141,7 +141,7 @@ protected:
     void on_page_will_load() override;
     void on_connect_action_error(const std::string &message_data) override;
     void on_reload_event(const std::string& message_data) override;
-    void on_connect_action_close_dialog(const std::string& message_data) override {assert(true);}
+    void on_connect_action_close_dialog(const std::string& message_data) override {assert(false);}
     void on_user_token(UserAccountSuccessEvent& e);
 private:
     static wxString get_login_script(bool refresh);

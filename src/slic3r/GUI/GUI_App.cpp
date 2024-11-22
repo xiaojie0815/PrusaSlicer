@@ -3924,7 +3924,7 @@ const Preset* find_preset_by_nozzle_and_options(
                 case coStrings:  opt_val = static_cast<const ConfigOptionStrings*>(preset.config.option(opt.first))->values[0]; break;
                 case coBools:    opt_val = static_cast<const ConfigOptionBools*>(preset.config.option(opt.first))->values[0] ? "1" : "0"; break;
                 default:
-                   assert(true);
+                   assert(false);
                    continue;
                 }
             }

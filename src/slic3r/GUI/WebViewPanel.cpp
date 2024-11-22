@@ -866,7 +866,7 @@ void ConnectWebViewPanel::on_connect_action_select_printer(const std::string& me
 void ConnectWebViewPanel::on_connect_action_print(const std::string& message_data)
 {
     // PRINT request is not defined for ConnectWebViewPanel
-    assert(true);
+    assert(false);
 }
 
 PrinterWebViewPanel::PrinterWebViewPanel(wxWindow* parent, const wxString& default_url)
