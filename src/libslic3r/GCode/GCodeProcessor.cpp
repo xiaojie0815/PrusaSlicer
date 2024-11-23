@@ -407,7 +407,7 @@ void GCodeProcessor::TimeMachine::calculate_time(GCodeProcessorResult& result, P
         // update times for remaining time to printer stop placeholders
         auto it_stop_time = std::lower_bound(stop_times.begin(), stop_times.end(), block.g1_line_id,
             [](const StopTime& t, unsigned int value) { return t.g1_line_id < value; });
-        if (it_stop_time != stop_times.end() && it_stop_time->g1_line_id == block.g1_line_id)
+        if (it_stop_time != stop_times.end() && it_stop_time->g1_line_id >= block.g1_line_id)
             it_stop_time->elapsed_time = float(time);
     }
 
