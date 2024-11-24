@@ -1,0 +1,10 @@
+name: Run static analysis
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 0 * * *"
+
+jobs:
+  static_analysis:
+    uses: Prusa-Development/PrusaSlicer-Actions/.github/workflows/static_analysis.yml@master
