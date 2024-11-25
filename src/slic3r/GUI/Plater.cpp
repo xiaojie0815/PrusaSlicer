@@ -4331,7 +4331,13 @@ void Plater::load_gcode(const wxString& filename)
         p->notification_manager->push_download_progress_notification("Loading...", []() { return false; });
         processor.process_file(filename.ToUTF8().data(), [this](float value) {
             p->notification_manager->set_download_progress_percentage(value);
-            p->get_current_canvas3D()->render();
+            static auto clock = std::chrono::steady_clock();
+            static auto old_t = clock.now();
+            auto t = clock.now();
+            if (std::chrono::duration_cast<std::chrono::milliseconds>(t - old_t).count() > 200) {
+                p->get_current_canvas3D()->render();
+                old_t = t;
+            }
         });
     }
     catch (const std::exception& ex)
