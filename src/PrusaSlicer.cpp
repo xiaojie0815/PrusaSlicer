@@ -47,6 +47,7 @@
 #include "libslic3r/Geometry.hpp"
 #include "libslic3r/GCode/PostProcessor.hpp"
 #include "libslic3r/Model.hpp"
+#include "libslic3r/ModelProcessing.hpp"
 #include "libslic3r/CutUtils.hpp"
 #include <arrange-wrapper/ModelArrange.hpp>
 #include "libslic3r/Platform.hpp"
@@ -563,7 +564,7 @@ int CLI::run(int argc, char **argv)
                 size_t num_objects = model.objects.size();
                 for (size_t i = 0; i < num_objects; ++ i) {
                     ModelObjectPtrs new_objects;
-                    model.objects.front()->split(&new_objects);
+                    ModelProcessing::split(model.objects.front(), &new_objects);
                     model.delete_object(size_t(0));
                 }
             }

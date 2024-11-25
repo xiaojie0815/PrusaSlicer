@@ -76,6 +76,7 @@
 #include "libslic3r/Utils.hpp"
 #include "libslic3r/PresetBundle.hpp"
 #include "libslic3r/miniz_extension.hpp"
+#include "libslic3r/ModelProcessing.hpp"
 #include "libslic3r/MultipleBeds.hpp"
 
 // For stl export
@@ -160,6 +161,7 @@ using Slic3r::GUI::format_wxstr;
 static const std::pair<unsigned int, unsigned int> THUMBNAIL_SIZE_3MF = { 256, 256 };
 
 namespace Slic3r {
+using namespace ModelProcessing;
 namespace GUI {
 
 // BackgroundSlicingProcess updates UI with slicing progress: Status bar / progress bar has to be updated, possibly scene has to be refreshed,
@@ -1235,7 +1237,6 @@ std::vector<size_t> Plater::priv::load_files(const std::vector<fs::path>& input_
     wxProgressDialog progress_dlg_stack(loading, "", 100, find_toplevel_parent(q), wxPD_APP_MODAL | wxPD_AUTO_HIDE);
     wxProgressDialog* progress_dlg = &progress_dlg_stack;    
 #endif
-    
 
     wxBusyCursor busy;
 
@@ -1313,19 +1314,6 @@ std::vector<size_t> Plater::priv::load_files(const std::vector<fs::path>& input_
                         // Based on the printer technology field found in the loaded config, select the base for the config,
                         loaded_printer_technology = Preset::printer_technology(config_loaded);
 
-                        // We can't to load SLA project if there is at least one multi-part object on the bed
-                        if (loaded_printer_technology == ptSLA) {
-                            const ModelObjectPtrs& objects = q->model().objects;
-                            for (auto object : objects)
-                                if (object->volumes.size() > 1) {
-                                    Slic3r::GUI::show_info(nullptr,
-                                        _L("You cannot load SLA project with a multi-part object on the bed") + "\n\n" +
-                                        _L("Please check your object list before preset changing."),
-                                        _L("Attention!"));
-                                    return obj_idxs;
-                                }
-                        }
-
                         config.apply(loaded_printer_technology == ptFFF ?
                             static_cast<const ConfigBase&>(FullPrintConfig::defaults()) :
                             static_cast<const ConfigBase&>(SLAFullPrintConfig::defaults()));
@@ -1398,13 +1386,13 @@ std::vector<size_t> Plater::priv::load_files(const std::vector<fs::path>& input_
             // The model should now be initialized
 
             auto convert_from_imperial_units = [](Model& model, bool only_small_volumes) {
-                model.convert_from_imperial_units(only_small_volumes);
+                ModelProcessing::convert_from_imperial_units(model, only_small_volumes);
 //                wxGetApp().app_config->set("use_inches", "1");
 //                wxGetApp().sidebar().update_ui_from_settings();
             };
 
             if (!is_project_file) {
-                if (int deleted_objects = model.removed_objects_with_zero_volume(); deleted_objects > 0) {
+                if (int deleted_objects = removed_objects_with_zero_volume(model); deleted_objects > 0) {
                     MessageDialog(q, format_wxstr(_L_PLURAL(
                         "Object size from file %s appears to be zero.\n"
                         "This object has been removed from the model",
@@ -1415,11 +1403,11 @@ std::vector<size_t> Plater::priv::load_files(const std::vector<fs::path>& input_
                 if (imperial_units)
                     // Convert even if the object is big.
                     convert_from_imperial_units(model, false);
-                else if (!type_3mf && model.looks_like_saved_in_meters()) {
+                else if (!type_3mf && looks_like_saved_in_meters(model)) {
                     auto convert_model_if = [](Model& model, bool condition) {
                         if (condition)
                             //FIXME up-scale only the small parts?
-                            model.convert_from_meters(true);
+                            convert_from_meters(model, true);
                     };
                     if (answer_convert_from_meters == wxOK_DEFAULT) {
                         RichMessageDialog dlg(q, format_wxstr(_L_PLURAL(
@@ -1437,7 +1425,7 @@ std::vector<size_t> Plater::priv::load_files(const std::vector<fs::path>& input_
                     }
                     convert_model_if(model, answer_convert_from_meters == wxID_YES);
                 }
-                else if (!type_3mf && model.looks_like_imperial_units()) {
+                else if (!type_3mf && looks_like_imperial_units(model)) {
                     auto convert_model_if = [convert_from_imperial_units](Model& model, bool condition) {
                         if (condition)
                             //FIXME up-scale only the small parts?
@@ -1460,7 +1448,7 @@ std::vector<size_t> Plater::priv::load_files(const std::vector<fs::path>& input_
                     convert_model_if(model, answer_convert_from_imperial_units == wxID_YES);
                 }
 
-                if (!type_printRequest && model.looks_like_multipart_object()) {
+                if (!type_printRequest && looks_like_multipart_object(model)) {
                     if (answer_consider_as_multi_part_objects == wxOK_DEFAULT) {
                         RichMessageDialog dlg(q, _L(
                             "This file contains several objects positioned at multiple heights.\n"
@@ -1472,10 +1460,10 @@ std::vector<size_t> Plater::priv::load_files(const std::vector<fs::path>& input_
                         if (dlg.IsCheckBoxChecked())
                             answer_consider_as_multi_part_objects = answer;
                         if (answer == wxID_YES)
-                            model.convert_multipart_object(nozzle_dmrs->size());
+                            convert_to_multipart_object(model, nozzle_dmrs->size());
                     }
                     else if (answer_consider_as_multi_part_objects == wxID_YES)
-                        model.convert_multipart_object(nozzle_dmrs->size());
+                        convert_to_multipart_object(model, nozzle_dmrs->size());
                 }
             }
             if ((wxGetApp().get_mode() == comSimple) && (type_3mf || type_any_amf) && model_has_advanced_features(model)) {
@@ -1570,14 +1558,13 @@ std::vector<size_t> Plater::priv::load_files(const std::vector<fs::path>& input_
     }
 
     if (new_model != nullptr && new_model->objects.size() > 1) {
-        //wxMessageDialog msg_dlg(q, _L(
         MessageDialog msg_dlg(q, _L(
                 "Multiple objects were loaded for a multi-material printer.\n"
                 "Instead of considering them as multiple objects, should I consider\n"
                 "these files to represent a single object having multiple parts?") + "\n",
                 _L("Multi-part object detected"), wxICON_WARNING | wxYES | wxNO);
         if (msg_dlg.ShowModal() == wxID_YES) {
-            new_model->convert_multipart_object(nozzle_dmrs->values.size());
+            convert_to_multipart_object(*new_model, nozzle_dmrs->values.size());
         }
 
         auto loaded_idxs = load_model_objects(new_model->objects);
@@ -2066,7 +2053,7 @@ void Plater::priv::split_object()
 
     wxBusyCursor wait;
     ModelObjectPtrs new_objects;
-    current_model_object->split(&new_objects);
+    ModelProcessing::split(current_model_object, &new_objects);
     if (new_objects.size() == 1)
         // #ysFIXME use notification
         Slic3r::GUI::warning_catcher(q, _L("The selected object couldn't be split because it contains only one solid part."));
@@ -2689,9 +2676,9 @@ bool Plater::priv::replace_volume_with_stl(int object_idx, int volume_idx, const
     new_volume->translate(new_volume->get_transformation().get_matrix_no_offset() * (new_volume->source.mesh_offset - old_volume->source.mesh_offset));
     assert(!old_volume->source.is_converted_from_inches || !old_volume->source.is_converted_from_meters);
     if (old_volume->source.is_converted_from_inches)
-        new_volume->convert_from_imperial_units();
+        convert_from_imperial_units(new_volume);
     else if (old_volume->source.is_converted_from_meters)
-        new_volume->convert_from_meters();
+        convert_from_meters(new_volume);
 
     if (old_volume->mesh().its == new_volume->mesh().its) {
         // This function is called both from reload_from_disk and replace_with_stl.
@@ -2984,9 +2971,9 @@ void Plater::priv::reload_from_disk()
                 new_volume->source.volume_idx = old_volume->source.volume_idx;
                 assert(!old_volume->source.is_converted_from_inches || !old_volume->source.is_converted_from_meters);
                 if (old_volume->source.is_converted_from_inches)
-                    new_volume->convert_from_imperial_units();
+                    convert_from_imperial_units(new_volume);
                 else if (old_volume->source.is_converted_from_meters)
-                    new_volume->convert_from_meters();
+                    convert_from_meters(new_volume);
                 std::swap(old_model_object->volumes[vol_idx], old_model_object->volumes.back());
                 old_model_object->delete_volume(old_model_object->volumes.size() - 1);
                 if (!sinking)
@@ -3910,14 +3897,14 @@ bool Plater::priv::can_fix_through_winsdk() const
     // Fixing only if the model is not manifold.
     if (vol_idxs.empty()) {
         for (auto obj_idx : obj_idxs)
-            if (model.objects[obj_idx]->get_repaired_errors_count() > 0)
+            if (get_repaired_errors_count(model.objects[obj_idx]) > 0)
                 return true;
         return false;
     }
 
     int obj_idx = obj_idxs.front();
     for (auto vol_idx : vol_idxs)
-        if (model.objects[obj_idx]->get_repaired_errors_count(vol_idx) > 0)
+        if (get_repaired_errors_count(model.objects[obj_idx], vol_idx) > 0)
             return true;
     return false;
 #endif // FIX_THROUGH_WINSDK_ALWAYS
@@ -5695,19 +5682,23 @@ void Plater::convert_unit(ConversionType conv_type)
                                 conv_type == ConversionType::CONV_FROM_METER ? _L("Convert from meters") : _L("Revert conversion from meters"));
     wxBusyCursor wait;
 
-    ModelObjectPtrs objects;
-    for (int obj_idx : obj_idxs) {
-        ModelObject *object = p->model.objects[obj_idx];
-        object->convert_units(objects, conv_type, volume_idxs);
-        remove(obj_idx);
+    {
+        Model tmp_model;
+        for (int obj_idx : obj_idxs) {
+            //ModelObject *object = p->model.objects[obj_idx];
+            //object->convert_units(objects, conv_type, volume_idxs);
+            ModelProcessing::convert_units(tmp_model, p->model.objects[obj_idx], conv_type, volume_idxs);
+            remove(obj_idx);
+        }
+        p->load_model_objects(tmp_model.objects);
     }
-    p->load_model_objects(objects);
+
     
     Selection& selection = p->view3D->get_canvas3d()->get_selection();
     size_t last_obj_idx = p->model.objects.size() - 1;
 
     if (volume_idxs.empty()) {
-        for (size_t i = 0; i < objects.size(); ++i)
+        for (size_t i = 0; i < obj_idxs.size(); ++i)
             selection.add_object((unsigned int)(last_obj_idx - i), i == 0);
     }
     else {
