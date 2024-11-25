@@ -148,14 +148,25 @@ WebViewDialog::~WebViewDialog()
 {
 }
 
+constexpr bool is_linux =
+#if defined(__linux__)
+true;
+#else
+false;
+#endif
+
 void WebViewDialog::on_idle(wxIdleEvent& WXUNUSED(evt))
 {
     if (!m_browser)
         return;
     if (m_browser->IsBusy()) {
-        wxSetCursor(wxCURSOR_ARROWWAIT);
-    }  else {
-        wxSetCursor(wxNullCursor);
+       if constexpr (!is_linux) { 
+            wxSetCursor(wxCURSOR_ARROWWAIT);
+        }
+    } else {
+        if constexpr (!is_linux) { 
+            wxSetCursor(wxNullCursor);
+        }
         if (m_load_error_page) {
             m_load_error_page = false;
             m_browser->LoadURL(GUI::format_wxstr("file://%1%/web/error_no_reload.html", boost::filesystem::path(resources_dir()).generic_string()));

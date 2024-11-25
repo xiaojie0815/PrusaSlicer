@@ -218,6 +218,7 @@ void WebViewPanel::on_show(wxShowEvent& evt)
 {
     m_shown = evt.IsShown();
     if (!m_shown) {
+        wxSetCursor(wxNullCursor);
         return;
     }
     if (m_do_late_webview_create) {
@@ -238,29 +239,36 @@ void WebViewPanel::on_idle(wxIdleEvent& WXUNUSED(evt))
 {
     if (!m_browser || m_do_late_webview_create)
         return;
-    if (m_browser->IsBusy()) {
-        wxSetCursor(wxCURSOR_ARROWWAIT);
-    } else {
-        wxSetCursor(wxNullCursor);
 
-        if (m_shown && m_load_error_page) {
-            m_load_error_page = false;
-            if (m_load_default_url_on_next_error) {
-                m_load_default_url_on_next_error = false;
-                load_default_url();
-            } else { 
-                load_url(GUI::format_wxstr("file://%1%/web/%2%.html", boost::filesystem::path(resources_dir()).generic_string(), m_error_html));
-                // This is a fix of broken message handling after error.
-                // F.e. if there is an error but we do AddUserScript & Reload, the handling will break.
-                // So we just reset the handler here.
-                if (!m_script_message_hadler_names.empty()) {
-                    m_browser->RemoveScriptMessageHandler(Slic3r::GUI::from_u8(m_script_message_hadler_names.front()));
-                    m_browser->AddScriptMessageHandler(Slic3r::GUI::from_u8(m_script_message_hadler_names.front()));
-                }
-                
-            }
+    // The busy cursor on webview is switched off on Linux.
+    // Because m_browser->IsBusy() is almost always true on Printables / Connect.
+#ifndef __linux__
+    if (m_shown) {
+        if (m_browser->IsBusy()) {
+            wxSetCursor(wxCURSOR_ARROWWAIT);
+        } else {
+            wxSetCursor(wxNullCursor);
         }
     }
+#endif // !__linux__
+
+    if (m_shown && m_load_error_page && !m_browser->IsBusy()) {
+        m_load_error_page = false;
+        if (m_load_default_url_on_next_error) {
+            m_load_default_url_on_next_error = false;
+            load_default_url();
+        } else { 
+            load_url(GUI::format_wxstr("file://%1%/web/%2%.html", boost::filesystem::path(resources_dir()).generic_string(), m_error_html));
+            // This is a fix of broken message handling after error.
+            // F.e. if there is an error but we do AddUserScript & Reload, the handling will break.
+            // So we just reset the handler here.
+            if (!m_script_message_hadler_names.empty()) {
+                m_browser->RemoveScriptMessageHandler(Slic3r::GUI::from_u8(m_script_message_hadler_names.front()));
+                m_browser->AddScriptMessageHandler(Slic3r::GUI::from_u8(m_script_message_hadler_names.front()));
+            } 
+        }
+    }
+    
 #ifdef DEBUG_URL_PANEL
     m_button_stop->Enable(m_browser->IsBusy());
 #endif
