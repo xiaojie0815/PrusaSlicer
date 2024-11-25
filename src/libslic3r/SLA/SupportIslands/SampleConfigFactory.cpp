@@ -62,15 +62,10 @@ SampleConfig SampleConfigFactory::create(float support_head_diameter_in_mm)
     // TODO: find valid params !!!!
     SampleConfig result;
     result.max_distance                  = max_distance;
-    result.half_distance                 = result.max_distance / 2;
     result.head_radius                   = head_diameter / 2;
     result.minimal_distance_from_outline = result.head_radius;
     result.maximal_distance_from_outline = result.max_distance/3;
     assert(result.minimal_distance_from_outline < result.maximal_distance_from_outline);
-    result.minimal_support_distance = result.minimal_distance_from_outline +
-                                        result.half_distance;
-
-    result.min_side_branch_length = 2 * result.minimal_distance_from_outline + result.max_distance/4;
     result.max_length_for_one_support_point =
         max_distance / 3 +
         2 * result.minimal_distance_from_outline + 

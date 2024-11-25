@@ -8,9 +8,10 @@
 #include "libslic3r/Execution/ExecutionTBB.hpp" // parallel preparation of data for sampling
 #include "libslic3r/Execution/Execution.hpp"
 #include "libslic3r/KDTreeIndirect.hpp"
+#include "libslic3r/ClipperUtils.hpp"
 
 // SupportIslands
-#include "libslic3r/SLA/SupportIslands/SampleIslandUtils.hpp"
+#include "libslic3r/SLA/SupportIslands/UniformSupportIsland.hpp"
 
 using namespace Slic3r;
 using namespace Slic3r::sla;
@@ -145,7 +146,7 @@ private:
 /// <param name="cnt">Circle center point</param>
 /// <param name="r2">squared value of Circle Radius (r2 = r*r)</param>
 /// <returns>Intersection point</returns>
-Point intersection(const Point &p1, const Point &p2, const Point &cnt, double r2) {
+Point intersection_line_circle(const Point &p1, const Point &p2, const Point &cnt, double r2) {
     // Vector from p1 to p2
     Vec2d dp_d((p2 - p1).cast<double>());
     // Vector from circle center to p1
@@ -269,7 +270,7 @@ void support_part_overhangs(
 /// <param name="cfg"></param>
 void support_island(const LayerPart &part, NearPoints& near_points, float part_z,
     const SupportPointGeneratorConfig &cfg) {
-    SupportIslandPoints samples = SampleIslandUtils::uniform_cover_island(*part.shape, cfg.island_configuration);
+    SupportIslandPoints samples = uniform_support_island(*part.shape, cfg.island_configuration);
     //samples = {std::make_unique<SupportIslandPoint>(island.contour.centroid())};
     for (const SupportIslandPointPtr &sample : samples)
         near_points.add(LayerSupportPoint{
@@ -337,7 +338,7 @@ Slic3r::Points sample(Points::const_iterator b, Points::const_iterator e, double
         while (p_dist2 > dist2) { // line segment goes out of radius
             if (prev_pt == nullptr)
                 prev_pt = &(*it);
-            r.push_back(intersection(*prev_pt, pt, r.back(), dist2));
+            r.push_back(intersection_line_circle(*prev_pt, pt, r.back(), dist2));
             p_dist2 = (r.back() - pt).cast<double>().squaredNorm();
             prev_pt = &r.back();
         }

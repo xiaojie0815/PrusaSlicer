@@ -10,7 +10,7 @@
 #include <libslic3r/SLA/SupportIslands/SampleConfigFactory.hpp>
 #include <libslic3r/SLA/SupportIslands/SampleConfig.hpp>
 #include <libslic3r/SLA/SupportIslands/VoronoiGraphUtils.hpp>
-#include <libslic3r/SLA/SupportIslands/SampleIslandUtils.hpp>
+#include <libslic3r/SLA/SupportIslands/UniformSupportIsland.hpp>
 #include <libslic3r/SLA/SupportIslands/PolygonUtils.hpp>
 #include "nanosvg/nanosvg.h"    // load SVG file
 #include "sla_test_utils.hpp"
@@ -357,7 +357,10 @@ ExPolygons createTestIslands(double size)
     bool useFrogLeg = false;    
     // need post reorganization of longest path
     ExPolygons result = {
-        load_svg(dir + "lm_issue.svg"), // change from thick to thin and vice versa on circle
+
+        // debug
+        create_tiny_between_holes(3 * size, 2 / 3. * size),
+
         // one support point
         ExPolygon(PolygonUtils::create_equilateral_triangle(size)), 
         ExPolygon(PolygonUtils::create_square(size)),
@@ -389,6 +392,7 @@ ExPolygons createTestIslands(double size)
 
         ExPolygon(PolygonUtils::create_equilateral_triangle(scale_(18.6))),
         create_cylinder_bottom_slice(),
+        load_svg(dir + "lm_issue.svg"), // change from thick to thin and vice versa on circle
 
         // still problem
         // three support points
@@ -450,7 +454,7 @@ Points rasterize(const ExPolygon &island, double distance) {
 SupportIslandPoints test_island_sampling(const ExPolygon &   island,
                                         const SampleConfig &config)
 {
-    auto points = SampleIslandUtils::uniform_cover_island(island, config);
+    auto points = uniform_support_island(island, config);
 
     Points chck_points = rasterize(island, config.head_radius); // TODO: Use resolution of printer
     bool is_ok = true;
@@ -508,12 +512,9 @@ SampleConfig create_sample_config(double size) {
 
     SampleConfig cfg;
     cfg.max_distance = 3 * size + 0.1;
-    cfg.half_distance = cfg.max_distance/2;
     cfg.head_radius = size / 4;
     cfg.minimal_distance_from_outline = cfg.head_radius;
     cfg.maximal_distance_from_outline = cfg.max_distance/4;
-    cfg.min_side_branch_length = 2 * cfg.minimal_distance_from_outline;
-    cfg.minimal_support_distance = cfg.minimal_distance_from_outline + cfg.half_distance;
     cfg.max_length_for_one_support_point = 2*size;
     cfg.max_length_for_two_support_points = 4*size;
     cfg.max_width_for_center_support_line = size;
@@ -524,7 +525,7 @@ SampleConfig create_sample_config(double size) {
     cfg.count_iteration = 100; 
     cfg.max_align_distance = 0;
     return cfg;
-}
+} 
 
 #ifdef STORE_SAMPLE_INTO_SVG_FILES
 namespace {
@@ -590,6 +591,6 @@ TEST_CASE("Disable visualization", "[hide]")
 #ifdef STORE_SAMPLE_INTO_SVG_FILES
     CHECK(false);
 #endif // STORE_SAMPLE_INTO_SVG_FILES
-    CHECK(SampleIslandUtils::is_visualization_disabled());
+    CHECK(is_uniform_support_island_visualization_disabled());
 }
 

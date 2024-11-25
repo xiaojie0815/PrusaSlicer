@@ -16,25 +16,15 @@ class SupportIslandPoint
 {
 public:
     enum class Type: unsigned char {
-        one_center_point,
-        two_points,
-        center_line,
-        center_line1, // sample line in center
-        center_line2, // rest of neighbor edge before position of Field start
-        center_line3, // end of loop, next neighbors are already sampled
-        center_line_end,  // end of branch
-        center_line_end2, // start of main path(only one per VD)
-        center_line_end3, // end in continous sampling
-        center_line_start, // first sample
-        center_circle,
-        center_circle_end, // circle finish by one point (one end per circle -
-                           // need allign)
-        center_circle_end2, // circle finish by multi points (one end per
-                            // circle - need allign)
-        outline, // keep position align with island outline 
-        inner, // point inside wide part, without restriction on move
-
-        one_bb_center_point, // for island smaller than head radius
+        one_bb_center_point,  // for island smaller than head radius
+        one_center_point,     // small enough to support only by one support point
+        two_points,           // island stretched between two points
+        two_points_backup,    // same as before but forced after divide to thin&thick with small amoutn of points
+        thin_part,            // point on thin part of island lay on VD
+        thin_part_change,     // on the first edge -> together with change to thick part of island
+        thin_part_loop,       // on the last edge -> loop into itself part of island
+        thick_part_outline,   // keep position align with island outline 
+        thick_part_inner,     // point inside wide part, without restriction on move
         undefined
     };
 
@@ -128,7 +118,7 @@ public:
 public:
     SupportCenterIslandPoint(VoronoiGraph::Position position,
                              const SampleConfig *configuration,
-                             Type                   type = Type::center_line);
+                             Type                   type = Type::thin_part);
     
     bool can_move() const override{ return true; }
     coord_t move(const Point &destination) override;
@@ -166,7 +156,7 @@ public:
 public:
     SupportOutlineIslandPoint(Position                     position,
                               std::shared_ptr<Restriction> restriction,
-                              Type type = Type::outline);
+                              Type type = Type::thick_part_outline);
     // return true
     bool can_move() const override;
 
@@ -217,7 +207,7 @@ public:
         {
             assert(lines.size() == lengths.size());
         }
-
+        virtual ~Restriction() = default;
         virtual std::optional<size_t> next_index(size_t index) const = 0;
         virtual std::optional<size_t> prev_index(size_t index) const = 0;
     };
@@ -299,7 +289,7 @@ class SupportIslandInnerPoint: public SupportIslandPoint
 public:
     SupportIslandInnerPoint(Point     point,
                             std::shared_ptr<ExPolygon> inner,
-                            Type      type = Type::inner);
+                            Type      type = Type::thick_part_inner);
     
     bool can_move() const override { return true; };
 

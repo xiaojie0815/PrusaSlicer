@@ -838,11 +838,9 @@ void GLGizmoSlaSupports::draw_island_config() {
     if (float max_distance = unscale<float>(sample_config.max_distance); // [in mm]
         ImGui::InputFloat("Max dist", &max_distance, .1f, 1.f, "%.2f mm")) {
         sample_config.max_distance = scale_(max_distance);
-        sample_config.half_distance = sample_config.max_distance / 2;
         exist_change = true;
     } else if (ImGui::IsItemHovered())
         ImGui::SetTooltip("Every support point on island has at least one support point in maximum distance\nMUST be bigger than zero");
-    ImGui::SameLine(); ImGui::Text("half is %.2f", unscale<float>(sample_config.half_distance));
     if (float minimal_distance_from_outline = unscale<float>(sample_config.minimal_distance_from_outline); // [in mm]
         ImGui::InputFloat("from outline", &minimal_distance_from_outline, .1f, 1.f, "%.2f mm")) {
         sample_config.minimal_distance_from_outline = scale_(minimal_distance_from_outline);
@@ -856,20 +854,6 @@ void GLGizmoSlaSupports::draw_island_config() {
         exist_change = true;
     } else if (ImGui::IsItemHovered())
         ImGui::SetTooltip("Measured as sum of VD edge length from outline\nUsed only when there is no space for outline offset on first/last point\nMust be bigger than minimal_distance_from_outline");
-    ImGui::Text("max_interesting_angle is %.0f", float(sample_config.max_interesting_angle*180/M_PI));
-    if (ImGui::IsItemHovered()) ImGui::SetTooltip(" When angle on outline is smaller than max_interesting_angle\nthan create unmovable support point.\nShould be in range from 90 to 180");
-    if (float minimal_support_distance = unscale<float>(sample_config.minimal_support_distance); // [in mm]
-        ImGui::InputFloat("Thin dist", &minimal_support_distance, .1f, 1.f, "%.2f mm")) {
-        sample_config.minimal_support_distance = scale_(minimal_support_distance);
-        exist_change = true;
-    } else if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("Distinguish when to add support point on Voronoi Diagram\nMUST be bigger than minimal_distance_from_outline\nSmaller -> more supports AND Larger -> less amount");
-    if (float min_side_branch_length = unscale<float>(sample_config.min_side_branch_length); // [in mm]
-        ImGui::InputFloat("min_side_branch_length", &min_side_branch_length, .1f, 1.f, "%.2f mm")) {
-        sample_config.min_side_branch_length = scale_(min_side_branch_length);
-        exist_change = true;
-    } else if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("minimal length of side branch to be sampled\nit is used for sampling in center only");
     if (float max_for_one = unscale<float>(sample_config.max_length_for_one_support_point); // [in mm]
         ImGui::InputFloat("Max len for one", &max_for_one, .1f, 1.f, "%.2f mm")) {
         sample_config.max_length_for_one_support_point = scale_(max_for_one);
