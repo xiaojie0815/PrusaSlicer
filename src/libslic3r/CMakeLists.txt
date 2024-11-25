@@ -475,10 +475,10 @@ set(SLIC3R_SOURCES
     SLA/SupportIslands/SampleConfig.hpp
     SLA/SupportIslands/SampleConfigFactory.cpp
     SLA/SupportIslands/SampleConfigFactory.hpp
-    SLA/SupportIslands/SampleIslandUtils.cpp
-    SLA/SupportIslands/SampleIslandUtils.hpp
     SLA/SupportIslands/SupportIslandPoint.cpp
     SLA/SupportIslands/SupportIslandPoint.hpp
+    SLA/SupportIslands/UniformSupportIsland.cpp
+    SLA/SupportIslands/UniformSupportIsland.hpp
     SLA/SupportIslands/VectorUtils.hpp
     SLA/SupportIslands/VoronoiGraph.hpp
     SLA/SupportIslands/VoronoiGraphUtils.cpp
