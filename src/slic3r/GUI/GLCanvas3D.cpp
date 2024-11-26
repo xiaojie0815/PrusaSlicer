@@ -1351,10 +1351,8 @@ bool GLCanvas3D::is_arrange_alignment_enabled() const
     if (!is_XL_printer(*m_config)) {
         return false;
     }
-    for (const WipeTowerInfo &wti : this->get_wipe_tower_infos()) {
-        if (bool{wti}) {
-            return false;
-        }
+    if (this->m_wipe_tower_bounding_boxes[s_multiple_beds.get_active_bed()]) {
+        return false;
     }
     return true;
 }
@@ -2553,6 +2551,8 @@ void GLCanvas3D::reload_scene(bool refresh_immediately, bool force_full_scene_re
                     } else {
                         delete volume;
                     }
+                } else {
+                    m_wipe_tower_bounding_boxes[bed_idx] = std::nullopt;
                 }
             }
             s_multiple_beds.ensure_wipe_towers_on_beds(wxGetApp().plater()->model(), wxGetApp().plater()->get_fff_prints());
