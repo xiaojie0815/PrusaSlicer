@@ -2844,12 +2844,13 @@ void GCodeProcessor::process_G1(const std::array<std::optional<double>, 4>& axes
             && m_extrusion_role != GCodeExtrusionRole::OverhangPerimeter
         )
     )) {
-        const Vec3f curr_pos(m_end_position[X], m_end_position[Y], m_end_position[Z]);
+        const AxisCoords curr_pos = m_end_position;
         const Vec3f new_pos = m_result.moves.back().position - m_extruder_offsets[m_extruder_id];
-
-        m_end_position = create_axis_coords(new_pos + m_z_offset * Vec3f::UnitZ());
+        for (unsigned char a = X; a < E; ++a) {
+            m_end_position[a] = double(new_pos[a]);
+        }
         store_move_vertex(EMoveType::Seam);
-        m_end_position = create_axis_coords(curr_pos);
+        m_end_position = curr_pos;
 
         m_seams_detector.activate(false);
     } else if (type == EMoveType::Extrude && m_extrusion_role == GCodeExtrusionRole::ExternalPerimeter) {
