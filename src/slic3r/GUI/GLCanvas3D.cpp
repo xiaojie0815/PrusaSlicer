@@ -7053,10 +7053,13 @@ Vec3d GLCanvas3D::_mouse_to_3d(const Point& mouse_pos, const float* z)
         return hit.is_valid() ? hit.position.cast<double>() : _mouse_to_bed_3d(mouse_pos);
     }
     else {
-        const Camera& camera = wxGetApp().plater()->get_camera();
+        Camera& camera = wxGetApp().plater()->get_camera();
+        const Camera::EType type = camera.get_type();
+        camera.set_type(Camera::EType::Ortho);
         const Vec4i viewport(camera.get_viewport().data());
         Vec3d out;
         igl::unproject(Vec3d(mouse_pos.x(), viewport[3] - mouse_pos.y(), *z), camera.get_view_matrix().matrix(), camera.get_projection_matrix().matrix(), viewport, out);
+        camera.set_type(type);
         return out;
     }
 }
