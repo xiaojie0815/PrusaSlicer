@@ -5532,6 +5532,22 @@ void Plater::toggle_layers_editing(bool enable)
 
 void Plater::apply_cut_object_to_model(size_t obj_idx, const ModelObjectPtrs& new_objects)
 {
+    const int active_bed{s_multiple_beds.get_active_bed()};
+
+    const ModelInstancePtrs &instances{model().objects[obj_idx]->instances};
+    const ObjectID first_instance_id{instances.front()->id()};
+    const std::optional<int> first_instance_bed_index{
+        s_multiple_beds.get_inst_map().count(first_instance_id) > 0 ?
+        std::optional{s_multiple_beds.get_inst_map().at(first_instance_id)} :
+        std::nullopt
+    };
+
+    const auto bed_index{
+        instances.size() == 1 && first_instance_bed_index ?
+        *first_instance_bed_index :
+        active_bed
+    };
+
     model().delete_object(obj_idx);
     sidebar().obj_list()->delete_object_from_list(obj_idx);
 
@@ -5540,6 +5556,7 @@ void Plater::apply_cut_object_to_model(size_t obj_idx, const ModelObjectPtrs& ne
 
     // now process all updates of the 3d scene
     update();
+
     // Update InfoItems in ObjectList after update() to use of a correct value of the GLCanvas3D::is_sinking(),
     // which is updated after a view3D->reload_scene(false, flags & (unsigned int)UpdateParams::FORCE_FULL_SCREEN_REFRESH) call
     for (size_t idx = 0; idx < p->model.objects.size(); idx++)
@@ -5551,12 +5568,16 @@ void Plater::apply_cut_object_to_model(size_t obj_idx, const ModelObjectPtrs& ne
         selection.add_object((unsigned int)(last_id - i), i == 0);
         const ModelInstance* mi = p->model.objects[last_id - i]->instances.front();
         const ObjectID instance_id{mi->id().id};
-        s_multiple_beds.set_instance_bed(instance_id, mi->printable, s_multiple_beds.get_active_bed());
+        s_multiple_beds.set_instance_bed(instance_id, mi->printable, bed_index);
     }
+
+    s_multiple_beds.inst_map_updated();
+    s_multiple_beds.set_active_bed(bed_index);
 
     UIThreadWorker w;
     arrange(w, ArrangeSelectionMode::CurrentBedSelectionOnly);
     w.wait_for_idle();
+    s_multiple_beds.set_active_bed(active_bed);
 }
 
 
