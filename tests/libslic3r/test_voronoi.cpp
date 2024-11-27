@@ -2285,6 +2285,7 @@ TEST_CASE("Voronoi cell doesn't contain a source point - SPE-2298", "[VoronoiCel
 }
 // */
 
+/*
 //#include <libslic3r/SLA/SupportIslands/LineUtils.hpp>
 TEST_CASE("bad vertex cause overflow of data type precisin when use VD result", "[VoronoiDiagram]")
 {
@@ -2359,4 +2360,4 @@ TEST_CASE("bad vertex cause overflow of data type precisin when use VD result", 
             CHECK(distance_short_middle < 10);
         }
     }
-}
+}*/

@@ -309,9 +309,6 @@ bool liang_barsky_line_clipping(
 	return liang_barsky_line_clipping(x0clip, x1clip, bbox);
 }
 
-Polygon convex_hull(Points points);
-Polygon convex_hull(const Polygons &polygons);
-
 bool directions_parallel(double angle1, double angle2, double max_diff = 0);
 bool directions_perpendicular(double angle1, double angle2, double max_diff = 0);
 template<class T> bool contains(const std::vector<T> &vector, const Point &point);
