@@ -579,17 +579,19 @@ void create_supports_for_thin_part(
 
         // detect loop on island part
         const Neighbor *twin = VoronoiGraphUtils::get_twin(*curr.neighbor);
-        if (auto process_it = std::find_if(process.begin(), process.end(),
+        if (curr.neighbor != part.center.neighbor){ // not first neighbor
+            if (auto process_it = std::find_if(process.begin(), process.end(),
                 [twin](const SupportIn &p) { return p.neighbor == twin; });
-            process_it != process.end()) { // self loop detected
-            if (curr.support_in < half_support_distance) {
-                Position position{curr.neighbor, 1.}; // fine tune position by alignment
-                results.push_back(std::make_unique<SupportCenterIslandPoint>(
-                    position, &config, SupportIslandPoint::Type::thin_part_loop));
+                process_it != process.end()) { // self loop detected
+                if (curr.support_in < half_support_distance) {
+                    Position position{curr.neighbor, 1.}; // fine tune position by alignment
+                    results.push_back(std::make_unique<SupportCenterIslandPoint>(
+                        position, &config, SupportIslandPoint::Type::thin_part_loop));
+                }
+                process.erase(process_it);
+                curr.neighbor = nullptr;
+                continue;
             }
-            process.erase(process_it);
-            curr.neighbor = nullptr;
-            continue;
         }
 
         // next neighbor is short cut to not push back and pop new_starts
