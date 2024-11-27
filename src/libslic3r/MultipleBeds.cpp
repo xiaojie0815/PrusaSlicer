@@ -133,7 +133,7 @@ void MultipleBeds::inst_map_updated()
     for (const auto& [obj_id, bed_idx] : m_inst_to_bed)
         max_bed_idx = std::max(max_bed_idx, bed_idx);
 
-    if (max_bed_idx < m_number_of_beds) {
+    if (m_number_of_beds != max_bed_idx + 1) {
         m_number_of_beds = max_bed_idx + 1;
         m_active_bed = m_number_of_beds - 1;
         request_next_bed(false);
