@@ -357,9 +357,7 @@ ExPolygons createTestIslands(double size)
     bool useFrogLeg = false;    
     // need post reorganization of longest path
     ExPolygons result = {
-
         // debug
-        create_tiny_between_holes(3 * size, 2 / 3. * size),
 
         // one support point
         ExPolygon(PolygonUtils::create_equilateral_triangle(size)), 

@@ -309,17 +309,57 @@ bool is_points_in_distance(const Point & p,
 }
 #endif // NDEBUG
 
+void move_duplicit_positions(SupportIslandPoints &supports, const Points &prev_position) {
+    // remove duplicit points when exist
+    Points aligned = to_points(supports);
+    std::vector<size_t> sorted(aligned.size());
+    std::iota(sorted.begin(), sorted.end(), 0);
+    auto cmp_index = [&aligned](size_t a_index, size_t b_index) {
+        // sort by x and than by y
+        const Point &a = aligned[a_index];
+        const Point &b = aligned[b_index];
+        return a.x() < b.x() || (a.x() == b.x() && a.y() < b.y());
+    };
+    std::sort(sorted.begin(), sorted.end(), cmp_index);
+
+    auto get_duplicit_index = [](const std::vector<size_t> &sorted, const Points& aligned) {
+        const Point *prev_p = &aligned[sorted.front()];
+        for (size_t i = 1; i < sorted.size(); ++i){
+            if (const Point &p = aligned[sorted[i]]; *prev_p == p) {
+                return sorted[i];
+            } else {
+                prev_p = &p;
+            }
+        }
+        return sorted.size();
+    };
+
+    do {
+        size_t duplicit_index = get_duplicit_index(sorted, aligned);
+        if (duplicit_index >= sorted.size())
+            return; // without duplicit points
+
+        // divide last move to half
+        Point new_pos = prev_position[duplicit_index] / 2 + aligned[duplicit_index] / 2;
+        coord_t move_distance = supports[duplicit_index]->move(new_pos);
+        assert(move_distance > 0); // It must move
+        aligned[duplicit_index] = supports[duplicit_index]->point; // update aligned position
+        // IMPROVE: Resort duplicit index use std::rotate 
+        std::sort(sorted.begin(), sorted.end(), cmp_index);
+    } while (true); // end when no duplicit index 
+}
+
 /// <summary>
 /// once align
 /// </summary>
-/// <param name="samples">In/Out support points to be alligned(min 3 points)</param>
+/// <param name="supports">In/Out support points to be alligned(min 3 points)</param>
 /// <param name="island">Area for sampling, border for position of samples</param>
 /// <param name="config"> Sampling configuration
 /// Maximal distance between neighbor points +
 /// Term criteria for align: Minimal sample move and Maximal count of iteration</param>
 /// <returns>Maximal distance of move during aligning.</returns>
 coord_t align_once(
-    SupportIslandPoints &samples, 
+    SupportIslandPoints &supports, 
     const ExPolygon &island, 
     const SampleConfig &config) 
 {  
@@ -327,8 +367,7 @@ coord_t align_once(
     // https://stackoverflow.com/questions/23823345/how-to-construct-a-voronoi-diagram-inside-a-polygon 
     // IMPROVE1: add accessor to point coordinate do not copy points
     // IMPROVE2: add filter for create cell polygon only for moveable samples
-    Points points = to_points(samples);
-    assert(!has_duplicate_points(points));
+    Points points = to_points(supports);
     Polygons cell_polygons = create_voronoi_cells_cgal(points, config.max_distance);
     
 #ifdef SLA_SAMPLE_ISLAND_UTILS_STORE_ALIGN_ONCE_TO_SVG_PATH
@@ -348,9 +387,9 @@ coord_t align_once(
 
     // Maximal move during align each loop of align it should decrease
     coord_t max_move = 0;
-    for (size_t i = 0; i < samples.size(); i++) {
+    for (size_t i = 0; i < supports.size(); i++) {
         const Polygon &cell_polygon = cell_polygons[i];
-        SupportIslandPointPtr &sample = samples[i];
+        SupportIslandPointPtr &support = supports[i];
 
 #ifdef SLA_SAMPLE_ISLAND_UTILS_STORE_ALIGN_ONCE_TO_SVG_PATH
         if (!sample->can_move()) { // draww freezed support points
@@ -359,7 +398,7 @@ coord_t align_once(
                 SupportIslandPoint::to_string(sample->type).c_str(), color_static_point.c_str());
         }
 #endif // SLA_SAMPLE_ISLAND_UTILS_STORE_ALIGN_ONCE_TO_SVG_PATH
-        if (!sample->can_move())
+        if (!support->can_move())
             continue;
         
         // polygon must be at least triangle
@@ -375,10 +414,10 @@ coord_t align_once(
             // intersection island and cell made by suppot point
             // must generate polygon containing initial source for voronoi cell
             // otherwise it is invalid voronoi diagram
-            assert(island_cell->contains(sample->point));
+            assert(island_cell->contains(support->point));
         } else {
             for (const Polygon &intersection : intersections) {
-                if (intersection.contains(sample->point)) {
+                if (intersection.contains(support->point)) {
                     island_cell = &intersection;
                     break;
                 }
@@ -415,7 +454,7 @@ coord_t align_once(
 #endif // SLA_SAMPLE_ISLAND_UTILS_STORE_ALIGN_ONCE_TO_SVG_PATH
 
         // say samples to use its restriction to change posion close to center
-        coord_t act_move = sample->move(island_cell_center);
+        coord_t act_move = support->move(island_cell_center);
         if (max_move < act_move)
             max_move = act_move;  
 
@@ -425,6 +464,8 @@ coord_t align_once(
             SupportIslandPoint::to_string(sample->type).c_str(), color_new_point.c_str());
 #endif // SLA_SAMPLE_ISLAND_UTILS_STORE_ALIGN_ONCE_TO_SVG_PATH
     }
+
+    move_duplicit_positions(supports, points);
     return max_move;
 }
 
@@ -432,6 +473,10 @@ void align_samples(SupportIslandPoints &samples, const ExPolygon &island, const 
 {
     if (samples.size() == 1)
         return; // Do not align one support
+
+    // Can't create voronoi for duplicit points
+    // Fix previous algo to not produce duplicit points
+    assert(!has_duplicate_points(to_points(samples)));
 
     bool exist_moveable = false;
     for (const auto &sample : samples) {
@@ -536,6 +581,7 @@ void create_supports_for_thin_part(
     // Process queue
     SupportIns process;
     process.push_back(SupportIn{twin_support_in, twin_start});
+    bool is_first_neighbor = true; // help to skip checking first neighbor exist in process
 
     // Loop over thin part of island to create support points on the voronoi skeleton.
     while (curr.neighbor != nullptr || !process.empty()) {
@@ -579,7 +625,7 @@ void create_supports_for_thin_part(
 
         // detect loop on island part
         const Neighbor *twin = VoronoiGraphUtils::get_twin(*curr.neighbor);
-        if (curr.neighbor != part.center.neighbor){ // not first neighbor
+        if (!is_first_neighbor) { // not first neighbor
             if (auto process_it = std::find_if(process.begin(), process.end(),
                 [twin](const SupportIn &p) { return p.neighbor == twin; });
                 process_it != process.end()) { // self loop detected
@@ -592,6 +638,8 @@ void create_supports_for_thin_part(
                 curr.neighbor = nullptr;
                 continue;
             }
+        } else {
+            is_first_neighbor = false;
         }
 
         // next neighbor is short cut to not push back and pop new_starts
