@@ -55,9 +55,10 @@ namespace Sequential
 
 #define SEQ_Z3_SOLVER_TIMEOUT              "8000"
 
-const coord_t SEQ_SVG_SCALE_FACTOR    = 50000;  
-const int SEQ_GROUND_PRESENCE_TIME    = 32;
-const int SEQ_PROGRESS_RANGE          = 100;
+const coord_t SEQ_SVG_SCALE_FACTOR       = 50000;  
+const int SEQ_GROUND_PRESENCE_TIME       = 32;
+const int SEQ_PROGRESS_RANGE             = 100;
+const int SEQ_PROGRESS_PHASES_PER_OBJECT = 2;
     
 const int64_t SEQ_RATIONAL_PRECISION  = 1000000;
 const double SEQ_DECIMATION_TOLERANCE = 400000.0;
@@ -1598,8 +1599,8 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 									const std::vector<int>                           &undecided_polygons,
 									std::vector<int>                                 &decided_polygons,
 									std::vector<int>                                 &remaining_polygons,
-									int                                               progress_objects_done,
-									int                                               progress_total_objects,
+									int                                              &progress_object_phases_done,
+									int                                               progress_total_object_phases,
 									std::function<void(int)>                          progress_callback = [](int progress){});
 
 bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const SolverConfiguration                        &solver_configuration,
@@ -1609,8 +1610,8 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 									const std::vector<SolvableObject>                &solvable_objects,
 									std::vector<int>                                 &decided_polygons,
 									std::vector<int>                                 &remaining_polygons,
-									int                                               progress_objects_done,
-									int                                               progress_total_objects,
+									int                                              &progress_object_phases_done,
+									int                                               progress_total_object_phases,
 									std::function<void(int)>                          progress_callback = [](int progress){});    
 
 /*----------------------------------------------------------------*/

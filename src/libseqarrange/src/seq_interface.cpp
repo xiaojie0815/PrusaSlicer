@@ -380,7 +380,8 @@ void schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver
     #endif
 
     int progress_objects_done = 0;
-    int progress_objects_total = objects_to_print.size();
+    int progress_object_phases_done = 0;
+    int progress_object_phases_total = objects_to_print.size() * SEQ_PROGRESS_PHASES_PER_OBJECT;
 
     do
     {
@@ -396,7 +397,8 @@ void schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver
 	#endif
 	
 	bool optimized;
-	
+
+	printf("Object phases A1: %d, %d\n", progress_object_phases_done, solvable_objects.size());	
 	optimized = optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(solver_configuration,
 										       poly_positions_X,
 										       poly_positions_Y,
@@ -404,9 +406,10 @@ void schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver
 										       solvable_objects,
 										       decided_polygons,
 										       remaining_polygons,
-										       progress_objects_done,
-										       progress_objects_total,
+										       progress_object_phases_done,
+										       progress_object_phases_total,
 										       progress_callback);
+	printf("Object phases A2: %d,%d,%d\n", progress_object_phases_done, decided_polygons.size(), remaining_polygons.size());		
 	
 	#ifdef DEBUG
 	{
@@ -454,7 +457,16 @@ void schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver
 
 		scheduled_plate.scheduled_objects.push_back(ScheduledObject(original_index->second, X, Y));
 	    }
-	    progress_objects_done += decided_polygons.size();
+	    printf("Object phases B: %d\n", progress_object_phases_done);
+	    /*
+	    if (!decided_polygons.empty())
+	    {
+		progress_objects_done += decided_polygons.size();		
+		progress_object_phases_done =   (progress_object_phases_done % SEQ_PROGRESS_PHASES_PER_OBJECT)
+		                              + progress_objects_done * SEQ_PROGRESS_PHASES_PER_OBJECT;
+	    }
+	    printf("Object phases B1: %d\n", progress_object_phases_done);
+	    */
 	}
 	else
 	{
@@ -771,7 +783,8 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver_
     #endif
 
     int progress_objects_done = 0;
-    int progress_objects_total = objects_to_print.size();    
+    int progress_object_phases_done = 0;
+    int progress_object_phases_total = objects_to_print.size() * SEQ_PROGRESS_PHASES_PER_OBJECT;
 
     do
     {
@@ -795,8 +808,8 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver_
 										       solvable_objects,
 										       decided_polygons,
 										       remaining_polygons,
-										       progress_objects_done,
-										       progress_objects_total,
+										       progress_object_phases_done,
+										       progress_object_phases_total,
 										       progress_callback);	
 	
 	#ifdef DEBUG
@@ -845,7 +858,11 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver_
 
 		scheduled_plate.scheduled_objects.push_back(ScheduledObject(original_index->second, X, Y));
 	    }
-	    progress_objects_done += decided_polygons.size();	    
+	    if (!decided_polygons.empty())
+	    {
+		progress_objects_done += decided_polygons.size();
+		progress_object_phases_done = progress_objects_done * SEQ_PROGRESS_PHASES_PER_OBJECT;
+	    }
 	}
 	else
 	{
