@@ -47,6 +47,12 @@ public:
     explicit NearPoints(LayerSupportPoints* supports_ptr)
         : m_points(supports_ptr), m_tree(m_points) {}
 
+    NearPoints get_copy(){ 
+        NearPoints copy(m_points.m_supports_ptr);
+        copy.m_tree = m_tree.get_copy(); // copy tree
+        return copy;
+    }
+
     /// <summary>
     /// Remove support points from KD-Tree which lay out of expolygons
     /// </summary>
@@ -199,7 +205,7 @@ NearPoints create_near_points(
     NearPoints near_points = (prev_part_it->next_parts.size() == 1)?
         std::move(prev_grids[index_of_prev_part]) :
         // Need a copy there are multiple parts above previus one
-        prev_grids[index_of_prev_part]; // copy    
+        prev_grids[index_of_prev_part].get_copy(); // copy    
 
     // merge other grid in case of multiple previous parts
     for (size_t i = 1; i < part.prev_parts.size(); ++i) {
@@ -208,7 +214,7 @@ NearPoints create_near_points(
         if (prev_part_it->next_parts.size() == 1) {
             near_points.merge(std::move(prev_grids[index_of_prev_part]));
         } else { // Need a copy there are multiple parts above previus one
-            NearPoints grid_ = prev_grids[index_of_prev_part]; // copy
+            NearPoints grid_ = prev_grids[index_of_prev_part].get_copy(); // copy
             near_points.merge(std::move(grid_));
         }
     }
