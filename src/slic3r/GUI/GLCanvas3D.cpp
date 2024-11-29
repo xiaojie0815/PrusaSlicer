@@ -13,6 +13,7 @@
 
 #include <igl/unproject.h> // IWYU pragma: keep
 #include <LocalesUtils.hpp>
+#include <nanosvgrast.h>
 
 #include "libslic3r/BuildVolume.hpp"
 #include "libslic3r/ClipperUtils.hpp"
@@ -44,6 +45,7 @@
 #include "NotificationManager.hpp"
 #include "format.hpp"
 
+#include "slic3r/GUI/BitmapCache.hpp"
 #include "slic3r/GUI/Gizmos/GLGizmoPainterBase.hpp"
 #include "slic3r/Utils/UndoRedo.hpp"
 
@@ -73,6 +75,7 @@
 
 #include <boost/log/trivial.hpp>
 #include <boost/algorithm/string/predicate.hpp>
+#include <boost/crc.hpp>
 
 #include <iostream>
 #include <float.h>
@@ -1823,6 +1826,242 @@ void GLCanvas3D::update_volumes_colors_by_extruder()
         m_volumes.update_colors_by_extruder(m_config);
 }
 
+using PerBedStatistics = std::vector<std::pair<
+    std::size_t,
+    std::reference_wrapper<const PrintStatistics>
+>>;
+
+PerBedStatistics get_statistics(){
+    PerBedStatistics result;
+    for (int bed_index=0; bed_index<s_multiple_beds.get_number_of_beds(); ++bed_index) {
+        const Print* print = wxGetApp().plater()->get_fff_prints()[bed_index].get();
+        if (print->empty() || !print->finished()) {
+            continue;
+        }
+        result.emplace_back(bed_index, std::ref(print->print_statistics()));
+    }
+    return result;
+}
+
+struct StatisticsSum {
+    float cost{};
+    float filement_weight{};
+    float filament_length{};
+    float normal_print_time{};
+    float silent_print_time{};
+};
+
+StatisticsSum get_statistics_sum() {
+    StatisticsSum result;
+    for (const auto &[_, statistics] : get_statistics()) {
+        result.cost += statistics.get().total_cost;
+        result.filement_weight += statistics.get().total_weight;
+        result.filament_length += statistics.get().total_used_filament;
+        result.normal_print_time += statistics.get().normal_print_time_seconds;
+        result.silent_print_time += statistics.get().silent_print_time_seconds;
+    }
+
+    return result;
+}
+
+void project_overview_table() {
+    ImGui::Text("%s", _u8L("Project overview").c_str());
+    if (ImGui::BeginTable("table1", 6)) {
+        ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, 100.0);
+        ImGui::TableSetupColumn(
+            _u8L("Cost").c_str(),
+            ImGuiTableColumnFlags_WidthFixed,
+            60.0f
+        );
+        ImGui::TableSetupColumn(
+            (_u8L("Filament") + " (g)").c_str(),
+            ImGuiTableColumnFlags_WidthFixed,
+            100.0f
+        );
+        ImGui::TableSetupColumn(
+            (_u8L("Filament") + " (m)").c_str(),
+            ImGuiTableColumnFlags_WidthFixed,
+            100.0f
+        );
+        ImGui::TableSetupColumn(
+            (_u8L("Estimate Time") + " (" + _u8L("Stealth mode") +")").c_str(),
+            ImGuiTableColumnFlags_WidthFixed,
+            200.0f
+        );
+        ImGui::TableSetupColumn(
+            (_u8L("Estimate Time") + " (" + _u8L("Normal mode") +")").c_str(),
+            ImGuiTableColumnFlags_WidthFixed,
+            200.0f
+        );
+        ImGui::TableHeadersRow();
+
+        for (const auto &[bed_index, statistics] : get_statistics()) {
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            ImGui::Text("%s", (_u8L("Plate") + wxString::Format(" %d", bed_index + 1)).ToStdString().c_str());
+            ImGui::TableNextColumn();
+            ImGui::Text("%s", wxString::Format("%.2f", statistics.get().total_cost).ToStdString().c_str());
+            ImGui::TableNextColumn();
+            ImGui::Text("%s", wxString::Format("%.2f", statistics.get().total_weight).ToStdString().c_str());
+            ImGui::TableNextColumn();
+            ImGui::Text("%s", wxString::Format("%.2f", statistics.get().total_used_filament / 1000).ToStdString().c_str());
+            ImGui::TableNextColumn();
+            ImGui::Text("%s", statistics.get().estimated_silent_print_time.c_str());
+            ImGui::TableNextColumn();
+            ImGui::Text("%s", statistics.get().estimated_normal_print_time.c_str());
+        }
+
+        const StatisticsSum statistics_sum{get_statistics_sum()};
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::Text("%s", _u8L("Total").c_str());
+        ImGui::TableNextColumn();
+        ImGui::Text("%s", wxString::Format("%.2f", statistics_sum.cost).ToStdString().c_str());
+        ImGui::TableNextColumn();
+        ImGui::Text("%s", wxString::Format("%.2f", statistics_sum.filement_weight).ToStdString().c_str());
+        ImGui::TableNextColumn();
+        ImGui::Text("%s", wxString::Format("%.2f", statistics_sum.filament_length / 1000).ToStdString().c_str());
+        ImGui::TableNextColumn();
+        ImGui::Text("%s", get_time_dhms(statistics_sum.silent_print_time).c_str());
+        ImGui::TableNextColumn();
+        ImGui::Text("%s", get_time_dhms(statistics_sum.normal_print_time).c_str());
+
+        ImGui::EndTable();
+    }
+}
+
+struct ExtruderStatistics {
+    float filament_weight{};
+    float filament_length{};
+};
+
+using PerExtruderStatistics = std::map<
+    std::size_t,
+    ExtruderStatistics
+>;
+
+PerExtruderStatistics get_extruder_statistics(){
+    PerExtruderStatistics result;
+    for (int bed_index=0; bed_index<s_multiple_beds.get_number_of_beds(); ++bed_index) {
+        const Print* print = wxGetApp().plater()->get_fff_prints()[bed_index].get();
+        if (print->empty() || !print->finished()) {
+            continue;
+        }
+        print->print_statistics();
+        const auto& extruders_filaments{wxGetApp().preset_bundle->extruders_filaments};
+        for (const auto &[filament_id, filament_volume] : print->print_statistics().filament_stats) {
+            const Preset* preset = extruders_filaments[filament_id].get_selected_preset();
+            if (preset == nullptr) {
+                continue;
+            }
+
+            const double filament_density = preset->config.opt_float("filament_density", 0);
+            const double diameter = preset->config.opt_float("filament_diameter", filament_id);
+            result[filament_id].filament_weight += filament_volume * filament_density / 1000.0f;
+            result[filament_id].filament_length += filament_volume / (M_PI * diameter * diameter / 4.0) / 1000.0;
+        }
+    }
+    return result;
+}
+
+ExtruderStatistics sum_extruder_statistics(
+    const PerExtruderStatistics &per_extruder_statistics
+) {
+    ExtruderStatistics result;
+    for (const auto &[_, statistics] : per_extruder_statistics) {
+        result.filament_weight += statistics.filament_weight;
+        result.filament_length += statistics.filament_length;
+    }
+
+    return result;
+}
+
+void extruder_usage_table(const PerExtruderStatistics &extruder_statistics) {
+    ImGui::Text("%s", _u8L("Extruder usage breakdown").c_str());
+    if (ImGui::BeginTable("table1", 3)) {
+        ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, 100.0f);
+        ImGui::TableSetupColumn(
+            (_u8L("Filament") + " (g)").c_str(),
+            ImGuiTableColumnFlags_WidthFixed,
+            100.0f
+        );
+        ImGui::TableSetupColumn(
+            (_u8L("Filament") + " (m)").c_str(),
+            ImGuiTableColumnFlags_WidthFixed,
+            100.0f
+        );
+        ImGui::TableHeadersRow();
+
+        for (const auto &[extruder_index, statistics] : extruder_statistics) {
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            ImGui::Text("%s", (_u8L("Extruder") + wxString::Format(" %d", extruder_index + 1)).ToStdString().c_str());
+            ImGui::TableNextColumn();
+            ImGui::Text("%s", wxString::Format("%.2f", statistics.filament_weight).ToStdString().c_str());
+            ImGui::TableNextColumn();
+            ImGui::Text("%s", wxString::Format("%.2f", statistics.filament_length).ToStdString().c_str());
+        }
+
+        const ExtruderStatistics extruder_statistics_sum{sum_extruder_statistics(extruder_statistics)};
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::Text("%s", _u8L("Total").c_str());
+        ImGui::TableNextColumn();
+        ImGui::Text("%s", wxString::Format("%.2f", extruder_statistics_sum.filament_weight).ToStdString().c_str());
+        ImGui::TableNextColumn();
+        ImGui::Text("%s", wxString::Format("%.2f", extruder_statistics_sum.filament_length).ToStdString().c_str());
+
+        ImGui::EndTable();
+    }
+}
+
+void begin_statistics(const char *window_name) {
+    ImGuiWindowFlags windows_flags =
+        ImGuiWindowFlags_NoCollapse
+        | ImGuiWindowFlags_NoMove
+        | ImGuiWindowFlags_AlwaysAutoResize
+        | ImGuiWindowFlags_NoScrollbar
+        | ImGuiWindowFlags_NoScrollWithMouse;
+
+    const ImVec2 center{ImGui::GetMainViewport()->GetCenter()};
+    const ImVec2 position{center + ImVec2{0, -150.0f}};
+    ImGui::SetNextWindowPos(position, ImGuiCond_Appearing, ImVec2{0.5f, 0.5f});
+
+    ImGui::Begin(window_name, nullptr, windows_flags);
+}
+
+void render_print_statistics() {
+    begin_statistics(_u8L("Statistics").c_str());
+    ImGui::Spacing();
+    project_overview_table();
+    ImGui::Separator();
+
+    const PerExtruderStatistics extruder_statistics{get_extruder_statistics()};
+    if (extruder_statistics.size() > 1) {
+        ImGui::NewLine();
+        extruder_usage_table(extruder_statistics);
+        ImGui::Separator();
+    }
+    ImGui::End();
+}
+
+void render_autoslicing_wait() {
+    const std::string text{_u8L("Statistics will be available once all beds are sliced")};
+    const float text_width = ImGui::CalcTextSize(text.c_str()).x;
+
+    ImGui::SetNextWindowSize(ImVec2(text_width + 50, 110.0));
+    begin_statistics(_u8L("Waiting for statistics").c_str());
+    ImGui::NewLine();
+    const float width{ImGui::GetContentRegionAvail().x};
+    float offset_x = (width - text_width) / 2.0f;
+    if (offset_x > 0.0f){
+        ImGui::SetCursorPosX(ImGui::GetCursorPosX() + offset_x);
+    }
+    ImGui::Text("%s", text.c_str());
+    ImGui::NewLine();
+    ImGui::End();
+}
+
 void GLCanvas3D::render()
 {
     if (m_in_render) {
@@ -1964,34 +2203,31 @@ void GLCanvas3D::render()
         if (m_picking_enabled && m_rectangle_selection.is_dragging())
             m_rectangle_selection.render(*this);
     } else {
-        // Autoslicing.        
-        // Render the combined statistics if all is ready.
-        bool valid = true;
-        double total_g = 0;
-        for (size_t i=0; i<s_multiple_beds.get_number_of_beds(); ++i) {
-            const Print* print = wxGetApp().plater()->get_fff_prints()[i].get();
-            if (!print->finished()) {
-            // TODO: Only active bed invalidation can be detected here.
-                valid = false;
-                break;
-            }
-            total_g += print->print_statistics().total_used_filament;
-        }
-        ImGui::Begin("Total stats");
-        if (valid)
-            ImGui::Text("%s", std::to_string(total_g).c_str());
-        else
-            ImGui::Text("Wait until all beds are sliced...");
-        ImGui::End();
+        const auto &prints{
+            tcb::span{wxGetApp().plater()->get_fff_prints()}
+            .subspan(0, s_multiple_beds.get_number_of_beds())
+        };
 
-        if (!valid) {
-            if (fff_print()->finished())
+        const bool all_finished{std::all_of(
+            prints.begin(),
+            prints.end(),
+            [](const std::unique_ptr<Print> &print){
+                return print->finished() || print->empty();
+            }
+        )};
+
+        if (!all_finished) {
+            render_autoslicing_wait();
+            if (fff_print()->finished() || fff_print()->empty()) {
                 s_multiple_beds.autoslice_next_bed();
-            else
+            } else {
                 wxGetApp().plater()->schedule_background_process();
+            }
+        } else {
+            render_print_statistics();
         }
     }
-    
+
     _render_overlays();
 
     _render_bed_selector();
@@ -2537,7 +2773,7 @@ void GLCanvas3D::reload_scene(bool refresh_immediately, bool force_full_scene_re
 #endif // SLIC3R_OPENGL_ES
                     const BoundingBoxf3& bb = volume->bounding_box();
                     m_wipe_tower_bounding_boxes[bed_idx] = BoundingBoxf{to_2d(bb.min), to_2d(bb.max)};
-                    if(bed_idx < s_multiple_beds.get_number_of_beds()) {
+                    if(static_cast<int>(bed_idx) < s_multiple_beds.get_number_of_beds()) {
                         m_volumes.volumes.emplace_back(volume);
                         const auto volume_idx_wipe_tower_new{static_cast<int>(m_volumes.volumes.size() - 1)};
                         auto it = volume_idxs_wipe_towers_old.find(m_volumes.volumes.back()->geometry_id.second);
@@ -6330,20 +6566,81 @@ void GLCanvas3D::_render_overlays()
 
 #define use_scrolling 1
 
+enum class PrintStatus {
+    idle,
+    running,
+    finished
+};
+
+std::string get_status_text(PrintStatus status) {
+    switch(status) {
+        case PrintStatus::idle: return "Idle";
+        case PrintStatus::running: return "Running";
+        case PrintStatus::finished: return "Finished";
+    }
+    return {};
+}
+
+wchar_t get_raw_status_icon(const PrintStatus status) {
+    switch(status) {
+        case PrintStatus::finished: return ImGui::PrintFinished;
+        case PrintStatus::running: return ImGui::PrintRunning;
+        case PrintStatus::idle: return ImGui::PrintIdle;
+    }
+    return ImGui::PrintIdle;
+}
+
+std::string get_status_icon(const PrintStatus status) {
+    return boost::nowide::narrow(std::wstring{get_raw_status_icon(status)});
+}
+
+bool bed_selector_thumbnail(
+    const ImVec2 size,
+    const ImVec2 padding,
+    const float side,
+    const float border,
+    const GLuint texture_id,
+    const PrintStatus status
+) {
+    ImGuiWindow* window = GImGui->CurrentWindow;
+    const ImVec2 current_position = GImGui->CurrentWindow->DC.CursorPos;
+    const ImVec2 state_pos = current_position + ImVec2(border, side - 20.f - border);
+
+    const bool clicked{ImGui::ImageButton(
+        (void*)(int64_t)texture_id,
+        size - padding,
+        ImVec2(0, 1),
+        ImVec2(1, 0),
+        border
+    )};
+
+    const std::string icon{get_status_icon(status)};
+
+    window->DrawList->AddText(
+        GImGui->Font,
+        GImGui->FontSize,
+        state_pos,
+        ImGui::GetColorU32(ImGuiCol_Text),
+        icon.c_str(),
+        icon.c_str() + icon.size()
+    );
+
+    return clicked;
+}
+
 void Slic3r::GUI::GLCanvas3D::_render_bed_selector()
 {
     static float btn_side = 80.f;
     static float btn_border = 2.f;
-    static bool hide_title = true;
 
     ImVec2 btn_size = ImVec2(btn_side, btn_side);
 
-    if (s_multiple_beds.get_number_of_beds() != 1 && wxGetApp().plater()->is_preview_shown()) {
-        auto render_bed_button = [btn_size, this](int i)
-        {
-            //ImGui::Text("%d", i);
-            //ImGui::SameLine();
+    bool extra_frame{ false };
 
+    static std::array<std::optional<PrintStatus>, MAX_NUMBER_OF_BEDS> previous_print_status;
+    if (s_multiple_beds.get_number_of_beds() != 1 && wxGetApp().plater()->is_preview_shown()) {
+        auto render_bed_button = [btn_size, this, &extra_frame](int i)
+        {
             bool empty = ! s_multiple_beds.is_bed_occupied(i);
             bool inactive = i != s_multiple_beds.get_active_bed() || s_multiple_beds.is_autoslicing();
 
@@ -6355,10 +6652,36 @@ void Slic3r::GUI::GLCanvas3D::_render_bed_selector()
 
             bool clicked = false;
             ImVec2 btn_padding = ImVec2(btn_border, btn_border);
-            if (i >= int(s_th_tex_id.size()) || empty)
+
+            PrintStatus print_status{PrintStatus::idle};
+            if (wxGetApp().plater()->get_fff_prints()[i]->finished()) {
+                print_status = PrintStatus::finished;
+            } else if (m_process->fff_print() == wxGetApp().plater()->get_fff_prints()[i].get() && m_process->running()) {
+                print_status = PrintStatus::running;
+            }
+
+            if (!previous_print_status[i] || print_status != previous_print_status[i]) {
+                extra_frame = true;
+            }
+            previous_print_status[i] = print_status;
+
+            if (s_bed_selector_thumbnail_changed[i]) {
+                extra_frame = true;
+                s_bed_selector_thumbnail_changed[i] = false;
+            }
+
+            if (i >= int(s_bed_selector_thumbnail_texture_ids.size()) || empty) {
                 clicked = ImGui::Button(empty ? "empty" : std::to_string(i + 1).c_str(), btn_size + btn_padding);
-            else
-                clicked = ImGui::ImageButton((void*)(int64_t)s_th_tex_id[i], btn_size - btn_padding, ImVec2(0, 1), ImVec2(1, 0), btn_border);
+            } else {
+                clicked = bed_selector_thumbnail(
+                    btn_size,
+                    btn_padding,
+                    btn_side,
+                    btn_border,
+                    s_bed_selector_thumbnail_texture_ids[i],
+                    print_status
+                );
+            }
 
             if (clicked && ! empty)
                 select_bed(i, true);
@@ -6367,15 +6690,9 @@ void Slic3r::GUI::GLCanvas3D::_render_bed_selector()
             if (empty)
                 ImGui::PopItemFlag();
 
-            //std::string status_text;
-            //if (wxGetApp().plater()->get_fff_prints()[i]->finished())
-            //    status_text = "Finished";
-            //else if (m_process->fff_print() == wxGetApp().plater()->get_fff_prints()[i].get() && m_process->running())
-            //    status_text = "Running";
-            //else
-            //    status_text = "Idle";
-            //if (ImGui::IsItemHovered())
-            //    ImGui::SetTooltip(status_text.c_str());
+            const std::string status_text{get_status_text(print_status)};
+            if (ImGui::IsItemHovered())
+                ImGui::SetTooltip("%s", status_text.c_str());
         };
 
         ImGuiWrapper& imgui = *wxGetApp().imgui();
@@ -6398,11 +6715,11 @@ void Slic3r::GUI::GLCanvas3D::_render_bed_selector()
         ImGui::PushStyleVar(ImGuiStyleVar_ItemInnerSpacing, ImVec2());
         ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2());
 
-        // Disable for now.
-        //if (imgui.image_button(ImGui::SliceAllBtnIcon, "Slice All")) {
-        //    if (!s_multiple_beds.is_autoslicing())
-        //        s_multiple_beds.start_autoslice([this](int i, bool user) { this->select_bed(i, user); });
-        //}
+        if (imgui.image_button(ImGui::SliceAllBtnIcon, "Slice All")) {
+            if (!s_multiple_beds.is_autoslicing())
+                s_multiple_beds.start_autoslice([this](int i, bool user) { this->select_bed(i, user); });
+        }
+
         ImGui::SameLine();
 
         ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, btn_border);
@@ -6418,8 +6735,6 @@ void Slic3r::GUI::GLCanvas3D::_render_bed_selector()
         ImGui::PopStyleVar(3);
 
 #if use_scrolling
-        bool extra_frame{ false };
-
         ImVec2 win_size = ImGui::GetCurrentWindow()->ContentSizeIdeal + 
                           ImGui::GetCurrentWindow()->WindowPadding * 2.f + 
                           ImGui::GetCurrentWindow()->ScrollbarSizes + 

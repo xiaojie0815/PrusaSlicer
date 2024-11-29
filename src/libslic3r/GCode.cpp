@@ -466,9 +466,11 @@ namespace DoExport {
     static void update_print_estimated_stats(const GCodeProcessor& processor, const std::vector<Extruder>& extruders, PrintStatistics& print_statistics)
     {
         const GCodeProcessorResult& result = processor.get_result();
-        print_statistics.estimated_normal_print_time = get_time_dhms(result.print_statistics.modes[static_cast<size_t>(PrintEstimatedStatistics::ETimeMode::Normal)].time);
+        print_statistics.normal_print_time_seconds = result.print_statistics.modes[static_cast<size_t>(PrintEstimatedStatistics::ETimeMode::Normal)].time;
+        print_statistics.silent_print_time_seconds = result.print_statistics.modes[static_cast<size_t>(PrintEstimatedStatistics::ETimeMode::Stealth)].time;
+        print_statistics.estimated_normal_print_time = get_time_dhms(print_statistics.normal_print_time_seconds);
         print_statistics.estimated_silent_print_time = processor.is_stealth_time_estimator_enabled() ?
-            get_time_dhms(result.print_statistics.modes[static_cast<size_t>(PrintEstimatedStatistics::ETimeMode::Stealth)].time) : "N/A";
+            get_time_dhms(print_statistics.silent_print_time_seconds) : "N/A";
 
         // update filament statictics
         double total_extruded_volume = 0.0;
