@@ -8861,7 +8861,12 @@ bool optimize_ConsequentialWeakPolygonNonoverlappingBinaryCentered(z3::solver   
 								   std::function<void(int)>                          progress_callback)
 {
     z3::set_param("timeout", solver_configuration.optimization_timeout.c_str());
-    printf("Progress range: %d -- %d\n", progress_range.progress_min, progress_range.progress_max);
+    
+    #ifdef DEBUG
+    {    
+	printf("Progress range: %d -- %d\n", progress_range.progress_min, progress_range.progress_max);
+    }
+    #endif
     
     coord_t last_solvable_bounding_box_size = -1;
 
@@ -10220,8 +10225,8 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 									const std::vector<int>             &undecided_polygons,
 									std::vector<int>                   &decided_polygons,
 									std::vector<int>                   &remaining_polygons,
-									int                                 objects_done,
-									int                                 total_objects,
+									int                                 progress_object_phases_done,
+									int                                 progress_total_object_phases,
 									std::function<void(int)>            progress_callback)
 {
     std::vector<std::vector<Slic3r::Polygon> > _unreachable_polygons;
@@ -10242,8 +10247,8 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 									      undecided_polygons,
 									      decided_polygons,
 									      remaining_polygons,
-									      objects_done,
-									      total_objects,
+									      progress_object_phases_done,
+									      progress_total_object_phases,
 									      progress_callback);
 }
 
@@ -10420,7 +10425,7 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 	    }
 	    #endif
 
-	    progress_callback((SEQ_PROGRESS_RANGE * (decided_polygons.size() + progress_object_phases_done)) / progress_total_object_phases);
+	    progress_callback((SEQ_PROGRESS_RANGE * progress_object_phases_done) / progress_total_object_phases);
 	    
 	    optimized = optimize_ConsequentialWeakPolygonNonoverlappingBinaryCentered(z_solver,
 										      z_context,
@@ -10439,8 +10444,10 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 										      polygons,
 										      unreachable_polygons,
 										      presence_assumptions,
-										      ProgressRange((SEQ_PROGRESS_RANGE * (decided_polygons.size() * SEQ_PROGRESS_PHASES_PER_OBJECT + progress_object_phases_done)) / progress_total_object_phases,
-												    (SEQ_PROGRESS_RANGE * (decided_polygons.size() * SEQ_PROGRESS_PHASES_PER_OBJECT + (progress_object_phases_done + 1))) / progress_total_object_phases),
+										      (progress_object_phases_done < progress_total_object_phases ?
+										       ProgressRange((SEQ_PROGRESS_RANGE * progress_object_phases_done) / progress_total_object_phases,
+												     (SEQ_PROGRESS_RANGE * (progress_object_phases_done + 1)) / progress_total_object_phases) :
+										       ProgressRange(SEQ_PROGRESS_RANGE, SEQ_PROGRESS_RANGE)),
 										      progress_callback);
 	    
 	    if (optimized)
@@ -10459,6 +10466,12 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 		    dec_values_Y[undecided[i]] = local_values_Y[undecided[i]];		    
 		    dec_values_T[undecided[i]] = local_values_T[undecided[i]];		    
 		    decided_polygons.push_back(undecided[i]);
+
+		    if (progress_object_phases_done < progress_total_object_phases)
+		    {
+			int progress_phase_starter = progress_object_phases_done % SEQ_PROGRESS_PHASES_PER_OBJECT;
+			progress_object_phases_done += progress_phase_starter > 0 ? SEQ_PROGRESS_PHASES_PER_OBJECT - progress_phase_starter : SEQ_PROGRESS_PHASES_PER_OBJECT;
+		    }
 		}
 		augment_TemporalSpread(solver_configuration, dec_values_T, decided_polygons);
 
@@ -10468,10 +10481,10 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 		}
 		else
 		{
-		    progress_callback((SEQ_PROGRESS_RANGE * (decided_polygons.size() * SEQ_PROGRESS_PHASES_PER_OBJECT + progress_object_phases_done)) / progress_total_object_phases);
+		    progress_callback((SEQ_PROGRESS_RANGE * progress_object_phases_done) / progress_total_object_phases);
 		    return true;
 		}
-		progress_callback((SEQ_PROGRESS_RANGE * (decided_polygons.size() * SEQ_PROGRESS_PHASES_PER_OBJECT + progress_object_phases_done)) / progress_total_object_phases);
+		progress_callback((SEQ_PROGRESS_RANGE * progress_object_phases_done) / progress_total_object_phases);
 		break;
 	    }
 	    else
@@ -10481,14 +10494,17 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 		    printf("Remaining polygon: %d\n", curr_polygon + object_group_size - 1);
 		}
 		#endif
-		++progress_object_phases_done;
+		if (progress_object_phases_done < progress_total_object_phases)
+		{
+		    ++progress_object_phases_done;
+		}
 		remaining_local.push_back(undecided_polygons[curr_polygon + object_group_size - 1]);
 	    }
 	    missing.push_back(undecided.back());
 	    undecided.pop_back();	    
 
 	    --object_group_size;
-	    progress_callback((SEQ_PROGRESS_RANGE * (decided_polygons.size() * SEQ_PROGRESS_PHASES_PER_OBJECT + progress_object_phases_done)) / progress_total_object_phases);
+	    progress_callback((SEQ_PROGRESS_RANGE * progress_object_phases_done) / progress_total_object_phases);
 	}
 
 	std::reverse(remaining_local.begin(), remaining_local.end());
@@ -10704,7 +10720,6 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 	    }
 	    #endif
 
-	    printf("Top call 1\n");			    
 	    progress_callback((SEQ_PROGRESS_RANGE * progress_object_phases_done) / progress_total_object_phases);
 
 	    optimized = optimize_ConsequentialWeakPolygonNonoverlappingBinaryCentered(z_solver,
@@ -10724,14 +10739,14 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 										      polygons,
 										      unreachable_polygons,
 										      presence_assumptions,
-										      ProgressRange((SEQ_PROGRESS_RANGE * progress_object_phases_done) / progress_total_object_phases,
-												    (SEQ_PROGRESS_RANGE * (progress_object_phases_done + SEQ_PROGRESS_PHASES_PER_OBJECT / 2)) / progress_total_object_phases),
+										      (progress_object_phases_done < progress_total_object_phases ?
+										       ProgressRange((SEQ_PROGRESS_RANGE * progress_object_phases_done) / progress_total_object_phases,
+												     (SEQ_PROGRESS_RANGE * (progress_object_phases_done + 1)) / progress_total_object_phases) :
+										       ProgressRange(SEQ_PROGRESS_RANGE, SEQ_PROGRESS_RANGE)),
 										      progress_callback);
-	    printf("Optimo: %d\n", optimized);
 	    
 	    if (optimized)
 	    {
-		printf("alpha 1\n");
 		/*
 		printf("Printing solver status:\n");
 		cout << z_solver << "\n";
@@ -10747,8 +10762,11 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 		    dec_values_T[undecided[i]] = local_values_T[undecided[i]];		    
 		    decided_polygons.push_back(undecided[i]);
 
-		    int progress_phase_starter = progress_object_phases_done % SEQ_PROGRESS_PHASES_PER_OBJECT;
-		    progress_object_phases_done += progress_phase_starter > 0 ? SEQ_PROGRESS_PHASES_PER_OBJECT - progress_phase_starter : SEQ_PROGRESS_PHASES_PER_OBJECT;
+		    if (progress_object_phases_done < progress_total_object_phases)
+		    {
+			int progress_phase_starter = progress_object_phases_done % SEQ_PROGRESS_PHASES_PER_OBJECT;
+			progress_object_phases_done += progress_phase_starter > 0 ? SEQ_PROGRESS_PHASES_PER_OBJECT - progress_phase_starter : SEQ_PROGRESS_PHASES_PER_OBJECT;
+		    }
 		}
 		augment_TemporalSpread(solver_configuration, dec_values_T, decided_polygons);
 
@@ -10758,31 +10776,29 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 		}
 		else
 		{
-		    printf("Top call 2\n");				    
 		    progress_callback((SEQ_PROGRESS_RANGE * progress_object_phases_done) / progress_total_object_phases);
 		    return true;
 		}
-
-		printf("Top call 3\n");
 		progress_callback((SEQ_PROGRESS_RANGE * progress_object_phases_done) / progress_total_object_phases);
 		break;
 	    }
 	    else
 	    {
-		printf("alpha 2\n");
 		#ifdef DEBUG
 		{
 		    printf("Remaining polygon: %d\n", curr_polygon + object_group_size - 1);
 		}
 		#endif
-		printf("Phase increasing\n");
+		if (progress_object_phases_done < progress_total_object_phases)
+		{
+		    ++progress_object_phases_done;
+		}
 		remaining_local.push_back(undecided.back());
 	    }
 	    missing.push_back(undecided.back());
 	    undecided.pop_back();	    
 
 	    --object_group_size;
-	    printf("Top call 4\n");			    
 	    progress_callback((SEQ_PROGRESS_RANGE * progress_object_phases_done) / progress_total_object_phases);
 	}
 
@@ -10812,15 +10828,12 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 			remaining_polygons.push_back(curr_polygon);			
 		    }
 		}
-		progress_object_phases_done += SEQ_PROGRESS_PHASES_PER_OBJECT / 2;
-		printf("Complete exit\n");
 		return true;		   
 	    }
 	}
 	assert(remaining_polygons.empty());
     }
     assert(remaining_polygons.empty());
-    printf("Complete exit 2\n");    
 	
     return true;    
 }

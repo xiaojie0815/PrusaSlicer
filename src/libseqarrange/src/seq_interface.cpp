@@ -379,9 +379,8 @@ void schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver
     }
     #endif
 
-    int progress_objects_done = 0;
     int progress_object_phases_done = 0;
-    int progress_object_phases_total = objects_to_print.size() * SEQ_PROGRESS_PHASES_PER_OBJECT;
+    int progress_object_phases_total = SEQ_MAKE_EXTRA_PROGRESS((objects_to_print.size() * SEQ_PROGRESS_PHASES_PER_OBJECT));
 
     do
     {
@@ -398,7 +397,6 @@ void schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver
 	
 	bool optimized;
 
-	printf("Object phases A1: %d, %d\n", progress_object_phases_done, solvable_objects.size());	
 	optimized = optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(solver_configuration,
 										       poly_positions_X,
 										       poly_positions_Y,
@@ -409,7 +407,6 @@ void schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver
 										       progress_object_phases_done,
 										       progress_object_phases_total,
 										       progress_callback);
-	printf("Object phases A2: %d,%d,%d\n", progress_object_phases_done, decided_polygons.size(), remaining_polygons.size());		
 	
 	#ifdef DEBUG
 	{
@@ -457,16 +454,6 @@ void schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver
 
 		scheduled_plate.scheduled_objects.push_back(ScheduledObject(original_index->second, X, Y));
 	    }
-	    printf("Object phases B: %d\n", progress_object_phases_done);
-	    /*
-	    if (!decided_polygons.empty())
-	    {
-		progress_objects_done += decided_polygons.size();		
-		progress_object_phases_done =   (progress_object_phases_done % SEQ_PROGRESS_PHASES_PER_OBJECT)
-		                              + progress_objects_done * SEQ_PROGRESS_PHASES_PER_OBJECT;
-	    }
-	    printf("Object phases B1: %d\n", progress_object_phases_done);
-	    */
 	}
 	else
 	{
@@ -508,7 +495,9 @@ void schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver
 
 	scheduled_plates.push_back(scheduled_plate);
     }
-    while (!remaining_polygons.empty());    
+    while (!remaining_polygons.empty());
+
+    progress_callback(SEQ_PROGRESS_RANGE);
 
     #ifdef PROFILE
     {
@@ -782,9 +771,8 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver_
     }
     #endif
 
-    int progress_objects_done = 0;
     int progress_object_phases_done = 0;
-    int progress_object_phases_total = objects_to_print.size() * SEQ_PROGRESS_PHASES_PER_OBJECT;
+    int progress_object_phases_total = SEQ_MAKE_EXTRA_PROGRESS((objects_to_print.size() * SEQ_PROGRESS_PHASES_PER_OBJECT));
 
     do
     {
@@ -858,11 +846,6 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver_
 
 		scheduled_plate.scheduled_objects.push_back(ScheduledObject(original_index->second, X, Y));
 	    }
-	    if (!decided_polygons.empty())
-	    {
-		progress_objects_done += decided_polygons.size();
-		progress_object_phases_done = progress_objects_done * SEQ_PROGRESS_PHASES_PER_OBJECT;
-	    }
 	}
 	else
 	{
@@ -902,7 +885,9 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver_
 
 	scheduled_plates.push_back(scheduled_plate);
     }
-    while (!remaining_polygons.empty());    
+    while (!remaining_polygons.empty());
+
+    progress_callback(SEQ_PROGRESS_RANGE);    
 
     #ifdef PROFILE
     {
@@ -1099,8 +1084,8 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration                
     }
     #endif
 
-    int progress_objects_done = 0;
-    int progress_objects_total = objects_to_print.size();        
+    int progress_object_phases_done = 0;
+    int progress_object_phases_total = SEQ_MAKE_EXTRA_PROGRESS((objects_to_print.size() * SEQ_PROGRESS_PHASES_PER_OBJECT));
 
     do
     {
@@ -1124,8 +1109,8 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration                
 										       solvable_objects,
 										       decided_polygons,
 										       remaining_polygons,
-										       progress_objects_done,
-										       progress_objects_total,
+										       progress_object_phases_done,
+										       progress_object_phases_total,
 										       progress_callback);	
 
 	
@@ -1175,7 +1160,6 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration                
 
 		scheduled_plate.scheduled_objects.push_back(ScheduledObject(original_index->second, X, Y));
 	    }
-	    progress_objects_done += decided_polygons.size();	    
 	}
 	else
 	{
@@ -1215,7 +1199,9 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration                
 
 	scheduled_plates.push_back(scheduled_plate);
     }
-    while (!remaining_polygons.empty());    
+    while (!remaining_polygons.empty());
+
+    progress_callback(SEQ_PROGRESS_RANGE);    
 
     #ifdef PROFILE
     {

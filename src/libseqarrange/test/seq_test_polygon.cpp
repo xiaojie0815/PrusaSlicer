@@ -48,7 +48,6 @@ using namespace Sequential;
 
 /*----------------------------------------------------------------*/
 
-
 TEST_CASE("Polygon test 1", "[Polygon]")
 {
     printf("Testing polygon 1 ...\n");
@@ -60,6 +59,7 @@ TEST_CASE("Polygon test 1", "[Polygon]")
 	Point point = polygon_1[i];
 	printf("%d,%d\n", point.x(), point.y());
     }
+    REQUIRE(polygon_1.size() > 0);
     
     printf("Testing polygon 1 ... finished\n");
 }
@@ -88,6 +88,8 @@ TEST_CASE("Polygon test 2", "[Polygon]")
 	    const Point &point = hull_1[i];
 	    printf("hull %d: %d,%d\n", i, point.x(), point.y());
 	}
+
+	REQUIRE(hull_1.size() > 0);
 
 	if (hull_1.size() >= 2)
 	{
@@ -125,14 +127,19 @@ TEST_CASE("Polygon test 2", "[Polygon]")
 		}
 	    };
 	    
-	    bool ins1 = is_inside(point_1);
+	    bool ins1 = is_inside(point_1);	    
 	    printf("%s\n", ins1 ? "yes" : "no");
+	    REQUIRE(ins1);
+	    
 	    bool ins2 = is_inside(point_2);
-	    printf("%s\n", ins2 ? "yes" : "no");	    
+	    printf("%s\n", ins2 ? "yes" : "no");
+	    REQUIRE(ins2);
+	    
 	    bool ins3 = is_inside(point_1 + point_2);
-	    printf("%s\n", ins3 ? "yes" : "no");	    
+	    printf("%s\n", ins3 ? "yes" : "no");
+	    
 	    bool ins4 = is_inside(point_1 - point_2);
-	    printf("%s\n", ins4 ? "yes" : "no");	    
+	    printf("%s\n", ins4 ? "yes" : "no");
 	}		
     }
     
@@ -205,16 +212,22 @@ TEST_CASE("Polygon test 3", "[Polygon]")
 					   T_parameters[3],
 					   lines[3]);    
 
-    printf("Printing solver status:\n");
-    cout << z_solver << "\n";
+    #ifdef DEBUG
+    {
+	printf("Printing solver status:\n");
+	cout << z_solver << "\n";
     
-    printf("Printing smt status:\n");
-    cout << z_solver.to_smt2() << "\n";
+	printf("Printing smt status:\n");
+	cout << z_solver.to_smt2() << "\n";
+    }
+    #endif
 
+    bool sat = false;
     switch (z_solver.check())
     {
     case z3::sat:
     {
+	sat = true;
 	printf("  SATISFIABLE\n");
 	break;
     }
@@ -233,11 +246,17 @@ TEST_CASE("Polygon test 3", "[Polygon]")
     {
 	break;
     }
-    }   
+    }
+    REQUIRE(sat);
 
     z3::model z_model(z_solver.get_model());
-    printf("Printing model:\n");
-    cout << z_model << "\n";
+	
+    #ifdef DEBUG
+    {
+	printf("Printing model:\n");
+	cout << z_model << "\n";
+    }
+    #endif
 
     finish = clock();    
 
@@ -246,36 +265,39 @@ TEST_CASE("Polygon test 3", "[Polygon]")
     {
 	printf("Variable:%s  ", z_model[i].name().str().c_str());
 	
-	cout << z_model.get_const_interp(z_model[i]).as_double() << "\n";
-	double value = z_model.get_const_interp(z_model[i]).as_double();
+        #ifdef DEBUG
+	{
+	    cout << z_model.get_const_interp(z_model[i]).as_double() << "\n";
+	    double value = z_model.get_const_interp(z_model[i]).as_double();
+	    
+	    printf("value: %.3f\n", value);
 	
-	printf("value: %.3f\n", value);
-	
-	//cout << float(z_model[i]) << "\n";
-        /*
-	switch (z_model.get_const_interp(z_model[i]).bool_value())
-	{
-	case Z3_L_FALSE:
-	{
-	    printf("   value: FALSE\n");
-	    break;
-	}
-	case Z3_L_TRUE:
-	{
-	    printf("   value: TRUE\n");
-	    break;
-	}
-	case Z3_L_UNDEF:
-	{
-	    printf("   value: UNDEF\n");
+	    cout << float(z_model[i]) << "\n";
+
+	    switch (z_model.get_const_interp(z_model[i]).bool_value())
+	    {
+	    case Z3_L_FALSE:
+	    {
+		printf("   value: FALSE\n");
 		break;
-	}	    
-	default:
-	{
+	    }
+	    case Z3_L_TRUE:
+	    {
+		printf("   value: TRUE\n");
 		break;
-	}
-	}
-	*/
+	    }
+	    case Z3_L_UNDEF:
+	    {
+		printf("   value: UNDEF\n");
+		break;
+	    }	    
+	    default:
+	    {
+		break;
+	    }
+	    }
+         }
+         #endif
     }
 
     printf("Time: %.3f\n", (finish - start) / (double)CLOCKS_PER_SEC);
@@ -351,10 +373,13 @@ TEST_CASE("Polygon test 4", "[Polygon]")
     printf("Printing smt status:\n");
     cout << z_solver.to_smt2() << "\n";
 
+    bool sat = false;
+
     switch (z_solver.check())
     {
     case z3::sat:
     {
+	sat = true;
 	printf("  SATISFIABLE\n");
 	break;
     }
@@ -373,7 +398,8 @@ TEST_CASE("Polygon test 4", "[Polygon]")
     {
 	break;
     }
-    }   
+    }
+    REQUIRE(sat);
 
     z3::model z_model(z_solver.get_model());
     printf("Printing model:\n");
@@ -391,8 +417,8 @@ TEST_CASE("Polygon test 4", "[Polygon]")
 	
 	printf("value: %.3f\n", value);
 	
-	//cout << float(z_model[i]) << "\n";
-        /*
+	cout << float(z_model[i]) << "\n";
+        
 	switch (z_model.get_const_interp(z_model[i]).bool_value())
 	{
 	case Z3_L_FALSE:
@@ -415,7 +441,6 @@ TEST_CASE("Polygon test 4", "[Polygon]")
 		break;
 	}
 	}
-	*/
     }
 
     printf("Time: %.3f\n", (finish - start) / (double)CLOCKS_PER_SEC);
@@ -486,16 +511,22 @@ TEST_CASE("Polygon test 5", "[Polygon]")
 				   Y_positions[1],
 				   poly_lines[3]);        
 
-    printf("Printing solver status:\n");
-    cout << z_solver << "\n";
+    #ifdef DEBUG
+    {
+	printf("Printing solver status:\n");
+	cout << z_solver << "\n";
     
-    printf("Printing smt status:\n");
-    cout << z_solver.to_smt2() << "\n";
+	printf("Printing smt status:\n");
+	cout << z_solver.to_smt2() << "\n";
+    }
+    #endif
 
+    bool sat = false;
     switch (z_solver.check())
     {
     case z3::sat:
     {
+	sat = true;
 	printf("  SATISFIABLE\n");
 	break;
     }
@@ -514,11 +545,16 @@ TEST_CASE("Polygon test 5", "[Polygon]")
     {
 	break;
     }
-    }   
+    }
+    REQUIRE(sat);
 
     z3::model z_model(z_solver.get_model());
-    printf("Printing model:\n");
-    cout << z_model << "\n";
+    #ifdef DEBUG
+    {
+	printf("Printing model:\n");
+	cout << z_model << "\n";
+    }
+    #endif
 
     finish = clock();    
 
@@ -527,36 +563,39 @@ TEST_CASE("Polygon test 5", "[Polygon]")
     {
 	printf("Variable:%s  ", z_model[i].name().str().c_str());
 	
-	cout << z_model.get_const_interp(z_model[i]).as_double() << "\n";
-	double value = z_model.get_const_interp(z_model[i]).as_double();
+	#ifdef DEBUG
+	{
+	    cout << z_model.get_const_interp(z_model[i]).as_double() << "\n";
+	    double value = z_model.get_const_interp(z_model[i]).as_double();
+	    
+	    printf("value: %.3f\n", value);
 	
-	printf("value: %.3f\n", value);
-	
-	//cout << float(z_model[i]) << "\n";
-        /*
-	switch (z_model.get_const_interp(z_model[i]).bool_value())
-	{
-	case Z3_L_FALSE:
-	{
-	    printf("   value: FALSE\n");
-	    break;
-	}
-	case Z3_L_TRUE:
-	{
-	    printf("   value: TRUE\n");
-	    break;
-	}
-	case Z3_L_UNDEF:
-	{
-	    printf("   value: UNDEF\n");
+	    cout << float(z_model[i]) << "\n";
+
+	    switch (z_model.get_const_interp(z_model[i]).bool_value())
+	    {
+	    case Z3_L_FALSE:
+	    {
+		printf("   value: FALSE\n");
 		break;
-	}	    
-	default:
-	{
+	    }
+	    case Z3_L_TRUE:
+	    {
+		printf("   value: TRUE\n");
 		break;
+	    }
+	    case Z3_L_UNDEF:
+	    {
+		printf("   value: UNDEF\n");
+		break;
+	    }	    
+	    default:
+	    {
+		break;
+	    }
+	    }
 	}
-	}
-	*/
+	#endif
     }
 
     printf("Time: %.3f\n", (finish - start) / (double)CLOCKS_PER_SEC);
@@ -607,16 +646,22 @@ TEST_CASE("Polygon test 6", "[Polygon]")
 				  Y_positions[1],
 				  polygon_1);
 
-    printf("Printing solver status:\n");
-    cout << z_solver << "\n";
+    #ifdef DEBUG
+    {
+	printf("Printing solver status:\n");
+	cout << z_solver << "\n";
     
-    printf("Printing smt status:\n");
-    cout << z_solver.to_smt2() << "\n";
+	printf("Printing smt status:\n");
+	cout << z_solver.to_smt2() << "\n";
+    }
+    #endif
 
+    bool sat = false;
     switch (z_solver.check())
     {
     case z3::sat:
     {
+	sat = true;
 	printf("  SATISFIABLE\n");
 	break;
     }
@@ -635,54 +680,61 @@ TEST_CASE("Polygon test 6", "[Polygon]")
     {
 	break;
     }
-    }   
+    }
+    REQUIRE(sat);
 
     z3::model z_model(z_solver.get_model());
-    printf("Printing model:\n");
-    cout << z_model << "\n";
+	
+    #ifdef DEBUG
+    {
+	printf("Printing model:\n");
+	cout << z_model << "\n";
+    }
+    #endif
 
     finish = clock();    
 
     printf("Printing interpretation:\n");    
     for (unsigned int i = 0; i < z_model.size(); ++i)
     {
-	printf("Variable:%s  ", z_model[i].name().str().c_str());
-	
+	printf("Variable:%s  ", z_model[i].name().str().c_str());       
 	cout << z_model.get_const_interp(z_model[i]).as_double() << "\n";
-	double value = z_model.get_const_interp(z_model[i]).as_double();
 
 	z3::expr valo_1 = z_model.get_const_interp(z_model[i]);
 	z3::expr deco_1 = expr(z_context.real_const("deco_1"));
 
 	z3::expr lino_1 = (valo_1 * deco_1 == 0);
+
+	#ifdef DEBUG
+	{
+	    printf("value: %.3f\n", value);
 	
-	printf("value: %.3f\n", value);
-	
-	//cout << float(z_model[i]) << "\n";
-        /*
-	switch (z_model.get_const_interp(z_model[i]).bool_value())
-	{
-	case Z3_L_FALSE:
-	{
-	    printf("   value: FALSE\n");
-	    break;
-	}
-	case Z3_L_TRUE:
-	{
-	    printf("   value: TRUE\n");
-	    break;
-	}
-	case Z3_L_UNDEF:
-	{
-	    printf("   value: UNDEF\n");
+	    cout << float(z_model[i]) << "\n";
+	    
+	    switch (z_model.get_const_interp(z_model[i]).bool_value())
+	    {
+	    case Z3_L_FALSE:
+	    {
+		printf("   value: FALSE\n");
 		break;
-	}	    
-	default:
-	{
+	    }
+	    case Z3_L_TRUE:
+	    {
+		printf("   value: TRUE\n");
 		break;
+	    }
+	    case Z3_L_UNDEF:
+	    {
+		printf("   value: UNDEF\n");
+		break;
+	    }	    
+	    default:
+	    {
+		break;
+	    }
+	    }
 	}
-	}
-	*/
+	#endif
     }
 
     printf("Time: %.3f\n", (finish - start) / (double)CLOCKS_PER_SEC);
@@ -755,16 +807,22 @@ TEST_CASE("Polygon test 7", "[Polygon]")
 				    Y_positions[1],				    
 				    polygon_2);
 
-    printf("Printing solver status:\n");
-    cout << z_solver << "\n";
+    #ifdef DEBUG
+    {
+	printf("Printing solver status:\n");
+	cout << z_solver << "\n";
     
-    printf("Printing smt status:\n");
-    cout << z_solver.to_smt2() << "\n";
+	printf("Printing smt status:\n");
+	cout << z_solver.to_smt2() << "\n";
+    }
+    #endif
 
+    bool sat = false;
     switch (z_solver.check())
     {
     case z3::sat:
     {
+	sat = true;
 	printf("  SATISFIABLE\n");
 	break;
     }
@@ -783,11 +841,17 @@ TEST_CASE("Polygon test 7", "[Polygon]")
     {
 	break;
     }
-    }   
+    }
+    REQUIRE(sat);
 
     z3::model z_model(z_solver.get_model());
-    printf("Printing model:\n");
-    cout << z_model << "\n";
+	
+    #ifdef DEBUG
+    {
+	printf("Printing model:\n");
+	cout << z_model << "\n";
+    }
+    #endif
 
     finish = clock();    
 
@@ -820,51 +884,60 @@ TEST_CASE("Polygon test 7", "[Polygon]")
 	    poly_2_pos_y = value;
 	}	
 	
+	#ifdef DEBUG
+	{
+	    cout << float(z_model[i]) << "\n";
+	    
+	    switch (z_model.get_const_interp(z_model[i]).bool_value())
+	    {
+	    case Z3_L_FALSE:
+	    {
+		printf("   value: FALSE\n");
+		break;
+	    }
+	    case Z3_L_TRUE:
+	    {
+		printf("   value: TRUE\n");
+		break;
+	    }
+	    case Z3_L_UNDEF:
+	    {
+		printf("   value: UNDEF\n");
+		break;
+	    }	    
+	    default:
+	    {
+		break;
+	    }
+	    }
+	}
+	#endif
 	
-	//cout << float(z_model[i]) << "\n";
-        /*
-	switch (z_model.get_const_interp(z_model[i]).bool_value())
-	{
-	case Z3_L_FALSE:
-	{
-	    printf("   value: FALSE\n");
-	    break;
-	}
-	case Z3_L_TRUE:
-	{
-	    printf("   value: TRUE\n");
-	    break;
-	}
-	case Z3_L_UNDEF:
-	{
-	    printf("   value: UNDEF\n");
-		break;
-	}	    
-	default:
-	{
-		break;
-	}
-	}
-	*/
     }
 
     printf("Positions: %.3f, %.3f, %.3f, %.3f\n", poly_1_pos_x, poly_1_pos_y, poly_2_pos_x, poly_2_pos_y);
 
-    /*
-    for (int i = 0; i < 2; ++i)
-    {	
-	double value = X_positions[i].as_double();
-	printf("Orig X: %.3f\n", value);
+    #ifdef DEBUG
+    {
+	for (int i = 0; i < 2; ++i)
+	{	
+	    double value = X_positions[i].as_double();
+	    printf("Orig X: %.3f\n", value);
 
-	value = Y_positions[i].as_double();
-	printf("Orig Y: %.3f\n", value);	
+	    value = Y_positi ons[i].as_double();
+	    printf("Orig Y: %.3f\n", value);	
+	}
     }
-    */
+    #endif
     
     SVG preview_svg("polygon_test_7.svg");
 
-//    preview_svg.draw(polygon_1);
-//    preview_svg.draw(polygon_2);
+    #ifdef DEBUG
+    {
+	preview_svg.draw(polygon_1);
+	preview_svg.draw(polygon_2);
+    }
+    #endif
     
     preview_svg.Close();    
 
@@ -960,11 +1033,6 @@ TEST_CASE("Polygon test 8", "[Polygon]")
     
     z3::solver z_solver(z_context);
 
-    /*
-    introduce_DecisionBox(z_solver, X_positions[0], Y_positions[0], 200, 200);
-    introduce_DecisionBox(z_solver, X_positions[1], Y_positions[1], 200, 200);    
-    */
-
     introduce_PolygonOutsidePolygon(z_solver,
 				    z_context,
 				    X_positions[0],
@@ -973,17 +1041,6 @@ TEST_CASE("Polygon test 8", "[Polygon]")
 				    X_positions[1],
 				    Y_positions[1],				    
 				    polygon_2);
-
-    /*
-    introduce_PolygonOutsidePolygon(z_solver,
-				    z_context,
-				    X_positions[1],
-				    Y_positions[1],
-				    polygon_2,
-				    X_positions[0],
-				    Y_positions[0],				    
-				    polygon_1);    
-    */
 
     introduce_PolygonLineNonIntersection(z_solver,
 					 z_context,
@@ -1003,17 +1060,6 @@ TEST_CASE("Polygon test 8", "[Polygon]")
 				    Y_positions[2],				    
 				    polygon_3);
 
-    /*
-    introduce_PolygonOutsidePolygon(z_solver,
-				    z_context,
-				    X_positions[2],
-				    Y_positions[2],
-				    polygon_3,
-				    X_positions[1],
-				    Y_positions[1],				    
-				    polygon_2);
-    */
-
     introduce_PolygonLineNonIntersection(z_solver,
 					 z_context,
 					 X_positions[1],
@@ -1032,17 +1078,6 @@ TEST_CASE("Polygon test 8", "[Polygon]")
 				    Y_positions[2],				    
 				    polygon_3);
 
-/*
-    introduce_PolygonOutsidePolygon(z_solver,
-				    z_context,
-				    X_positions[2],
-				    Y_positions[2],
-				    polygon_3,
-				    X_positions[0],
-				    Y_positions[0],				    
-				    polygon_1);
-*/
-
     introduce_PolygonLineNonIntersection(z_solver,
 					 z_context,
 					 X_positions[0],
@@ -1052,12 +1087,16 @@ TEST_CASE("Polygon test 8", "[Polygon]")
 					 Y_positions[2],
 					 polygon_3);	
 
-  
-    printf("Printing solver status:\n");
-    cout << z_solver << "\n";
+
+    #ifdef DEBUG
+    {
+	printf("Printing solver status:\n");
+	cout << z_solver << "\n";
     
-    printf("Printing smt status:\n");
-    cout << z_solver.to_smt2() << "\n";
+	printf("Printing smt status:\n");
+	cout << z_solver.to_smt2() << "\n";
+    }
+    #endif
 
     int last_solvable_decision_box_size = -1;
     double poly_1_pos_x, poly_1_pos_y, poly_2_pos_x, poly_2_pos_y, poly_3_pos_x, poly_3_pos_y;
@@ -1072,7 +1111,7 @@ TEST_CASE("Polygon test 8", "[Polygon]")
 	assume_DecisionBox(X_positions[2], Y_positions[2], decision_box_size, decision_box_size, decision_box_assumptions);	
 
 	bool sat = false;
-	
+
 	switch (z_solver.check(decision_box_assumptions))
 	{
 	case z3::sat:
@@ -1102,8 +1141,13 @@ TEST_CASE("Polygon test 8", "[Polygon]")
 	if (sat)
 	{
 	    z3::model z_model(z_solver.get_model());
-	    printf("Printing model:\n");
-	    cout << z_model << "\n";
+	    
+            #ifdef DEBUG
+	    {
+		printf("Printing model:\n");
+		cout << z_model << "\n";
+	    }
+	    #endif
     
 	    printf("Printing interpretation:\n");    
 	    for (unsigned int i = 0; i < z_model.size(); ++i)
@@ -1144,48 +1188,55 @@ TEST_CASE("Polygon test 8", "[Polygon]")
 	{
 	    break;
 	}
-		
-	//cout << float(z_model[i]) << "\n";
-        /*
-	switch (z_model.get_const_interp(z_model[i]).bool_value())
+
+	#ifdef DEBUG
 	{
-	case Z3_L_FALSE:
-	{
-	    printf("   value: FALSE\n");
-	    break;
-	}
-	case Z3_L_TRUE:
-	{
-	    printf("   value: TRUE\n");
-	    break;
-	}
-	case Z3_L_UNDEF:
-	{
-	    printf("   value: UNDEF\n");
+	    cout << float(z_model[i]) << "\n";
+        
+	    switch (z_model.get_const_interp(z_model[i]).bool_value())
+	    {
+	    case Z3_L_FALSE:
+	    {
+		printf("   value: FALSE\n");
 		break;
-	}	    
-	default:
-	{
+	    }
+	    case Z3_L_TRUE:
+	    {
+		printf("   value: TRUE\n");
 		break;
+	    }
+	    case Z3_L_UNDEF:
+	    {
+		printf("   value: UNDEF\n");
+		break;
+	    }	    
+	    default:
+	    {
+		break;
+	    }
+	    }
 	}
-	}
-	*/
+	#endif
+	
     }
     finish = clock();
+
+    REQUIRE(last_solvable_decision_box_size > 0);
 
     printf("Solvable decision box: %d\n", last_solvable_decision_box_size);
     printf("Positions: %.3f, %.3f, %.3f, %.3f, %.3f, %.3f\n", poly_1_pos_x, poly_1_pos_y, poly_2_pos_x, poly_2_pos_y, poly_3_pos_x, poly_3_pos_y);
 
-    /*
-    for (int i = 0; i < 2; ++i)
-    {	
-	double value = X_positions[i].as_double();
-	printf("Orig X: %.3f\n", value);
+    #ifdef DEBUG
+    {
+	for (int i = 0; i < 2; ++i)
+	{	
+	    double value = X_positions[i].as_double();
+	    printf("Orig X: %.3f\n", value);
 
-	value = Y_positions[i].as_double();
-	printf("Orig Y: %.3f\n", value);	
+	    value = Y_positions[i].as_double();
+	    printf("Orig Y: %.3f\n", value);	
     }
-    */
+    #endif
     
     SVG preview_svg("polygon_test_8.svg");
 
@@ -1262,11 +1313,6 @@ TEST_CASE("Polygon test 9", "[Polygon]")
     
     z3::solver z_solver(z_context);
 
-    /*
-    introduce_DecisionBox(z_solver, X_positions[0], Y_positions[0], 200, 200);
-    introduce_DecisionBox(z_solver, X_positions[1], Y_positions[1], 200, 200);    
-    */
-
     introduce_PolygonOutsidePolygon(z_solver,
 				    z_context,
 				    X_positions[0],
@@ -1275,16 +1321,6 @@ TEST_CASE("Polygon test 9", "[Polygon]")
 				    X_positions[1],
 				    Y_positions[1],				    
 				    polygon_2);
-/*
-    introduce_PolygonOutsidePolygon(z_solver,
-				    z_context,
-				    X_positions[1],
-				    Y_positions[1],
-				    polygon_2,
-				    X_positions[0],
-				    Y_positions[0],				    
-				    polygon_1);    
-*/
 
     introduce_PolygonLineNonIntersection(z_solver,
 					 z_context,
@@ -1303,16 +1339,7 @@ TEST_CASE("Polygon test 9", "[Polygon]")
 				    X_positions[2],
 				    Y_positions[2],				    
 				    polygon_3);
-/*
-    introduce_PolygonOutsidePolygon(z_solver,
-				    z_context,
-				    X_positions[2],
-				    Y_positions[2],
-				    polygon_3,
-				    X_positions[1],
-				    Y_positions[1],				    
-				    polygon_2);
-*/
+    
     introduce_PolygonLineNonIntersection(z_solver,
 					 z_context,
 					 X_positions[1],
@@ -1330,16 +1357,6 @@ TEST_CASE("Polygon test 9", "[Polygon]")
 				    X_positions[2],
 				    Y_positions[2],				    
 				    polygon_3);
-/*
-    introduce_PolygonOutsidePolygon(z_solver,
-				    z_context,
-				    X_positions[2],
-				    Y_positions[2],
-				    polygon_3,
-				    X_positions[0],
-				    Y_positions[0],				    
-				    polygon_1);
-*/
 
     introduce_PolygonLineNonIntersection(z_solver,
 					 z_context,
@@ -1350,12 +1367,16 @@ TEST_CASE("Polygon test 9", "[Polygon]")
 					 Y_positions[2],
 					 polygon_3);	
 
-  
-    printf("Printing solver status:\n");
-    cout << z_solver << "\n";
+
+    #ifdef DEBUG
+    {
+	printf("Printing solver status:\n");
+	cout << z_solver << "\n";
     
-    printf("Printing smt status:\n");
-    cout << z_solver.to_smt2() << "\n";
+	printf("Printing smt status:\n");
+	cout << z_solver.to_smt2() << "\n";
+    }
+    #endif
 
     int last_solvable_bounding_box_size = -1;
     double poly_1_pos_x, poly_1_pos_y, poly_2_pos_x, poly_2_pos_y, poly_3_pos_x, poly_3_pos_y;
@@ -1400,8 +1421,13 @@ TEST_CASE("Polygon test 9", "[Polygon]")
 	if (sat)
 	{
 	    z3::model z_model(z_solver.get_model());
-	    printf("Printing model:\n");
-	    cout << z_model << "\n";
+
+	    #ifdef DEBUG
+	    {
+		printf("Printing model:\n");
+		cout << z_model << "\n";
+	    }
+	    #endif
     
 	    printf("Printing interpretation:\n");    
 	    for (unsigned int i = 0; i < z_model.size(); ++i)
@@ -1442,48 +1468,54 @@ TEST_CASE("Polygon test 9", "[Polygon]")
 	{
 	    break;
 	}
-		
-	//cout << float(z_model[i]) << "\n";
-        /*
-	switch (z_model.get_const_interp(z_model[i]).bool_value())
+
+	#ifdef DEBUG
 	{
-	case Z3_L_FALSE:
-	{
-	    printf("   value: FALSE\n");
-	    break;
-	}
-	case Z3_L_TRUE:
-	{
-	    printf("   value: TRUE\n");
-	    break;
-	}
-	case Z3_L_UNDEF:
-	{
-	    printf("   value: UNDEF\n");
+	    cout << float(z_model[i]) << "\n";
+        
+	    switch (z_model.get_const_interp(z_model[i]).bool_value())
+	    {
+	    case Z3_L_FALSE:
+	    {
+		printf("   value: FALSE\n");
 		break;
-	}	    
-	default:
-	{
+	    }
+	    case Z3_L_TRUE:
+	    {
+		printf("   value: TRUE\n");
 		break;
+	    }
+	    case Z3_L_UNDEF:
+	    {
+		printf("   value: UNDEF\n");
+		break;
+	    }	    
+	    default:
+	    {
+		break;
+	    }
+	    }
 	}
-	}
-	*/
+	#endif	
     }
     finish = clock();
 
+    REQUIRE(last_solvable_bounding_box_size > 0);    
     printf("Solvable bounding box: %d\n", last_solvable_bounding_box_size);
     printf("Positions: %.3f, %.3f, %.3f, %.3f, %.3f, %.3f\n", poly_1_pos_x, poly_1_pos_y, poly_2_pos_x, poly_2_pos_y, poly_3_pos_x, poly_3_pos_y);
 
-    /*
-    for (int i = 0; i < 2; ++i)
-    {	
-	double value = X_positions[i].as_double();
-	printf("Orig X: %.3f\n", value);
+    #ifdef DEBUG
+    {
+	for (int i = 0; i < 2; ++i)
+	{	
+	    double value = X_positions[i].as_double();
+	    printf("Orig X: %.3f\n", value);
 
-	value = Y_positions[i].as_double();
-	printf("Orig Y: %.3f\n", value);	
+	    value = Y_positions[i].as_double();
+	    printf("Orig Y: %.3f\n", value);	
+	}
     }
-    */
+    #endif
     
     SVG preview_svg("polygon_test_9.svg");
 
@@ -1577,103 +1609,21 @@ TEST_CASE("Polygon test 10", "[Polygon]")
     polygons.push_back(polygon_3);
     polygons.push_back(polygon_4);    
     
-    /*
-    introduce_DecisionBox(z_solver, X_positions[0], Y_positions[0], 200, 200);
-    introduce_DecisionBox(z_solver, X_positions[1], Y_positions[1], 200, 200);    
-    */
-
-    /*
-    for (int i = 0; i < 3; ++i)
-    {
-	for (int j = i + 1; j < 4; ++j)
-	{	    
-	    introduce_PolygonOutsidePolygon(z_solver,
-					    z_context,
-					    X_positions[i],
-					    Y_positions[i],
-					    polygons[i],
-					    X_positions[j],
-					    Y_positions[j],				    
-					    polygons[j]);
-	}
-    }
-    */
-
-/*
-        introduce_PolygonOutsidePolygon(z_solver,
-					z_context,
-					X_positions[0],
-					Y_positions[0],
-					polygons[0],
-					X_positions[2],
-					Y_positions[2],				    
-					polygons[2]);    
-
-	
-	introduce_PolygonOutsidePolygon(z_solver,
-					z_context,
-					X_positions[0],
-					Y_positions[0],
-					polygons[0],
-					X_positions[1],
-					Y_positions[1],				    
-					polygons[1]);
-	
-       introduce_PolygonOutsidePolygon(z_solver,
-				       z_context,
-				       X_positions[0],
-				       Y_positions[0],
-				       polygons[0],
-				       X_positions[3],
-				       Y_positions[3],				    
-				       polygons[3]);
-       
-       introduce_PolygonOutsidePolygon(z_solver,
-				       z_context,
-				       X_positions[1],
-				       Y_positions[1],
-				       polygons[1],
-				       X_positions[3],
-				       Y_positions[3],				    
-				       polygons[3]);
-       
-       introduce_PolygonOutsidePolygon(z_solver,
-				       z_context,
-				       X_positions[1],
-				       Y_positions[1],
-				       polygons[1],
-				       X_positions[2],
-				       Y_positions[2],				    
-				       polygons[2]);
-
-       introduce_PolygonOutsidePolygon(z_solver,
-				       z_context,
-				       X_positions[2],
-				       Y_positions[2],
-				       polygons[2],
-				       X_positions[3],
-				       Y_positions[3],				    
-				       polygons[3]);       
-*/
-       
-/*
-    introduce_PolygonWeakNonoverlapping(z_solver,
-					z_context,
-					X_positions,
-					Y_positions,
-					polygons);
-*/   
     introduce_PolygonStrongNonoverlapping(z_solver,
 					  z_context,
 					  X_positions,
 					  Y_positions,
 					  polygons);    
-  
-    printf("Printing solver status:\n");
-    cout << z_solver << "\n";
+
+    #ifdef DEBUG
+    {
+	printf("Printing solver status:\n");
+	cout << z_solver << "\n";
     
-    printf("Printing smt status:\n");
-    cout << z_solver.to_smt2() << "\n";
+	printf("Printing smt status:\n");
+	cout << z_solver.to_smt2() << "\n";
+    }
+    #endif
 
     int last_solvable_bounding_box_size = -1;
     double poly_1_pos_x, poly_1_pos_y, poly_2_pos_x, poly_2_pos_y, poly_3_pos_x, poly_3_pos_y, poly_4_pos_x, poly_4_pos_y;
@@ -1683,7 +1633,6 @@ TEST_CASE("Polygon test 10", "[Polygon]")
     {
 	z3::expr_vector bounding_box_assumptions(z_context);
 
-	//assume_BedBoundingBox(X_positions, Y_positions, polygons, bounding_box_size, bounding_box_size, bounding_box_assumptions);	
 	assume_BedBoundingBox(X_positions[0], Y_positions[0], polygons[0], bounding_box_size, bounding_box_size, bounding_box_assumptions);
 	assume_BedBoundingBox(X_positions[1], Y_positions[1], polygons[1], bounding_box_size, bounding_box_size, bounding_box_assumptions);
 	assume_BedBoundingBox(X_positions[2], Y_positions[2], polygons[2], bounding_box_size, bounding_box_size, bounding_box_assumptions);
@@ -1720,8 +1669,13 @@ TEST_CASE("Polygon test 10", "[Polygon]")
 	if (sat)
 	{
 	    z3::model z_model(z_solver.get_model());
-	    printf("Printing model:\n");
-	    cout << z_model << "\n";
+
+            #ifdef DEBUG
+	    {
+		printf("Printing model:\n");
+		cout << z_model << "\n";
+	    }
+	    #endif
     
 	    printf("Printing interpretation:\n");    
 	    for (unsigned int i = 0; i < z_model.size(); ++i)
@@ -1770,34 +1724,40 @@ TEST_CASE("Polygon test 10", "[Polygon]")
 	{
 	    break;
 	}	
-		
-	//cout << float(z_model[i]) << "\n";
-        /*
-	switch (z_model.get_const_interp(z_model[i]).bool_value())
+
+	#ifdef DEBUG
 	{
-	case Z3_L_FALSE:
-	{
-	    printf("   value: FALSE\n");
-	    break;
-	}
-	case Z3_L_TRUE:
-	{
-	    printf("   value: TRUE\n");
-	    break;
-	}
-	case Z3_L_UNDEF:
-	{
-	    printf("   value: UNDEF\n");
+	    cout << float(z_model[i]) << "\n";
+        
+	    switch (z_model.get_const_interp(z_model[i]).bool_value())
+	    {
+	    case Z3_L_FALSE:
+	    {
+		printf("   value: FALSE\n");
 		break;
-	}	    
-	default:
-	{
+	    }
+	    case Z3_L_TRUE:
+	    {
+		printf("   value: TRUE\n");
 		break;
+	    }
+	    case Z3_L_UNDEF:
+	    {
+		printf("   value: UNDEF\n");
+		break;
+	    }	    
+	    default:
+	    {
+		break;
+	    }
+	    }
 	}
-	}
-	*/
+	#endif
+	
     }
     finish = clock();
+
+    REQUIRE(last_solvable_bounding_box_size > 0);    
 
     printf("Solvable bounding box: %d\n", last_solvable_bounding_box_size);
     printf("Positions: %.3f, %.3f, %.3f, %.3f, %.3f, %.3f, %.3f, %.3f\n", poly_1_pos_x,
@@ -1809,16 +1769,18 @@ TEST_CASE("Polygon test 10", "[Polygon]")
                                                                   	  poly_4_pos_x,
                                                                   	  poly_4_pos_y);
 
-    /*
-    for (int i = 0; i < 2; ++i)
-    {	
-	double value = X_positions[i].as_double();
-	printf("Orig X: %.3f\n", value);
+    #ifdef DEBUG
+    {
+	for (int i = 0; i < 2; ++i)
+	{	
+	    double value = X_positions[i].as_double();
+	    printf("Orig X: %.3f\n", value);
 
-	value = Y_positions[i].as_double();
-	printf("Orig Y: %.3f\n", value);	
+	    value = Y_positions[i].as_double();
+	    printf("Orig Y: %.3f\n", value);	
+	}
     }
-    */
+    #endif
     
     SVG preview_svg("polygon_test_10.svg");
 
@@ -1912,96 +1874,21 @@ TEST_CASE("Polygon test 11", "[Polygon]")
     polygons.push_back(polygon_3);
     polygons.push_back(polygon_4);    
     
-    /*
-    introduce_DecisionBox(z_solver, X_positions[0], Y_positions[0], 200, 200);
-    introduce_DecisionBox(z_solver, X_positions[1], Y_positions[1], 200, 200);    
-    */
-
-    /*
-    for (int i = 0; i < 3; ++i)
-    {
-	for (int j = i + 1; j < 4; ++j)
-	{	    
-	    introduce_PolygonOutsidePolygon(z_solver,
-					    z_context,
-					    X_positions[i],
-					    Y_positions[i],
-					    polygons[i],
-					    X_positions[j],
-					    Y_positions[j],				    
-					    polygons[j]);
-	}
-    }
-    */
-
-/*
-        introduce_PolygonOutsidePolygon(z_solver,
-					z_context,
-					X_positions[0],
-					Y_positions[0],
-					polygons[0],
-					X_positions[2],
-					Y_positions[2],				    
-					polygons[2]);    
-
-	
-	introduce_PolygonOutsidePolygon(z_solver,
-					z_context,
-					X_positions[0],
-					Y_positions[0],
-					polygons[0],
-					X_positions[1],
-					Y_positions[1],				    
-					polygons[1]);
-	
-       introduce_PolygonOutsidePolygon(z_solver,
-				       z_context,
-				       X_positions[0],
-				       Y_positions[0],
-				       polygons[0],
-				       X_positions[3],
-				       Y_positions[3],				    
-				       polygons[3]);
-       
-       introduce_PolygonOutsidePolygon(z_solver,
-				       z_context,
-				       X_positions[1],
-				       Y_positions[1],
-				       polygons[1],
-				       X_positions[3],
-				       Y_positions[3],				    
-				       polygons[3]);
-       
-       introduce_PolygonOutsidePolygon(z_solver,
-				       z_context,
-				       X_positions[1],
-				       Y_positions[1],
-				       polygons[1],
-				       X_positions[2],
-				       Y_positions[2],				    
-				       polygons[2]);
-
-       introduce_PolygonOutsidePolygon(z_solver,
-				       z_context,
-				       X_positions[2],
-				       Y_positions[2],
-				       polygons[2],
-				       X_positions[3],
-				       Y_positions[3],				    
-				       polygons[3]);       
-*/
-       
     introduce_PolygonWeakNonoverlapping(z_solver,
 					z_context,
 					X_positions,
 					Y_positions,
 					polygons);
-  
-    printf("Printing solver status:\n");
-    cout << z_solver << "\n";
+
+    #ifdef DEBUG
+    {    
+	printf("Printing solver status:\n");
+	cout << z_solver << "\n";
     
-    printf("Printing smt status:\n");
-    cout << z_solver.to_smt2() << "\n";
+	printf("Printing smt status:\n");
+	cout << z_solver.to_smt2() << "\n";
+    }
+    #endif
 
     int last_solvable_bounding_box_size = -1;
     double poly_1_pos_x, poly_1_pos_y, poly_2_pos_x, poly_2_pos_y, poly_3_pos_x, poly_3_pos_y, poly_4_pos_x, poly_4_pos_y;
@@ -2012,7 +1899,6 @@ TEST_CASE("Polygon test 11", "[Polygon]")
 	printf("BB: %d\n", bounding_box_size);
 	z3::expr_vector bounding_box_assumptions(z_context);
 
-	//assume_BedBoundingBox(X_positions, Y_positions, polygons, bounding_box_size, bounding_box_size, bounding_box_assumptions);	
 	assume_BedBoundingBox(X_positions[0], Y_positions[0], polygons[0], bounding_box_size, bounding_box_size, bounding_box_assumptions);
 	assume_BedBoundingBox(X_positions[1], Y_positions[1], polygons[1], bounding_box_size, bounding_box_size, bounding_box_assumptions);
 	assume_BedBoundingBox(X_positions[2], Y_positions[2], polygons[2], bounding_box_size, bounding_box_size, bounding_box_assumptions);
@@ -2048,8 +1934,13 @@ TEST_CASE("Polygon test 11", "[Polygon]")
 	if (sat)
 	{
 	    z3::model z_model(z_solver.get_model());
-	    printf("Printing model:\n");
-	    cout << z_model << "\n";
+
+            #ifdef DEBUG
+	    {
+		printf("Printing model:\n");
+		cout << z_model << "\n";
+	    }
+	    #endif
     
 	    printf("Printing interpretation:\n");    
 	    for (unsigned int i = 0; i < z_model.size(); ++i)
@@ -2156,13 +2047,17 @@ TEST_CASE("Polygon test 11", "[Polygon]")
 
 		    if (refined_sat)
 		    {
-			z3::model z_model(z_solver.get_model());			
-			printf("Printing model:\n");
-			cout << z_model << "\n";
+			z3::model z_model(z_solver.get_model());
+
+			#ifdef DEBUG
+			{
+			    printf("Printing model:\n");
+			    cout << z_model << "\n";
+			}
+			#endif
     
 			for (unsigned int i = 0; i < z_model.size(); ++i)
 			{
-			    //printf("Variable:%s  ", z_model[i].name().str().c_str());						    
 			    double value = z_model.get_const_interp(z_model[i]).as_double();
 			
 			    if (z_model[i].name().str() == "x_pos-0")
@@ -2223,34 +2118,40 @@ TEST_CASE("Polygon test 11", "[Polygon]")
 	{
 	    break;
 	}	
-		
-	//cout << float(z_model[i]) << "\n";
-        /*
-	switch (z_model.get_const_interp(z_model[i]).bool_value())
+
+	#ifdef DEBUG
 	{
-	case Z3_L_FALSE:
-	{
-	    printf("   value: FALSE\n");
-	    break;
-	}
-	case Z3_L_TRUE:
-	{
-	    printf("   value: TRUE\n");
-	    break;
-	}
-	case Z3_L_UNDEF:
-	{
-	    printf("   value: UNDEF\n");
+	    cout << float(z_model[i]) << "\n";
+	    
+	    switch (z_model.get_const_interp(z_model[i]).bool_value())
+	    {
+	    case Z3_L_FALSE:
+	    {
+		printf("   value: FALSE\n");
 		break;
-	}	    
-	default:
-	{
+	    }
+	    case Z3_L_TRUE:
+	    {
+		printf("   value: TRUE\n");
 		break;
+	    }
+	    case Z3_L_UNDEF:
+	    {
+		printf("   value: UNDEF\n");
+		break;
+	    }	    
+	    default:
+	    {
+		break;
+	    }
+	    }
 	}
-	}
-	*/
+	#endif
+
     }
     finish = clock();
+
+    REQUIRE(last_solvable_bounding_box_size > 0);
 
     printf("Solvable bounding box: %d\n", last_solvable_bounding_box_size);
     printf("Positions: %.3f, %.3f, %.3f, %.3f, %.3f, %.3f, %.3f, %.3f\n", poly_1_pos_x,
@@ -2262,16 +2163,18 @@ TEST_CASE("Polygon test 11", "[Polygon]")
                                                                   	  poly_4_pos_x,
                                                                   	  poly_4_pos_y);
 
-    /*
-    for (int i = 0; i < 2; ++i)
-    {	
-	double value = X_positions[i].as_double();
-	printf("Orig X: %.3f\n", value);
+    #ifdef DEBUG
+    {
+	for (int i = 0; i < 2; ++i)
+	{	
+	    double value = X_positions[i].as_double();
+	    printf("Orig X: %.3f\n", value);
 
-	value = Y_positions[i].as_double();
-	printf("Orig Y: %.3f\n", value);	
+	    value = Y_positions[i].as_double();
+	    printf("Orig Y: %.3f\n", value);	
+	}
     }
-    */
+    #endif
     
     SVG preview_svg("polygon_test_11.svg");
 
@@ -2332,6 +2235,7 @@ TEST_CASE("Polygon test 12", "[Polygon]")
 							polygons);
 
     finish = clock();
+    REQUIRE(optimized);    
 
     if (optimized)
     {
@@ -2421,10 +2325,6 @@ TEST_CASE("Polygon test 13", "[Polygon]")
     
     string_map dec_var_names_map;
 
-    /*
-    z3::params z_parameters(z_context);
-    z_parameters.set("timeout", 1000);
-    */
     Z3_global_param_set("timeout", "8000");
        
     z3::solver z_solver(z_context);
@@ -2458,6 +2358,7 @@ TEST_CASE("Polygon test 13", "[Polygon]")
 							polygons);
 
     finish = clock();
+    REQUIRE(optimized);
 
     if (optimized)
     {
@@ -2601,11 +2502,7 @@ TEST_CASE("Polygon test 14", "[Polygon]")
 	vector<Rational> X_values;
 	vector<Rational> Y_values;
 	
-	string_map dec_var_names_map;
-    
-    /*
-    Z3_global_param_set("timeout", "8000");
-    */
+	string_map dec_var_names_map;    	
        
 	z3::solver z_solver(z_context);
 	
@@ -2805,6 +2702,8 @@ TEST_CASE("Polygon test 14", "[Polygon]")
 	{
 	    printf("Polygon optimization FAILED.\n");
 	}
+
+	REQUIRE(optimized);
     }
 
     printf("Time: %.3f\n", (finish - start) / (double)CLOCKS_PER_SEC);
@@ -2856,10 +2755,6 @@ TEST_CASE("Polygon test 15", "[Polygon]")
     polygons.push_back(polygon_1);
     polygons.push_back(polygon_2);
     
-    /*
-    polygons.push_back(polygon_3);
-    polygons.push_back(polygon_4);                
-    */
     for (unsigned int index = 0; index < polygons.size(); ++index)
     {
 	polygon_index_map.push_back(index);
@@ -2867,11 +2762,6 @@ TEST_CASE("Polygon test 15", "[Polygon]")
     
     vector<Rational> poly_positions_X;
     vector<Rational> poly_positions_Y;
-    
-    /*
-    poly_positions_X.resize(polygons.size());
-    poly_positions_Y.resize(polygons.size());    
-    */
 
     do
     {
@@ -2986,7 +2876,7 @@ TEST_CASE("Polygon test 15", "[Polygon]")
 	{
 	    printf("Polygon optimization FAILED.\n");
 	}
-	getchar();
+	REQUIRE(optimized);
 	
 	vector<Polygon> next_polygons;
 	
@@ -3026,13 +2916,15 @@ TEST_CASE("Polygon test 16", "[Polygon]")
     polygons.push_back(polygon_4);
 
     double area = calc_PolygonUnreachableZoneArea(polygon_1, polygons);
+    REQUIRE(area > 0.0);
     printf("Polygons area: %.3f\n", area);
 
     finish = clock();
     
     printf("Time: %.3f\n", (finish - start) / (double)CLOCKS_PER_SEC);
     printf("Testing polygon 16 ... finished\n");    
-}    
+} 
+   
 
 
 /*----------------------------------------------------------------*/

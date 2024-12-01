@@ -89,8 +89,6 @@ TEST_CASE("Sequential test 1", "[Sequential Arrangement Core]")
     z3::expr c(z_context.real_const("cf"));
     z3::expr d(z_context.real_const("df"));    
     
-
-//    z3::expr lhs(!x || y);
     z3::expr lhs(x || y);    
     z3::expr rhs(implies(x, y));
     z3::expr final(lhs == rhs);
@@ -108,7 +106,7 @@ TEST_CASE("Sequential test 1", "[Sequential Arrangement Core]")
     z3::expr ef1((c > 3 && d < 6) && c < d);
     
     z3::solver z_solver(z_context);
-    //z_solver.add(!final);
+
     z_solver.add(final2);
     z_solver.add(final5);
     z_solver.add(ef1);
@@ -119,10 +117,12 @@ TEST_CASE("Sequential test 1", "[Sequential Arrangement Core]")
     printf("Printing smt status:\n");
     cout << z_solver.to_smt2() << "\n";
 
+    bool sat = false;
     switch (z_solver.check())
     {
     case z3::sat:
     {
+	sat = true;
 	printf("  SATISFIABLE\n");
 	break;
     }
@@ -141,6 +141,7 @@ TEST_CASE("Sequential test 1", "[Sequential Arrangement Core]")
 	break;
     }
     }
+    REQUIRE(sat);
 
     z3::model z_model(z_solver.get_model());
     printf("Printing model:\n");
@@ -161,28 +162,6 @@ TEST_CASE("Sequential test 1", "[Sequential Arrangement Core]")
 	{
 	    printf("   value: FALSE\n");	    
 	}
-	/*
-	case Z3_L_FALSE:
-	{
-	    printf("   value: FALSE\n");	    	    
-	    break;
-	}
-	case Z3_L_TRUE:
-	{
-	    printf("   value: TRUE\n");
-	    break;
-	}
-	case Z3_L_UNDEF:
-	{
-	    printf("   value: UNDEF\n");
-		break;
-	}	    
-	default:
-	{
-		break;
-	}
-        }
-	*/
     }    
     
     printf("Testing sequential scheduling 1 ... finished\n");    
@@ -296,16 +275,6 @@ TEST_CASE("Sequential test 2", "[Sequential Arrangement Core]")
 	gantry_rights.push_back(expr(z_context.real_const(name_R.c_str())));	
     }        
     
-//    z3::expr lhs(!x || y);
-    /*
-    z3::expr final(lhs == rhs);
-
-    z3::expr lhs1(a);
-    z3::expr rhs1(b);
-    z3::expr final2(lhs1 == rhs1);
-
-    z3::expr ef1((c > 3 && d < 6) && c < d);
-    */
     z3::solver z_solver(z_context);
 
     for (int i = 0; i < complex_Obj_count; ++i)
@@ -370,24 +339,28 @@ TEST_CASE("Sequential test 2", "[Sequential Arrangement Core]")
 	}
     }       	    
 
-
-    printf("Printing solver status:\n");
-    cout << z_solver << "\n";
+    #ifdef DEBUG
+    {
+	printf("Printing solver status:\n");
+	cout << z_solver << "\n";
     
-    printf("Printing smt status:\n");
-    cout << z_solver.to_smt2() << "\n";
+	printf("Printing smt status:\n");
+	cout << z_solver.to_smt2() << "\n";
+    }
+    #endif
 
+    bool sat = false;
     switch (z_solver.check())
     {
     case z3::sat:
     {
+	sat = true;
 	printf("  SATISFIABLE\n");
 	break;
     }
     case z3::unsat:	
     {
 	printf("  UNSATISFIABLE\n");
-	return;
 	break;
     }
     case z3::unknown:
@@ -399,53 +372,65 @@ TEST_CASE("Sequential test 2", "[Sequential Arrangement Core]")
     {
 	break;
     }
-    }   
+    }
+    REQUIRE(!sat);
 
-    z3::model z_model(z_solver.get_model());
-    printf("Printing model:\n");
-    cout << z_model << "\n";
+    #ifdef DEBUG
+    {
+	z3::model z_model(z_solver.get_model());
+	printf("Printing model:\n");
+	cout << z_model << "\n";
+    }
+    #endif
 
     finish = clock();    
-    
-    for (unsigned int i = 0; i < z_model.size(); ++i)
-    {
-	printf("Variable:%s\n", z_model[i].name().str().c_str());
-	
-	printf("Printing interpretation:\n");
-	cout << z_model.get_const_interp(z_model[i]) << "\n";
-	
-	//cout << float(z_model[i]) << "\n";
-        /*
-	switch (z_model.get_const_interp(z_model[i]).bool_value())
-	{
-	case Z3_L_FALSE:
-	{
-	    printf("   value: FALSE\n");
-	    break;
-	}
-	case Z3_L_TRUE:
-	{
-	    printf("   value: TRUE\n");
-	    break;
-	}
-	case Z3_L_UNDEF:
-	{
-	    printf("   value: UNDEF\n");
-		break;
-	}	    
-	default:
-	{
-		break;
-	}
-	}
-	*/
-    }
 
-    for (int i = 0; i < complex_Obj_count; ++i)
+    #ifdef DEBUG
     {
-	//double val;
-	//printf("%s\n", z_model.get_const_interp(z_model[i]).get_string().c_str());
-    }    
+	for (unsigned int i = 0; i < z_model.size(); ++i)
+	{
+	    printf("Variable:%s\n", z_model[i].name().str().c_str());
+	    
+	    printf("Printing interpretation:\n");
+	    cout << z_model.get_const_interp(z_model[i]) << "\n";
+	    
+	    cout << float(z_model[i]) << "\n";
+	    
+	    switch (z_model.get_const_interp(z_model[i]).bool_value())
+	    {
+	    case Z3_L_FALSE:
+	    {
+		printf("   value: FALSE\n");
+		break;
+	    }
+	    case Z3_L_TRUE:
+	    {
+		printf("   value: TRUE\n");
+		break;
+	    }
+	    case Z3_L_UNDEF:
+	    {
+		printf("   value: UNDEF\n");
+		break;
+	    }	    
+	    default:
+	    {
+		break;
+	    }
+	    }
+	}	
+    }
+    #endif
+
+    #ifdef DEBUG
+    {
+	for (int i = 0; i < complex_Obj_count; ++i)
+	{
+	    double val;
+	    printf("%s\n", z_model.get_const_interp(z_model[i]).get_string().c_str());
+	}
+    }
+    #endif
 
     printf("Time: %.3f\n", (finish - start) / (double)CLOCKS_PER_SEC);
     printf("Testing sequential scheduling 2 ... finished\n");    
@@ -648,23 +633,28 @@ TEST_CASE("Sequential test 3", "[Sequential Arrangement Core]")
 	}
     }       	    
 
-    printf("Printing solver status:\n");
-    cout << z_solver << "\n";
+    #ifdef DEBUG
+    {
+	printf("Printing solver status:\n");
+	cout << z_solver << "\n";
     
-    printf("Printing smt status:\n");
-    cout << z_solver.to_smt2() << "\n";
+	printf("Printing smt status:\n");
+	cout << z_solver.to_smt2() << "\n";
+    }
+    #endif
 
+    bool sat = false;
     switch (z_solver.check())
     {
     case z3::sat:
     {
+	sat = true;
 	printf("  SATISFIABLE\n");
 	break;
     }
     case z3::unsat:	
     {
 	printf("  UNSATISFIABLE\n");
-	return;
 	break;
     }
     case z3::unknown:
@@ -676,53 +666,65 @@ TEST_CASE("Sequential test 3", "[Sequential Arrangement Core]")
     {
 	break;
     }
-    }   
+    }
+    REQUIRE(sat);
 
-    z3::model z_model(z_solver.get_model());
-    printf("Printing model:\n");
-    cout << z_model << "\n";
+    #ifdef DEBUG
+    {
+	z3::model z_model(z_solver.get_model());
+	printf("Printing model:\n");
+	cout << z_model << "\n";
+    }
+    #endif
 
     finish = clock();    
-    
-    for (unsigned int i = 0; i < z_model.size(); ++i)
-    {
-	printf("Variable:%s\n", z_model[i].name().str().c_str());
-	
-	printf("Printing interpretation:\n");
-	cout << z_model.get_const_interp(z_model[i]) << "\n";
-	
-	//cout << float(z_model[i]) << "\n";
-        /*
-	switch (z_model.get_const_interp(z_model[i]).bool_value())
-	{
-	case Z3_L_FALSE:
-	{
-	    printf("   value: FALSE\n");
-	    break;
-	}
-	case Z3_L_TRUE:
-	{
-	    printf("   value: TRUE\n");
-	    break;
-	}
-	case Z3_L_UNDEF:
-	{
-	    printf("   value: UNDEF\n");
-		break;
-	}	    
-	default:
-	{
-		break;
-	}
-	}
-	*/
-    }
 
-    for (int i = 0; i < complex_Obj_count; ++i)
+    #ifdef DEBUG
     {
-	//double val;
-	//printf("%s\n", z_model.get_const_interp(z_model[i]).get_string().c_str());
-    }    
+	for (unsigned int i = 0; i < z_model.size(); ++i)
+	{
+	    printf("Variable:%s\n", z_model[i].name().str().c_str());
+	    
+	    printf("Printing interpretation:\n");
+	    cout << z_model.get_const_interp(z_model[i]) << "\n";
+	
+	    cout << float(z_model[i]) << "\n";
+        
+	    switch (z_model.get_const_interp(z_model[i]).bool_value())
+	    {
+	    case Z3_L_FALSE:
+	    {
+		printf("   value: FALSE\n");
+		break;
+	    }
+	    case Z3_L_TRUE:
+	    {
+		printf("   value: TRUE\n");
+		break;
+	    }
+	    case Z3_L_UNDEF:
+	    {
+		printf("   value: UNDEF\n");
+		break;
+	    }	    
+	    default:
+	    {
+		break;
+	    }
+	    }	    
+	}
+    }
+    #endif
+
+    #ifdef DEBUG
+    {
+	for (int i = 0; i < complex_Obj_count; ++i)
+	{
+	    double val;
+	    printf("%s\n", z_model.get_const_interp(z_model[i]).get_string().c_str());
+	}
+    }
+    #endif
 
     printf("Time: %.3f\n", (finish - start) / (double)CLOCKS_PER_SEC);
     printf("Testing sequential scheduling 3 ... finished\n");    
@@ -810,7 +812,6 @@ TEST_CASE("Sequential test 4", "[Sequential Arrangement Core]")
     }
         
     z3::set_param("parallel.enable", "true");    
-    //Z3_global_param_set("threads", "4");
     z3::solver z_solver(z_context);    
 
     vector<Polygon> polygons;
@@ -833,14 +834,16 @@ TEST_CASE("Sequential test 4", "[Sequential Arrangement Core]")
 						  polygons,
 						  unreachable_polygons);
     introduce_TemporalOrdering(z_solver, z_context, T_times, 16, polygons);
-  
-    printf("Printing solver status:\n");
-    cout << z_solver << "\n";
 
-    /*
-    printf("Printing smt status:\n");
-    cout << z_solver.to_smt2() << "\n";
-    */
+    #ifdef DEBUG
+    {
+	printf("Printing solver status:\n");
+	cout << z_solver << "\n";
+    
+	printf("Printing smt status:\n");
+	cout << z_solver.to_smt2() << "\n";
+    }
+    #endif
 
     int last_solvable_bounding_box_size = -1;
     double poly_1_pos_x, poly_1_pos_y, poly_2_pos_x, poly_2_pos_y, poly_3_pos_x, poly_3_pos_y, poly_4_pos_x, poly_4_pos_y;
@@ -894,10 +897,13 @@ TEST_CASE("Sequential test 4", "[Sequential Arrangement Core]")
 	if (sat)
 	{
 	    z3::model z_model(z_solver.get_model());
-	    /*
-	    printf("Printing model:\n");
-	    cout << z_model << "\n";
-	    */
+
+	    #ifdef DEBUG
+	    {
+		printf("Printing model:\n");
+		cout << z_model << "\n";
+	    }
+	    #endif
     
 	    printf("Printing interpretation:\n");    
 	    for (unsigned int i = 0; i < z_model.size(); ++i)
@@ -1013,7 +1019,6 @@ TEST_CASE("Sequential test 4", "[Sequential Arrangement Core]")
 
 		if (refined)
 		{
-		    printf("alpha 1\n");
 		    switch (z_solver.check(bounding_box_assumptions))
 		    {
 		    case z3::sat:
@@ -1038,19 +1043,25 @@ TEST_CASE("Sequential test 4", "[Sequential Arrangement Core]")
 			break;
 		    }
 		    }
-		    printf("alpha 2: %d\n", (int)refined_sat);
 
 		    if (refined_sat)
 		    {
 			z3::model z_model(z_solver.get_model());
-			/*
-			printf("Printing model:\n");
-			cout << z_model << "\n";
-			*/
+
+			#ifdef DEBUG
+			{
+			    printf("Printing model:\n");
+			    cout << z_model << "\n";
+			}
+			#endif
     
 			for (unsigned int i = 0; i < z_model.size(); ++i)
 			{
-			    //printf("Variable:%s  ", z_model[i].name().str().c_str());
+			    #ifdef DEBUG
+			    {
+				printf("Variable:%s  ", z_model[i].name().str().c_str());
+			    }
+			    #endif
 			    double value = z_model.get_const_interp(z_model[i]).as_double();
 			
 			    if (z_model[i].name().str() == "x_pos-0")
@@ -1147,34 +1158,10 @@ TEST_CASE("Sequential test 4", "[Sequential Arrangement Core]")
 	{
 	    break;
 	}	
-		
-	//cout << float(z_model[i]) << "\n";
-        /*
-	switch (z_model.get_const_interp(z_model[i]).bool_value())
-	{
-	case Z3_L_FALSE:
-	{
-	    printf("   value: FALSE\n");
-	    break;
-	}
-	case Z3_L_TRUE:
-	{
-	    printf("   value: TRUE\n");
-	    break;
-	}
-	case Z3_L_UNDEF:
-	{
-	    printf("   value: UNDEF\n");
-		break;
-	}	    
-	default:
-	{
-		break;
-	}
-	}
-	*/
     }
     finish = clock();
+
+    REQUIRE(last_solvable_bounding_box_size > 0);
 
     printf("Solvable bounding box: %d\n", last_solvable_bounding_box_size);
 
@@ -1192,16 +1179,18 @@ TEST_CASE("Sequential test 4", "[Sequential Arrangement Core]")
 	   _poly_4_pos_y,
 	   _time_4_t);			
     
-    /*
-    for (int i = 0; i < 2; ++i)
-    {	
-	double value = X_positions[i];
-	printf("Orig X: %.3f\n", value);
+    #ifdef DEBUG
+    {
+	for (int i = 0; i < 2; ++i)
+	{	
+	    double value = X_positions[i];
+	    printf("Orig X: %.3f\n", value);
 
-	value = Y_positions[i];
-	printf("Orig Y: %.3f\n", value);	
+	    value = Y_positions[i];
+	    printf("Orig Y: %.3f\n", value);	
+	}
     }
-    */
+    #endif
     
     SVG preview_svg("sequential_test_4.svg");
 
@@ -1270,10 +1259,8 @@ TEST_CASE("Sequential test 5", "[Sequential Arrangement Core]")
 	T_times.push_back(expr(z_context.real_const(name.c_str())));	
     }
     
-    z3::solver z_solver(z_context);
-    
+    z3::solver z_solver(z_context);    
     Z3_global_param_set("parallel.enable", "false");    
-    //Z3_global_param_set("threads", "4");    
 
     vector<Polygon> polygons;
     polygons.push_back(polygon_1);
@@ -1304,10 +1291,12 @@ TEST_CASE("Sequential test 5", "[Sequential Arrangement Core]")
     printf("Printing solver status:\n");
     cout << z_solver << "\n";
 
-    /*
-    printf("Printing smt status:\n");
-    cout << z_solver.to_smt2() << "\n";
-    */
+    #ifdef DEBUG
+    {
+	printf("Printing smt status:\n");
+	cout << z_solver.to_smt2() << "\n";
+    }
+    #endif
 
     int last_solvable_bounding_box_size = -1;
     Rational poly_1_pos_x, poly_1_pos_y, poly_2_pos_x, poly_2_pos_y, poly_3_pos_x, poly_3_pos_y, poly_4_pos_x, poly_4_pos_y;
@@ -1357,10 +1346,13 @@ TEST_CASE("Sequential test 5", "[Sequential Arrangement Core]")
 	{
 	    z3::model z_model(z_solver.get_model());
 
-	    /*
-	    printf("Printing model:\n");
-	    cout << z_model << "\n";
-	    */
+	    #ifdef DEBUG
+	    {
+		printf("Printing model:\n");
+		cout << z_model << "\n";
+	    }
+	    #endif
+	    
 	    printf("Printing interpretation:\n");    
 	    for (unsigned int i = 0; i < z_model.size(); ++i)
 	    {
@@ -1422,21 +1414,6 @@ TEST_CASE("Sequential test 5", "[Sequential Arrangement Core]")
 		}												
 	    }
 
-	    /*
-	    _poly_1_pos_x = poly_1_pos_x;
-	    _poly_1_pos_y = poly_1_pos_y;
-	    _time_1_t = time_1_t;
-	    _poly_2_pos_x = poly_2_pos_x;
-	    _poly_2_pos_y = poly_2_pos_y;
-	    _time_2_t = time_2_t;
-	    _poly_3_pos_x = poly_3_pos_x;
-	    _poly_3_pos_y = poly_3_pos_y;
-	    _time_3_t = time_3_t;
-	    _poly_4_pos_x = poly_4_pos_x;
-	    _poly_4_pos_y = poly_4_pos_y;
-	    _time_4_t = time_4_t;	    
-	    */
-
 	    printf("Times: %.3f, %.3f, %.3f, %3f\n",
 		   time_1_t.as_double(),
 		   time_2_t.as_double(),
@@ -1492,7 +1469,6 @@ TEST_CASE("Sequential test 5", "[Sequential Arrangement Core]")
 
 		if (refined)
 		{
-		    printf("alpha 1\n");
 		    switch (z_solver.check(bounding_box_assumptions))
 		    {
 		    case z3::sat:
@@ -1517,15 +1493,17 @@ TEST_CASE("Sequential test 5", "[Sequential Arrangement Core]")
 			break;
 		    }
 		    }
-		    printf("alpha 2: %d\n", (int)refined_sat);
 
 		    if (refined_sat)
 		    {
 			z3::model z_model(z_solver.get_model());
-			/*
-			printf("Printing model:\n");
-			cout << z_model << "\n";
-			*/
+			
+			#ifdef DEBUG
+			{
+			    printf("Printing model:\n");
+			    cout << z_model << "\n";
+			}
+			#endif
     
 			for (unsigned int i = 0; i < z_model.size(); ++i)
 			{
@@ -1629,35 +1607,10 @@ TEST_CASE("Sequential test 5", "[Sequential Arrangement Core]")
 	{
 	    break;
 	}	
-		
-	//cout << float(z_model[i]) << "\n";
-        /*
-	switch (z_model.get_const_interp(z_model[i]).bool_value())
-	{
-	case Z3_L_FALSE:
-	{
-	    printf("   value: FALSE\n");
-	    break;
-	}
-	case Z3_L_TRUE:
-	{
-	    printf("   value: TRUE\n");
-	    break;
-	}
-	case Z3_L_UNDEF:
-	{
-	    printf("   value: UNDEF\n");
-		break;
-	}	    
-	default:
-	{
-		break;
-	}
-	}
-	*/
     }
     finish = clock();
-
+    REQUIRE(last_solvable_bounding_box_size > 0);
+    
     printf("Solvable bounding box: %d\n", last_solvable_bounding_box_size);
 
     printf("Final spatio-temporal positions: %.3f, %.3f [%.3f], %.3f, %.3f [%.3f], %.3f, %.3f [%.3f], %.3f, %.3f [%.3f]\n",
@@ -1674,16 +1627,20 @@ TEST_CASE("Sequential test 5", "[Sequential Arrangement Core]")
 	   _poly_4_pos_y.as_double(),
 	   _time_4_t.as_double());			
     
-    /*
-    for (int i = 0; i < 2; ++i)
-    {	
-	double value = X_positions[i].as_double();
-	printf("Orig X: %.3f\n", value);
 
-	value = Y_positions[i].as_double();
-	printf("Orig Y: %.3f\n", value);	
+    #ifdef DEBUG
+    {
+	for (int i = 0; i < 2; ++i)
+	{	
+	    double value = X_positions[i].as_double();
+	    printf("Orig X: %.3f\n", value);
+
+	    value = Y_positions[i].as_double();
+	    printf("Orig Y: %.3f\n", value);	
+	}
     }
-    */
+    #endif
+    
     
     SVG preview_svg("sequential_test_5.svg");
 
@@ -1745,28 +1702,6 @@ TEST_CASE("Sequential test 6", "[Sequential Arrangement Core]")
     vector<int> polygon_index_map;
     vector<int> decided_polygons;
 
-    /*
-    polygons.push_back(polygon_1);
-    unreachable_polygons.push_back(unreachable_polygon_1);
-    polygons.push_back(polygon_2);
-    unreachable_polygons.push_back(unreachable_polygon_2);    
-    polygons.push_back(polygon_3);
-    unreachable_polygons.push_back(unreachable_polygon_3);   
-    polygons.push_back(polygon_4);
-    unreachable_polygons.push_back(unreachable_polygon_4);
-    */
-
-/*
-    polygons.push_back(polygon_1);
-    unreachable_polygons.push_back(polygon_1);
-    polygons.push_back(polygon_2);
-    unreachable_polygons.push_back(polygon_2);    
-    polygons.push_back(polygon_3);
-    unreachable_polygons.push_back(polygon_3);   
-    polygons.push_back(polygon_4);
-    unreachable_polygons.push_back(polygon_4);
-*/
-
     polygons.push_back(polygon_1);
     unreachable_polygons.push_back(unreachable_polygon_1);
     polygons.push_back(polygon_2);
@@ -1812,15 +1747,17 @@ TEST_CASE("Sequential test 6", "[Sequential Arrangement Core]")
     polygons.push_back(polygon_4);
     unreachable_polygons.push_back(unreachable_polygon_4);
 
-    /*
-    for (int j = 0; j < unreachable_polygons_1.size(); ++j)
+    #ifdef DEBUG
     {
-	for (int k = 0; k < unreachable_polygons_1[j].points.size(); ++k)
+	for (int j = 0; j < unreachable_polygons_1.size(); ++j)
 	{
-	    printf("    Ppxy: %d, %d\n", unreachable_polygons_1[j].points[k].x(), unreachable_polygons_1[j].points[k].y());
+	    for (int k = 0; k < unreachable_polygons_1[j].points.size(); ++k)
+	    {
+		printf("    Ppxy: %d, %d\n", unreachable_polygons_1[j].points[k].x(), unreachable_polygons_1[j].points[k].y());
+	    }
 	}
     }
-    */
+    #endif
 
     for (unsigned int index = 0; index < polygons.size(); ++index)
     {
@@ -1831,11 +1768,6 @@ TEST_CASE("Sequential test 6", "[Sequential Arrangement Core]")
     vector<Rational> poly_positions_Y;
     vector<Rational> times_T;    
     
-    /*
-    poly_positions_X.resize(polygons.size());
-    poly_positions_Y.resize(polygons.size());    
-    */    
-
     do
     {
 	decided_polygons.clear();
@@ -1850,16 +1782,8 @@ TEST_CASE("Sequential test 6", "[Sequential Arrangement Core]")
 									   polygon_index_map,
 									   decided_polygons,
 									   remaining_polygons);
+	REQUIRE(optimized);
 
-	/*
-	bool optimized = optimize_SubglobalPolygonNonoverlapping(solver_configuration,
-								 poly_positions_X,
-								 poly_positions_Y,
-								 polygons,
-								 polygon_index_map,
-								 decided_polygons,
-								 remaining_polygons);	
-	*/
 	printf("----> Optimization finished <----\n");
 	
 	if (optimized)
@@ -1867,7 +1791,6 @@ TEST_CASE("Sequential test 6", "[Sequential Arrangement Core]")
 	    printf("Polygon positions:\n");
 	    for (unsigned int i = 0; i < decided_polygons.size(); ++i)
 	    {
-		// printf("  [%d] %.3f, %.3f (%.3f)\n", decided_polygons[i], poly_positions_X[decided_polygons[i]].as_double(), poly_positions_Y[decided_polygons[i]].as_double(), times_T[decided_polygons[i]].as_double());
 		printf("  [%d] %.3f, %.3f (%.3f)\n", decided_polygons[i], poly_positions_X[decided_polygons[i]].as_double(), poly_positions_Y[decided_polygons[i]].as_double(), times_T[decided_polygons[i]].as_double());		
 	    }
 	    printf("Remaining polygons: %ld\n", remaining_polygons.size());
@@ -1882,17 +1805,19 @@ TEST_CASE("Sequential test 6", "[Sequential Arrangement Core]")
 	    {
 		for (unsigned int i = 0; i < decided_polygons.size(); ++i)
 		{
-		    /*
-		    printf("----> %.3f,%.3f\n", poly_positions_X[decided_polygons[i]].as_double(), poly_positions_Y[decided_polygons[i]].as_double());		    
-		    for (int k = 0; k < polygons[decided_polygons[i]].points.size(); ++k)
+		    #ifdef DEBUG
 		    {
-			printf("    xy: %d, %d\n", polygons[decided_polygons[i]].points[k].x(), polygons[decided_polygons[i]].points[k].y());
+			printf("----> %.3f,%.3f\n", poly_positions_X[decided_polygons[i]].as_double(), poly_positions_Y[decided_polygons[i]].as_double());		    
+			for (int k = 0; k < polygons[decided_polygons[i]].points.size(); ++k)
+			{
+			    printf("    xy: %d, %d\n", polygons[decided_polygons[i]].points[k].x(), polygons[decided_polygons[i]].points[k].y());
+			}
 		    }
-		    */		    
+		    #endif
+		    
 		    Polygon display_unreachable_polygon = scale_UP(unreachable_polygons[decided_polygons[i]],
 								  poly_positions_X[decided_polygons[i]].as_double(),
 								  poly_positions_Y[decided_polygons[i]].as_double());
-		    //if (decided_polygons[i] != 2)
 		    {
 			preview_svg.draw(display_unreachable_polygon, "lightgrey");
 		    }
@@ -1984,7 +1909,6 @@ TEST_CASE("Sequential test 6", "[Sequential Arrangement Core]")
 	{
 	    printf("Polygon optimization FAILED.\n");
 	}	
-	getchar();
 	
 	vector<Polygon> next_polygons;
 	vector<Polygon> next_unreachable_polygons;
@@ -2053,11 +1977,6 @@ TEST_CASE("Sequential test 7", "[Sequential Arrangement Core]")
     polygons.push_back(polygon_3);
     unreachable_polygons.push_back(unreachable_polygons_3);
     
-/*  
-    polygons.push_back(polygon_4);
-    unreachable_polygons.push_back(unreachable_polygons_4);
-*/
-
     polygons.push_back(polygon_1);
     unreachable_polygons.push_back(unreachable_polygons_1);    
     polygons.push_back(polygon_2);
@@ -2067,43 +1986,17 @@ TEST_CASE("Sequential test 7", "[Sequential Arrangement Core]")
     polygons.push_back(polygon_4);
     unreachable_polygons.push_back(unreachable_polygons_4);    
 
-/*
-    polygons.push_back(polygon_1);
-    unreachable_polygons.push_back(unreachable_polygons_1);    
-    polygons.push_back(polygon_2);
-    unreachable_polygons.push_back(unreachable_polygons_2);    
-    polygons.push_back(polygon_3);
-    unreachable_polygons.push_back(unreachable_polygons_3);    
-    polygons.push_back(polygon_4);
-    unreachable_polygons.push_back(unreachable_polygons_4);
-    
-    polygons.push_back(polygon_1);
-    unreachable_polygons.push_back(unreachable_polygons_1);    
-    polygons.push_back(polygon_2);
-    unreachable_polygons.push_back(unreachable_polygons_2);    
-    polygons.push_back(polygon_3);
-    unreachable_polygons.push_back(unreachable_polygons_3);    
-    polygons.push_back(polygon_4);
-    unreachable_polygons.push_back(unreachable_polygons_4);    
-
-    polygons.push_back(polygon_1);
-    unreachable_polygons.push_back(unreachable_polygons_1);    
-    polygons.push_back(polygon_2);
-    unreachable_polygons.push_back(unreachable_polygons_2);    
-    polygons.push_back(polygon_3);
-    unreachable_polygons.push_back(unreachable_polygons_3);    
-    polygons.push_back(polygon_4);
-    unreachable_polygons.push_back(unreachable_polygons_4);
-*/
-    /*
-    for (int j = 0; j < unreachable_polygons_1.size(); ++j)
+    #ifdef DEBUG
     {
-	for (int k = 0; k < unreachable_polygons_1[j].points.size(); ++k)
+	for (int j = 0; j < unreachable_polygons_1.size(); ++j)
 	{
-	    printf("    Ppxy: %d, %d\n", unreachable_polygons_1[j].points[k].x(), unreachable_polygons_1[j].points[k].y());
+	    for (int k = 0; k < unreachable_polygons_1[j].points.size(); ++k)
+	    {
+		printf("    Ppxy: %d, %d\n", unreachable_polygons_1[j].points[k].x(), unreachable_polygons_1[j].points[k].y());
+	    }
 	}
     }
-    */
+    #endif
 
     for (unsigned int index = 0; index < polygons.size(); ++index)
     {
@@ -2114,11 +2007,6 @@ TEST_CASE("Sequential test 7", "[Sequential Arrangement Core]")
     vector<Rational> poly_positions_Y;
     vector<Rational> times_T;    
     
-    /*
-    poly_positions_X.resize(polygons.size());
-    poly_positions_Y.resize(polygons.size());    
-    */    
-
     do
     {
 	decided_polygons.clear();
@@ -2133,6 +2021,7 @@ TEST_CASE("Sequential test 7", "[Sequential Arrangement Core]")
 									   polygon_index_map,
 									   decided_polygons,
 									   remaining_polygons);
+	REQUIRE(optimized);
 
 	printf("----> Optimization finished <----\n");
 	
@@ -2155,21 +2044,27 @@ TEST_CASE("Sequential test 7", "[Sequential Arrangement Core]")
 	    {
 		for (unsigned int i = 0; i < decided_polygons.size(); ++i)
 		{
-		    /*
-		    printf("----> %.3f,%.3f\n", poly_positions_X[decided_polygons[i]].as_double(), poly_positions_Y[decided_polygons[i]].as_double());		    
-		    for (int k = 0; k < polygons[decided_polygons[i]].points.size(); ++k)
+		    #ifdef DEBUG
 		    {
-			printf("    xy: %d, %d\n", polygons[decided_polygons[i]].points[k].x(), polygons[decided_polygons[i]].points[k].y());
+			printf("----> %.3f,%.3f\n", poly_positions_X[decided_polygons[i]].as_double(), poly_positions_Y[decided_polygons[i]].as_double());		    
+			for (int k = 0; k < polygons[decided_polygons[i]].points.size(); ++k)
+			{
+			    printf("    xy: %d, %d\n", polygons[decided_polygons[i]].points[k].x(), polygons[decided_polygons[i]].points[k].y());
+			}
 		    }
-		    */		    
+		    #endif
+		    
 		    for (unsigned int j = 0; j < unreachable_polygons[decided_polygons[i]].size(); ++j)
 		    {
-			/*
-			for (int k = 0; k < unreachable_polygons[decided_polygons[i]][j].points.size(); ++k)
+			#ifdef DEBUG
 			{
-			    printf("    Pxy: %d, %d\n", unreachable_polygons[decided_polygons[i]][j].points[k].x(), unreachable_polygons[decided_polygons[i]][j].points[k].y());
+			    for (int k = 0; k < unreachable_polygons[decided_polygons[i]][j].points.size(); ++k)
+			    {
+				printf("    Pxy: %d, %d\n", unreachable_polygons[decided_polygons[i]][j].points[k].x(), unreachable_polygons[decided_polygons[i]][j].points[k].y());
+			    }
 			}
-			*/
+			#endif
+
 			Polygon display_unreachable_polygon = scale_UP(unreachable_polygons[decided_polygons[i]][j],
 								      poly_positions_X[decided_polygons[i]].as_double(),
 								      poly_positions_Y[decided_polygons[i]].as_double());
@@ -2263,7 +2158,6 @@ TEST_CASE("Sequential test 7", "[Sequential Arrangement Core]")
 	{
 	    printf("Polygon optimization FAILED.\n");
 	}
-	getchar();
 	
 	vector<Polygon> next_polygons;
 	vector<vector<Polygon> > next_unreachable_polygons;
@@ -2299,5 +2193,5 @@ TEST_CASE("Sequential test 7", "[Sequential Arrangement Core]")
 }    
 
 
-/*----------------------------------------------------------------*/
 
+/*----------------------------------------------------------------*/

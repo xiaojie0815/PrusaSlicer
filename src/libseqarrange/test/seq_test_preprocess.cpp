@@ -95,6 +95,7 @@ TEST_CASE("Preprocessing test 1", "[Sequential Arrangement Preprocessing]")
 	scaleDown_PolygonForSequentialSolver(PRUSA_PART_POLYGONS[i], scale_down_polygon);       
 	test_polygons.push_back(scale_down_polygon);
     }
+    REQUIRE(!test_polygons.empty());
 
     for (unsigned int i = 0; i < test_polygons.size(); ++i)
     {
@@ -102,10 +103,7 @@ TEST_CASE("Preprocessing test 1", "[Sequential Arrangement Preprocessing]")
 	Polygon display_polygon = scale_UP(test_polygons[i], 1000, 1000);
 	preview_svg.draw(display_polygon, "blue");
 	preview_svg.Close();
-	getchar();
-    }
-    
-    
+    }        
     finish = clock();
     
     printf("Time: %.3f\n", (finish - start) / (double)CLOCKS_PER_SEC);
@@ -164,6 +162,7 @@ TEST_CASE("Preprocessing test 2", "[Sequential Arrangement Preprocessing]")
 											 remaining_polygons);
 
 	printf("----> Optimization finished <----\n");
+	REQUIRE(optimized);	
 	
 	if (optimized)
 	{
@@ -184,21 +183,27 @@ TEST_CASE("Preprocessing test 2", "[Sequential Arrangement Preprocessing]")
 	    {
 		for (unsigned int i = 0; i < decided_polygons.size(); ++i)
 		{
-		    /*
-		    printf("----> %.3f,%.3f\n", poly_positions_X[decided_polygons[i]].as_double(), poly_positions_Y[decided_polygons[i]].as_double());		    
-		    for (int k = 0; k < polygons[decided_polygons[i]].points.size(); ++k)
+		    #ifdef DEBUG
 		    {
-			printf("    xy: %d, %d\n", polygons[decided_polygons[i]].points[k].x(), polygons[decided_polygons[i]].points[k].y());
-		    }
-		    */		    
-//		    for (unsigned int j = 0; j < unreachable_polygons[decided_polygons[i]].size(); ++j)
-		    {
-			/*
-			for (int k = 0; k < unreachable_polygons[decided_polygons[i]][j].points.size(); ++k)
+			printf("----> %.3f,%.3f\n", poly_positions_X[decided_polygons[i]].as_double(), poly_positions_Y[decided_polygons[i]].as_double());		    
+			for (int k = 0; k < polygons[decided_polygons[i]].points.size(); ++k)
 			{
-			    printf("    Pxy: %d, %d\n", unreachable_polygons[decided_polygons[i]][j].points[k].x(), unreachable_polygons[decided_polygons[i]][j].points[k].y());
+			    printf("    xy: %d, %d\n", polygons[decided_polygons[i]].points[k].x(), polygons[decided_polygons[i]].points[k].y());
 			}
-			*/
+		    }
+		    #endif
+
+		    for (unsigned int j = 0; j < unreachable_polygons[decided_polygons[i]].size(); ++j)
+		    {
+			#ifdef DEBUG
+			{
+			    for (int k = 0; k < unreachable_polygons[decided_polygons[i]][j].points.size(); ++k)
+			    {
+				printf("    Pxy: %d, %d\n", unreachable_polygons[decided_polygons[i]][j].points[k].x(), unreachable_polygons[decided_polygons[i]][j].points[k].y());
+			    }
+			}
+			#endif
+			
 			Polygon display_unreachable_polygon = scale_UP(unreachable_polygons[decided_polygons[i]],
 								      poly_positions_X[decided_polygons[i]].as_double(),
 								      poly_positions_Y[decided_polygons[i]].as_double());
@@ -291,10 +296,10 @@ TEST_CASE("Preprocessing test 2", "[Sequential Arrangement Preprocessing]")
 	else
 	{
 	    printf("Polygon optimization FAILED.\n");
-	}
-	finish = clock();	
+	}	
+	finish = clock();
+
 	printf("Intermediate time: %.3f\n", (finish - start) / (double)CLOCKS_PER_SEC);
-	getchar();
 	
 	vector<Polygon> next_polygons;
 	vector<Polygon> next_unreachable_polygons;
@@ -350,13 +355,12 @@ TEST_CASE("Preprocessing test 3", "[Sequential Arrangement Preprocessing]")
 	    nozzle_unreachable_polygons.clear();
 	    
 	    extend_PolygonConvexUnreachableZone(solver_configuration,
-					       PRUSA_PART_POLYGONS[p],
-					       SEQ_UNREACHABLE_POLYGON_NOZZLE_LEVEL_MK3S,
-					       nozzle_unreachable_polygons);
+						PRUSA_PART_POLYGONS[p],
+						SEQ_UNREACHABLE_POLYGON_NOZZLE_LEVEL_MK3S,
+						nozzle_unreachable_polygons);
+	    REQUIRE(nozzle_unreachable_polygons.size() > 0);
 	    
 	    SVG preview_svg("preprocess_test_3.svg");
-
-	    //preview_svg.draw(PRUSA_PART_POLYGONS[p], "blue");
 
 	    for (unsigned int j = 0; j < SEQ_UNREACHABLE_POLYGON_NOZZLE_LEVEL_MK3S.size(); ++j)
 	    {
@@ -373,7 +377,6 @@ TEST_CASE("Preprocessing test 3", "[Sequential Arrangement Preprocessing]")
 	    preview_svg.draw(PRUSA_PART_POLYGONS[p], "blue");
 	
 	    preview_svg.Close();
-	    getchar();
 	}
 
 	{
@@ -383,12 +386,10 @@ TEST_CASE("Preprocessing test 3", "[Sequential Arrangement Preprocessing]")
 					    PRUSA_PART_POLYGONS[p],
 					    SEQ_UNREACHABLE_POLYGON_NOZZLE_LEVEL_MK3S,
 					    nozzle_unreachable_polygons);
+	    REQUIRE(nozzle_unreachable_polygons.size() > 0);	    
 	    
 	    SVG preview_svg("preprocess_test_3.svg");	    
 
-	    //preview_svg.draw(PRUSA_PART_POLYGONS[p], "blue");
-
-	
 	    for (unsigned int j = 0; j < SEQ_UNREACHABLE_POLYGON_NOZZLE_LEVEL_MK3S.size(); ++j)
 	    {
 		preview_svg.draw(SEQ_UNREACHABLE_POLYGON_NOZZLE_LEVEL_MK3S[j], "lightgrey");
@@ -404,7 +405,6 @@ TEST_CASE("Preprocessing test 3", "[Sequential Arrangement Preprocessing]")
 	    preview_svg.draw(PRUSA_PART_POLYGONS[p], "red");
 	
 	    preview_svg.Close();
-	    getchar();
 	}
 
 	{
@@ -414,10 +414,9 @@ TEST_CASE("Preprocessing test 3", "[Sequential Arrangement Preprocessing]")
 					       PRUSA_PART_POLYGONS[p],
 					       SEQ_UNREACHABLE_POLYGON_EXTRUDER_LEVEL_MK3S,
 					       extruder_unreachable_polygons);
+	    REQUIRE(extruder_unreachable_polygons.size() > 0);
 	    
 	    SVG preview_svg("preprocess_test_3.svg");
-
-	    //preview_svg.draw(PRUSA_PART_POLYGONS[p], "blue");
 
 	    for (unsigned int j = 0; j < SEQ_UNREACHABLE_POLYGON_EXTRUDER_LEVEL_MK3S.size(); ++j)
 	    {
@@ -434,7 +433,6 @@ TEST_CASE("Preprocessing test 3", "[Sequential Arrangement Preprocessing]")
 	    preview_svg.draw(PRUSA_PART_POLYGONS[p], "green");
 	
 	    preview_svg.Close();
-	    getchar();
 	}
 
 	{
@@ -444,12 +442,10 @@ TEST_CASE("Preprocessing test 3", "[Sequential Arrangement Preprocessing]")
 					    PRUSA_PART_POLYGONS[p],
 					    SEQ_UNREACHABLE_POLYGON_EXTRUDER_LEVEL_MK3S,
 					    extruder_unreachable_polygons);
+	    REQUIRE(extruder_unreachable_polygons.size() > 0);	    
 	    
 	    SVG preview_svg("preprocess_test_3.svg");	    
 
-	    //preview_svg.draw(PRUSA_PART_POLYGONS[p], "blue");
-
-	
 	    for (unsigned int j = 0; j < SEQ_UNREACHABLE_POLYGON_EXTRUDER_LEVEL_MK3S.size(); ++j)
 	    {
 		preview_svg.draw(SEQ_UNREACHABLE_POLYGON_EXTRUDER_LEVEL_MK3S[j], "lightgrey");
@@ -465,7 +461,6 @@ TEST_CASE("Preprocessing test 3", "[Sequential Arrangement Preprocessing]")
 	    preview_svg.draw(PRUSA_PART_POLYGONS[p], "magenta");
 	
 	    preview_svg.Close();
-	    getchar();
 	}
 
 	{
@@ -475,10 +470,9 @@ TEST_CASE("Preprocessing test 3", "[Sequential Arrangement Preprocessing]")
 					       PRUSA_PART_POLYGONS[p],
 					       SEQ_UNREACHABLE_POLYGON_HOSE_LEVEL_MK3S,
 					       hose_unreachable_polygons);
-	    
+	    REQUIRE(hose_unreachable_polygons.size() > 0);
+		    
 	    SVG preview_svg("preprocess_test_3.svg");
-
-	    //preview_svg.draw(PRUSA_PART_POLYGONS[p], "blue");
 
 	    for (unsigned int j = 0; j < SEQ_UNREACHABLE_POLYGON_HOSE_LEVEL_MK3S.size(); ++j)
 	    {
@@ -495,7 +489,6 @@ TEST_CASE("Preprocessing test 3", "[Sequential Arrangement Preprocessing]")
 	    preview_svg.draw(PRUSA_PART_POLYGONS[p], "yellow");
 	
 	    preview_svg.Close();
-	    getchar();
 	}
 
 	{
@@ -505,12 +498,10 @@ TEST_CASE("Preprocessing test 3", "[Sequential Arrangement Preprocessing]")
 					    PRUSA_PART_POLYGONS[p],
 					    SEQ_UNREACHABLE_POLYGON_HOSE_LEVEL_MK3S,
 					    hose_unreachable_polygons);
+	    REQUIRE(hose_unreachable_polygons.size() > 0);
 	    
 	    SVG preview_svg("preprocess_test_3.svg");	    
 
-	    //preview_svg.draw(PRUSA_PART_POLYGONS[p], "blue");
-
-	
 	    for (unsigned int j = 0; j < SEQ_UNREACHABLE_POLYGON_HOSE_LEVEL_MK3S.size(); ++j)
 	    {
 		preview_svg.draw(SEQ_UNREACHABLE_POLYGON_HOSE_LEVEL_MK3S[j], "lightgrey");
@@ -526,7 +517,6 @@ TEST_CASE("Preprocessing test 3", "[Sequential Arrangement Preprocessing]")
 	    preview_svg.draw(PRUSA_PART_POLYGONS[p], "orange");
 	
 	    preview_svg.Close();
-	    getchar();
 	}
 
 	{
@@ -536,10 +526,9 @@ TEST_CASE("Preprocessing test 3", "[Sequential Arrangement Preprocessing]")
 					       PRUSA_PART_POLYGONS[p],
 					       SEQ_UNREACHABLE_POLYGON_GANTRY_LEVEL_MK3S,
 					       gantry_unreachable_polygons);
+	    REQUIRE(gantry_unreachable_polygons.size() > 0);
 	    
 	    SVG preview_svg("preprocess_test_3.svg");
-
-	    //preview_svg.draw(PRUSA_PART_POLYGONS[p], "blue");
 
 	    for (unsigned int j = 0; j < SEQ_UNREACHABLE_POLYGON_GANTRY_LEVEL_MK3S.size(); ++j)
 	    {
@@ -556,7 +545,6 @@ TEST_CASE("Preprocessing test 3", "[Sequential Arrangement Preprocessing]")
 	    preview_svg.draw(PRUSA_PART_POLYGONS[p], "grey");
 	
 	    preview_svg.Close();
-	    getchar();
 	}
 
 	{
@@ -566,12 +554,10 @@ TEST_CASE("Preprocessing test 3", "[Sequential Arrangement Preprocessing]")
 					    PRUSA_PART_POLYGONS[p],
 					    SEQ_UNREACHABLE_POLYGON_GANTRY_LEVEL_MK3S,
 					    gantry_unreachable_polygons);
+	    REQUIRE(gantry_unreachable_polygons.size() > 0);	    
 	    
 	    SVG preview_svg("preprocess_test_3.svg");	    
 
-	    //preview_svg.draw(PRUSA_PART_POLYGONS[p], "blue");
-
-	
 	    for (unsigned int j = 0; j < SEQ_UNREACHABLE_POLYGON_GANTRY_LEVEL_MK3S.size(); ++j)
 	    {
 		preview_svg.draw(SEQ_UNREACHABLE_POLYGON_GANTRY_LEVEL_MK3S[j], "lightgrey");
@@ -587,7 +573,6 @@ TEST_CASE("Preprocessing test 3", "[Sequential Arrangement Preprocessing]")
 	    preview_svg.draw(PRUSA_PART_POLYGONS[p], "black");
 	
 	    preview_svg.Close();
-	    getchar();
 	}			
     }    
     
@@ -611,7 +596,7 @@ TEST_CASE("Preprocessing test 4", "[Sequential Arrangement Preprocessing]")
 
     std::vector<Slic3r::Polygon> polygons;
     std::vector<std::vector<Slic3r::Polygon> > unreachable_polygons;
-    for (int i = 0; i < 12/*PRUSA_PART_POLYGONS.size()*/; ++i)
+    for (int i = 0; i < 12; ++i)
     {
 	Polygon scale_down_polygon;
 	scaleDown_PolygonForSequentialSolver(PRUSA_PART_POLYGONS[i], scale_down_polygon);
@@ -663,6 +648,7 @@ TEST_CASE("Preprocessing test 4", "[Sequential Arrangement Preprocessing]")
 											 remaining_polygons);
 
 	printf("----> Optimization finished <----\n");
+	REQUIRE(optimized);
 	
 	if (optimized)
 	{
@@ -683,21 +669,25 @@ TEST_CASE("Preprocessing test 4", "[Sequential Arrangement Preprocessing]")
 	    {
 		for (unsigned int i = 0; i < decided_polygons.size(); ++i)
 		{
-		    /*
+		    #ifdef DEBUG
+		    {	
 		    printf("----> %.3f,%.3f\n", poly_positions_X[decided_polygons[i]].as_double(), poly_positions_Y[decided_polygons[i]].as_double());		    
 		    for (int k = 0; k < polygons[decided_polygons[i]].points.size(); ++k)
 		    {
 			printf("    xy: %d, %d\n", polygons[decided_polygons[i]].points[k].x(), polygons[decided_polygons[i]].points[k].y());
 		    }
-		    */		    
+}
+		    #endif
 		    for (unsigned int j = 0; j < unreachable_polygons[decided_polygons[i]].size(); ++j)
 		    {
-			/*
+			#ifdef DEBUG
+                        {
 			for (int k = 0; k < unreachable_polygons[decided_polygons[i]][j].points.size(); ++k)
 			{
 			    printf("    Pxy: %d, %d\n", unreachable_polygons[decided_polygons[i]][j].points[k].x(), unreachable_polygons[decided_polygons[i]][j].points[k].y());
 			}
-			*/
+			#endif
+
 			Polygon display_unreachable_polygon = scale_UP(unreachable_polygons[decided_polygons[i]][j],
 								      poly_positions_X[decided_polygons[i]].as_double(),
 								      poly_positions_Y[decided_polygons[i]].as_double());
@@ -793,7 +783,6 @@ TEST_CASE("Preprocessing test 4", "[Sequential Arrangement Preprocessing]")
 	}
 	finish = clock();	
 	printf("Intermediate time: %.3f\n", (finish - start) / (double)CLOCKS_PER_SEC);
-	getchar();
 	
 	vector<Polygon> next_polygons;
 	vector<vector<Polygon> > next_unreachable_polygons;
@@ -844,16 +833,14 @@ TEST_CASE("Preprocessing test 5", "[Sequential Arrangement Preprocessing]")
     
     for (unsigned int i = 0; i < PRUSA_PART_POLYGONS.size(); ++i)
     {
-	Polygon simplified_polygon;
+	Polygon simplified_polygon, scale_down_polygon;
 	
 	decimate_PolygonForSequentialSolver(solver_configuration,
 					    PRUSA_PART_POLYGONS[i],
 					    simplified_polygon,
-					    false);	
-	/*
-	scaleDown_PolygonForSequentialSolver(solver_configuration, PRUSA_PART_POLYGONS[i], scale_down_polygon);
-	polygons.push_back(scale_down_polygon);
-
+					    false);
+	REQUIRE(simplified_polygon.size() > 0);
+	
 	std::vector<Slic3r::Polygon> convex_level_polygons;
 	convex_level_polygons.push_back(PRUSA_PART_POLYGONS[i]);
 	convex_level_polygons.push_back(PRUSA_PART_POLYGONS[i]);	
@@ -868,17 +855,15 @@ TEST_CASE("Preprocessing test 5", "[Sequential Arrangement Preprocessing]")
 				       SEQ_UNREACHABLE_POLYGON_CONVEX_LEVELS_MK3S,
 				       SEQ_UNREACHABLE_POLYGON_BOX_LEVELS_MK3S,
 				       scale_down_unreachable_polygons);
+	REQUIRE(scale_down_unreachable_polygons.size() > 0);
 	unreachable_polygons.push_back(scale_down_unreachable_polygons);
-	*/
+	
 	SVG preview_svg("preprocess_test_5.svg");
-
-	//preview_svg.draw(PRUSA_PART_POLYGONS[p], "blue");
 
 	preview_svg.draw(simplified_polygon, "lightgrey");	
 	preview_svg.draw(PRUSA_PART_POLYGONS[i], "blue");	    
 	
 	preview_svg.Close();
-	getchar();	
     }
 
     finish = clock();
@@ -958,6 +943,7 @@ TEST_CASE("Preprocessing test 6", "[Sequential Arrangement Preprocessing]")
 											 remaining_polygons);
 
 	printf("----> Optimization finished <----\n");
+	REQUIRE(optimized);
 	
 	if (optimized)
 	{
@@ -978,21 +964,25 @@ TEST_CASE("Preprocessing test 6", "[Sequential Arrangement Preprocessing]")
 	    {
 		for (unsigned int i = 0; i < decided_polygons.size(); ++i)
 		{
-		    /*
-		    printf("----> %.3f,%.3f\n", poly_positions_X[decided_polygons[i]].as_double(), poly_positions_Y[decided_polygons[i]].as_double());		    
-		    for (int k = 0; k < polygons[decided_polygons[i]].points.size(); ++k)
-		    {
-			printf("    xy: %d, %d\n", polygons[decided_polygons[i]].points[k].x(), polygons[decided_polygons[i]].points[k].y());
+		    #ifdef DEBUG
+                    {
+			printf("----> %.3f,%.3f\n", poly_positions_X[decided_polygons[i]].as_double(), poly_positions_Y[decided_polygons[i]].as_double());		    
+			for (int k = 0; k < polygons[decided_polygons[i]].points.size(); ++k)
+			{
+			    printf("    xy: %d, %d\n", polygons[decided_polygons[i]].points[k].x(), polygons[decided_polygons[i]].points[k].y());
+			}
 		    }
-		    */		    
+		    #endif		    
 		    for (unsigned int j = 0; j < unreachable_polygons[decided_polygons[i]].size(); ++j)
 		    {
-			/*
-			for (int k = 0; k < unreachable_polygons[decided_polygons[i]][j].points.size(); ++k)
-			{
-			    printf("    Pxy: %d, %d\n", unreachable_polygons[decided_polygons[i]][j].points[k].x(), unreachable_polygons[decided_polygons[i]][j].points[k].y());
+			#ifdef DEBUG
+                        {
+			    for (int k = 0; k < unreachable_polygons[decided_polygons[i]][j].points.size(); ++k)
+			    {
+				printf("    Pxy: %d, %d\n", unreachable_polygons[decided_polygons[i]][j].points[k].x(), unreachable_polygons[decided_polygons[i]][j].points[k].y());
+			    }
 			}
-			*/
+                        #endif
 			Polygon display_unreachable_polygon = scale_UP(unreachable_polygons[decided_polygons[i]][j],
 								      poly_positions_X[decided_polygons[i]].as_double(),
 								      poly_positions_Y[decided_polygons[i]].as_double());
@@ -1088,7 +1078,6 @@ TEST_CASE("Preprocessing test 6", "[Sequential Arrangement Preprocessing]")
 	}
 	finish = clock();	
 	printf("Intermediate time: %.3f\n", (finish - start) / (double)CLOCKS_PER_SEC);
-	getchar();
 	
 	vector<Polygon> next_polygons;
 	vector<vector<Polygon> > next_unreachable_polygons;

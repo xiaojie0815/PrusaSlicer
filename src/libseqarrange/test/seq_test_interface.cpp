@@ -114,7 +114,7 @@ void save_import_data(const std::string           &filename,
 
 
 /*----------------------------------------------------------------*/
-/*
+
 TEST_CASE("Interface test 1", "[Sequential Arrangement Interface]")
 { 
     clock_t start, finish;
@@ -246,7 +246,7 @@ TEST_CASE("Interface test 3", "[Sequential Arrangement Interface]")
     start = clock();
     
     PrinterGeometry printer_geometry;
-    int result = load_printer_geometry("printer_geometry.mk4.txt", printer_geometry);
+    int result = load_printer_geometry("printers/printer_geometry.mk4.txt", printer_geometry);
     REQUIRE(result == 0);
     
     if (result != 0)
@@ -437,7 +437,7 @@ TEST_CASE("Interface test 5", "[Sequential Arrangement Interface]")
     
     printf("Testing interface 5 ... finished\n");
 }
-*/
+
 
 TEST_CASE("Interface test 6", "[Sequential Arrangement Interface]")
 {

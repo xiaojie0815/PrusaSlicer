@@ -298,14 +298,12 @@ public:
 	, high_Obj1_y(space_vars[7])
 	, high_Obj1_t(time_vars[3])	  	  
     {
-	printf("alpha 1\n");
 	BoolVar low_Obj1_present = expr(*this, low_Obj1_t >= 0);
 	BoolVar low_Obj2_present = expr(*this, low_Obj2_t >= 0);
 	BoolVar low_Obj3_present = expr(*this, low_Obj3_t >= 0);	
 	BoolVar high_Obj1_present = expr(*this, high_Obj1_t >= 0);
 	//BoolVar low_Obj1_above_high_Obj1 = expr(*this, low_Obj1_t >= high_Obj1_t);	
 
-	printf("alpha 2\n");	
 	BoolVarArgs objects_present(4);
 	objects_present[0] = low_Obj1_present;
 	objects_present[1] = low_Obj2_present;
@@ -318,7 +316,7 @@ public:
 
 	IntVar kine_Obj1_x(kine_vars[0]);
 	IntVar kine_Obj1_y(kine_vars[1]);
-	printf("alpha 3\n");
+	
 	kine_widths[0] = kine_width;
 	kine_heights[0] = kine_height;
 
@@ -338,7 +336,6 @@ public:
 	heights[2] = low_Obj3_height;	
 	heights[3] = high_Obj1_height;
 	//heights[3] = kine_height;
-	printf("alpha 4\n");
 	
 	IntVarArgs Xs(4);
 	Xs[0] = low_Obj1_x;
@@ -353,10 +350,8 @@ public:
 	Ys[2] = low_Obj3_y;	
 	Ys[3] = high_Obj1_y;
 	//Ys[3] = kine_Obj1_y;	
-	printf("alpha 5\n");
 	
 	nooverlap(*this, Xs, widths, Ys, heights/*, objects_present*/);
-	printf("alpha 6\n");
 
 	rel(*this, low_Obj1_t >= low_Obj2_t + low_Obj2_duration || low_Obj2_t >= low_Obj1_t + low_Obj1_duration);
 	rel(*this, low_Obj1_t >= low_Obj3_t + low_Obj3_duration || low_Obj3_t >= low_Obj1_t + low_Obj1_duration);
@@ -393,12 +388,10 @@ public:
 	rel(*this, high_Obj1_t < 10);
 	rel(*this, high_Obj1_x == 0);	
 	
-	printf("alpha 7\n");
 	
 	branch(*this, space_vars, INT_VAR_SIZE_MIN(), INT_VAL_MIN());
 	branch(*this, time_vars, INT_VAR_SIZE_MIN(), INT_VAL_MIN());
 	branch(*this, kine_vars, INT_VAR_SIZE_MIN(), INT_VAL_MIN());
-	printf("alpha 8\n");	
     };
 
     SimpleSequentialProblem(SimpleSequentialProblem &s)
