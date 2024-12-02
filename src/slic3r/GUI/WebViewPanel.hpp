@@ -73,10 +73,10 @@ public:
     virtual void sys_color_changed();
 
     void set_load_default_url_on_next_error(bool val) { m_load_default_url_on_next_error = val; }
-
+   
 protected:
     virtual void late_create();
-
+    virtual void define_css();
     virtual void on_page_will_load();
 
     wxWebView* m_browser { nullptr };
@@ -118,6 +118,7 @@ protected:
     bool m_shown { false };
     bool m_load_default_url_on_next_error { false };
     bool m_do_late_webview_create {false};
+    bool m_styles_defined {false};
 
     std::vector<std::string> m_script_message_hadler_names;
 }; 
@@ -194,6 +195,8 @@ public:
     void send_will_refresh();
     wxString get_default_url() const override;
     void set_next_show_url(const std::string& url) {m_next_show_url = Utils::ServiceConfig::instance().printables_url() + url; }
+protected:
+    void define_css() override;
 private:
      void handle_message(const std::string& message);
      void on_printables_event_access_token_expired(const std::string& message_data);
@@ -202,9 +205,9 @@ private:
      void on_printables_event_download_file(const std::string& message_data);
      void on_printables_event_slice_file(const std::string& message_data);
      void on_printables_event_required_login(const std::string& message_data);
+     void on_printables_event_open_url(const std::string& message_data);
      void load_default_url() override;
      std::string get_url_lang_theme(const wxString& url) const;
-     void define_css();
      void show_download_notification(const std::string& filename);
      void show_loading_overlay();
      void hide_loading_overlay();
@@ -213,7 +216,6 @@ private:
      std::string m_next_show_url;
 
      bool m_refreshing_token {false};
-     bool m_styles_defined {false};
 #ifdef _WIN32
      bool m_remove_request_auth { false };
 #endif
