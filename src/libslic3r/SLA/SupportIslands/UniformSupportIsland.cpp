@@ -368,7 +368,11 @@ coord_t align_once(
     // IMPROVE1: add accessor to point coordinate do not copy points
     // IMPROVE2: add filter for create cell polygon only for moveable samples
     Points points = to_points(supports);
-    Polygons cell_polygons = create_voronoi_cells_cgal(points, config.max_distance);
+    coord_t max_distance = std::max(std::max(
+        config.thin_max_distance, 
+        config.thick_inner_max_distance),
+        config.thick_outline_max_distance); 
+    Polygons cell_polygons = create_voronoi_cells_cgal(points, max_distance);
     
 #ifdef SLA_SAMPLE_ISLAND_UTILS_STORE_ALIGN_ONCE_TO_SVG_PATH
     std::string color_of_island = "#FF8080";             // LightRed. Should not be visible - cell color should overlap
@@ -569,7 +573,7 @@ void create_supports_for_thin_part(
     };
     using SupportIns = std::vector<SupportIn>;
 
-    coord_t support_distance = config.max_distance;
+    coord_t support_distance = config.thin_max_distance;
     coord_t half_support_distance = support_distance / 2;
 
     // Current neighbor
@@ -1243,7 +1247,7 @@ SupportIslandPoints sample_outline(const Field &field, const SampleConfig &confi
     const Polygon &contour = border.contour;
     assert(field.source_indices.size() >= contour.size());
     coord_t max_align_distance = config.max_align_distance;
-    coord_t sample_distance = config.outline_sample_distance;
+    coord_t sample_distance = config.thick_outline_max_distance;
     SupportIslandPoints result;
 
     using RestrictionPtr = std::shared_ptr<SupportOutlineIslandPoint::Restriction>;
@@ -1424,7 +1428,7 @@ void create_supports_for_thick_part(const ThickPart &part, SupportIslandPoints &
         std::move_iterator(outline_support.end()));
     // Inner must survive after sample field for aligning supports(move along outline)
     auto inner = std::make_shared<ExPolygon>(field.inner);    
-    Points inner_points = sample_expolygon_with_centering(*inner, config.max_distance);    
+    Points inner_points = sample_expolygon_with_centering(*inner, config.thick_inner_max_distance);    
     std::transform(inner_points.begin(), inner_points.end(), std::back_inserter(results), 
         [&](const Point &point) { 
             return std::make_unique<SupportIslandInnerPoint>(
@@ -1490,7 +1494,7 @@ using ProcessItems = std::vector<ProcessItem>;
 /// <param name="part_index">Source part index</param>
 /// <param name="to_type">Type for new added part</param>
 /// <param name="neighbor">Edge where appear change from one state to another</param>
-/// <param name="limit">min or max(min_width_for_outline_support, max_width_for_center_support_line)</param>
+/// <param name="limit">min or max(thick_min_width, thin_max_width)</param>
 /// <param name="lines">Island border</param>
 /// <param name="config">Minimal Island part length</param>
 /// <returns>index of new part inside island_parts</returns>
@@ -1548,8 +1552,8 @@ size_t add_part(
 /// <returns>Next part index</returns>
 size_t detect_interface(IslandParts &island_parts, size_t part_index, const Neighbor *neighbor, const Lines &lines, const SampleConfig &config) {
     // Range for of hysterezis between thin and thick part of island
-    coord_t min = config.min_width_for_outline_support;
-    coord_t max = config.max_width_for_center_support_line;
+    coord_t min = config.thick_min_width;
+    coord_t max = config.thin_max_width;
 
     size_t next_part_index = part_index;
     switch (island_parts[part_index].type) {
@@ -2281,7 +2285,7 @@ SupportIslandPoints uniform_support_island(const ExPolygon &island, const Sample
     }
 
     // 2) Two support points have to stretch island even if haed is not fully under island.
-    if (VoronoiGraphUtils::get_max_width(longest_path) < config.max_width_for_center_support_line &&
+    if (VoronoiGraphUtils::get_max_width(longest_path) < config.thin_max_width &&
         longest_path.length < config.max_length_for_two_support_points) {        
         SupportIslandPoints supports = create_side_points(longest_path, lines, config);        
 #ifdef OPTION_TO_STORE_ISLAND

@@ -164,12 +164,15 @@ using StatusFunction= std::function<void(int)>;
 /// </summary>
 /// <param name="slices">Countour cut from mesh</param>
 /// <param name="heights">Heights of the slices - Same size as slices</param>
+/// <param name="discretize_overhang_sample_in_mm">Discretization of overhangs outline, 
+/// smaller will slow down the process but will be more precise</param>
 /// <param name="throw_on_cancel">Call in meanwhile to check cancel event</param>
 /// <param name="statusfn">Say progress of generation into gui</param>
 /// <returns>Data prepared for generate support points</returns>
 SupportPointGeneratorData prepare_generator_data(
     std::vector<ExPolygons> &&slices,
     const std::vector<float> &heights,
+    double discretize_overhang_sample_in_mm,
     ThrowOnCancel throw_on_cancel,
     StatusFunction statusfn
 );

@@ -132,7 +132,7 @@ void test_supports(const std::string          &obj_filename,
     autogencfg.head_diameter = 2 * supportcfg.head_front_radius_mm;
     sla::ThrowOnCancel cancel = []() {};
     sla::StatusFunction status = [](int) {};
-    sla::SupportPointGeneratorData gen_data = sla::prepare_generator_data(std::move(out.model_slices), out.slicegrid, cancel, status);
+    sla::SupportPointGeneratorData gen_data = sla::prepare_generator_data(std::move(out.model_slices), out.slicegrid, 2., cancel, status);
     sla::LayerSupportPoints layer_support_points = sla::generate_support_points(gen_data, autogencfg, cancel, status);
     double allowed_move = (out.slicegrid[1] - out.slicegrid[0]) + std::numeric_limits<float>::epsilon();
     // Get the calculated support points.
@@ -477,7 +477,7 @@ sla::SupportPoints calc_support_pts(
     
     sla::ThrowOnCancel cancel = []() {};
     sla::StatusFunction status = [](int) {};
-    sla::SupportPointGeneratorData gen_data = sla::prepare_generator_data(std::move(slices), heights, cancel, status);
+    sla::SupportPointGeneratorData gen_data = sla::prepare_generator_data(std::move(slices), heights, 2., cancel, status);
     sla::LayerSupportPoints layer_support_points = sla::generate_support_points(gen_data, cfg, cancel, status);
 
     AABBMesh emesh{mesh};

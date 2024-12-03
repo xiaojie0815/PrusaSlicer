@@ -13,9 +13,18 @@ namespace Slic3r::sla {
 /// </summary>
 struct SampleConfig
 {
-    // Every point on island has at least one support point in maximum distance
+    // Maximal distance of support points on thin island's part
     // MUST be bigger than zero
-    coord_t max_distance = static_cast<coord_t>(scale_(5.));
+    coord_t thin_max_distance = static_cast<coord_t>(scale_(5.));
+
+    // Maximal distance of support points inside of thick island's part
+    // MUST be bigger than zero
+    coord_t thick_inner_max_distance = static_cast<coord_t>(scale_(5.));
+
+    // Maximal distance of support points on outline of thick island's part
+    // Sample outline of Field by this value
+    // MUST be bigger than zero
+    coord_t thick_outline_max_distance = static_cast<coord_t>(scale_(5 * 3 / 4.));
 
     // Support point head radius
     // MUST be bigger than zero
@@ -44,12 +53,12 @@ struct SampleConfig
     float max_length_ratio_for_two_support_points = 0.25; // |--25%--Sup----50%----Sup--25%--|
 
     // Maximal width of line island supported in the middle of line
-    // Must be greater or equal to min_width_for_outline_support
-    coord_t max_width_for_center_support_line = static_cast<coord_t>(scale_(1.));
+    // Must be greater or equal to thick_min_width
+    coord_t thin_max_width = static_cast<coord_t>(scale_(1.));
 
     // Minimal width to be supported by outline
-    // Must be smaller or equal to max_width_for_center_support_line
-    coord_t min_width_for_outline_support = static_cast<coord_t>(scale_(1.));
+    // Must be smaller or equal to thin_max_width
+    coord_t thick_min_width = static_cast<coord_t>(scale_(1.));
 
     // Minimal length of island's part to create tiny&thick interface
     coord_t min_part_length = static_cast<coord_t>(scale_(1.));
@@ -61,10 +70,6 @@ struct SampleConfig
     // Maximal count of align iteration
     size_t count_iteration = 100;
     
-    // Sample outline of Field by this value
-    // Less than max_distance
-    coord_t outline_sample_distance = static_cast<coord_t>(scale_(5 *3/4.));
-
     // Maximal distance over Voronoi diagram edges to find closest point during aligning Support point
     coord_t max_align_distance = 0; // [scaled mm -> nanometers]
 
@@ -77,6 +82,9 @@ struct SampleConfig
     // Only for debug purposes
     std::string path = ""; // when set to empty string, no debug output is generated
 #endif // OPTION_TO_STORE_ISLAND
+
+    // Only for debug it should not be here !!
+    double discretize_overhang_sample_in_mm = 2.;
 };
 } // namespace Slic3r::sla
 #endif // slic3r_SLA_SuppotstIslands_SampleConfig_hpp_

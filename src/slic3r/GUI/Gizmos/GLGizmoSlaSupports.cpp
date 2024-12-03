@@ -686,6 +686,13 @@ RENDER_AGAIN:
              ImGui::SetTooltip("Divider for the supported radius\nSmaller mean less point(75% -> supported radius is enlaged to 133%, for 50% it is 200% of radius)\nLarger mean more points(125% -> supported radius is reduced to 80%, for value 150% it is 66% of radius, for 200% -> 50%)");
         }
 
+        sla::SampleConfig &sample_config = sla::SampleConfigFactory::get_sample_config();
+        if (float overhang_sample_distance = sample_config.discretize_overhang_sample_in_mm;
+            m_imgui->slider_float("overhang discretization", &overhang_sample_distance, 2e-5f, 10.f, "%.2f mm")){
+            sample_config.discretize_overhang_sample_in_mm = overhang_sample_distance;
+        } else if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Smaller will slow down. Step for discretization overhang outline for test of support need");        
+
         draw_island_config();
        
 
@@ -814,79 +821,127 @@ void GLGizmoSlaSupports::draw_island_config() {
         return; // no need to draw configuration for islands
     sla::SampleConfig &sample_config = sla::SampleConfigFactory::get_sample_config();
 
+    ImGui::SameLine();
+    ImGui::Text("head radius %.2f mm", unscale<float>(sample_config.head_radius));
+
+    bool exist_change = false;
+
+    if (float max_for_one = unscale<float>(sample_config.max_length_for_one_support_point); // [in mm]
+        ImGui::InputFloat("One support", &max_for_one, .1f, 1.f, "%.2f mm")) {
+        sample_config.max_length_for_one_support_point = scale_(max_for_one);
+        exist_change = true;
+    } else if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Maximal island length (longest voronoi path)\n"
+            "for support island by exactly one point.\n"
+            "Point will be on the longest path center");
+
+    if (float max_for_two = unscale<float>(sample_config.max_length_for_two_support_points); // [in mm]
+        ImGui::InputFloat("Two supports", &max_for_two, .1f, 1.f, "%.2f mm")) {
+        sample_config.max_length_for_two_support_points = scale_(max_for_two);
+        exist_change = true;
+    } else if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Maximal island length (longest voronoi path)\n"
+            "for support by 2 points on path sides\n"
+            "To stretch the island.");
+    if (float thin_max_width = unscale<float>(sample_config.thin_max_width); // [in mm]
+        ImGui::InputFloat("Thin max width", &thin_max_width, .1f, 1.f, "%.2f mm")) {
+        sample_config.thin_max_width = scale_(thin_max_width);
+        exist_change = true;
+    } else if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Maximal width of line island supported in the middle of line\n"
+            "Must be greater than thick min width(to make hysteresis)");
+    if (float thick_min_width = unscale<float>(sample_config.thick_min_width); // [in mm]
+        ImGui::InputFloat("Thick min width", &thick_min_width, .1f, 1.f, "%.2f mm")) {
+        sample_config.thick_min_width = scale_(thick_min_width);
+        exist_change = true;
+    } else if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Minimal width to be supported by outline\n"
+            "Must be smaller than thin max width(to make hysteresis)");
+    if (float max_distance = unscale<float>(sample_config.thin_max_distance); // [in mm]
+        ImGui::InputFloat("Thin max distance", &max_distance, .1f, 1.f, "%.2f mm")) {
+        sample_config.thin_max_distance = scale_(max_distance);
+        exist_change = true;
+    } else if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Maximal distance of supports on thin island's part");
+    if (float max_distance = unscale<float>(sample_config.thick_inner_max_distance); // [in mm]
+        ImGui::InputFloat("Thick inner max distance", &max_distance, .1f, 1.f, "%.2f mm")) {
+        sample_config.thick_inner_max_distance = scale_(max_distance);
+        exist_change = true;
+    } else if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Maximal distance of supports inside thick island's part");
+    if (float max_distance = unscale<float>(sample_config.thick_outline_max_distance); // [in mm]
+        ImGui::InputFloat("Thick outline max distance", &max_distance, .1f, 1.f, "%.2f mm")) {
+        sample_config.thick_outline_max_distance = scale_(max_distance);
+        exist_change = true;
+    } else if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Maximal distance of supports on thick island's part outline");
+    
+    if (float minimal_distance_from_outline = unscale<float>(sample_config.minimal_distance_from_outline); // [in mm]
+        ImGui::InputFloat("From outline", &minimal_distance_from_outline, .1f, 1.f, "%.2f mm")) {
+        sample_config.minimal_distance_from_outline = scale_(minimal_distance_from_outline);
+        exist_change = true;
+    } else if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("When it is possible, there will be this minimal distance from outline.\n"
+            "ZERO mean head center will lay on island outline\n"
+            "IMHO value should be bigger than head radius");
+    ImGui::SameLine();
+    if (float maximal_distance_from_outline = unscale<float>(sample_config.maximal_distance_from_outline); // [in mm]
+        ImGui::InputFloat("Max", &maximal_distance_from_outline, .1f, 1.f, "%.2f mm")) {
+        sample_config.maximal_distance_from_outline = scale_(maximal_distance_from_outline);
+        exist_change = true;
+    } else if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Measured as sum of VD edge length from outline\n"
+            "Used only when there is no space for outline offset on first/last point\n"
+            "Must be bigger than value 'From outline'");
+
+    if (float simplification_tolerance = unscale<float>(sample_config.simplification_tolerance); // [in mm]
+        ImGui::InputFloat("Simplify", &simplification_tolerance, .1f, 1.f, "%.2f mm")) {
+        sample_config.simplification_tolerance = scale_(simplification_tolerance);
+        exist_change = true;
+    } else if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("There is no need to calculate with precisse island Voronoi\n" 
+            "NOTE: Slice of Cylinder bottom has tip of trinagles on contour\n"
+            "(neighbor coordinate -> create issue in boost::voronoi)\n"
+            "Bigger value will speed up");
+    ImGui::Text("Aligning termination criteria:");
+    if (ImGui::IsItemHovered()) 
+        ImGui::SetTooltip("After initial support placement on island, supports are aligned\n"
+                          "to more uniformly support area of irregular island shape");
+    if (int count = static_cast<int>(sample_config.count_iteration);
+        ImGui::SliderInt("max iteration", &count, 0, 100, "%d loops" )){
+        sample_config.count_iteration = count;
+        exist_change = true;
+    } else if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Align termination condition, max count of aligning calls");
+    if (float minimal_move = unscale<float>(sample_config.minimal_move); // [in mm]
+        ImGui::InputFloat("minimal move", &minimal_move, .1f, 1.f, "%.2f mm")) {
+        sample_config.minimal_move = scale_(minimal_move);
+        exist_change = true;
+    } else if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Align termination condition, when support points after align did not change their position more,\n"
+            "than this distance it is deduce that supports are aligned enough.\n"
+            "Bigger value mean speed up of aligning");    
+
+    if (exist_change){
+        sla::SampleConfigFactory::verify(sample_config);
+    }
+
+
 #ifdef OPTION_TO_STORE_ISLAND
     bool store_islands = !sample_config.path.empty();
     if (ImGui::Checkbox("StoreIslands", &store_islands)) {
         if (store_islands == true)
             sample_config.path = "C:/data/temp/island<<order>>.svg";
+        else
+            sample_config.path.clear();
     } else if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("Store islands in file\n<<order>> is replaced by island order number");
+        ImGui::SetTooltip("Store islands into files\n<<order>> is replaced by island order number");
     if (store_islands) {
         ImGui::SameLine();
         std::string path;
         ImGui::InputText("path", &sample_config.path);
     }
 #endif // OPTION_TO_STORE_ISLAND
-
-    bool exist_change = false;
-    if (float simplification_tolerance = unscale<float>(sample_config.simplification_tolerance); // [in mm]
-        ImGui::InputFloat("input simplify", &simplification_tolerance, .1f, 1.f, "%.2f mm")) {
-        sample_config.simplification_tolerance = scale_(simplification_tolerance);
-        exist_change = true;
-    } else if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("There is no need to calculate with precisse island\nNOTE: Slice of Cylinder bottom has tip of trinagles on contour\n(neighbor coordinate -> create issue in boost::voronoi)");
-    if (float max_distance = unscale<float>(sample_config.max_distance); // [in mm]
-        ImGui::InputFloat("Max dist", &max_distance, .1f, 1.f, "%.2f mm")) {
-        sample_config.max_distance = scale_(max_distance);
-        exist_change = true;
-    } else if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("Every support point on island has at least one support point in maximum distance\nMUST be bigger than zero");
-    if (float minimal_distance_from_outline = unscale<float>(sample_config.minimal_distance_from_outline); // [in mm]
-        ImGui::InputFloat("from outline", &minimal_distance_from_outline, .1f, 1.f, "%.2f mm")) {
-        sample_config.minimal_distance_from_outline = scale_(minimal_distance_from_outline);
-        exist_change = true;
-    } else if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("When it is possible, there will be this minimal distance from outline.\nZERO when head center should be on outline\nSHOULD be positive number");
-    ImGui::SameLine();
-    if (float maximal_distance_from_outline = unscale<float>(sample_config.maximal_distance_from_outline); // [in mm]
-        ImGui::InputFloat("max from outline", &maximal_distance_from_outline, .1f, 1.f, "%.2f mm")) {
-        sample_config.maximal_distance_from_outline = scale_(maximal_distance_from_outline);
-        exist_change = true;
-    } else if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("Measured as sum of VD edge length from outline\nUsed only when there is no space for outline offset on first/last point\nMust be bigger than minimal_distance_from_outline");
-    if (float max_for_one = unscale<float>(sample_config.max_length_for_one_support_point); // [in mm]
-        ImGui::InputFloat("Max len for one", &max_for_one, .1f, 1.f, "%.2f mm")) {
-        sample_config.max_length_for_one_support_point = scale_(max_for_one);
-        exist_change = true;
-    } else if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("Maximal island length (longest voronoi path) for support by point in path center");
-    if (float max_for_two = unscale<float>(sample_config.max_length_for_two_support_points); // [in mm]
-        ImGui::InputFloat("Max len for two", &max_for_two, .1f, 1.f, "%.2f mm")) {
-        sample_config.max_length_for_two_support_points = scale_(max_for_two);
-        exist_change = true;
-    } else if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("Maximal island length (longest voronoi path)\n for support by 2 points on path sides");        
-    if (float max_width_for_center_support_line = unscale<float>(sample_config.max_width_for_center_support_line); // [in mm]
-        ImGui::InputFloat("thin max width", &max_width_for_center_support_line, .1f, 1.f, "%.2f mm")) {
-        sample_config.max_width_for_center_support_line = scale_(max_width_for_center_support_line);
-        exist_change = true;
-    } else if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("Maximal width of line island supported in the middle of line\nMust be greater or equal to thick min width(to make hysteresis)");
-    if (float min_width_for_outline_support = unscale<float>(sample_config.min_width_for_outline_support); // [in mm]
-        ImGui::InputFloat("thick min width", &min_width_for_outline_support, .1f, 1.f, "%.2f mm")) {
-        sample_config.min_width_for_outline_support = scale_(min_width_for_outline_support);
-        exist_change = true;
-    } else if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("Minimal width to be supported by outline\nMust be smaller or equal to thin max width(to make hysteresis)");
-
-    ImGui::Text("head radius is set to %.2f", unscale<float>(sample_config.head_radius));
-    ImGui::Text("Alignment stop criteria: min_move(%.0f um), iter(%d x), max_VD_move(%.2f mm)", unscale<float>(sample_config.minimal_move)*1000, (int)sample_config.count_iteration, 
-        unscale<float>(sample_config.max_align_distance)
-    );            
-
-    if (exist_change){
-        sla::SampleConfigFactory::verify(sample_config);
-    }
 
     // end of tree node
     ImGui::TreePop();

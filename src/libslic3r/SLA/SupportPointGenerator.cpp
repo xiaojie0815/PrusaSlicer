@@ -501,10 +501,10 @@ void remove_supports_out_of_part(NearPoints& near_points, const LayerPart &part,
 } // namespace
 
 #include "libslic3r/Execution/ExecutionSeq.hpp"
-
 SupportPointGeneratorData Slic3r::sla::prepare_generator_data(
     std::vector<ExPolygons> &&slices,
     const std::vector<float> &heights,
+    double discretize_overhang_sample_in_mm,
     ThrowOnCancel throw_on_cancel,
     StatusFunction statusfn
 ) {
@@ -542,12 +542,12 @@ SupportPointGeneratorData Slic3r::sla::prepare_generator_data(
         }        
     }, 32 /*gransize*/);
 
-    const double sample_distance_in_mm = scale_(2);
-    const double sample_distance_in_mm2 = sample_distance_in_mm * sample_distance_in_mm;
+    double sample_distance_in_um = scale_(discretize_overhang_sample_in_mm);
+    double sample_distance_in_um2 = sample_distance_in_um * sample_distance_in_um;
 
     // Link parts by intersections
     execution::for_each(ex_seq, size_t(1), result.slices.size(),
-    [&result, sample_distance_in_mm2, throw_on_cancel](size_t layer_id) {
+    [&result, sample_distance_in_um2, throw_on_cancel](size_t layer_id) {
         if ((layer_id % 2) == 0)
             // Don't call the following function too often as it flushes CPU write caches due to synchronization primitves.
             throw_on_cancel();
@@ -577,7 +577,7 @@ SupportPointGeneratorData Slic3r::sla::prepare_generator_data(
             // IMPROVE: overhangs could be calculated with Z coordninate
             // soo one will know source shape of point and do not have to search this information
             // Get inspiration at https://github.com/Prusa-Development/PrusaSlicerPrivate/blob/e00c46f070ec3d6fc325640b0dd10511f8acf5f7/src/libslic3r/PerimeterGenerator.cpp#L399
-            it_above->samples = sample_overhangs(*it_above, sample_distance_in_mm2);
+            it_above->samples = sample_overhangs(*it_above, sample_distance_in_um2);
         }
     }, 8 /* gransize */);
     return result;

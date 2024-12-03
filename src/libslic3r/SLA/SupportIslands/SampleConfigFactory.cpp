@@ -33,21 +33,21 @@ bool SampleConfigFactory::verify(SampleConfig &cfg) {
     };
     bool res = true;
     res &= verify_min_max(cfg.max_length_for_one_support_point, cfg.max_length_for_two_support_points);        
-    res &= verify_min_max(cfg.min_width_for_outline_support, cfg.max_width_for_center_support_line); // check histeresis
+    res &= verify_min_max(cfg.thick_min_width, cfg.thin_max_width); // check histeresis
     res &= verify_max(cfg.max_length_for_one_support_point,
-        2 * cfg.max_distance +
+        2 * cfg.thin_max_distance +
         2 * cfg.head_radius +
         2 * cfg.minimal_distance_from_outline);
     res &= verify_min(cfg.max_length_for_one_support_point,
         2 * cfg.head_radius + 2 * cfg.minimal_distance_from_outline);
     res &= verify_max(cfg.max_length_for_two_support_points,
-        2 * cfg.max_distance + 
+        2 * cfg.thin_max_distance + 
         2 * 2 * cfg.head_radius +
         2 * cfg.minimal_distance_from_outline);
-    res &= verify_min(cfg.max_width_for_center_support_line, 
+    res &= verify_min(cfg.thin_max_width, 
         2 * cfg.head_radius + 2 * cfg.minimal_distance_from_outline);
-    res &= verify_max(cfg.max_width_for_center_support_line,
-        2 * cfg.max_distance + 2 * cfg.head_radius);
+    res &= verify_max(cfg.thin_max_width,
+        2 * cfg.thin_max_distance + 2 * cfg.head_radius);
     if (!res) while (!verify(cfg));
     return res;
 }
@@ -55,16 +55,16 @@ bool SampleConfigFactory::verify(SampleConfig &cfg) {
 SampleConfig SampleConfigFactory::create(float support_head_diameter_in_mm)
 {
     coord_t head_diameter = static_cast<coord_t>(scale_(support_head_diameter_in_mm));
-    coord_t minimal_distance = head_diameter * 7;
-    coord_t min_distance = head_diameter / 2 + minimal_distance;
-    coord_t max_distance = 3 * min_distance;
+    coord_t max_distance = head_diameter * 22.5; // 0.4 * 22.5 = 9mm
         
     // TODO: find valid params !!!!
     SampleConfig result;
-    result.max_distance                  = max_distance;
+    result.thin_max_distance             = max_distance;
+    result.thick_inner_max_distance      = max_distance;
+    result.thick_outline_max_distance    = (max_distance / 4) * 3;
     result.head_radius                   = head_diameter / 2;
     result.minimal_distance_from_outline = result.head_radius;
-    result.maximal_distance_from_outline = result.max_distance/3;
+    result.maximal_distance_from_outline = max_distance/3;
     assert(result.minimal_distance_from_outline < result.maximal_distance_from_outline);
     result.max_length_for_one_support_point =
         max_distance / 3 +
@@ -72,19 +72,18 @@ SampleConfig SampleConfigFactory::create(float support_head_diameter_in_mm)
         head_diameter;
     result.max_length_for_two_support_points =
         result.max_length_for_one_support_point + max_distance / 2;
-    result.max_width_for_center_support_line =
+    result.thin_max_width =
         2 * head_diameter + 2 * result.minimal_distance_from_outline +
         max_distance / 2;
-    result.min_width_for_outline_support = result.max_width_for_center_support_line - 2 * head_diameter;
-    result.outline_sample_distance = 3 * result.max_distance/4;
-    result.min_part_length = result.max_distance;
+    result.thick_min_width = result.thin_max_width - 2 * head_diameter;
+    result.min_part_length = max_distance;
 
     // Align support points
     // TODO: propagate print resolution
     result.minimal_move = scale_(0.1); // 0.1 mm is enough
     // [in nanometers --> 0.01mm ], devide from print resolution to quater pixel is too strict
     result.count_iteration = 30; // speed VS precission
-    result.max_align_distance = result.max_distance / 2;
+    result.max_align_distance = max_distance / 2;
 
     verify(result);
     return result;

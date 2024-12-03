@@ -1323,16 +1323,16 @@ void VoronoiGraphUtils::draw(SVG &               svg,
         "darkgreen" // thick (min+max above thick)
     };
     auto get_color = [&](const VoronoiGraph::Node::Neighbor &n) {
-        if (n.min_width() > config.max_width_for_center_support_line){
+        if (n.min_width() > config.thin_max_width){
             return skeleton_colors[4];
-        } else if (n.max_width() < config.min_width_for_outline_support){
+        } else if (n.max_width() < config.thick_min_width){
             return skeleton_colors[0];
-        } else if (n.min_width() < config.max_width_for_center_support_line &&
-                   n.max_width() > config.min_width_for_outline_support){
+        } else if (n.min_width() < config.thin_max_width &&
+                   n.max_width() > config.thick_min_width){
             return skeleton_colors[2];
-        } else if (n.min_width() < config.min_width_for_outline_support){
+        } else if (n.min_width() < config.thick_min_width){
             return skeleton_colors[1];
-        } else if (n.max_width() > config.max_width_for_center_support_line) {
+        } else if (n.max_width() > config.thin_max_width) {
             return skeleton_colors[3];
         }
         assert(false);

@@ -357,8 +357,6 @@ ExPolygons createTestIslands(double size)
     bool useFrogLeg = false;    
     // need post reorganization of longest path
     ExPolygons result = {
-        // debug
-
         // one support point
         ExPolygon(PolygonUtils::create_equilateral_triangle(size)), 
         ExPolygon(PolygonUtils::create_square(size)),
@@ -456,7 +454,7 @@ SupportIslandPoints test_island_sampling(const ExPolygon &   island,
 
     Points chck_points = rasterize(island, config.head_radius); // TODO: Use resolution of printer
     bool is_ok = true;
-    double              max_distance = config.max_distance;
+    double              max_distance = config.thick_inner_max_distance;
     std::vector<double> point_distances(chck_points.size(),
                                         {max_distance + 1});
     for (size_t index = 0; index < chck_points.size(); ++index) { 
@@ -505,24 +503,24 @@ SupportIslandPoints test_island_sampling(const ExPolygon &   island,
 }
 
 SampleConfig create_sample_config(double size) {
-    //SupportPointGenerator::Config spg_config;
-    //return SampleConfigFactory::create(spg_config);
+    float head_diameter = .4f;
+    return SampleConfigFactory::create(head_diameter);
 
-    SampleConfig cfg;
-    cfg.max_distance = 3 * size + 0.1;
-    cfg.head_radius = size / 4;
-    cfg.minimal_distance_from_outline = cfg.head_radius;
-    cfg.maximal_distance_from_outline = cfg.max_distance/4;
-    cfg.max_length_for_one_support_point = 2*size;
-    cfg.max_length_for_two_support_points = 4*size;
-    cfg.max_width_for_center_support_line = size;
-    cfg.min_width_for_outline_support = cfg.max_width_for_center_support_line;
-    cfg.outline_sample_distance       = cfg.max_distance;
+    //coord_t max_distance = 3 * size + 0.1;
+    //SampleConfig cfg;
+    //cfg.head_radius = size / 4;
+    //cfg.minimal_distance_from_outline = cfg.head_radius;
+    //cfg.maximal_distance_from_outline = max_distance/4;
+    //cfg.max_length_for_one_support_point = 2*size;
+    //cfg.max_length_for_two_support_points = 4*size;
+    //cfg.thin_max_width = size;
+    //cfg.thick_min_width = cfg.thin_max_width;
+    //cfg.thick_outline_max_distance       = max_distance;
 
-    cfg.minimal_move       = static_cast<coord_t>(size/30);
-    cfg.count_iteration = 100; 
-    cfg.max_align_distance = 0;
-    return cfg;
+    //cfg.minimal_move       = static_cast<coord_t>(size/30);
+    //cfg.count_iteration = 100; 
+    //cfg.max_align_distance = 0;
+    //return cfg;
 } 
 
 #ifdef STORE_SAMPLE_INTO_SVG_FILES
@@ -559,7 +557,7 @@ TEST_CASE("Uniform sample test islands", "[SupGen], [VoronoiSkeleton]")
 {
     float head_diameter = .4f;
     SampleConfig cfg = SampleConfigFactory::create(head_diameter);
-    //cfg.path = "C:/data/temp/island<<order>>.svg";
+    //cfg.path = "C:/data/temp/islands/<<order>>.svg";
     ExPolygons islands = createTestIslands(7 * scale_(head_diameter));
     for (ExPolygon &island : islands) {
         // information for debug which island cause problem

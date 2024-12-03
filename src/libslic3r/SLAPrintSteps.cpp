@@ -657,7 +657,7 @@ void SLAPrint::Steps::support_points(SLAPrintObject &po)
     }
     
     // copy current configuration for sampling islands
-    config.island_configuration = sla::SampleConfigFactory::get_sample_config();
+    config.island_configuration = sla::SampleConfigFactory::get_sample_config(); // copy
     
     // scaling for the sub operations
     double d = objectstep_scale * OBJ_STEP_LEVELS[slaposSupportPoints] / 100.0;
@@ -680,8 +680,9 @@ void SLAPrint::Steps::support_points(SLAPrintObject &po)
     const std::vector<float>& heights = po.m_model_height_levels;
     sla::ThrowOnCancel cancel = [this]() { throw_if_canceled(); };
     sla::StatusFunction status = statuscb;
+    double discretize = config.island_configuration.discretize_overhang_sample_in_mm;
     sla::SupportPointGeneratorData data = 
-        sla::prepare_generator_data(std::move(slices), heights, cancel, status);
+        sla::prepare_generator_data(std::move(slices), heights, discretize, cancel, status);
 
     sla::LayerSupportPoints layer_support_points = 
         sla::generate_support_points(data, config, cancel, status);
