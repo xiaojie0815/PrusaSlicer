@@ -1618,7 +1618,7 @@ namespace Slic3r {
                     continue;
                 int bed_idx = 0;
                 try {
-                    bed_block.second.get<int>("<xmlattr>.bed_idx");
+                    bed_idx = bed_block.second.get<int>("<xmlattr>.bed_idx");
                 } catch (const boost::property_tree::ptree_bad_path&) {
                     // Probably an old project with no bed_idx info. Imagine that we saw 0.
                 }
