@@ -78,6 +78,19 @@ using PartLinks = boost::container::small_vector<PartLink, 4>;
 using PartLinks = std::vector<PartLink>;
 #endif
 
+// Large one layer overhang that needs to be supported on the overhanging side
+struct Peninsula{
+    // shape of peninsula some of edges are overhang
+    ExPolygon shape;
+
+    // same size as shape lines count
+    // convert shape to lines by to_lines(shape)
+    // True .. peninsula outline(coast)
+    // False .. connection to land(already supported by previous layer)
+    std::vector<bool> is_outline;
+};
+using Peninsulas = std::vector<Peninsula>;
+
 // Part on layer is defined by its shape 
 struct LayerPart {
     // Pointer to expolygon stored in input
@@ -93,6 +106,9 @@ struct LayerPart {
     // Parts from previous printed layer, which is connected to current part
     PartLinks prev_parts;
     PartLinks next_parts;
+
+    // half island is supported as special case
+    Peninsulas peninsulas;
 };
 
 /// <summary>
@@ -155,6 +171,17 @@ struct SupportPointGeneratorData
 using ThrowOnCancel = std::function<void(void)>;
 // call to say progress of generation into gui in range from 0 to 100
 using StatusFunction= std::function<void(int)>;
+
+struct PrepareGeneratorDataConfig
+{
+    // Discretization of overhangs outline,
+    // smaller will slow down the process but will be more precise
+    double discretize_overhang_sample_in_mm = 2.; // [in mm]
+
+    // Define minimal width of overhang to be considered as peninsula
+    // (partialy island - sampled not on edge)
+    coord_t peninsula_width = scale_(2.); // [in scaled mm]
+};
 
 /// <summary>
 /// Prepare data for generate support points

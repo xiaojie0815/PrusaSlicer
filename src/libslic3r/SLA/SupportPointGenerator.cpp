@@ -498,6 +498,102 @@ void remove_supports_out_of_part(NearPoints& near_points, const LayerPart &part,
     near_points.remove_out_of(extend_shape);
 }
 
+/// <summary>
+/// Detect existence of peninsula on current layer part
+/// </summary>
+/// <param name="part">IN/OUT island part containing peninsulas</param>
+/// <param name="min_peninsula_width">minimal width of overhang to become peninsula</param>
+void create_peninsulas(LayerPart &part, float min_peninsula_width) {
+    const Polygons below_polygons = get_polygons(part.prev_parts);
+    const Polygons below_expanded = expand(below_polygons, min_peninsula_width, ClipperLib::jtSquare);
+    const ExPolygon &part_shape = *part.shape;
+    ExPolygons over_peninsula = diff_ex(part_shape, below_expanded);
+    if (over_peninsula.empty())
+        return; // only tiny overhangs
+
+    // exist layer part over peninsula limit
+    ExPolygons peninsulas_shape = diff_ex(part_shape, below_polygons);
+
+    // IMPROVE: Anotate source of diff by ClipperLib_Z
+    Lines below_lines = to_lines(below_polygons);
+    auto get_angle = [](const Line &l) {
+        Point diff = l.b - l.a;
+        if (diff.x() < 0) // Only positive direction X
+            diff = -diff;
+        return atan2(diff.y(), diff.x());
+    };
+    std::vector<double> belowe_line_angle; // define direction of line with positive X
+    belowe_line_angle.reserve(below_lines.size()); 
+    for (const Line& l : below_lines)
+        belowe_line_angle.push_back(get_angle(l));
+    std::vector<size_t> idx(below_lines.size());
+    std::iota(idx.begin(), idx.end(), 0);
+    auto is_lower = [&belowe_line_angle](size_t i1, size_t i2) {
+        return belowe_line_angle[i1] < belowe_line_angle[i2]; };
+    std::sort(idx.begin(), idx.end(), is_lower);
+
+    auto is_overlap = [&get_angle, &idx, &is_lower, &below_lines, &belowe_line_angle]
+    (const Line &l) {
+        // allowed angle epsilon
+        const double angle_epsilon = 1e-3;
+        const double paralel_epsilon = scale_(1e-2);
+        double angle = get_angle(l);
+        double low_angle = angle - angle_epsilon;
+        bool is_over = false;
+        if (low_angle <= -M_PI_2) {
+            low_angle += M_PI;
+            is_over = true;
+        }
+        double hi_angle = angle + angle_epsilon;
+        if (hi_angle >= M_PI_2) {
+            hi_angle -= M_PI;
+            is_over = true;
+        }
+        int mayorit_idx = 0;
+        if (Point d = l.a - l.b; 
+            abs(d.x()) < abs(d.y()))
+            mayorit_idx = 1;
+
+        coord_t low = l.a[mayorit_idx];
+        coord_t high = l.b[mayorit_idx];
+        if (low > high)
+            std::swap(low, high);
+
+        auto it_idx = std::lower_bound(idx.begin(), idx.end(), low_angle, is_lower);
+        if (is_over && it_idx == idx.end()) {
+            it_idx = idx.begin();
+            is_over = false;
+        }
+        while (is_over || it_idx != idx.end() || belowe_line_angle[*it_idx] < hi_angle) {
+            const Line &l2 = below_lines[*it_idx];
+            coord_t l2_low = l2.a[mayorit_idx];
+            coord_t l2_high = l2.b[mayorit_idx];
+            if (low > high)
+                std::swap(low, high);
+            if ((l2_high >= low && l2_low <= high) &&
+                l.distance_to(l2.a) < paralel_epsilon)
+                return true;
+            ++it_idx;
+            if (is_over && it_idx == idx.end()) {
+                it_idx = idx.begin();
+                is_over = false;
+            }
+        }
+        return false;
+    };
+
+    // anotate source of peninsula: overhang VS previous layer  
+    for (const ExPolygon &peninsula : peninsulas_shape) {
+        // need to know shape and edges of peninsula
+        Lines lines = to_lines(peninsula);
+        std::vector<bool> is_outline(lines.size());
+        // when line overlap with belowe lines it is not outline
+        for (size_t i = 0; i < lines.size(); i++) 
+            is_outline[i] = is_overlap(lines[i]);
+        part.peninsulas.push_back(Peninsula{peninsula, is_outline});
+    }
+}
+
 } // namespace
 
 #include "libslic3r/Execution/ExecutionSeq.hpp"
@@ -546,7 +642,7 @@ SupportPointGeneratorData Slic3r::sla::prepare_generator_data(
     double sample_distance_in_um2 = sample_distance_in_um * sample_distance_in_um;
 
     // Link parts by intersections
-    execution::for_each(ex_seq, size_t(1), result.slices.size(),
+    execution::for_each(ex_tbb, size_t(1), result.slices.size(),
     [&result, sample_distance_in_um2, throw_on_cancel](size_t layer_id) {
         if ((layer_id % 2) == 0)
             // Don't call the following function too often as it flushes CPU write caches due to synchronization primitves.
@@ -579,6 +675,18 @@ SupportPointGeneratorData Slic3r::sla::prepare_generator_data(
             // Get inspiration at https://github.com/Prusa-Development/PrusaSlicerPrivate/blob/e00c46f070ec3d6fc325640b0dd10511f8acf5f7/src/libslic3r/PerimeterGenerator.cpp#L399
             it_above->samples = sample_overhangs(*it_above, sample_distance_in_um2);
         }
+    }, 8 /* gransize */);
+
+    // Detect peninsula
+    float min_peninsula_width = scale_(2); // [in scaled mm]
+    execution::for_each(ex_seq, size_t(1), result.slices.size(),
+    [&layers = result.layers, &min_peninsula_width, throw_on_cancel](size_t layer_id) {
+        if ((layer_id % 2) == 0)
+            // Don't call the following function too often as it flushes CPU write caches due to synchronization primitves.
+            throw_on_cancel();
+        LayerParts &parts = layers[layer_id].parts;
+        for (auto it_part = parts.begin(); it_part < parts.end(); ++it_part)
+            create_peninsulas(*it_part, min_peninsula_width);
     }, 8 /* gransize */);
     return result;
 }
