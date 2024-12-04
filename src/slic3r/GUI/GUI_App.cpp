@@ -4204,7 +4204,8 @@ void GUI_App::open_link_in_printables(const std::string& url)
 bool LogGui::ignorred_message(const wxString& msg)
 {    
     for(const wxString& err : std::initializer_list<wxString>{ wxString("cHRM chunk does not match sRGB"),
-                                                               wxString("known incorrect sRGB profile") }) {
+                                                               wxString("known incorrect sRGB profile"),
+                                                               wxString("Error running JavaScript")}) {
         if (msg.Contains(err))
             return true;
     }
