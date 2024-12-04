@@ -2089,7 +2089,7 @@ void render_print_statistics(float scale) {
 
 void render_autoslicing_wait() {
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(20.f,30.f));
-    begin_statistics(_u8L("Waiting for statistics").c_str());
+    begin_statistics((_u8L("Generating statistics") + " ...").c_str());
     ImGui::Text("%s", _u8L("Statistics will be available once all beds are sliced").c_str());
     ImGui::PopStyleVar();
     ImGui::End();
@@ -6612,12 +6612,12 @@ void GLCanvas3D::_render_overlays()
 
 std::string get_status_text(PrintStatus status) {
     switch(status) {
-        case PrintStatus::idle: return _u8L("Unsliced");
+        case PrintStatus::idle: return _u8L("Unsliced bed");
         case PrintStatus::running: return _u8L("Slicing") + "...";
-        case PrintStatus::finished: return _u8L("Sliced");
+        case PrintStatus::finished: return _u8L("Sliced bed");
         case PrintStatus::outside: return _u8L("Object at boundary");
         case PrintStatus::invalid: return _u8L("Invalid data");
-        case PrintStatus::empty: return _u8L("Empty");
+        case PrintStatus::empty: return _u8L("Empty bed");
         case PrintStatus::toolpath_outside: return _u8L("Toolpath exceeds bounds");
     }
     return {};

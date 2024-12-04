@@ -2143,7 +2143,7 @@ void Plater::priv::process_validation_warning(const std::vector<std::string>& wa
         if (text == "_SUPPORTS_OFF") {
             text = _u8L("An object has custom support enforcers which will not be used "
                         "because supports are disabled.")+"\n";
-            hypertext = _u8L("Enable supports for enforcers only");
+            hypertext = _u8L("Enable supports for enforcers only.");
             action_fn = [](wxEvtHandler*) {
                 Tab* print_tab = wxGetApp().get_tab(Preset::TYPE_PRINT);
                 assert(print_tab);
@@ -2166,8 +2166,12 @@ void Plater::priv::process_validation_warning(const std::vector<std::string>& wa
                                      "is experimental, so proceed with caution.");
             notification_type = NotificationType::WipeTowerNozzleDiameterDiffer;
         } else if (text == "_SUPPORT_NOZZLE_DIAMETER_DIFFER") {
+            // TRN: This is a first part of the notification text:
+            // "Printing supports with different nozzle diameters is experimental. For best results, switch to Organic supports and assign a specific extruder for supports."
             text              = _u8L("Printing supports with different nozzle diameters "
                                      "is experimental. For best results, switch to Organic supports and");
+            // TRN: This is a second part (hyperlink) of the notification text:
+            // "Printing supports with different nozzle diameters is experimental. For best results, switch to Organic supports and assign a specific extruder for supports."
             hypertext         = _u8L("assign a specific extruder for supports.");
             multiline         = true;
             notification_type = NotificationType::SupportNozzleDiameterDiffer;
