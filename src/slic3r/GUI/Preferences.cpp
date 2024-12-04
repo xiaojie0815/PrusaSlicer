@@ -301,11 +301,6 @@ void PreferencesDialog::build()
 			L("If this is enabled, Slic3r will prompt the last output directory instead of the one containing the input files."),
 			app_config->has("remember_output_path") ? app_config->get_bool("remember_output_path") : true);
 
-		append_bool_option(m_optgroup_general, "autocenter", 
-			L("Auto-center parts"),
-			L("If this is enabled, Slic3r will auto-center objects around the print bed center."),
-			app_config->get_bool("autocenter"));
-
 		append_bool_option(m_optgroup_general, "background_processing", 
 			L("Background processing"),
 			L("If this is enabled, Slic3r will pre-process objects as soon "

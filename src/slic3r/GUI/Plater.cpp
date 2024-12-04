@@ -1090,11 +1090,6 @@ Plater::priv::~priv()
 
 void Plater::priv::update(unsigned int flags)
 {
-    // the following line, when enabled, causes flickering on NVIDIA graphics cards
-//    wxWindowUpdateLocker freeze_guard(q);
-    if (get_config_bool("autocenter"))
-        model.center_instances_around_point(this->bed.build_volume().bed_center());
-
     unsigned int update_status = 0;
     const bool force_background_processing_restart = this->printer_technology == ptSLA || (flags & (unsigned int)UpdateParams::FORCE_BACKGROUND_PROCESSING_UPDATE);
     if (force_background_processing_restart)
@@ -1108,9 +1103,6 @@ void Plater::priv::update(unsigned int flags)
         this->restart_background_process(update_status);
     else
         this->schedule_background_process();
-
-    if (get_config_bool("autocenter") && this->sidebar->obj_manipul()->IsShown())
-        this->sidebar->obj_manipul()->UpdateAndShow(true);
 }
 
 void Plater::priv::select_view(const std::string& direction)
@@ -5525,9 +5517,6 @@ void Plater::increase_instances(size_t num, int obj_idx, int inst_idx)
         trafo.set_offset(offset_vec);
         model_object->add_instance(trafo);
     }
-
-    if (p->get_config_bool("autocenter"))
-        arrange();
 
     p->update();
 
