@@ -2314,6 +2314,7 @@ unsigned int Plater::priv::update_background_process(bool force_validation, bool
         notification_manager->set_slicing_progress_hidden();
     }
 
+
     if ((invalidated != Print::APPLY_STATUS_UNCHANGED || force_validation) && ! background_process.empty()) {
 		// The delayed error message is no more valid.
 		delayed_error_message.clear();
@@ -2970,11 +2971,13 @@ void Plater::priv::set_current_panel(wxPanel* panel)
 #endif // __WXMAC__
 
     ScopeGuard guard([]() { s_reload_preview_after_switching_beds = false; });
+
     if (current_panel == panel) {
         if (! s_reload_preview_after_switching_beds)
             return;
-        else
+        else {
             update_background_process();
+        }
     }
 
     wxPanel* old_panel = current_panel;
@@ -3004,7 +3007,10 @@ void Plater::priv::set_current_panel(wxPanel* panel)
 
     if (current_panel == view3D) {
 
-        s_multiple_beds.stop_autoslice(true);
+        if(s_multiple_beds.stop_autoslice(true)) {
+            sidebar->switch_from_autoslicing_mode();
+            update_background_process();
+        }
 
         if (old_panel == preview)
             preview->get_canvas3d()->unbind_event_handlers();

@@ -75,6 +75,7 @@ class Sidebar : public wxPanel
     ObjectList*     m_object_list               { nullptr };
     ObjectInfo*     m_object_info               { nullptr };
     SlicedInfo*     m_sliced_info               { nullptr };
+    wxBoxSizer*     m_btns_sizer                { nullptr };
 
     wxButton*       m_btn_export_gcode          { nullptr };
     wxButton*       m_btn_reslice               { nullptr };
@@ -87,6 +88,7 @@ class Sidebar : public wxPanel
     std::unique_ptr<ObjectSettings>     m_object_settings;
     std::unique_ptr<ObjectLayers>       m_object_layers;
 
+    bool m_autoslicing_mode{ false };
 #ifdef _WIN32
     wxString m_reslice_btn_tooltip;
 #endif
@@ -117,6 +119,8 @@ public:
 
     void show_info_sizer();
     void show_sliced_info_sizer(const bool show);
+    void show_btns_sizer(const bool show);
+
     void update_sliced_info_sizer();
 
     void enable_buttons(bool enable);
@@ -126,6 +130,9 @@ public:
     bool show_send(bool show) const;
     bool show_export_removable(bool show) const;
     bool show_connect(bool show) const;
+
+    void switch_to_autoslicing_mode();
+    void switch_from_autoslicing_mode();
 
     void collapse(bool collapse);
     void set_extruders_count(size_t extruders_count);

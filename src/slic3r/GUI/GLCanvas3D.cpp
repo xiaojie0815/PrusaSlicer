@@ -143,8 +143,10 @@ void GLCanvas3D::select_bed(int i, bool triggered_by_user)
         }
         wxGetApp().plater()->schedule_background_process();
         wxGetApp().plater()->object_list_changed(); // Updates Slice Now / Export buttons.
-        if (s_multiple_beds.is_autoslicing() && triggered_by_user)
+        if (s_multiple_beds.is_autoslicing() && triggered_by_user) {
             s_multiple_beds.stop_autoslice(false);
+            wxGetApp().sidebar().switch_from_autoslicing_mode();
+        }
     });
 }
 
@@ -6716,8 +6718,10 @@ void Slic3r::GUI::GLCanvas3D::_render_bed_selector()
         ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2());
 
         if (imgui.image_button(ImGui::SliceAllBtnIcon, "Slice All")) {
-            if (!s_multiple_beds.is_autoslicing())
+            if (!s_multiple_beds.is_autoslicing()) {
                 s_multiple_beds.start_autoslice([this](int i, bool user) { this->select_bed(i, user); });
+                wxGetApp().sidebar().switch_to_autoslicing_mode();
+            }
         }
 
         ImGui::SameLine();
