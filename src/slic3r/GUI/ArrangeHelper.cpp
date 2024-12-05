@@ -2,6 +2,7 @@
 
 #include "libslic3r/Model.hpp"
 #include "libslic3r/TriangleMesh.hpp"
+#include "libslic3r/MultipleBeds.hpp"
 
 #include <string>
 
@@ -33,8 +34,8 @@ static Sequential::PrinterGeometry get_printer_geometry() {
 										                { { -12000000, -350000000 }, {250000000, -350000000 }, {250000000, -82000000 }, { -12000000, -82000000} } } });
 
 	Sequential::PrinterGeometry out;
-	out.x_size = 250000000;
-    out.y_size = 210000000;
+	out.x_size = scaled(s_multiple_beds.get_bed_size().x());
+	out.y_size = scaled(s_multiple_beds.get_bed_size().y());
 	for (const ExtruderSlice& slice : slices) {
 		(slice.shape_type == CONVEX ? out.convex_heights : out.box_heights).emplace(slice.height);
 		out.extruder_slices.insert(std::make_pair(slice.height, slice.polygons));
@@ -58,14 +59,16 @@ static std::vector<Sequential::ObjectToPrint> get_objects_to_print(const Model& 
 	// Now collect all objects and projections of convex hull above respective heights.
 	std::vector<Sequential::ObjectToPrint> objects;
 	for (const ModelObject* mo : model.objects) {
-		const ModelInstance* mi = mo->instances.front();
-		objects.emplace_back(Sequential::ObjectToPrint{int(mo->id().id), false, scaled(mo->instance_bounding_box(0).size().z()), {}});
-		for (double height : heights) {
-			auto tr = Transform3d::Identity();
-			Vec3d offset = mi->get_offset();
-			tr.translate(Vec3d(-offset.x(), -offset.y(), 0.));
-			Polygon pgn = its_convex_hull_2d_above(mo->mesh().its, tr.cast<float>(), height);
-			objects.back().pgns_at_height.emplace_back(std::make_pair(scaled(height), pgn));
+		size_t inst_id = 0;
+		const TriangleMesh& raw_mesh = mo->raw_mesh();
+		for (const ModelInstance* mi : mo->instances) {
+			objects.emplace_back(Sequential::ObjectToPrint{int(inst_id == 0 ? mo->id().id  : mi->id().id), inst_id + 1 < mo->instances.size(),
+				scaled(mo->instance_bounding_box(inst_id).size().z()), {}});
+			for (double height : heights) {
+				Polygon pgn = its_convex_hull_2d_above(raw_mesh.its, mi->get_matrix_no_offset().cast<float>(), height);
+				objects.back().pgns_at_height.emplace_back(std::make_pair(scaled(height), pgn));
+			}
+			++inst_id;
 		}
 	}
 	return objects;
@@ -100,13 +103,15 @@ void arrange_model_sequential(Model& model)
 	// Save the move data from this file to move_data_all.
 	size_t bed_idx = 0;
 	for (const Sequential::ScheduledPlate& plate : plates) {
+		Vec3d bed_offset = s_multiple_beds.get_bed_translation(bed_idx);
 		// Iterate the same way as when exporting.
 		for (ModelObject* mo : model.objects) {
-			ModelInstance* mi = mo->instances.front();
-			const ObjectID& oid = mo->id();
-			auto it = std::find_if(plate.scheduled_objects.begin(), plate.scheduled_objects.end(), [&oid](const auto& md) { return md.id == oid.id; });
-			if (it != plate.scheduled_objects.end()) {
-				mi->set_offset(Vec3d(unscaled(it->x) + bed_idx * 300, unscaled(it->y), mi->get_offset().z()));
+			for (ModelInstance* mi : mo->instances) {
+				const ObjectID& oid = (mi == mo->instances.front() ? mo->id() : mi->id());
+				auto it = std::find_if(plate.scheduled_objects.begin(), plate.scheduled_objects.end(), [&oid](const auto& md) { return md.id == oid.id; });
+				if (it != plate.scheduled_objects.end()) {
+					mi->set_offset(Vec3d(unscaled(it->x) + bed_offset.x(), unscaled(it->y) + bed_offset.y(), mi->get_offset().z()));
+				}
 			}
 		}
 		for (const Sequential::ScheduledObject& object : plate.scheduled_objects)
