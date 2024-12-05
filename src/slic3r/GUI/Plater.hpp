@@ -31,6 +31,7 @@
 #include "Jobs/Worker.hpp"
 #include "libslic3r/GCode/ThumbnailData.hpp"
 #include "slic3r/GUI/Camera.hpp"
+#include "slic3r/Utils/PrintHost.hpp"
 
 class wxString;
 
@@ -240,6 +241,8 @@ public:
     void send_gcode();
     void send_gcode_inner(DynamicPrintConfig* physical_printer_config);
 	void eject_drive();
+
+    std::optional<PrintHostJob> get_connect_print_host_job();
     void connect_gcode();
     void printables_to_connect_gcode(const std::string& url);
     std::string get_upload_filename();
