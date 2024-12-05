@@ -125,9 +125,6 @@ void GLCanvas3D::select_bed(int i, bool triggered_by_user)
     m_sequential_print_clearance.m_evaluating = true;
     reset_sequential_print_clearance();
 
-    
-     
-
     // The stop call above schedules some events that would be processed after the switch.
     // Among else, on_process_completed would be called, which would stop slicing of
     // the new bed. We need to stop the process, pump all the events out of the queue
@@ -2226,6 +2223,7 @@ void GLCanvas3D::render()
                 wxGetApp().plater()->schedule_background_process();
             }
         } else {
+            wxGetApp().plater()->show_autoslicing_action_buttons();
             render_print_statistics();
         }
     }
@@ -6721,6 +6719,7 @@ void Slic3r::GUI::GLCanvas3D::_render_bed_selector()
             if (!s_multiple_beds.is_autoslicing()) {
                 s_multiple_beds.start_autoslice([this](int i, bool user) { this->select_bed(i, user); });
                 wxGetApp().sidebar().switch_to_autoslicing_mode();
+                wxGetApp().plater()->show_autoslicing_action_buttons();
             }
         }
 

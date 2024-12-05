@@ -215,6 +215,7 @@ public:
     void apply_cut_object_to_model(size_t init_obj_idx, const ModelObjectPtrs& cut_objects);
 
     void export_gcode(bool prefer_removable);
+    void export_all_gcodes(bool prefer_removable);
     void export_stl_obj(bool extended = false, bool selection_only = false);
     bool export_3mf(const boost::filesystem::path& output_path = boost::filesystem::path());
     void reload_from_disk();
@@ -277,6 +278,7 @@ public:
     void update_menus();
     void show_action_buttons(const bool is_ready_to_slice) const;
     void show_action_buttons() const;
+    void show_autoslicing_action_buttons() const;
 
     wxString get_project_filename(const wxString& extension = wxEmptyString) const;
     void set_project_filename(const wxString& filename);
@@ -447,6 +449,12 @@ public:
     wxMenu* multi_selection_menu();
 
 private:
+    std::optional<fs_path> get_default_output_file();
+    std::optional<wxString> check_output_path_has_error(const boost::filesystem::path& path) const;
+    std::optional<fs_path> get_output_path(const std::string &start_dir, const fs_path &default_output_file);
+    std::optional<fs_path> get_multiple_output_dir(const std::string &start_dir);
+
+    void export_gcode_to_path(const fs_path &output_path, const std::function<void(bool)> &export_callback);
     void reslice_until_step_inner(int step, const ModelObject &object, bool postpone_error_messages);
 
     struct priv;

@@ -534,6 +534,7 @@ struct Plater::priv
     void on_3dcanvas_mouse_dragging_finished(SimpleEvent&);
 
     void show_action_buttons(const bool is_ready_to_slice) const;
+    void show_autoslicing_action_buttons() const;
     bool can_show_upload_to_connect() const;
     // Set the bed shape to a single closed 2D polygon(array of two element arrays),
     // triangulate the bed and store the triangles into m_bed.m_triangles,
@@ -2252,6 +2253,10 @@ unsigned int Plater::priv::update_background_process(bool force_validation, bool
         }
     )};
 
+    if (any_status_changed) {
+        wxGetApp().plater()->show_autoslicing_action_buttons();
+    }
+
     // If current bed was invalidated, update thumbnails for all beds:
     if (int num = s_multiple_beds.get_number_of_beds(); num > 1 && any_status_changed) {
         ThumbnailData data;
@@ -2423,8 +2428,9 @@ unsigned int Plater::priv::update_background_process(bool force_validation, bool
         const wxString slice_string = background_process.running() && wxGetApp().get_mode() == comSimple ?
                                       _L("Slicing") + dots : _L("Slice now");
         sidebar->set_btn_label(ActionButtonType::Reslice, slice_string);
-
-        if (background_process.finished())
+        if (background_process.empty()) {
+            sidebar->enable_buttons(false);
+        } else if (background_process.finished())
             show_action_buttons(false);
         else if (!background_process.empty() &&
                  !background_process.running()) /* Do not update buttons if background process is running
@@ -3954,6 +3960,35 @@ void Plater::priv::show_action_buttons(const bool ready_to_slice_) const
 			sidebar->show_export_removable(!ready_to_slice && removable_media_status.has_removable_drives))
             sidebar->Layout();
     }
+}
+
+void Plater::priv::show_autoslicing_action_buttons() const {
+    if (!s_multiple_beds.is_autoslicing()) {
+        return;
+    }
+    wxWindowUpdateLocker noUpdater(sidebar);
+
+    DynamicPrintConfig* selected_printer_config = wxGetApp().preset_bundle->physical_printers.get_selected_printer_config();
+    const auto print_host_opt = selected_printer_config ? selected_printer_config->option<ConfigOptionString>("print_host") : nullptr;
+    const bool connect_gcode_shown = print_host_opt == nullptr && can_show_upload_to_connect();
+
+    RemovableDriveManager::RemovableDrivesStatus removable_media_status = wxGetApp().removable_drive_manager()->status();
+
+    bool updated{sidebar->show_export_all(true)};
+    updated = sidebar->show_connect_all(connect_gcode_shown) || updated;
+    updated = sidebar->show_export_removable_all(removable_media_status.has_removable_drives) || updated;
+    if (updated) {
+        sidebar->Layout();
+    }
+
+    const bool all_finished{std::all_of(
+        this->fff_prints.begin(),
+        this->fff_prints.end(),
+        [](const std::unique_ptr<Print> &print){
+            return print->finished() || print->empty();
+        }
+    )};
+    sidebar->enable_bulk_buttons(all_finished);
 }
 
 void Plater::priv::enter_gizmos_stack()
@@ -5679,14 +5714,24 @@ static wxString check_binary_vs_ascii_gcode_extension(PrinterTechnology pt, cons
 // This function should be deleted when binary G-codes become more common. The dialog is there to make the
 // transition period easier for the users, because bgcode files are not recognized by older firmwares
 // without any error message.
-static void alert_when_exporting_binary_gcode(bool binary_output, const std::string& printer_notes)
+void alert_when_exporting_binary_gcode(const std::string& printer_notes)
 {
-    if (binary_output
-     && (boost::algorithm::contains(printer_notes, "PRINTER_MODEL_XL")
-      || boost::algorithm::contains(printer_notes, "PRINTER_MODEL_MINI")
-      || boost::algorithm::contains(printer_notes, "PRINTER_MODEL_MK4")
-      || boost::algorithm::contains(printer_notes, "PRINTER_MODEL_MK3.9")))
-    {
+    const bool supports_binary = wxGetApp()
+        .preset_bundle->printers
+        .get_edited_preset()
+        .config.opt_bool("binary_gcode");
+    const bool uses_binary = wxGetApp().app_config->get_bool("use_binary_gcode_when_supported");
+    const bool binary_output{supports_binary && uses_binary};
+
+    if (
+        binary_output
+        && (
+            boost::algorithm::contains(printer_notes, "PRINTER_MODEL_XL")
+            || boost::algorithm::contains(printer_notes, "PRINTER_MODEL_MINI")
+            || boost::algorithm::contains(printer_notes, "PRINTER_MODEL_MK4")
+            || boost::algorithm::contains(printer_notes, "PRINTER_MODEL_MK3.9")
+        )
+    ) {
         AppConfig* app_config = wxGetApp().app_config;
         wxWindow* parent = wxGetApp().mainframe;
         const std::string option_key = "dont_warn_about_firmware_version_when_exporting_binary_gcode";
@@ -5708,7 +5753,116 @@ static void alert_when_exporting_binary_gcode(bool binary_output, const std::str
     }
 }
 
+std::optional<fs::path> Plater::get_default_output_file() {
+    try {
+        // Update the background processing, so that the placeholder parser will get the correct values for the ouput file template.
+        // Also if there is something wrong with the current configuration, a pop-up dialog will be shown and the export will not be performed.
+        unsigned int state = this->p->update_restart_background_process(false, false);
+        if (state & priv::UPDATE_BACKGROUND_PROCESS_INVALID) {
+            return std::nullopt;
+        }
+        const std::string path{
+            this->p->background_process.output_filepath_for_project(
+                into_path(get_project_filename(".3mf"))
+            )
+        };
+        return fs::path(Slic3r::fold_utf8_to_ascii(path));
+    } catch (const Slic3r::PlaceholderParserError &ex) {
+        // Show the error with monospaced font.
+        show_error(this, ex.what(), true);
+        return std::nullopt;
+    } catch (const std::exception &ex) {
+        show_error(this, ex.what(), false);
+        return std::nullopt;
+    }
+}
 
+std::string get_output_start_dir(const bool prefer_removable, const fs::path &default_output_file) {
+    const AppConfig &appconfig{*wxGetApp().app_config};
+    RemovableDriveManager &removable_drive_manager{*wxGetApp().removable_drive_manager()};
+    // Get a last save path, either to removable media or to an internal media.
+    std::string last_output_dir{appconfig.get_last_output_dir(
+        default_output_file.parent_path().string(),
+        prefer_removable
+    )};
+    if (!prefer_removable) {
+        return last_output_dir;
+    }
+
+    // Returns a path to a removable media if it exists, prefering start_dir. Update the internal removable drives database.
+    std::string removable_dir{removable_drive_manager.get_removable_drive_path(last_output_dir)};
+    if (removable_dir.empty()) {
+        // Direct user to the last internal media.
+        return appconfig.get_last_output_dir(default_output_file.parent_path().string(), false);
+    }
+
+    return removable_dir;
+}
+
+std::optional<wxString> Plater::check_output_path_has_error(const boost::filesystem::path& path) const {
+    const std::string filename = path.filename().string();
+    const std::string ext      = boost::algorithm::to_lower_copy(path.extension().string());
+    if (has_illegal_characters(filename)) {
+        return {
+            _L("The provided file name is not valid.") + "\n" +
+            _L("The following characters are not allowed by a FAT file system:") + " <>:/\\|?*\""
+        };
+    }
+    if (this->printer_technology() == ptFFF) {
+        bool supports_binary = wxGetApp().preset_bundle->printers.get_edited_preset().config.opt_bool("binary_gcode");
+        bool uses_binary = wxGetApp().app_config->get_bool("use_binary_gcode_when_supported");
+        const wxString error{check_binary_vs_ascii_gcode_extension(
+            printer_technology(), ext, supports_binary && uses_binary
+        )};
+        if (!error.IsEmpty()) {
+            return error;
+        }
+    }
+    return std::nullopt;
+};
+
+std::optional<fs::path> Plater::get_output_path(const std::string &start_dir, const fs::path &default_output_file) {
+    const std::string ext = default_output_file.extension().string();
+    wxFileDialog dlg(this, (printer_technology() == ptFFF) ? _L("Save G-code file as:") : _L("Save SL1 / SL1S file as:"),
+        start_dir,
+        from_path(default_output_file.filename()),
+        printer_technology() == ptFFF ? GUI::file_wildcards(FT_GCODE, ext) :
+                                        GUI::sla_wildcards(active_sla_print().printer_config().sla_archive_format.value.c_str(), ext),
+        wxFD_SAVE | wxFD_OVERWRITE_PROMPT
+    );
+
+    if (dlg.ShowModal() != wxID_OK) {
+        return std::nullopt;
+    }
+
+    const fs::path output_path{into_path(dlg.GetPath())};
+    if (auto error{check_output_path_has_error(output_path)}) {
+        const t_link_clicked on_link_clicked = [](const std::string& key) -> void { wxGetApp().jump_to_option(key); };
+        ErrorDialog(this, *error, on_link_clicked).ShowModal();
+        return std::nullopt;
+    }
+    return output_path;
+}
+
+std::optional<fs::path> Plater::get_multiple_output_dir(const std::string &start_dir) {
+    wxDirDialog dlg(
+        this,
+        _L("Choose export directory:"),
+        start_dir
+    );
+
+    if (dlg.ShowModal() != wxID_OK) {
+        return std::nullopt;
+    }
+
+    const fs::path output_path{into_path(dlg.GetPath())};
+    if (auto error{check_output_path_has_error(output_path)}) {
+        const t_link_clicked on_link_clicked = [](const std::string& key) -> void { wxGetApp().jump_to_option(key); };
+        ErrorDialog(this, *error, on_link_clicked).ShowModal();
+        return std::nullopt;
+    }
+    return output_path;
+}
 
 void Plater::export_gcode(bool prefer_removable)
 {
@@ -5724,91 +5878,109 @@ void Plater::export_gcode(bool prefer_removable)
 
     // If possible, remove accents from accented latin characters.
     // This function is useful for generating file names to be processed by legacy firmwares.
-    fs::path default_output_file;
-    try {
-        // Update the background processing, so that the placeholder parser will get the correct values for the ouput file template.
-        // Also if there is something wrong with the current configuration, a pop-up dialog will be shown and the export will not be performed.
-        unsigned int state = this->p->update_restart_background_process(false, false);
-        if (state & priv::UPDATE_BACKGROUND_PROCESS_INVALID)
-            return;
-        default_output_file = this->p->background_process.output_filepath_for_project(into_path(get_project_filename(".3mf")));
-    } catch (const Slic3r::PlaceholderParserError &ex) {
-        // Show the error with monospaced font.
-        show_error(this, ex.what(), true);
-        return;
-    } catch (const std::exception &ex) {
-        show_error(this, ex.what(), false);
+    const auto optional_default_output_file{this->get_default_output_file()};
+    if (!optional_default_output_file) {
         return;
     }
-    default_output_file = fs::path(Slic3r::fold_utf8_to_ascii(default_output_file.string()));
-    AppConfig 				&appconfig 				 = *wxGetApp().app_config;
-    RemovableDriveManager 	&removable_drive_manager = *wxGetApp().removable_drive_manager();
-    // Get a last save path, either to removable media or to an internal media.
-    std::string      		 start_dir 				 = appconfig.get_last_output_dir(default_output_file.parent_path().string(), prefer_removable);
-	if (prefer_removable) {
-		// Returns a path to a removable media if it exists, prefering start_dir. Update the internal removable drives database.
-		start_dir = removable_drive_manager.get_removable_drive_path(start_dir);
-		if (start_dir.empty())
-			// Direct user to the last internal media.
-			start_dir = appconfig.get_last_output_dir(default_output_file.parent_path().string(), false);
-	}
+    const fs::path &default_output_file{*optional_default_output_file};
+    const std::string start_dir{get_output_start_dir(prefer_removable, default_output_file)};
 
-    fs::path output_path;
-    {
-        std::string ext = default_output_file.extension().string();
-        wxFileDialog dlg(this, (printer_technology() == ptFFF) ? _L("Save G-code file as:") : _L("Save SL1 / SL1S file as:"),
-            start_dir,
-            from_path(default_output_file.filename()),
-            printer_technology() == ptFFF ? GUI::file_wildcards(FT_GCODE, ext) :
-                                            GUI::sla_wildcards(active_sla_print().printer_config().sla_archive_format.value.c_str(), ext),
-            wxFD_SAVE | wxFD_OVERWRITE_PROMPT
+    const auto optional_output_path{get_output_path(start_dir, default_output_file)};
+    if (!optional_output_path) {
+        return;
+    }
+    const fs::path &output_path{*optional_output_path};
+
+    if (printer_technology() == ptFFF) {
+        alert_when_exporting_binary_gcode(
+            wxGetApp()
+            .preset_bundle->printers
+            .get_edited_preset()
+            .config.opt_string("printer_notes")
         );
-        if (dlg.ShowModal() == wxID_OK) {
-            output_path = into_path(dlg.GetPath());
+    }
+    export_gcode_to_path(output_path, [&](const bool path_on_removable_media){
+        p->export_gcode(output_path, path_on_removable_media, PrintHostJob());
+    });
+}
 
-            auto check_for_error = [this](const boost::filesystem::path& path, wxString& err_out) -> bool {
-                const std::string filename = path.filename().string();
-                const std::string ext      = boost::algorithm::to_lower_copy(path.extension().string());
-                if (has_illegal_characters(filename)) {
-                    err_out = _L("The provided file name is not valid.") + "\n" +
-                              _L("The following characters are not allowed by a FAT file system:") + " <>:/\\|?*\"";
-                    return true;
-                }
-                if (this->printer_technology() == ptFFF) {
-                    bool supports_binary = wxGetApp().preset_bundle->printers.get_edited_preset().config.opt_bool("binary_gcode");
-                    bool uses_binary = wxGetApp().app_config->get_bool("use_binary_gcode_when_supported");
-                    err_out = check_binary_vs_ascii_gcode_extension(printer_technology(), ext, supports_binary && uses_binary);
-                }
-                return !err_out.IsEmpty();
-            };
+void Plater::export_gcode_to_path(
+    const fs::path &output_path,
+    const std::function<void(bool)> &export_callback
+) {
+    AppConfig &appconfig{*wxGetApp().app_config};
+    RemovableDriveManager &removable_drive_manager{*wxGetApp().removable_drive_manager()};
+    bool path_on_removable_media = removable_drive_manager.set_and_verify_last_save_path(output_path.string());
+    p->notification_manager->new_export_began(path_on_removable_media);
+    p->exporting_status = path_on_removable_media ? ExportingStatus::EXPORTING_TO_REMOVABLE : ExportingStatus::EXPORTING_TO_LOCAL;
+    p->last_output_path = output_path.string();
+    p->last_output_dir_path = output_path.parent_path().string();
+    export_callback(path_on_removable_media);
+    // Storing a path to AppConfig either as path to removable media or a path to internal media.
+    // is_path_on_removable_drive() is called with the "true" parameter to update its internal database as the user may have shuffled the external drives
+    // while the dialog was open.
+    appconfig.update_last_output_dir(output_path.parent_path().string(), path_on_removable_media);
+}
 
-            wxString error_str;
-            if (check_for_error(output_path, error_str)) {
-                const t_link_clicked on_link_clicked = [](const std::string& key) -> void { wxGetApp().jump_to_option(key); };
-                ErrorDialog(this, error_str, on_link_clicked).ShowModal();
-                output_path.clear();
-            } else if (printer_technology() == ptFFF) {
-                bool supports_binary = wxGetApp().preset_bundle->printers.get_edited_preset().config.opt_bool("binary_gcode");
-                bool uses_binary     = wxGetApp().app_config->get_bool("use_binary_gcode_when_supported");
-                alert_when_exporting_binary_gcode(supports_binary && uses_binary,
-                                                  wxGetApp().preset_bundle->printers.get_edited_preset().config.opt_string("printer_notes"));
-            }
+struct PrintToExport{ std::reference_wrapper<Print> print;
+    std::reference_wrapper<GCodeProcessorResult> processor_result;
+    fs::path output_path;
+};
+
+void Plater::export_all_gcodes(bool prefer_removable) {
+    const auto optional_default_output_file{this->get_default_output_file()};
+    if (!optional_default_output_file) {
+        return;
+    }
+    const fs::path &default_output_file{*optional_default_output_file};
+    const std::string start_dir{get_output_start_dir(prefer_removable, default_output_file)};
+    const auto optional_output_dir{get_multiple_output_dir(start_dir)};
+    if (!optional_output_dir) {
+        return;
+    }
+    const fs_path &output_dir{*optional_output_dir};
+
+    std::vector<PrintToExport> prints_to_export;
+
+    for (std::size_t print_index{0};  print_index < this->get_fff_prints().size(); ++print_index) {
+        const std::unique_ptr<Print> &print{this->get_fff_prints()[print_index]};
+        if (!print || print->empty()) {
+            continue;
         }
+
+        const fs::path filename{
+            default_output_file.stem().string()
+            + "_bed"
+            + std::to_string(print_index + 1)
+            + default_output_file.extension().string()
+        };
+        const fs::path output_file{output_dir / filename};
+        prints_to_export.push_back({*print, this->p->gcode_results[print_index], output_file});
     }
 
-    if (! output_path.empty()) {
-		bool path_on_removable_media = removable_drive_manager.set_and_verify_last_save_path(output_path.string());
-        p->notification_manager->new_export_began(path_on_removable_media);
-        p->exporting_status = path_on_removable_media ? ExportingStatus::EXPORTING_TO_REMOVABLE : ExportingStatus::EXPORTING_TO_LOCAL;
-        p->last_output_path = output_path.string();
-        p->last_output_dir_path = output_path.parent_path().string();
-        p->export_gcode(output_path, path_on_removable_media, PrintHostJob());
-        // Storing a path to AppConfig either as path to removable media or a path to internal media.
-        // is_path_on_removable_drive() is called with the "true" parameter to update its internal database as the user may have shuffled the external drives
-        // while the dialog was open.
-        appconfig.update_last_output_dir(output_path.parent_path().string(), path_on_removable_media);
-		
-	}
+    //BulkExportDialog dialog{prints_to_export};
+    //if (dialog.ShowModal() != wxID_OK) {
+    //    return;
+    //}
+    //prints_to_export = dialog.get_prints_to_export();
+
+    bool path_on_removable_media{false};
+    for (const PrintToExport &print_to_export : prints_to_export) {
+        this->p->background_process.set_fff_print(&print_to_export.print.get());
+        this->p->background_process.set_gcode_result(&print_to_export.processor_result.get());
+        export_gcode_to_path(
+            print_to_export.output_path,
+            [&](const bool on_removable){
+                this->p->background_process.finalize_gcode(
+                    print_to_export.output_path.string(),
+                    path_on_removable_media
+                );
+                path_on_removable_media = on_removable || path_on_removable_media;
+            }
+        );
+    }
+
+    p->notification_manager->push_bulk_exporting_finished_notification(output_dir.string(), path_on_removable_media);
 }
 
 void Plater::export_stl_obj(bool extended, bool selection_only)
@@ -6483,10 +6655,12 @@ void Plater::send_gcode_inner(DynamicPrintConfig* physical_printer_config)
                 return;
             }
 
-            bool supports_binary = wxGetApp().preset_bundle->printers.get_edited_preset().config.opt_bool("binary_gcode");
-            bool uses_binary = wxGetApp().app_config->get_bool("use_binary_gcode_when_supported");
-            alert_when_exporting_binary_gcode(supports_binary && uses_binary,
-                wxGetApp().preset_bundle->printers.get_edited_preset().config.opt_string("printer_notes"));
+            alert_when_exporting_binary_gcode(
+                wxGetApp().
+                preset_bundle->printers.
+                get_edited_preset().
+                config.opt_string("printer_notes")
+            );
         }
 
         upload_job.upload_data.upload_path = dlg.filename();
@@ -7127,6 +7301,8 @@ void Plater::split_volume()         { p->split_volume(); }
 void Plater::update_menus()         { p->menus.update(); }
 void Plater::show_action_buttons(const bool ready_to_slice) const   { p->show_action_buttons(ready_to_slice); }
 void Plater::show_action_buttons() const                            { p->show_action_buttons(p->ready_to_slice); }
+
+void Plater::show_autoslicing_action_buttons() const { p->show_autoslicing_action_buttons(); };
 
 void Plater::copy_selection_to_clipboard()
 {
