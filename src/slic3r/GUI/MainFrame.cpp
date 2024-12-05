@@ -1008,10 +1008,10 @@ void MainFrame::on_tab_change_rename_reload_item(int new_tab)
         || (m_connect_webview_added && new_tab == m_tabpanel->FindPage(m_connect_webview)) 
         || (m_printer_webview_added && new_tab == m_tabpanel->FindPage(m_printer_webview))) 
     {
-        m_menu_item_reload->SetItemLabel(_L("Re&load Web Content") + "\t\xA0" + "F5");
+        m_menu_item_reload->SetItemLabel(_L("Re&load Web Content") + "\tF5");
         m_menu_item_reload->SetHelp(_L("Reload Web Content"));
     } else {
-        m_menu_item_reload->SetItemLabel(_L("Re&load from Disk") + "\t\xA0" + "F5");
+        m_menu_item_reload->SetItemLabel(_L("Re&load from Disk") + "\tF5");
         m_menu_item_reload->SetHelp(_L("Reload the plater from disk"));
     }
 }
@@ -1642,7 +1642,7 @@ void MainFrame::init_menubar_as_editor()
             _L("Reload Web Content"), [this](wxCommandEvent&) {  reload_selected_webview(); },
             "", nullptr, [this]() {return is_any_webview_selected(); }, this);
 #else
-        m_menu_item_reload = append_menu_item(editMenu, wxID_ANY, _L("Re&load from Disk") + sep + "F5",
+        m_menu_item_reload = append_menu_item(editMenu, wxID_ANY, _L("Re&load from Disk") + "\tF5",
             _L("Reload the plater from disk"), [this](wxCommandEvent&) {  reload_item_function_cb(); },
             "", nullptr, [this]() {return reload_item_condition_cb(); }, this);
 #endif // __APPLE__

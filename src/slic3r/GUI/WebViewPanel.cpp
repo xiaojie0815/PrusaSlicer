@@ -636,17 +636,24 @@ void WebViewPanel::define_css()
         
         document.head.appendChild(style); 
     )";
-#ifdef __APPLE__
+//#ifdef __APPLE__
+#if defined(__APPLE__)
     // WebView on Windows does read keyboard shortcuts
     // Thus doing f.e. Reload twice would make the oparation to fail 
     script += R"(
-        document.addEventListener('keydown', function (event) {
-            if (event.key === 'F5' || (event.ctrlKey && event.key === 'r') || (event.metaKey && event.key === 'r')) {
-                window.ExternalApp.postMessage(JSON.stringify({ event: 'reloadHomePage', fromKeyboard: 1}));
+        (function() {
+            const listenerKey = 'custom-click-listener';
+            if (!document[listenerKey]) {
+                document.addEventListener('keydown', function (event) {
+                    if (event.key === 'F5' || (event.ctrlKey && event.key === 'r') || (event.metaKey && event.key === 'r')) {
+                        window.ExternalApp.postMessage(JSON.stringify({ event: 'reloadHomePage', fromKeyboard: 1}));
+                    }
+                });
+                document[listenerKey] = true;
             }
-        });
+        })();
     )";
-#endif // !_WIN32
+#endif // __APPLE__
     run_script(script);
 }
 
@@ -1579,36 +1586,46 @@ void PrintablesWebViewPanel::define_css()
         // Capture click on hypertext
         // Rewritten from mobileApp code
         (function() {
-            document.addEventListener('click', function(event) {
-                const target = event.target.closest('a[href]');
-                if (!target) return; // Ignore clicks that are not on links
-                const url = target.href;
-                // Allow empty iframe navigation
-                if (url === 'about:blank') {
-                    return; // Let it proceed
-                }
-                // Debug log for navigation
-                console.log(`Printables:onNavigationRequest: ${url}`);
-                // Handle all non-printables.com domains in an external browser
-                if (!/printables\.com/.test(url)) {
-                    window.ExternalApp.postMessage(JSON.stringify({ event: 'openExternalUrl', url }))
-                    event.preventDefault();
-                }
-                // Default: Allow navigation to proceed
-            }, true); // Capture the event during the capture phase   
-        })(); 
-    )";
-#ifdef __APPLE__
-    // WebView on Windows does read keyboard shortcuts
-    // Thus doing f.e. Reload twice would make the oparation to fail 
-    script += R"(
-        document.addEventListener('keydown', function (event) {
-            if (event.key === 'F5' || (event.ctrlKey && event.key === 'r') || (event.metaKey && event.key === 'r')) {
-                window.ExternalApp.postMessage(JSON.stringify({ event: 'reloadHomePage', fromKeyboard: 1}));
+            const listenerKey = 'custom-click-listener';
+            if (!document[listenerKey]) {
+                document.addEventListener( 'click', function(event) {
+                    const target = event.target.closest('a[href]');
+                    if (!target) return; // Ignore clicks that are not on links
+                    const url = target.href;
+                    // Allow empty iframe navigation
+                    if (url === 'about:blank') {
+                        return; // Let it proceed
+                    }
+                    // Debug log for navigation
+                    console.log(`Printables:onNavigationRequest: ${url}`);
+                    // Handle all non-printables.com domains in an external browser
+                    if (!/printables\.com/.test(url)) {
+                        window.ExternalApp.postMessage(JSON.stringify({ event: 'openExternalUrl', url }))
+                        event.preventDefault();
+                    }
+                    // Default: Allow navigation to proceed
+                },true); // Capture the event during the capture phase
+                document[listenerKey] = true;
             }
-        });
+        })();
     )";
-#endif // !_WIN32
+#if defined(__APPLE__) 
+    // WebView on Windows does read keyboard shortcuts
+    // Thus doing f.e. Reload twice would make the oparation to fail
+    script += R"(
+        (function() {
+            const listenerKey = 'custom-click-listener';
+            if (!document[listenerKey]) {
+                document.addEventListener('keydown', function (event) {
+                    if (event.key === 'F5' || (event.ctrlKey && event.key === 'r') || (event.metaKey && event.key === 'r')) {
+                        window.ExternalApp.postMessage(JSON.stringify({ event: 'reloadHomePage', fromKeyboard: 1}));
+                    }
+                });
+                document[listenerKey] = true;
+            }
+        })();
+    )";
+#endif // defined(__APPLE__)
     run_script(script);
 }
 
