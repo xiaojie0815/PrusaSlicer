@@ -6578,9 +6578,12 @@ void Plater::connect_gcode_all() {
 
     Print *original_print{&active_fff_print()};
     const int original_bed{s_multiple_beds.get_active_bed()};
+    PrinterTechnology original_technology{this->printer_technology()};
+
     ScopeGuard guard{[&](){
         this->p->background_process.set_fff_print(original_print);
         s_multiple_beds.set_active_bed(original_bed);
+        this->p->background_process.select_technology(original_technology);
     }};
 
     for (std::size_t print_index{0};  print_index < this->get_fff_prints().size(); ++print_index) {
@@ -6590,6 +6593,7 @@ void Plater::connect_gcode_all() {
         }
         this->p->background_process.set_fff_print(print.get());
         this->p->background_process.set_temp_output_path(print_index);
+        this->p->background_process.select_technology(this->p->printer_technology);
 
         PrintHostJob upload_job;
         upload_job.upload_data = upload_job_template.upload_data;

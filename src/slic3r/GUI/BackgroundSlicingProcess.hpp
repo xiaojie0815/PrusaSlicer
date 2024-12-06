@@ -89,8 +89,8 @@ public:
 	~BackgroundSlicingProcess();
 
 	void set_temp_output_path(int bed_idx);
-	void set_fff_print(Print* print) { if (m_fff_print != print) stop(); m_fff_print = print; m_print = dynamic_cast<PrintBase*>(print); }
-    void set_sla_print(SLAPrint *print) { if (m_sla_print != print) stop(); m_sla_print = print; m_print = dynamic_cast<PrintBase*>(print); }
+	void set_fff_print(Print* print) { if (m_fff_print != print) stop(); m_fff_print = print; }
+    void set_sla_print(SLAPrint *print) { if (m_sla_print != print) stop(); m_sla_print = print; }
 	void set_thumbnail_cb(ThumbnailsGeneratorCallback cb) { m_thumbnail_cb = cb; }
 	void set_gcode_result(GCodeProcessorResult* result) { m_gcode_result = result; }
 
