@@ -80,11 +80,15 @@ using PartLinks = std::vector<PartLink>;
 
 // Large one layer overhang that needs to be supported on the overhanging side
 struct Peninsula{
-    // shape of peninsula some of edges are overhang
-    ExPolygon shape;
+    // shape of peninsula
+    //ExPolygon shape;
 
-    // same size as shape lines count
-    // convert shape to lines by to_lines(shape)
+    // Prev layer is extended by self support const and subtracted from current one.
+    // This part of layer is supported as island
+    ExPolygon unsuported_area;
+
+    // Flag for unsuported_area line about source
+    // Same size as Slic3r::to_lines(unsuported_area)
     // True .. peninsula outline(coast)
     // False .. connection to land(already supported by previous layer)
     std::vector<bool> is_outline;
@@ -191,17 +195,16 @@ struct PrepareGeneratorDataConfig
 /// </summary>
 /// <param name="slices">Countour cut from mesh</param>
 /// <param name="heights">Heights of the slices - Same size as slices</param>
-/// <param name="discretize_overhang_sample_in_mm">Discretization of overhangs outline, 
-/// smaller will slow down the process but will be more precise</param>
+/// <param name="config">Preparation parameters</param>
 /// <param name="throw_on_cancel">Call in meanwhile to check cancel event</param>
 /// <param name="statusfn">Say progress of generation into gui</param>
 /// <returns>Data prepared for generate support points</returns>
 SupportPointGeneratorData prepare_generator_data(
     std::vector<ExPolygons> &&slices,
     const std::vector<float> &heights,
-    double discretize_overhang_sample_in_mm,
-    ThrowOnCancel throw_on_cancel,
-    StatusFunction statusfn
+    const PrepareSupportConfig &config = {},
+    ThrowOnCancel throw_on_cancel = []() {},
+    StatusFunction statusfn = [](int) {}
 );
 
 /// <summary>
@@ -215,8 +218,8 @@ SupportPointGeneratorData prepare_generator_data(
 LayerSupportPoints generate_support_points(
     const SupportPointGeneratorData &data,
     const SupportPointGeneratorConfig &config,
-    ThrowOnCancel throw_on_cancel,
-    StatusFunction statusfn
+    ThrowOnCancel throw_on_cancel = []() {},
+    StatusFunction statusfn = [](int) {}
 );
 } // namespace Slic3r::sla
 
@@ -235,7 +238,7 @@ SupportPoints move_on_mesh_surface(
     const LayerSupportPoints &points,
     const AABBMesh &mesh,
     double allowed_move,
-    ThrowOnCancel throw_on_cancel
+    ThrowOnCancel throw_on_cancel = []() {}
 );
 
 }}

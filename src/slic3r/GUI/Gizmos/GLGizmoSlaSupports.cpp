@@ -687,9 +687,9 @@ RENDER_AGAIN:
         }
 
         sla::SampleConfig &sample_config = sla::SampleConfigFactory::get_sample_config();
-        if (float overhang_sample_distance = sample_config.discretize_overhang_sample_in_mm;
+        if (float overhang_sample_distance = sample_config.prepare_config.discretize_overhang_step;
             m_imgui->slider_float("overhang discretization", &overhang_sample_distance, 2e-5f, 10.f, "%.2f mm")){
-            sample_config.discretize_overhang_sample_in_mm = overhang_sample_distance;
+            sample_config.prepare_config.discretize_overhang_step = overhang_sample_distance;
         } else if (ImGui::IsItemHovered())
             ImGui::SetTooltip("Smaller will slow down. Step for discretization overhang outline for test of support need");        
 

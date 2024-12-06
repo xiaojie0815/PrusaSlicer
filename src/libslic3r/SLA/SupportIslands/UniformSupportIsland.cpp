@@ -447,7 +447,8 @@ coord_t align_once(
         cell_svg.draw(island_cell_center, "black", config.head_radius);}
 #endif //SLA_SAMPLE_ISLAND_UTILS_DEBUG_CELL_DISTANCE_PATH
         // Check that still points do not have bigger distance from each other
-        assert(is_points_in_distance(island_cell_center, island_cell->points, config.max_distance));
+        assert(is_points_in_distance(island_cell_center, island_cell->points, 
+            std::max(std::max(config.thick_inner_max_distance, config.thick_outline_max_distance), config.thin_max_distance)));
 
 #ifdef SLA_SAMPLE_ISLAND_UTILS_STORE_ALIGN_ONCE_TO_SVG_PATH
         svg.draw(cell_polygon, color_point_cell);
@@ -874,12 +875,9 @@ struct Field
     // border of field created by source lines and closing of tiny island 
     ExPolygon border;
 
-    // same size as polygon.points.size()
-    // indexes to source island lines 
-    // in case (index > lines.size()) it means fill the gap from tiny part of island
-    std::vector<size_t> source_indices;
-    // value for source index of change from wide to tiny part of island
-    size_t              source_index_for_change;
+    // Flag for each line in border whether this line needs to support
+    // same size as to_points(border).size()
+    std::vector<bool> is_outline;
 
     // inner part of field
     ExPolygon                inner;
@@ -900,10 +898,10 @@ void draw(SVG &svg, const Field &field, bool draw_border_line_indexes = false, b
         for (auto &line : border_lines) {
             size_t index = &line - &border_lines.front();
             // start of holes
-            if (index >= field.source_indices.size())
+            if (index >= field.is_outline.size())
                 break;
             Point middle_point = LineUtils::middle(line);
-            std::string text = std::to_string(field.source_indices[index]);
+            std::string text = std::to_string(field.is_outline[index]);
             auto item = field.field_2_inner.find(index);
             if (item != field.field_2_inner.end()) {
                 text += " inner " + std::to_string(item->second);
@@ -1100,8 +1098,9 @@ Field create_thick_field(const ThickPart& part, const Lines &lines, const Sample
         // Set largest polygon as contour
         set_biggest_hole_as_contour(field.border, source_indices);
     }
-    field.source_index_for_change = source_index_for_change;
-    field.source_indices = std::move(source_indices);    
+    field.is_outline.reserve(source_indices.size());
+    for (size_t source_index : source_indices)
+        field.is_outline.push_back(source_index != source_index_for_change);  
     std::tie(field.inner, field.field_2_inner) =
         outline_offset(field.border, (float)config.minimal_distance_from_outline);
 #ifdef SLA_SAMPLE_ISLAND_UTILS_STORE_FIELD_TO_SVG_PATH
@@ -1245,7 +1244,7 @@ Slic3r::Points sample_expolygon_with_centering(const ExPolygon &expoly, coord_t 
 SupportIslandPoints sample_outline(const Field &field, const SampleConfig &config){
     const ExPolygon &border = field.border;
     const Polygon &contour = border.contour;
-    assert(field.source_indices.size() >= contour.size());
+    assert(field.is_outline.size() >= contour.size());
     coord_t max_align_distance = config.max_align_distance;
     coord_t sample_distance = config.thick_outline_max_distance;
     SupportIslandPoints result;
@@ -1330,8 +1329,7 @@ SupportIslandPoints sample_outline(const Field &field, const SampleConfig &confi
     // convert map from field index to inner(line index)    
     auto sample_polygon = [&add_circle_sample, &add_lines_samples, &field]
         (const Polygon &polygon, const Polygon &inner_polygon, size_t index_offset) {
-        const std::vector<size_t> &source_indices = field.source_indices;
-        const size_t& change_index = field.source_index_for_change;
+        const std::vector<bool> &is_outline = field.is_outline;
         const std::map<size_t, size_t> &field_2_inner = field.field_2_inner;
         if (inner_polygon.empty())
             return; // nothing to sample
@@ -1340,9 +1338,8 @@ SupportIslandPoints sample_outline(const Field &field, const SampleConfig &confi
         size_t first_change_index = polygon.size();
         for (size_t polygon_index = 0; polygon_index < polygon.size(); ++polygon_index) {
             size_t index = polygon_index + index_offset;
-            assert(index < source_indices.size());
-            size_t source_index = source_indices[index];
-            if (source_index == change_index) {
+            assert(index < is_outline.size());
+            if (!is_outline[index]) {
                 // found change from wide to tiny part
                 first_change_index = polygon_index;
                 break;
@@ -1350,41 +1347,50 @@ SupportIslandPoints sample_outline(const Field &field, const SampleConfig &confi
         }
 
         // is polygon without change
-        if (first_change_index == polygon.size()) {
-            add_circle_sample(inner_polygon);
-        } else { // exist change create line sequences
-            // initialize with non valid values
-            Lines  inner_lines   = to_lines(inner_polygon);
-            size_t inner_invalid = inner_lines.size();
-            // first and last index to inner lines
-            size_t inner_first = inner_invalid;
-            size_t inner_last  = inner_invalid;
-            size_t stop_index  = first_change_index;
-            if (stop_index == 0)
-                stop_index = polygon.size();
-            for (size_t polygon_index = first_change_index + 1;
-                 polygon_index != stop_index; ++polygon_index) {
-                if (polygon_index == polygon.size()) polygon_index = 0;
-                size_t index = polygon_index + index_offset;
-                assert(index < source_indices.size());
-                size_t source_index = source_indices[index];
-                if (source_index == change_index) {
-                    if (inner_first == inner_invalid) continue;
-                    // create Restriction object
-                    add_lines_samples(inner_lines, inner_first, inner_last);
-                    inner_first = inner_invalid;
-                    inner_last  = inner_invalid;
-                    continue;
-                }
-                auto convert_index_item = field_2_inner.find(index);
-                // check if exist inner line
-                if (convert_index_item == field_2_inner.end()) continue;
-                inner_last = convert_index_item->second - index_offset;
-                // initialize first index
-                if (inner_first == inner_invalid) inner_first = inner_last;
+        if (first_change_index == polygon.size())
+            return add_circle_sample(inner_polygon);
+        
+        // exist change create line sequences
+        // initialize with non valid values
+        Lines  inner_lines   = to_lines(inner_polygon);
+        size_t inner_invalid = inner_lines.size();
+        // first and last index to inner lines
+        size_t inner_first = inner_invalid;
+        size_t inner_last  = inner_invalid;
+        size_t stop_index  = first_change_index;
+        if (stop_index == 0)
+            stop_index = polygon.size();
+        size_t polygon_index = first_change_index;
+        do { // search for first outline index after change
+            ++polygon_index;
+            if (polygon_index == polygon.size()) {
+                polygon_index = 0;
+                // Detect that whole polygon is not peninsula outline(coast)
+                if (first_change_index == 0)
+                    return; // Polygon do not contain edge to support.
             }
-            add_lines_samples(inner_lines, inner_first, inner_last);
+        } while (!is_outline[polygon_index + index_offset]);
+        for (;polygon_index != stop_index; ++polygon_index) {
+            if (polygon_index == polygon.size()) polygon_index = 0;
+            size_t index = polygon_index + index_offset;
+            assert(index < is_outline.size());
+            if (!is_outline[index]) {
+                if (inner_first == inner_invalid) continue;
+                // create Restriction object
+                add_lines_samples(inner_lines, inner_first, inner_last);
+                inner_first = inner_invalid;
+                inner_last  = inner_invalid;
+                continue;
+            }
+            auto convert_index_item = field_2_inner.find(index);
+            // check if exist inner line
+            if (convert_index_item == field_2_inner.end()) continue;
+            inner_last = convert_index_item->second - index_offset;
+            // initialize first index
+            if (inner_first == inner_invalid) inner_first = inner_last;
         }
+        if (inner_first != inner_invalid)
+            add_lines_samples(inner_lines, inner_first, inner_last);
     };
 
     // No inner space to sample
@@ -2219,7 +2225,6 @@ void draw(SVG &svg, const SupportIslandPoints &supportIslandPoints, coord_t radi
         }
     }
 }
-
 } // namespace
 
 //////////////////////////////
@@ -2346,6 +2351,29 @@ SupportIslandPoints uniform_support_island(const ExPolygon &island, const Sample
     }
 #endif // OPTION_TO_STORE_ISLAND
     return supports;
+}
+
+// Follow implementation "create_supports_for_thick_part("
+SupportIslandPoints uniform_support_peninsula(const Peninsula &peninsula, const SampleConfig &config){
+    // create_peninsula_field
+    Field field;
+    field.border = peninsula.unsuported_area;
+    field.is_outline = peninsula.is_outline;
+    std::tie(field.inner, field.field_2_inner) =
+        outline_offset(field.border, (float) config.minimal_distance_from_outline);
+    assert(!field.inner.empty());
+    if (field.inner.empty())
+        return {}; // no inner part
+
+    SupportIslandPoints results = sample_outline(field, config);
+    // Inner must survive after sample field for aligning supports(move along outline)
+    auto inner = std::make_shared<ExPolygon>(field.inner);    
+    Points inner_points = sample_expolygon_with_centering(*inner, config.thick_inner_max_distance);    
+    std::transform(inner_points.begin(), inner_points.end(), std::back_inserter(results), 
+        [&inner](const Point &point) { return std::make_unique<SupportIslandInnerPoint>(
+                                      point, inner, SupportIslandPoint::Type::thick_part_inner);});
+    align_samples(results, peninsula.unsuported_area, config);
+    return results;
 }
 
 bool is_uniform_support_island_visualization_disabled() {

@@ -6,6 +6,25 @@
 #define OPTION_TO_STORE_ISLAND
 
 namespace Slic3r::sla {
+
+/// <summary>
+/// Configure how to prepare data for SupportPointGenerator
+/// </summary>
+struct PrepareSupportConfig
+{
+    // Size of the steps between discretized samples on the overhanging part of layer
+    // Smaller value means more point to investigate in support process,
+    // but smaller divergence of support distances
+    double discretize_overhang_step = 2.;  // [in mm]
+
+    // Detection of peninsula(half island)
+    // Peninsula contain wider one layer overhang than this value
+    float peninsula_min_width = scale_(2); // [in scaled mm]
+
+    // Distance from previous layer part to still supported
+    float peninsula_self_supported_width = scale_(1.5); // [in scaled mm]
+};
+
 /// <summary>
 /// Configuration DTO 
 /// Define where is neccessary to put support point on island
@@ -83,8 +102,8 @@ struct SampleConfig
     std::string path = ""; // when set to empty string, no debug output is generated
 #endif // OPTION_TO_STORE_ISLAND
 
-    // Only for debug it should not be here !!
-    double discretize_overhang_sample_in_mm = 2.;
+    // Configuration for data preparation
+    PrepareSupportConfig prepare_config;
 };
 } // namespace Slic3r::sla
 #endif // slic3r_SLA_SuppotstIslands_SampleConfig_hpp_

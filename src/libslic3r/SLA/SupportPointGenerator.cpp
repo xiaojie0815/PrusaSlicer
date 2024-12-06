@@ -277,7 +277,6 @@ void support_part_overhangs(
 void support_island(const LayerPart &part, NearPoints& near_points, float part_z,
     const SupportPointGeneratorConfig &cfg) {
     SupportIslandPoints samples = uniform_support_island(*part.shape, cfg.island_configuration);
-    //samples = {std::make_unique<SupportIslandPoint>(island.contour.centroid())};
     for (const SupportIslandPointPtr &sample : samples)
         near_points.add(LayerSupportPoint{
             SupportPoint{
@@ -294,6 +293,30 @@ void support_island(const LayerPart &part, NearPoints& near_points, float part_z
             /* radius_curve_index */ 0,
             /* current_radius */ static_cast<coord_t>(scale_(cfg.support_curve.front().x()))
         });
+}
+
+void support_peninsulas(const Peninsulas& peninsulas, NearPoints& near_points, float part_z,
+    const SupportPointGeneratorConfig &cfg) {
+    for (const Peninsula& peninsula: peninsulas) {
+        SupportIslandPoints peninsula_supports =
+            uniform_support_peninsula(peninsula, cfg.island_configuration);
+        for (const SupportIslandPointPtr &support : peninsula_supports)
+            near_points.add(LayerSupportPoint{
+                SupportPoint{
+                    Vec3f{
+                        unscale<float>(support->point.x()), 
+                        unscale<float>(support->point.y()), 
+                        part_z
+                    },
+                    /* head_front_radius */ cfg.head_diameter / 2, 
+                    SupportPointType::island
+                },
+                /* position_on_layer */ support->point,
+                /* direction_to_mass */ Point(0, 0), // direction from bottom
+                /* radius_curve_index */ 0,
+                /* current_radius */ static_cast<coord_t>(scale_(cfg.support_curve.front().x()))
+            });
+    }   
 }
 
 /// <summary>
@@ -503,19 +526,22 @@ void remove_supports_out_of_part(NearPoints& near_points, const LayerPart &part,
 /// </summary>
 /// <param name="part">IN/OUT island part containing peninsulas</param>
 /// <param name="min_peninsula_width">minimal width of overhang to become peninsula</param>
-void create_peninsulas(LayerPart &part, float min_peninsula_width) {
+/// <param name="self_supported_width">supported distance from mainland</param>
+void create_peninsulas(LayerPart &part, const PrepareSupportConfig &config) {
+    assert(config.peninsula_min_width > config.peninsula_self_supported_width);
     const Polygons below_polygons = get_polygons(part.prev_parts);
-    const Polygons below_expanded = expand(below_polygons, min_peninsula_width, ClipperLib::jtSquare);
+    const Polygons below_expanded = expand(below_polygons, config.peninsula_min_width, ClipperLib::jtSquare);
     const ExPolygon &part_shape = *part.shape;
     ExPolygons over_peninsula = diff_ex(part_shape, below_expanded);
     if (over_peninsula.empty())
         return; // only tiny overhangs
 
+    Polygons below_self_supported = expand(below_polygons, config.peninsula_self_supported_width, ClipperLib::jtSquare);
     // exist layer part over peninsula limit
-    ExPolygons peninsulas_shape = diff_ex(part_shape, below_polygons);
+    ExPolygons peninsulas_shape = diff_ex(part_shape, below_self_supported);
 
     // IMPROVE: Anotate source of diff by ClipperLib_Z
-    Lines below_lines = to_lines(below_polygons);
+    Lines below_lines = to_lines(below_self_supported);
     auto get_angle = [](const Line &l) {
         Point diff = l.b - l.a;
         if (diff.x() < 0) // Only positive direction X
@@ -532,11 +558,14 @@ void create_peninsulas(LayerPart &part, float min_peninsula_width) {
         return belowe_line_angle[i1] < belowe_line_angle[i2]; };
     std::sort(idx.begin(), idx.end(), is_lower);
 
-    auto is_overlap = [&get_angle, &idx, &is_lower, &below_lines, &belowe_line_angle]
+    // Check, wheather line exist in set of belowe lines
+    // True .. line exist in previous layer (or partialy overlap previous line), connection to land
+    // False .. line is made by border of current layer part(peninsula coast)
+    auto exist_belowe = [&get_angle, &idx, &is_lower, &below_lines, &belowe_line_angle]
     (const Line &l) {
         // allowed angle epsilon
-        const double angle_epsilon = 1e-3;
-        const double paralel_epsilon = scale_(1e-2);
+        const double angle_epsilon = 1e-3; // < 0.06 DEG
+        const double paralel_epsilon = scale_(1e-2); // 10 um
         double angle = get_angle(l);
         double low_angle = angle - angle_epsilon;
         bool is_over = false;
@@ -559,24 +588,35 @@ void create_peninsulas(LayerPart &part, float min_peninsula_width) {
         if (low > high)
             std::swap(low, high);
 
-        auto it_idx = std::lower_bound(idx.begin(), idx.end(), low_angle, is_lower);
-        if (is_over && it_idx == idx.end()) {
-            it_idx = idx.begin();
-            is_over = false;
+        auto is_lower_angle = [&belowe_line_angle](size_t index, double angle) {
+            return belowe_line_angle[index] < angle; };
+        auto it_idx = std::lower_bound(idx.begin(), idx.end(), low_angle, is_lower_angle);
+        if (it_idx == idx.end()) {
+            if (is_over) {
+                it_idx = idx.begin();
+                is_over = false;
+            } else {
+                return false;
+            }
         }
-        while (is_over || it_idx != idx.end() || belowe_line_angle[*it_idx] < hi_angle) {
+        while (is_over || belowe_line_angle[*it_idx] < hi_angle) {
             const Line &l2 = below_lines[*it_idx];
             coord_t l2_low = l2.a[mayorit_idx];
             coord_t l2_high = l2.b[mayorit_idx];
             if (low > high)
                 std::swap(low, high);
-            if ((l2_high >= low && l2_low <= high) &&
-                l.distance_to(l2.a) < paralel_epsilon)
+            if ((l2_high >= low && l2_low <= high) && (
+                ((l2.a == l.a && l2.b == l.b) ||(l2.a == l.b && l2.b == l.a)) || // speed up - same line
+                l.perp_distance_to(l2.a) < paralel_epsilon)) // check distance of parallel lines
                 return true;
             ++it_idx;
-            if (is_over && it_idx == idx.end()) {
-                it_idx = idx.begin();
-                is_over = false;
+            if (it_idx == idx.end()){
+                if (is_over) {
+                    it_idx = idx.begin();
+                    is_over = false;
+                } else {
+                    break;            
+                }
             }
         }
         return false;
@@ -584,23 +624,26 @@ void create_peninsulas(LayerPart &part, float min_peninsula_width) {
 
     // anotate source of peninsula: overhang VS previous layer  
     for (const ExPolygon &peninsula : peninsulas_shape) {
+        // Check that peninsula is wide enough(min_peninsula_width)
+        if (intersection_ex(ExPolygons{peninsula}, over_peninsula).empty())
+            continue; 
+
         // need to know shape and edges of peninsula
         Lines lines = to_lines(peninsula);
         std::vector<bool> is_outline(lines.size());
         // when line overlap with belowe lines it is not outline
         for (size_t i = 0; i < lines.size(); i++) 
-            is_outline[i] = is_overlap(lines[i]);
+            is_outline[i] = !exist_belowe(lines[i]);
         part.peninsulas.push_back(Peninsula{peninsula, is_outline});
     }
 }
-
 } // namespace
 
 #include "libslic3r/Execution/ExecutionSeq.hpp"
 SupportPointGeneratorData Slic3r::sla::prepare_generator_data(
     std::vector<ExPolygons> &&slices,
     const std::vector<float> &heights,
-    double discretize_overhang_sample_in_mm,
+    const PrepareSupportConfig &config,
     ThrowOnCancel throw_on_cancel,
     StatusFunction statusfn
 ) {
@@ -638,7 +681,7 @@ SupportPointGeneratorData Slic3r::sla::prepare_generator_data(
         }        
     }, 32 /*gransize*/);
 
-    double sample_distance_in_um = scale_(discretize_overhang_sample_in_mm);
+    double sample_distance_in_um = scale_(config.discretize_overhang_step);
     double sample_distance_in_um2 = sample_distance_in_um * sample_distance_in_um;
 
     // Link parts by intersections
@@ -678,15 +721,17 @@ SupportPointGeneratorData Slic3r::sla::prepare_generator_data(
     }, 8 /* gransize */);
 
     // Detect peninsula
-    float min_peninsula_width = scale_(2); // [in scaled mm]
-    execution::for_each(ex_seq, size_t(1), result.slices.size(),
-    [&layers = result.layers, &min_peninsula_width, throw_on_cancel](size_t layer_id) {
-        if ((layer_id % 2) == 0)
+    execution::for_each(ex_tbb, size_t(1), result.slices.size(),
+    [&layers = result.layers, &config, throw_on_cancel](size_t layer_id) {
+        if ((layer_id % 16) == 0)
             // Don't call the following function too often as it flushes CPU write caches due to synchronization primitves.
             throw_on_cancel();
         LayerParts &parts = layers[layer_id].parts;
-        for (auto it_part = parts.begin(); it_part < parts.end(); ++it_part)
-            create_peninsulas(*it_part, min_peninsula_width);
+        for (auto it_part = parts.begin(); it_part < parts.end(); ++it_part) {
+            if (it_part->prev_parts.empty())
+                continue; // island
+            create_peninsulas(*it_part, config);
+        }
     }, 8 /* gransize */);
     return result;
 }
@@ -766,20 +811,23 @@ LayerSupportPoints Slic3r::sla::generate_support_points(
         grids.reserve(layer.parts.size());
         
         for (const LayerPart &part : layer.parts) {
-            if (part.prev_parts.empty()) {
+            if (part.prev_parts.empty()) { // Island ?
                 // only island add new grid
                 grids.emplace_back(&result);
                 // new island - needs support no doubt
                 support_island(part, grids.back(), layer.print_z, config);
-            } else {
-                // first layer should have empty prev_part
-                assert(layer_id != 0);
-                const LayerParts &prev_layer_parts = layers[layer_id - 1].parts;
-                NearPoints near_points = create_near_points(prev_layer_parts, part, prev_grids);
-                remove_supports_out_of_part(near_points, part, config);
-                support_part_overhangs(part, config, near_points, layer.print_z, maximal_radius);
-                grids.push_back(std::move(near_points));
+                continue;
             }
+
+            // first layer should have empty prev_part
+            assert(layer_id != 0);
+            const LayerParts &prev_layer_parts = layers[layer_id - 1].parts;
+            NearPoints near_points = create_near_points(prev_layer_parts, part, prev_grids);
+            remove_supports_out_of_part(near_points, part, config);
+            if (!part.peninsulas.empty())
+                support_peninsulas(part.peninsulas, near_points, layer.print_z, config);
+            support_part_overhangs(part, config, near_points, layer.print_z, maximal_radius);
+            grids.push_back(std::move(near_points));            
         }
         prev_grids = std::move(grids);
 

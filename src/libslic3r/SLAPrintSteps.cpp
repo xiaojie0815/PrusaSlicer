@@ -610,6 +610,7 @@ static void filter_support_points_by_modifiers(sla::SupportPoints &pts,
 // support points. Then we sprinkle the rest of the mesh.
 void SLAPrint::Steps::support_points(SLAPrintObject &po)
 {
+    using namespace sla;
     // If supports are disabled, we can skip the model scan.
     if(!po.m_config.supports_enable.getBool()) return;
 
@@ -628,7 +629,7 @@ void SLAPrint::Steps::support_points(SLAPrintObject &po)
     BOOST_LOG_TRIVIAL(debug) << "Support point count "
                              << mo.sla_support_points.size();
 
-    if (mo.sla_points_status == sla::PointsStatus::UserModified) {
+    if (mo.sla_points_status == PointsStatus::UserModified) {
         // There are either some points on the front-end, or the user
         // removed them on purpose. No calculation will be done.
         po.m_supportdata->input.pts = po.transformed_support_points();
@@ -637,27 +638,27 @@ void SLAPrint::Steps::support_points(SLAPrintObject &po)
     // Unless the user modified the points or we already did the calculation,
     // we will do the autoplacement. Otherwise we will just blindly copy the
     // frontend data into the backend cache.
-    // if (mo.sla_points_status != sla::PointsStatus::UserModified) 
+    // if (mo.sla_points_status != PointsStatus::UserModified) 
 
     throw_if_canceled();
     const SLAPrintObjectConfig& cfg = po.config();
 
     // the density config value is in percents:
-    sla::SupportPointGeneratorConfig config;
+    SupportPointGeneratorConfig config;
     config.density_relative = float(cfg.support_points_density_relative / 100.f);
         
     switch (cfg.support_tree_type) {
-    case sla::SupportTreeType::Default:
-    case sla::SupportTreeType::Organic:
+    case SupportTreeType::Default:
+    case SupportTreeType::Organic:
         config.head_diameter = float(cfg.support_head_front_diameter);
         break;
-    case sla::SupportTreeType::Branching:
+    case SupportTreeType::Branching:
         config.head_diameter = float(cfg.branchingsupport_head_front_diameter);
         break;
     }
     
     // copy current configuration for sampling islands
-    config.island_configuration = sla::SampleConfigFactory::get_sample_config(); // copy
+    config.island_configuration = SampleConfigFactory::get_sample_config(); // copy
     
     // scaling for the sub operations
     double d = objectstep_scale * OBJ_STEP_LEVELS[slaposSupportPoints] / 100.0;
@@ -678,14 +679,15 @@ void SLAPrint::Steps::support_points(SLAPrintObject &po)
 
     std::vector<ExPolygons> slices = po.get_model_slices(); // copy
     const std::vector<float>& heights = po.m_model_height_levels;
-    sla::ThrowOnCancel cancel = [this]() { throw_if_canceled(); };
-    sla::StatusFunction status = statuscb;
-    double discretize = config.island_configuration.discretize_overhang_sample_in_mm;
-    sla::SupportPointGeneratorData data = 
-        sla::prepare_generator_data(std::move(slices), heights, discretize, cancel, status);
+    ThrowOnCancel cancel = [this]() { throw_if_canceled(); };
+    StatusFunction status = statuscb;
 
-    sla::LayerSupportPoints layer_support_points = 
-        sla::generate_support_points(data, config, cancel, status);
+    const PrepareSupportConfig &prepare_cfg = config.island_configuration.prepare_config;
+    SupportPointGeneratorData data = 
+        prepare_generator_data(std::move(slices), heights, prepare_cfg, cancel, status);
+
+    LayerSupportPoints layer_support_points = 
+        generate_support_points(data, config, cancel, status);
 
     const AABBMesh& emesh = po.m_supportdata->input.emesh;
     // Maximal move of support point to mesh surface,
@@ -693,8 +695,8 @@ void SLAPrint::Steps::support_points(SLAPrintObject &po)
     assert(po.m_model_height_levels.size() > 1);
     double allowed_move = (po.m_model_height_levels[1] - po.m_model_height_levels[0]) +
         std::numeric_limits<float>::epsilon();
-    sla::SupportPoints support_points = 
-        sla::move_on_mesh_surface(layer_support_points, emesh, allowed_move, cancel);
+    SupportPoints support_points = 
+        move_on_mesh_surface(layer_support_points, emesh, allowed_move, cancel);
 
     throw_if_canceled();
 

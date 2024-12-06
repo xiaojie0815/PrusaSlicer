@@ -4,6 +4,7 @@
 #include <libslic3r/ExPolygon.hpp>
 #include "SampleConfig.hpp"
 #include "SupportIslandPoint.hpp"
+#include "libslic3r/SLA/SupportPointGenerator.hpp" // Peninsula
 
 namespace Slic3r::sla {
 
@@ -14,6 +15,14 @@ namespace Slic3r::sla {
 /// <param name="config">Configuration of support density</param>
 /// <returns>Support points laying inside of island</returns>
 SupportIslandPoints uniform_support_island(const ExPolygon &island, const SampleConfig &config);
+
+/// <summary>
+/// Distribute support points across peninsula
+/// </summary>
+/// <param name="peninsula">half island with anotation of the coast and land outline</param>
+/// <param name="config">Density distribution parameters</param>
+/// <returns></returns>
+SupportIslandPoints uniform_support_peninsula(const Peninsula &peninsula, const SampleConfig &config);
 
 /// <summary>
 /// Check for tests that developer do not forget disable visualization after debuging.

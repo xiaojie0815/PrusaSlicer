@@ -129,14 +129,11 @@ void test_supports(const std::string          &obj_filename,
 
     // Create the support point generator
     sla::SupportPointGeneratorConfig autogencfg;
-    autogencfg.head_diameter = 2 * supportcfg.head_front_radius_mm;
-    sla::ThrowOnCancel cancel = []() {};
-    sla::StatusFunction status = [](int) {};
-    sla::SupportPointGeneratorData gen_data = sla::prepare_generator_data(std::move(out.model_slices), out.slicegrid, 2., cancel, status);
-    sla::LayerSupportPoints layer_support_points = sla::generate_support_points(gen_data, autogencfg, cancel, status);
+    sla::SupportPointGeneratorData gen_data = sla::prepare_generator_data(std::move(out.model_slices), out.slicegrid);
+    sla::LayerSupportPoints layer_support_points = sla::generate_support_points(gen_data, autogencfg);
     double allowed_move = (out.slicegrid[1] - out.slicegrid[0]) + std::numeric_limits<float>::epsilon();
     // Get the calculated support points.
-    sm.pts = sla::move_on_mesh_surface(layer_support_points, sm.emesh, allowed_move, cancel);
+    sm.pts = sla::move_on_mesh_surface(layer_support_points, sm.emesh, allowed_move);
     out.model_slices = std::move(gen_data.slices); // return ownership
     
     int validityflags = ASSUME_NO_REPAIR;
@@ -474,14 +471,11 @@ sla::SupportPoints calc_support_pts(
     std::vector<ExPolygons> slices  = slice_mesh_ex(mesh.its, heights, CLOSING_RADIUS);
 
     // Prepare the support point calculator
-    
-    sla::ThrowOnCancel cancel = []() {};
-    sla::StatusFunction status = [](int) {};
-    sla::SupportPointGeneratorData gen_data = sla::prepare_generator_data(std::move(slices), heights, 2., cancel, status);
-    sla::LayerSupportPoints layer_support_points = sla::generate_support_points(gen_data, cfg, cancel, status);
+    sla::SupportPointGeneratorData gen_data = sla::prepare_generator_data(std::move(slices), heights);
+    sla::LayerSupportPoints layer_support_points = sla::generate_support_points(gen_data, cfg);
 
     AABBMesh emesh{mesh};
     double allowed_move = (heights[1] - heights[0]) + std::numeric_limits<float>::epsilon();
     // Get the calculated support points.
-    return sla::move_on_mesh_surface(layer_support_points, emesh, allowed_move, cancel);
+    return sla::move_on_mesh_surface(layer_support_points, emesh, allowed_move);
 }
