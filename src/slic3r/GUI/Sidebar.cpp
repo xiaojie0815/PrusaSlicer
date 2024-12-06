@@ -579,6 +579,9 @@ Sidebar::Sidebar(Plater *parent)
         this->m_plater->export_all_gcodes(true);
     });
 
+    m_btn_connect_gcode_all->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
+        this->m_plater->connect_gcode_all();
+    });
 }
 
 Sidebar::~Sidebar() {}

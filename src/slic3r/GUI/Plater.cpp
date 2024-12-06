@@ -20,6 +20,7 @@
 #include "Plater.hpp"
 #include "slic3r/GUI/BitmapCache.hpp"
 #include "slic3r/GUI/Jobs/UIThreadWorker.hpp"
+#include "slic3r/Utils/PrusaConnect.hpp"
 
 #include <cstddef>
 #include <algorithm>
@@ -2255,7 +2256,7 @@ unsigned int Plater::priv::update_background_process(bool force_validation, bool
     )};
 
     if (any_status_changed) {
-        wxGetApp().plater()->show_autoslicing_action_buttons();
+        this->show_autoslicing_action_buttons();
     }
 
     // If current bed was invalidated, update thumbnails for all beds:
@@ -6494,19 +6495,18 @@ void Plater::printables_to_connect_gcode(const std::string& url)
 
 }
 
-void Plater::connect_gcode()
-{
+std::optional<PrintHostJob> Plater::get_connect_print_host_job() {
     assert(p->user_account->is_logged());
     std::string  dialog_msg;
     {
         PrinterPickWebViewDialog dialog(this, dialog_msg);
         if (dialog.ShowModal() != wxID_OK) {
-            return;
+            return std::nullopt;
         }
     }   
     if (dialog_msg.empty())  {
         show_error(this, _L("Failed to select a printer."));
-        return;
+        return std::nullopt;
     }
     BOOST_LOG_TRIVIAL(debug) << "Message from Printer pick webview: " << dialog_msg;
 
@@ -6531,9 +6531,9 @@ void Plater::connect_gcode()
         BOOST_LOG_TRIVIAL(error) << msg;
         BOOST_LOG_TRIVIAL(error) << "Response: " << dialog_msg;
         show_error(this, msg);
-        return;
+        return std::nullopt;
     }
-    
+
 
     PhysicalPrinter ph_printer("connect_temp_printer", wxGetApp().preset_bundle->physical_printers.default_config(), *selected_printer_preset);
     ph_printer.config.set_key_value("host_type", new ConfigOptionEnum<PrintHostType>(htPrusaConnectNew));
@@ -6547,7 +6547,55 @@ void Plater::connect_gcode()
     upload_job.upload_data.data_json = data_subtree;
     upload_job.upload_data.upload_path = boost::filesystem::path(filename);
 
-    p->export_gcode(fs::path(), false, std::move(upload_job));
+    return upload_job;
+}
+
+void Plater::connect_gcode()
+{
+    if (auto upload_job{get_connect_print_host_job()}) {
+        p->export_gcode(fs::path(), false, std::move(*upload_job));
+    }
+}
+
+void Plater::connect_gcode_all() {
+    auto optional_upload_job{get_connect_print_host_job()};
+    if (!optional_upload_job) {
+        return;
+    }
+
+    // PringHostJob does not have copy constructor.
+    // Make a new job from this template for each bed.
+    const PrintHostJob &upload_job_template{*optional_upload_job};
+    const auto print_host_ptr{dynamic_cast<PrusaConnectNew*>(upload_job_template.printhost.get())};
+    if (print_host_ptr == nullptr) {
+        throw std::runtime_error{"Sending to connect requires PrusaConnectNew host."};
+    }
+    const PrusaConnectNew connect{*print_host_ptr};
+
+    Print *original_print{&active_fff_print()};
+    ScopeGuard guard{[&](){
+        this->p->background_process.set_fff_print(original_print);
+    }};
+
+
+    for (std::size_t print_index{0};  print_index < this->get_fff_prints().size(); ++print_index) {
+        const std::unique_ptr<Print> &print{this->get_fff_prints()[print_index]};
+        if (!print || print->empty()) {
+            continue;
+        }
+        this->p->background_process.set_fff_print(print.get());
+
+        PrintHostJob upload_job;
+        upload_job.upload_data = upload_job_template.upload_data;
+        upload_job.printhost = std::make_unique<PrusaConnectNew>(connect);
+        upload_job.cancelled = upload_job_template.cancelled;
+        const fs::path filename{upload_job.upload_data.upload_path};
+        upload_job.upload_data.upload_path =
+            filename.stem().string()
+            + "_bed" + std::to_string(print_index)
+            + filename.extension().string();
+        this->p->background_process.prepare_upload(upload_job);
+    }
 }
 
 void Plater::send_gcode()

@@ -244,6 +244,7 @@ public:
 
     std::optional<PrintHostJob> get_connect_print_host_job();
     void connect_gcode();
+    void connect_gcode_all();
     void printables_to_connect_gcode(const std::string& url);
     std::string get_upload_filename();
 
