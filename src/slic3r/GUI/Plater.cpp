@@ -319,6 +319,7 @@ struct Plater::priv
 
     priv(Plater *q, MainFrame *main_frame);
     ~priv();
+    void init();
 
     bool is_project_dirty() const { return dirty_state.is_dirty(); }
     bool is_presets_dirty() const { return dirty_state.is_presets_dirty(); }
@@ -613,7 +614,7 @@ const std::regex Plater::priv::pattern_prusa(".*prusa", std::regex::icase);
 const std::regex Plater::priv::pattern_zip(".*zip", std::regex::icase);
 const std::regex Plater::priv::pattern_printRequest(".*printRequest", std::regex::icase);
 
-Plater::priv::priv(Plater *q, MainFrame *main_frame)
+Plater::priv::priv(Plater* q, MainFrame* main_frame)
     : q(q)
     , main_frame(main_frame)
     , config(Slic3r::DynamicPrintConfig::new_from_defaults_keys({
@@ -623,19 +624,22 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
         "extruder_colour", "filament_colour", "material_colour", "max_print_height", "printer_model", "printer_notes", "printer_technology",
         // These values are necessary to construct SlicingParameters by the Canvas3D variable layer height editor.
         "layer_height", "first_layer_height", "min_layer_height", "max_layer_height",
-        "brim_width", "perimeters", "perimeter_extruder", "fill_density", "infill_extruder", "top_solid_layers", 
-        "support_material", "support_material_extruder", "support_material_interface_extruder", 
+        "brim_width", "perimeters", "perimeter_extruder", "fill_density", "infill_extruder", "top_solid_layers",
+        "support_material", "support_material_extruder", "support_material_interface_extruder",
         "support_material_contact_distance", "support_material_bottom_contact_distance", "raft_layers"
         }))
     , sidebar(new Sidebar(q))
     , notification_manager(std::make_unique<NotificationManager>(q))
     , user_account(std::make_unique<UserAccount>(q, wxGetApp().app_config, wxGetApp().get_instance_hash_string()))
-    , m_worker{q, std::make_unique<NotificationProgressIndicator>(notification_manager.get()), "ui_worker"}
-    , m_sla_import_dlg{new SLAImportDialog{q}}
+    , m_worker{ q, std::make_unique<NotificationProgressIndicator>(notification_manager.get()), "ui_worker" }
+    , m_sla_import_dlg{ new SLAImportDialog{q} }
     , delayed_scene_refresh(false)
     , view_toolbar(GLToolbar::Radio, "View")
     , collapse_toolbar(GLToolbar::Normal, "Collapse")
     , m_project_filename(wxEmptyString)
+{}
+
+void Plater::priv::init()
 {
     for (int i = 0; i < s_multiple_beds.get_max_beds(); ++i) {
         gcode_results.emplace_back();
@@ -703,7 +707,7 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
         view3D_canvas->Bind(EVT_GLCANVAS_SCHEDULE_BACKGROUND_PROCESS, [this](SimpleEvent&) { this->schedule_background_process(); });
         view3D_canvas->Bind(EVT_GLCANVAS_OBJECT_SELECT, &priv::on_object_select, this);
         view3D_canvas->Bind(EVT_GLCANVAS_RIGHT_CLICK, &priv::on_right_click, this);
-        view3D_canvas->Bind(EVT_GLCANVAS_REMOVE_OBJECT, [q](SimpleEvent&) { q->remove_selected(); });
+        view3D_canvas->Bind(EVT_GLCANVAS_REMOVE_OBJECT, [this](SimpleEvent&) { q->remove_selected(); });
         view3D_canvas->Bind(EVT_GLCANVAS_ARRANGE, [this](SimpleEvent&) { this->q->arrange(); });
         view3D_canvas->Bind(EVT_GLCANVAS_ARRANGE_CURRENT_BED, [this](SimpleEvent&) { this->q->arrange_current_bed(); });
         view3D_canvas->Bind(EVT_GLCANVAS_SELECT_ALL, [this](SimpleEvent&) { this->q->select_all(); });
@@ -733,24 +737,24 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
 
         // 3DScene/Toolbar:
         view3D_canvas->Bind(EVT_GLTOOLBAR_ADD, &priv::on_action_add, this);
-        view3D_canvas->Bind(EVT_GLTOOLBAR_DELETE, [q](SimpleEvent&) { q->remove_selected(); });
+        view3D_canvas->Bind(EVT_GLTOOLBAR_DELETE, [this](SimpleEvent&) { q->remove_selected(); });
         view3D_canvas->Bind(EVT_GLTOOLBAR_DELETE_ALL, [this](SimpleEvent&) { delete_all_objects_from_model(); });
 //        view3D_canvas->Bind(EVT_GLTOOLBAR_DELETE_ALL, [q](SimpleEvent&) { q->reset_with_confirm(); });
         view3D_canvas->Bind(EVT_GLTOOLBAR_ARRANGE, [this](SimpleEvent&) { this->q->arrange(); });
         view3D_canvas->Bind(EVT_GLTOOLBAR_ARRANGE_CURRENT_BED, [this](SimpleEvent&) { this->q->arrange_current_bed(); });
-        view3D_canvas->Bind(EVT_GLTOOLBAR_COPY, [q](SimpleEvent&) { q->copy_selection_to_clipboard(); });
-        view3D_canvas->Bind(EVT_GLTOOLBAR_PASTE, [q](SimpleEvent&) { q->paste_from_clipboard(); });
-        view3D_canvas->Bind(EVT_GLTOOLBAR_MORE, [q](SimpleEvent&) { q->increase_instances(); });
-        view3D_canvas->Bind(EVT_GLTOOLBAR_FEWER, [q](SimpleEvent&) { q->decrease_instances(); });
+        view3D_canvas->Bind(EVT_GLTOOLBAR_COPY, [this](SimpleEvent&) { q->copy_selection_to_clipboard(); });
+        view3D_canvas->Bind(EVT_GLTOOLBAR_PASTE, [this](SimpleEvent&) { q->paste_from_clipboard(); });
+        view3D_canvas->Bind(EVT_GLTOOLBAR_MORE, [this](SimpleEvent&) { q->increase_instances(); });
+        view3D_canvas->Bind(EVT_GLTOOLBAR_FEWER, [this](SimpleEvent&) { q->decrease_instances(); });
         view3D_canvas->Bind(EVT_GLTOOLBAR_SPLIT_OBJECTS, &priv::on_action_split_objects, this);
         view3D_canvas->Bind(EVT_GLTOOLBAR_SPLIT_VOLUMES, &priv::on_action_split_volumes, this);
         view3D_canvas->Bind(EVT_GLTOOLBAR_LAYERSEDITING, &priv::on_action_layersediting, this);
     }
-    view3D_canvas->Bind(EVT_GLCANVAS_UPDATE_BED_SHAPE, [q](SimpleEvent&) { q->set_bed_shape(); });
+    view3D_canvas->Bind(EVT_GLCANVAS_UPDATE_BED_SHAPE, [this](SimpleEvent&) { q->set_bed_shape(); });
 
     // Preview events:
     preview->get_wxglcanvas()->Bind(EVT_GLCANVAS_QUESTION_MARK, [](SimpleEvent&) { wxGetApp().keyboard_shortcuts(); });
-    preview->get_wxglcanvas()->Bind(EVT_GLCANVAS_UPDATE_BED_SHAPE, [q](SimpleEvent&) { q->set_bed_shape(); });
+    preview->get_wxglcanvas()->Bind(EVT_GLCANVAS_UPDATE_BED_SHAPE, [this](SimpleEvent&) { q->set_bed_shape(); });
     if (wxGetApp().is_editor()) {
         preview->get_wxglcanvas()->Bind(EVT_GLCANVAS_TAB, [this](SimpleEvent&) { select_next_view_3D(); });
         preview->get_wxglcanvas()->Bind(EVT_GLCANVAS_COLLAPSE_SIDEBAR, [this](SimpleEvent&) { this->q->collapse_sidebar(!this->q->is_sidebar_collapsed());  });
@@ -763,8 +767,8 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
         q->Bind(EVT_SLICING_COMPLETED, &priv::on_slicing_completed, this);
         q->Bind(EVT_PROCESS_COMPLETED, &priv::on_process_completed, this);
         q->Bind(EVT_EXPORT_BEGAN, &priv::on_export_began, this);
-        q->Bind(EVT_GLVIEWTOOLBAR_3D, [q](SimpleEvent&) { q->select_view_3D("3D"); });
-        q->Bind(EVT_GLVIEWTOOLBAR_PREVIEW, [q](SimpleEvent&) { q->select_view_3D("Preview"); });
+        q->Bind(EVT_GLVIEWTOOLBAR_3D, [this](SimpleEvent&) { q->select_view_3D("3D"); });
+        q->Bind(EVT_GLVIEWTOOLBAR_PREVIEW, [this](SimpleEvent&) { q->select_view_3D("Preview"); });
     }
 
     // Drop target:
@@ -803,7 +807,7 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
             GUI_App &app = wxGetApp();
             app.get_preset_updater_wrapper()->on_update_notification_confirm();
         });
-        this->q->Bind(EVT_REMOVABLE_DRIVE_EJECTED, [this, q](RemovableDriveEjectEvent &evt) {
+        this->q->Bind(EVT_REMOVABLE_DRIVE_EJECTED, [this](RemovableDriveEjectEvent &evt) {
 		    if (evt.data.second) {
 			    q->show_action_buttons();
                 notification_manager->close_notification_of_type(NotificationType::ExportFinished);
@@ -819,7 +823,7 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
                     );
             }
 	    });
-        this->q->Bind(EVT_REMOVABLE_DRIVES_CHANGED, [this, q](RemovableDrivesChangedEvent &) {
+        this->q->Bind(EVT_REMOVABLE_DRIVES_CHANGED, [this](RemovableDrivesChangedEvent &) {
 		    q->show_action_buttons(); 
 		    // Close notification ExportingFinished but only if last export was to removable
 		    notification_manager->device_ejected();
@@ -1070,7 +1074,7 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
         bool is_collapsed = get_config_bool("collapsed_sidebar");
         sidebar->collapse(is_collapsed);
     }
- }
+}
 
 Plater::priv::~priv()
 {
@@ -4146,9 +4150,11 @@ void Plater::priv::bring_instance_forward() const
 
 Plater::Plater(wxWindow *parent, MainFrame *main_frame)
     : wxPanel(parent, wxID_ANY, wxDefaultPosition, wxGetApp().get_min_size(parent))
-    , p(new priv(this, main_frame))
 {
-    // Initialization performed in the private c-tor
+    // Creation and initialization is separated, the initialization needs
+    // Plater::p pointer already set up.
+    p = std::make_unique<priv>(this, main_frame);
+    p->init();
 }
 
 Plater::~Plater() = default;
