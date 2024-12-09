@@ -6575,9 +6575,9 @@ enum class PrintStatus {
 
 std::string get_status_text(PrintStatus status) {
     switch(status) {
-        case PrintStatus::idle: return "Idle";
-        case PrintStatus::running: return "Running";
-        case PrintStatus::finished: return "Finished";
+        case PrintStatus::idle: return _u8L("Unsliced");
+        case PrintStatus::running: return _u8L("Slicing...");
+        case PrintStatus::finished: return _u8L("Sliced");
     }
     return {};
 }
@@ -6601,7 +6601,7 @@ bool bed_selector_thumbnail(
     const float side,
     const float border,
     const GLuint texture_id,
-    const PrintStatus status
+    const std::optional<PrintStatus> status
 ) {
     ImGuiWindow* window = GImGui->CurrentWindow;
     const ImVec2 current_position = GImGui->CurrentWindow->DC.CursorPos;
@@ -6615,16 +6615,18 @@ bool bed_selector_thumbnail(
         border
     )};
 
-    const std::string icon{get_status_icon(status)};
+    if (status) {
+        const std::string icon{get_status_icon(*status)};
 
-    window->DrawList->AddText(
-        GImGui->Font,
-        GImGui->FontSize,
-        state_pos,
-        ImGui::GetColorU32(ImGuiCol_Text),
-        icon.c_str(),
-        icon.c_str() + icon.size()
-    );
+        window->DrawList->AddText(
+            GImGui->Font,
+            GImGui->FontSize,
+            state_pos,
+            ImGui::GetColorU32(ImGuiCol_Text),
+            icon.c_str(),
+            icon.c_str() + icon.size()
+        );
+    }
 
     return clicked;
 }
@@ -6673,11 +6675,14 @@ void Slic3r::GUI::GLCanvas3D::_render_bed_selector()
 
             bool clicked = false;
 
-            PrintStatus print_status{PrintStatus::idle};
-            if (wxGetApp().plater()->get_fff_prints()[i]->finished()) {
-                print_status = PrintStatus::finished;
-            } else if (m_process->fff_print() == wxGetApp().plater()->get_fff_prints()[i].get() && m_process->running()) {
-                print_status = PrintStatus::running;
+            std::optional<PrintStatus> print_status;
+            if (current_printer_technology() == ptFFF) {
+                print_status = PrintStatus::idle;
+                if (wxGetApp().plater()->get_fff_prints()[i]->finished()) {
+                    print_status = PrintStatus::finished;
+                } else if (m_process->fff_print() == wxGetApp().plater()->get_fff_prints()[i].get() && m_process->running()) {
+                    print_status = PrintStatus::running;
+                }
             }
 
             if (!previous_print_status[i] || print_status != previous_print_status[i]) {
@@ -6710,9 +6715,12 @@ void Slic3r::GUI::GLCanvas3D::_render_bed_selector()
             if (empty)
                 ImGui::PopItemFlag();
 
-            const std::string status_text{get_status_text(print_status)};
-            if (ImGui::IsItemHovered())
-                ImGui::SetTooltip("%s", status_text.c_str());
+            if (print_status) {
+                const std::string status_text{get_status_text(*print_status)};
+                if (ImGui::IsItemHovered()) {
+                    ImGui::SetTooltip("%s", status_text.c_str());
+                }
+            }
         };
 
         ImGuiWrapper& imgui = *wxGetApp().imgui();
@@ -6736,7 +6744,10 @@ void Slic3r::GUI::GLCanvas3D::_render_bed_selector()
         ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2());
         ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, btn_border);
 
-        if (slice_all_beds_button(s_multiple_beds.is_autoslicing(), btn_size, btn_padding)) {
+        if (
+            current_printer_technology() == ptFFF &&
+            slice_all_beds_button(s_multiple_beds.is_autoslicing(), btn_size, btn_padding)
+        ) {
             if (!s_multiple_beds.is_autoslicing()) {
                 s_multiple_beds.start_autoslice([this](int i, bool user) { this->select_bed(i, user); });
                 wxGetApp().sidebar().switch_to_autoslicing_mode();
