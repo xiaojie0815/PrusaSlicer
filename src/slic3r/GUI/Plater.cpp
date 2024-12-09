@@ -2984,6 +2984,7 @@ void Plater::priv::set_current_panel(wxPanel* panel)
             bool model_fits = view3D->get_canvas3d()->check_volumes_outside_state() != ModelInstancePVS_Partly_Outside;
             if (s_multiple_beds.is_bed_occupied(s_multiple_beds.get_active_bed()) && !model.objects.empty() && !export_in_progress && model_fits) {
                 preview->get_canvas3d()->init_gcode_viewer();
+                preview->get_canvas3d()->load_gcode_shells();
                 q->reslice();
             }
             // keeps current gcode preview, if any
