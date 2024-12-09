@@ -2223,23 +2223,14 @@ void GLCanvas3D::render()
     {
         // This is just temporary pipe to export data to the separate arrange algorithm
         // and importing the result back. TESTING ONLY !!!
-        ImGui::Begin("TESTING ONLY (arrange)");
-       if (ImGui::Button("Do sequential arrange")) {
-            arrange_model_sequential(wxGetApp().plater()->model());
-            reload_scene(true, true);
-            wxGetApp().obj_list()->update_after_undo_redo();
-        }
-       
        static auto time_start = std::chrono::high_resolution_clock::now();
        auto time_now = std::chrono::high_resolution_clock::now();
        int time_limit_s = 1;
        static bool last_res = 0;
        bool valid = std::chrono::duration_cast<std::chrono::seconds>(time_now - time_start).count() < time_limit_s;
 
-       ImGui::Text("");
-       ImGui::Separator();
-       ImGui::Text("");
-       if (ImGui::Button("Test:")) {
+       ImGui::Begin("TESTING ONLY (arrange)");
+       if (ImGui::Button("Test seq printability:")) {
            last_res = check_seq_printability(wxGetApp().plater()->model());
            time_start = std::chrono::high_resolution_clock::now();
        }

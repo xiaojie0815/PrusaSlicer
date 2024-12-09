@@ -6,7 +6,6 @@
 
 #include <string>
 
-#include "libseqarrange/seq_interface.hpp"
 
 
 namespace Slic3r {
@@ -79,17 +78,36 @@ static std::vector<Sequential::ObjectToPrint> get_objects_to_print(const Model& 
 
 void arrange_model_sequential(Model& model)
 {
-	Sequential::PrinterGeometry printer_geometry = get_printer_geometry();
-	Sequential::SolverConfiguration solver_config = get_solver_config(printer_geometry);
-	std::vector<Sequential::ObjectToPrint> objects = get_objects_to_print(model, printer_geometry);
-	
-	// Everything ready - let libseqarrange do the actual arrangement.
-	std::vector<Sequential::ScheduledPlate> plates =
-		Sequential::schedule_ObjectsForSequentialPrint(
-			solver_config,
-			printer_geometry,
-			objects);
+	SeqArrange seq_arrange(model);
+	seq_arrange.process_seq_arrange([](int) {});
+	seq_arrange.apply_seq_arrange(model);
+}
 
+
+
+SeqArrange::SeqArrange(const Model& model)
+{
+    m_printer_geometry = get_printer_geometry();
+	m_solver_configuration = get_solver_config(m_printer_geometry);
+	m_objects = get_objects_to_print(model, m_printer_geometry);
+
+}
+
+
+
+void SeqArrange::process_seq_arrange(std::function<void(int)> progress_fn)
+{
+	m_plates =
+		Sequential::schedule_ObjectsForSequentialPrint(
+			m_solver_configuration,
+			m_printer_geometry,
+			m_objects, progress_fn);
+}
+
+
+
+void SeqArrange::apply_seq_arrange(Model& model) const
+{
 	// Extract the result and move the objects in Model accordingly.
 	struct MoveData {
 		Sequential::ScheduledObject scheduled_object;
@@ -102,7 +120,7 @@ void arrange_model_sequential(Model& model)
 	// Now iterate through all the files, read the data and move the objects accordingly.
 	// Save the move data from this file to move_data_all.
 	size_t bed_idx = 0;
-	for (const Sequential::ScheduledPlate& plate : plates) {
+	for (const Sequential::ScheduledPlate& plate : m_plates) {
 		Vec3d bed_offset = s_multiple_beds.get_bed_translation(bed_idx);
 		// Iterate the same way as when exporting.
 		for (ModelObject* mo : model.objects) {
@@ -127,6 +145,10 @@ void arrange_model_sequential(Model& model)
 	};
 	std::sort(model.objects.begin(), model.objects.end(), comp);
 }
+
+
+
+
 
 
 

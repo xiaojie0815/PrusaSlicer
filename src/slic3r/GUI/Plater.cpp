@@ -106,6 +106,7 @@
 #include "ConfigWizardWebViewPage.hpp"
 
 #include "Jobs/RotoptimizeJob.hpp"
+#include "Jobs/SeqArrangeJob.hpp"
 #include "Jobs/SLAImportJob.hpp"
 #include "Jobs/SLAImportDialog.hpp"
 #include "Jobs/NotificationProgressIndicator.hpp"
@@ -7151,9 +7152,15 @@ void Plater::arrange()
         ArrangeSelectionMode::Full
     };
 
+    const bool sequential = p->config->has("complete_objects") && p->config->opt_bool("complete_objects");
+
     if (p->can_arrange()) {
-        auto &w = get_ui_job_worker();
-        arrange(w, mode);
+        if (sequential)
+            replace_job(this->get_ui_job_worker(), std::make_unique<SeqArrangeJob>(this->model()));
+        else {
+            auto& w = get_ui_job_worker();
+            arrange(w, mode);
+        }
     }
 }
 
