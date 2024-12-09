@@ -74,10 +74,13 @@ public:
 
     void set_load_default_url_on_next_error(bool val) { m_load_default_url_on_next_error = val; }
    
+    void on_app_quit_event(const std::string& message_data);
+    void on_app_minimize_event(const std::string& message_data);
 protected:
     virtual void late_create();
     virtual void define_css();
     virtual void on_page_will_load();
+
 
     wxWebView* m_browser { nullptr };
     bool m_load_default_url { false };
@@ -144,6 +147,7 @@ protected:
     void on_reload_event(const std::string& message_data) override;
     void on_connect_action_close_dialog(const std::string& message_data) override {assert(false);}
     void on_user_token(UserAccountSuccessEvent& e);
+    void define_css() override;
 private:
     static wxString get_login_script(bool refresh);
     static wxString get_logout_script();
@@ -172,11 +176,18 @@ public:
         m_psk = psk;
     }
     void clear() { m_api_key.clear(); m_usr.clear(); m_psk.clear(); m_api_key_sent = false; }
+
+    void on_reload_event(const std::string& message_data);
+protected:
+    void define_css() override;
 private:
     std::string m_api_key;
     std::string m_usr;
     std::string m_psk;
     bool m_api_key_sent {false};
+
+    void handle_message(const std::string& message);
+    std::map<std::string, std::function<void(const std::string&)>> m_events;
 };
 
 class PrintablesWebViewPanel : public WebViewPanel
