@@ -9413,7 +9413,7 @@ bool optimize_SubglobalPolygonNonoverlapping(const SolverConfiguration          
 		    dec_values_Y[undecided[i]] = local_values_Y[undecided[i]];
 		    decided_polygons.push_back(undecided[i]);
 		}
-		if (polygons.size() - curr_polygon > (unsigned int)solver_configuration.object_group_size)
+		if (curr_polygon + solver_configuration.object_group_size < polygons.size())		
 		{
 		    curr_polygon += solver_configuration.object_group_size;
 		}
@@ -9441,7 +9441,7 @@ bool optimize_SubglobalPolygonNonoverlapping(const SolverConfiguration          
 	    }
 	    else
 	    {
-		if (polygons.size() - curr_polygon > (unsigned int)solver_configuration.object_group_size)
+		if (curr_polygon + solver_configuration.object_group_size < polygons.size())
 		{
 		    curr_polygon += solver_configuration.object_group_size;
 		}
@@ -9550,13 +9550,6 @@ bool optimize_SubglobalSequentialPolygonNonoverlapping(const SolverConfiguration
 
 	    undecided.clear();
 
-	    /*
-	    for (unsigned int i = 0; i < object_group_size; ++i)
-	    {
-		undecided.push_back(curr_polygon + i);		
-	    }
-	    */
-
 	    for (int i = object_group_size - 1; i >= 0; --i)
 	    {
 		undecided.push_back(curr_polygon + i + remaining_polygon);
@@ -9645,15 +9638,7 @@ bool optimize_SubglobalSequentialPolygonNonoverlapping(const SolverConfiguration
 
 
 	    if (optimized)
-	    {
-		/*
-		printf("Printing solver status:\n");
-		cout << z_solver << "\n";
-    
-		printf("Printing smt status:\n");
-		cout << z_solver.to_smt2() << "\n";	    
-		*/		
-				
+	    {				
 		for (unsigned int i = 0; i < undecided.size(); ++i)
 		{
 		    dec_values_X[undecided[i]] = local_values_X[undecided[i]];
@@ -9662,8 +9647,8 @@ bool optimize_SubglobalSequentialPolygonNonoverlapping(const SolverConfiguration
 		    decided_polygons.push_back(undecided[i]);
 		}
 		augment_TemporalSpread(solver_configuration, dec_values_T, decided_polygons);
-		
-		if (polygons.size() - curr_polygon > (unsigned int)solver_configuration.object_group_size)
+
+		if (curr_polygon + solver_configuration.object_group_size < polygons.size())								
 		{
 		    curr_polygon += solver_configuration.object_group_size;
 		}
@@ -9691,7 +9676,7 @@ bool optimize_SubglobalSequentialPolygonNonoverlapping(const SolverConfiguration
 	    }
 	    else
 	    {
-		if (polygons.size() - curr_polygon > (unsigned int)solver_configuration.object_group_size)
+		if (curr_polygon + solver_configuration.object_group_size < polygons.size())						
 		{
 		    curr_polygon += solver_configuration.object_group_size;
 		}
@@ -9895,15 +9880,7 @@ bool optimize_SubglobalSequentialPolygonNonoverlappingCentered(const SolverConfi
 
 	    
 	    if (optimized)
-	    {
-		/*
-		printf("Printing solver status:\n");
-		cout << z_solver << "\n";
-    
-		printf("Printing smt status:\n");
-		cout << z_solver.to_smt2() << "\n";	    
-		*/		
-				
+	    {			
 		for (unsigned int i = 0; i < undecided.size(); ++i)
 		{
 		    dec_values_X[undecided[i]] = local_values_X[undecided[i]];
@@ -9912,8 +9889,8 @@ bool optimize_SubglobalSequentialPolygonNonoverlappingCentered(const SolverConfi
 		    decided_polygons.push_back(undecided[i]);
 		}
 		augment_TemporalSpread(solver_configuration, dec_values_T, decided_polygons);
-		
-		if (polygons.size() - curr_polygon > (unsigned int)solver_configuration.object_group_size)
+
+		if (curr_polygon + solver_configuration.object_group_size < polygons.size())								
 		{
 		    curr_polygon += solver_configuration.object_group_size;
 		}
@@ -9941,7 +9918,7 @@ bool optimize_SubglobalSequentialPolygonNonoverlappingCentered(const SolverConfi
 	    }
 	    else
 	    {
-		if (polygons.size() - curr_polygon > (unsigned int)solver_configuration.object_group_size)
+		if (curr_polygon + solver_configuration.object_group_size < polygons.size())						
 		{
 		    curr_polygon += solver_configuration.object_group_size;
 		}
@@ -10052,13 +10029,6 @@ bool optimize_SubglobalSequentialPolygonNonoverlappingBinaryCentered(const Solve
 
 	    undecided.clear();
 
-	    /*
-	    for (unsigned int i = 0; i < object_group_size; ++i)
-	    {
-		undecided.push_back(curr_polygon + i);		
-	    }
-	    */
-
 	    for (int i = 0; i < object_group_size; ++i)
 	    {
 		undecided.push_back(curr_polygon + i);
@@ -10148,15 +10118,7 @@ bool optimize_SubglobalSequentialPolygonNonoverlappingBinaryCentered(const Solve
 
 	    
 	    if (optimized)
-	    {
-		/*
-		printf("Printing solver status:\n");
-		cout << z_solver << "\n";
-    
-		printf("Printing smt status:\n");
-		cout << z_solver.to_smt2() << "\n";	    
-		*/		
-				
+	    {				
 		for (unsigned int i = 0; i < undecided.size(); ++i)
 		{
 		    dec_values_X[undecided[i]] = local_values_X[undecided[i]];
@@ -10165,8 +10127,8 @@ bool optimize_SubglobalSequentialPolygonNonoverlappingBinaryCentered(const Solve
 		    decided_polygons.push_back(undecided[i]);
 		}
 		augment_TemporalSpread(solver_configuration, dec_values_T, decided_polygons);
-		
-		if (polygons.size() - curr_polygon > (unsigned int)solver_configuration.object_group_size)
+
+		if (curr_polygon + solver_configuration.object_group_size < polygons.size())
 		{
 		    curr_polygon += solver_configuration.object_group_size;
 		}
@@ -10194,7 +10156,7 @@ bool optimize_SubglobalSequentialPolygonNonoverlappingBinaryCentered(const Solve
 	    }
 	    else
 	    {
-		if (polygons.size() - curr_polygon > (unsigned int)solver_configuration.object_group_size)
+		if (curr_polygon + solver_configuration.object_group_size < polygons.size())						
 		{		    
 		    curr_polygon += solver_configuration.object_group_size;
 
@@ -10451,15 +10413,7 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 										      progress_callback);
 	    
 	    if (optimized)
-	    {
-		/*
-		printf("Printing solver status:\n");
-		cout << z_solver << "\n";
-    
-		printf("Printing smt status:\n");
-		cout << z_solver.to_smt2() << "\n";	    
-		*/		
-				
+	    {				
 		for (unsigned int i = 0; i < undecided.size(); ++i)
 		{
 		    dec_values_X[undecided[i]] = local_values_X[undecided[i]];
@@ -10475,15 +10429,16 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 		}
 		augment_TemporalSpread(solver_configuration, dec_values_T, decided_polygons);
 
-		if (polygons.size() - curr_polygon > (unsigned int)object_group_size)
+		if (curr_polygon + solver_configuration.object_group_size >= polygons.size())		
 		{
-		    curr_polygon += object_group_size;
-		}
-		else
-		{
+		    std::reverse(remaining_local.begin(), remaining_local.end());
+		    remaining_polygons.insert(remaining_polygons.end(), remaining_local.begin(), remaining_local.end());
+		    
 		    progress_callback((SEQ_PROGRESS_RANGE * progress_object_phases_done) / progress_total_object_phases);
-		    return true;
+		    return true;		    
 		}
+		curr_polygon += solver_configuration.object_group_size;
+
 		progress_callback((SEQ_PROGRESS_RANGE * progress_object_phases_done) / progress_total_object_phases);
 		break;
 	    }
@@ -10524,7 +10479,7 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 	    }
 	    else
 	    {
-		if (polygons.size() - curr_polygon > (unsigned int)solver_configuration.object_group_size)
+		if (curr_polygon + solver_configuration.object_group_size < polygons.size())				
 		{		    
 		    curr_polygon += solver_configuration.object_group_size;
 
@@ -10746,15 +10701,7 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 										      progress_callback);
 	    
 	    if (optimized)
-	    {
-		/*
-		printf("Printing solver status:\n");
-		cout << z_solver << "\n";
-    
-		printf("Printing smt status:\n");
-		cout << z_solver.to_smt2() << "\n";	    
-		*/		
-				
+	    {				
 		for (unsigned int i = 0; i < undecided.size(); ++i)
 		{
 		    dec_values_X[undecided[i]] = local_values_X[undecided[i]];
@@ -10770,15 +10717,15 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 		}
 		augment_TemporalSpread(solver_configuration, dec_values_T, decided_polygons);
 
-		if (solvable_objects.size() - curr_polygon > (unsigned int)object_group_size)
+		if (curr_polygon + solver_configuration.object_group_size >= solvable_objects.size())
 		{
-		    curr_polygon += object_group_size;
-		}
-		else
-		{
+		    std::reverse(remaining_local.begin(), remaining_local.end());
+		    remaining_polygons.insert(remaining_polygons.end(), remaining_local.begin(), remaining_local.end());
+		    
 		    progress_callback((SEQ_PROGRESS_RANGE * progress_object_phases_done) / progress_total_object_phases);
 		    return true;
-		}
+		}		
+		curr_polygon += solver_configuration.object_group_size;
 		progress_callback((SEQ_PROGRESS_RANGE * progress_object_phases_done) / progress_total_object_phases);
 		break;
 	    }
@@ -10810,6 +10757,7 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 	    printf("Build: %.3f\n", build_cumul);
 	}
 	#endif
+
 	
 	if (!optimized)
 	{
@@ -10819,8 +10767,8 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 	    }
 	    else
 	    {
-		if (solvable_objects.size() - curr_polygon > (unsigned int)solver_configuration.object_group_size)
-		{		    
+		if (curr_polygon + solver_configuration.object_group_size < solvable_objects.size())		
+		{
 		    curr_polygon += solver_configuration.object_group_size;
 
 		    for (; curr_polygon < solvable_objects.size(); ++curr_polygon)
