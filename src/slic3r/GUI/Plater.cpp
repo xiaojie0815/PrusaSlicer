@@ -2157,33 +2157,19 @@ unsigned int Plater::priv::update_background_process(bool force_validation, bool
     if (full_config.has("binary_gcode")) // needed for SLA
         full_config.set("binary_gcode", bool(full_config.opt_bool("binary_gcode") & wxGetApp().app_config->get_bool("use_binary_gcode_when_supported")));
 
+    // Set printer_model in full_config a model without repo prefix (including inherited profiles)
     const Preset &selected_printer = wxGetApp().preset_bundle->printers.get_selected_preset();
-    std::string printer_model_serialized = full_config.option("printer_model")->serialize();
+    std::string printer_model = selected_printer.config.opt_string("printer_model");
+    const PresetWithVendorProfile& printer_with_vendor = wxGetApp().preset_bundle->printers.get_preset_with_vendor_profile(selected_printer);
+    printer_model = selected_printer.trim_vendor_repo_prefix(printer_model, printer_with_vendor.vendor);
+    full_config.set("printer_model", printer_model);
 
-    const VendorProfile* vendor = nullptr;
-    std::string vendor_repo_prefix;
     if (selected_printer.vendor) {
-        vendor = selected_printer.vendor;
-
-    } else if (std::string inherits = selected_printer.inherits(); !inherits.empty()) {
-        const Preset *parent = wxGetApp().preset_bundle->printers.find_preset(inherits);
-        if (parent && parent->vendor) {
-            vendor_repo_prefix = parent->vendor->repo_prefix;
-        }
-    }
-
-    if (vendor) {
-        vendor_repo_prefix = vendor->repo_prefix;
         // Passing extra info about preset vendor and version, so these can be inserted as metadata to GCode
-        full_config.set("profile_vendor", vendor->name, true);
-        full_config.set("profile_version", vendor->config_version.to_string(), true);
+        full_config.set("profile_vendor", selected_printer.vendor->name, true);
+        full_config.set("profile_version", selected_printer.vendor->config_version.to_string(), true);
     }
 
-    if (printer_model_serialized.find(vendor_repo_prefix) == 0) {
-        printer_model_serialized = printer_model_serialized.substr(vendor_repo_prefix.size());
-        boost::trim_left(printer_model_serialized);
-        full_config.set("printer_model", printer_model_serialized);
-    }
     // If the update_background_process() was not called by the timer, kill the timer,
     // so the update_restart_background_process() will not be called again in vain.
     background_process_timer.Stop();
