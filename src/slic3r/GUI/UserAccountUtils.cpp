@@ -105,7 +105,7 @@ std::string json_var_to_opt_string(const std::string& json_var)
 
 void fill_config_options_from_json_inner(boost::property_tree::ptree& ptree, std::map<std::string, std::vector<std::string>>& result,  const std::map<std::string, std::string>& parameters) 
 {
-    pt::ptree slots = parse_tree_for_subtree(parse_tree_for_subtree(ptree, "slot"), "slots"); 
+    pt::ptree slots = parse_tree_for_subtree(ptree, "tools"); 
     for (const auto &subtree : slots) {
        size_t slot_id;
         try {
@@ -232,7 +232,7 @@ void fill_material_from_json(const std::string& json, std::vector<std::string>& 
     // if not found, find "filament" subtree
 
     // find "slot" subtree
-    pt::ptree slot_subtree = parse_tree_for_subtree(ptree, "slot");
+    pt::ptree slot_subtree = parse_tree_for_subtree(ptree, "tools");
     if (slot_subtree.empty()) {
         // if not found, find "filament" subtree
         pt::ptree filament_subtree = parse_tree_for_subtree(ptree, "filament");
