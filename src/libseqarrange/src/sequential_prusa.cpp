@@ -195,7 +195,7 @@ int solve_SequentialPrint(const CommandParameters &command_parameters)
     if (!command_parameters.printer_filename.empty())
     {
 	printf("  Loading printer geometry ...\n");
-	int result = load_printer_geometry(command_parameters.printer_filename, printer_geometry);
+	int result = load_printer_geometry_from_file(command_parameters.printer_filename, printer_geometry);
 
 	if (result != 0)
 	{
@@ -206,7 +206,7 @@ int solve_SequentialPrint(const CommandParameters &command_parameters)
 	printf("  Loading printer geometry ... finished\n");
     }
 
-    std::vector<ObjectToPrint> objects_to_print = load_exported_data(command_parameters.input_filename);    
+    std::vector<ObjectToPrint> objects_to_print = load_exported_data_from_file(command_parameters.input_filename);    
 
     std::vector<Slic3r::Polygon> polygons;
     std::vector<std::vector<Slic3r::Polygon> > unreachable_polygons;
@@ -459,11 +459,11 @@ int solve_SequentialPrint(const CommandParameters &command_parameters)
 		                  + command_parameters.output_filename.substr(suffix_position, command_parameters.output_filename.length());
 	    }
 
-	    save_import_data(output_filename,
-			     scheduled_polygons,
-			     original_index_map,
-			     poly_positions_X,
-			     poly_positions_Y);
+	    save_import_data_to_file(output_filename,
+				     scheduled_polygons,
+				     original_index_map,
+				     poly_positions_X,
+				     poly_positions_Y);
 
 	    string svg_filename;
 	    

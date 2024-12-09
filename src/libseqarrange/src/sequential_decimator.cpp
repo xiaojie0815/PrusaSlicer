@@ -169,7 +169,7 @@ int decimate_Polygons(const CommandParameters &command_parameters)
     start = clock();
 
     SolverConfiguration solver_configuration;
-    std::vector<ObjectToPrint> objects_to_print = load_exported_data(command_parameters.input_filename);    
+    std::vector<ObjectToPrint> objects_to_print = load_exported_data_from_file(command_parameters.input_filename);    
 
     std::vector<Slic3r::Polygon> decimated_polygons;
     std::vector<std::vector<Slic3r::Polygon> > unreachable_polygons;

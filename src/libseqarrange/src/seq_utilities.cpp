@@ -37,10 +37,12 @@ namespace Sequential
 /*----------------------------------------------------------------*/
 
 
-bool find_and_remove(std::string& src, const std::string& key)
+bool find_and_remove(std::string &src, const std::string &key)
 {
     size_t pos = src.find(key);
-    if (pos != std::string::npos) {
+    
+    if (pos != std::string::npos)
+    {
         src.erase(pos, key.length());
         return true;
     }
@@ -48,17 +50,37 @@ bool find_and_remove(std::string& src, const std::string& key)
 }
 
 
-std::vector<ObjectToPrint> load_exported_data(const std::string& filename)
+std::vector<ObjectToPrint> load_exported_data_from_file(const std::string &filename)
+{
+    std::ifstream in(filename);
+    
+    if (!in)
+    {
+        throw std::runtime_error("NO EXPORTED FILE WAS FOUND");
+    }
+
+    return load_exported_data_from_stream(in);
+}
+
+    
+std::vector<ObjectToPrint> load_exported_data_from_text(const std::string &data_text)
+{
+    std::istringstream iss(data_text);
+    
+    return load_exported_data_from_stream(iss);    
+}
+
+
+std::vector<ObjectToPrint> load_exported_data_from_stream(std::istream &data_stream)
 {
     std::vector<ObjectToPrint> objects_to_print;
 
-    std::ifstream in(filename);
-    if (!in)
-        throw std::runtime_error("NO EXPORTED FILE WAS FOUND");
     std::string line;
 
-    while (in) {        
-        std::getline(in, line);
+    while (data_stream)
+    {        
+        std::getline(data_stream, line);
+	
         if (find_and_remove(line, "OBJECT_ID")) {
             objects_to_print.push_back(ObjectToPrint());
             objects_to_print.back().id = std::stoi(line);
@@ -83,20 +105,38 @@ std::vector<ObjectToPrint> load_exported_data(const std::string& filename)
         }
     }
     return objects_to_print;
-}
+}    
 
 
-int load_printer_geometry(const std::string& filename, PrinterGeometry &printer_geometry)
+int load_printer_geometry_from_file(const std::string &filename, PrinterGeometry &printer_geometry)
 {
     std::ifstream in(filename);
-    if (!in)
-        throw std::runtime_error("NO PRINTER GEOMETRY FILE WAS FOUND");
-    std::string line;
-
-    Polygon *current_polygon = NULL;
     
-    while (in) {        
-        std::getline(in, line);
+    if (!in)
+    {
+        throw std::runtime_error("NO PRINTER GEOMETRY FILE WAS FOUND");
+    }
+
+    return load_printer_geometry_from_stream(in, printer_geometry);    
+}
+
+    
+int load_printer_geometry_from_text(const std::string &geometry_text, PrinterGeometry &printer_geometry)
+{
+    std::istringstream iss(geometry_text);
+
+    return load_printer_geometry_from_stream(iss, printer_geometry);
+}    
+
+
+int load_printer_geometry_from_stream(std::istream &geometry_stream, PrinterGeometry &printer_geometry)
+{
+    Polygon *current_polygon = NULL;
+    std::string line;    
+    
+    while (geometry_stream)
+    {        
+        std::getline(geometry_stream, line);
 	
 	if (find_and_remove(line, "POLYGON_AT_HEIGHT"))
 	{
@@ -167,19 +207,21 @@ int load_printer_geometry(const std::string& filename, PrinterGeometry &printer_
 	    printer_geometry.y_size = y_size;
 	}			
     }
-    return 0;    
+    return 0;        
 }
 
-    
-void save_import_data(const std::string           &filename,
-		      const std::map<double, int> &scheduled_polygons,
-		      const map<int, int>         &original_index_map,
-		      const vector<Rational>      &poly_positions_X,
-		      const vector<Rational>      &poly_positions_Y)
+
+void save_import_data_to_file(const std::string           &filename,
+			      const std::map<double, int> &scheduled_polygons,
+			      const map<int, int>         &original_index_map,
+			      const vector<Rational>      &poly_positions_X,
+			      const vector<Rational>      &poly_positions_Y)
 {
     std::ofstream out(filename);
     if (!out)
+    {
         throw std::runtime_error("CANNOT CREATE IMPORT FILE");
+    }
 
     for (const auto& scheduled_polygon: scheduled_polygons)
     {
@@ -191,7 +233,6 @@ void save_import_data(const std::string           &filename,
 				  Y);
 	const auto& original_index = original_index_map.find(scheduled_polygon.second);
 	    
-//	out << original_index_map[scheduled_polygon.second] << " " << X << " " << Y << endl;
 	out << original_index->second << " " << X << " " << Y << endl;	    
     }
 }
