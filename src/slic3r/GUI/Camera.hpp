@@ -157,7 +157,6 @@ private:
     void set_default_orientation();
     Vec3d validate_target(const Vec3d& target) const;
     void update_zenit();
-    void update_projection();
 };
 
 } // GUI

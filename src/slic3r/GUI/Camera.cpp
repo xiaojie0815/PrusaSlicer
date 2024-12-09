@@ -43,8 +43,6 @@ void Camera::set_type(EType type)
         m_type = type;
         if (m_update_config_on_type_change_enabled)
             wxGetApp().app_config->set("use_perspective_camera", (m_type == EType::Perspective) ? "1" : "0");
-
-        update_projection();
     }
 }
 
@@ -603,37 +601,6 @@ Vec3d Camera::validate_target(const Vec3d& target) const
 void Camera::update_zenit()
 {
     m_zenit = Geometry::rad2deg(0.5 * M_PI - std::acos(std::clamp(-get_dir_forward().dot(Vec3d::UnitZ()), -1.0, 1.0)));
-}
-
-void Camera::update_projection()
-{
-    double w = 0.5 * (double)m_viewport[2];
-    double h = 0.5 * (double)m_viewport[3];
-
-    const double inv_zoom = get_inv_zoom();
-    w *= inv_zoom;
-    h *= inv_zoom;
-
-    switch (m_type)
-    {
-    default:
-    case EType::Ortho:
-    {
-        m_gui_scale = 1.0;
-        break;
-    }
-    case EType::Perspective:
-    {
-        // scale near plane to keep w and h constant on the plane at z = m_distance
-        const double scale = m_frustrum_zs.first / m_distance;
-        w *= scale;
-        h *= scale;
-        m_gui_scale = scale;
-        break;
-    }
-    }
-
-    apply_projection(-w, w, -h, h, m_frustrum_zs.first, m_frustrum_zs.second);
 }
 
 } // GUI
