@@ -338,14 +338,14 @@ void Preview::render_sliders(GLCanvas3D& canvas)
 
 float Preview::get_moves_slider_height() const
 {
-    if (m_moves_slider && m_moves_slider->IsShown())
+    if (!s_multiple_beds.is_autoslicing() && m_moves_slider && m_moves_slider->IsShown())
         return m_moves_slider->GetHeight();
     return 0.0f;
 }
 
 float Preview::get_layers_slider_width(bool disregard_visibility) const
 {
-    if (m_layers_slider && (m_layers_slider->IsShown() || disregard_visibility))
+    if (!s_multiple_beds.is_autoslicing() && m_layers_slider && (m_layers_slider->IsShown() || disregard_visibility))
         return m_layers_slider->GetWidth();
     return 0.0f;
 }
