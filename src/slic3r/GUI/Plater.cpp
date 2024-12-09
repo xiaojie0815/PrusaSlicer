@@ -6602,7 +6602,7 @@ void Plater::connect_gcode_all() {
         const fs::path filename{upload_job.upload_data.upload_path};
         upload_job.upload_data.upload_path =
             filename.stem().string()
-            + "_bed" + std::to_string(print_index)
+            + "_bed" + std::to_string(print_index + 1)
             + filename.extension().string();
         this->p->background_process.prepare_upload(upload_job);
     }
