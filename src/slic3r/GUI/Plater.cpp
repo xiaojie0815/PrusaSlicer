@@ -2055,7 +2055,11 @@ void Plater::priv::split_object()
 
         // load all model objects at once, otherwise the plate would be rearranged after each one
         // causing original positions not to be kept
+        // Note that load_model_objects shifts the object to the active bed. To prevent it,
+        // raise a flag as if a project was being loaded.
+        s_multiple_beds.set_loading_project_flag(true);
         std::vector<size_t> idxs = load_model_objects(new_objects);
+        s_multiple_beds.set_loading_project_flag(false);
 
         // clear previosli selection
         get_selection().clear();
