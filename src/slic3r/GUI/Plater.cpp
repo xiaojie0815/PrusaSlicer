@@ -6039,11 +6039,37 @@ struct PrintToExport {
     std::size_t bed{};
 };
 
+void Plater::with_mocked_fff_background_process(
+    Print &print,
+    GCodeProcessorResult &result,
+    const int bed_index,
+    const std::function<void()> &callable
+) {
+    Print *original_print{&active_fff_print()};
+    GCodeProcessorResult *original_result{this->p->background_process.get_gcode_result()};
+    const int original_bed{s_multiple_beds.get_active_bed()};
+    PrinterTechnology original_technology{this->printer_technology()};
+    ScopeGuard guard{[&](){
+        this->p->background_process.set_fff_print(original_print);
+        this->p->background_process.set_gcode_result(original_result);
+        this->p->background_process.select_technology(original_technology);
+        s_multiple_beds.set_active_bed(original_bed);
+    }};
+
+    this->p->background_process.set_fff_print(&print);
+    this->p->background_process.set_gcode_result(&result);
+    this->p->background_process.select_technology(this->p->printer_technology);
+    s_multiple_beds.set_active_bed(bed_index);
+
+    callable();
+}
+
 void Plater::export_all_gcodes(bool prefer_removable) {
     const auto optional_default_output_file{this->get_default_output_file()};
     if (!optional_default_output_file) {
         return;
     }
+
     const fs::path &default_output_file{*optional_default_output_file};
     const std::string start_dir{get_output_start_dir(prefer_removable, default_output_file)};
     const auto optional_output_dir{get_multiple_output_dir(start_dir)};
@@ -6052,20 +6078,37 @@ void Plater::export_all_gcodes(bool prefer_removable) {
     }
     const fs_path &output_dir{*optional_output_dir};
 
+
     std::vector<PrintToExport> prints_to_export;
     std::vector<fs::path> paths;
 
     for (std::size_t print_index{0};  print_index < this->get_fff_prints().size(); ++print_index) {
+
         const std::unique_ptr<Print> &print{this->get_fff_prints()[print_index]};
         if (!print || print->empty()) {
             continue;
         }
 
+        fs::path default_filename{default_output_file.filename()};
+        this->with_mocked_fff_background_process(
+            *print,
+            this->p->gcode_results[print_index],
+            print_index,
+            [&](){
+                const auto optional_file{this->get_default_output_file()};
+                if (!optional_file) {
+                    return;
+                }
+                const fs::path &default_file{*optional_file};
+                default_filename = default_file.filename();
+            }
+        );
+
         const fs::path filename{
-            default_output_file.stem().string()
+            default_filename.stem().string()
             + "_bed"
             + std::to_string(print_index + 1)
-            + default_output_file.extension().string()
+            + default_filename.extension().string()
         };
         const fs::path output_file{output_dir / filename};
         prints_to_export.push_back({*print, this->p->gcode_results[print_index], output_file, print_index});
@@ -6083,27 +6126,24 @@ void Plater::export_all_gcodes(bool prefer_removable) {
 
     bool path_on_removable_media{false};
 
-    Print *original_print{&active_fff_print()};
-    GCodeProcessorResult *original_result{this->p->background_process.get_gcode_result()};
-    const int original_bed{s_multiple_beds.get_active_bed()};
-    ScopeGuard guard{[&](){
-        this->p->background_process.set_fff_print(original_print);
-        this->p->background_process.set_gcode_result(original_result);
-        s_multiple_beds.set_active_bed(original_bed);
-    }};
 
     for (const PrintToExport &print_to_export : prints_to_export) {
-        this->p->background_process.set_fff_print(&print_to_export.print.get());
-        this->p->background_process.set_gcode_result(&print_to_export.processor_result.get());
-        this->p->background_process.set_temp_output_path(print_to_export.bed);
-        export_gcode_to_path(
-            print_to_export.output_path,
-            [&](const bool on_removable){
-                this->p->background_process.finalize_gcode(
-                    print_to_export.output_path.string(),
-                    path_on_removable_media
+        with_mocked_fff_background_process(
+            print_to_export.print,
+            print_to_export.processor_result,
+            print_to_export.bed,
+            [&](){
+                this->p->background_process.set_temp_output_path(print_to_export.bed);
+                export_gcode_to_path(
+                    print_to_export.output_path,
+                    [&](const bool on_removable){
+                        this->p->background_process.finalize_gcode(
+                            print_to_export.output_path.string(),
+                            path_on_removable_media
+                        );
+                        path_on_removable_media = on_removable || path_on_removable_media;
+                    }
                 );
-                path_on_removable_media = on_removable || path_on_removable_media;
             }
         );
     }
@@ -6684,35 +6724,47 @@ void Plater::connect_gcode_all() {
     }
     const PrusaConnectNew connect{*print_host_ptr};
 
-    Print *original_print{&active_fff_print()};
-    const int original_bed{s_multiple_beds.get_active_bed()};
-    PrinterTechnology original_technology{this->printer_technology()};
-
-    ScopeGuard guard{[&](){
-        this->p->background_process.set_fff_print(original_print);
-        s_multiple_beds.set_active_bed(original_bed);
-        this->p->background_process.select_technology(original_technology);
-    }};
+    std::vector<fs::path> paths;
 
     for (std::size_t print_index{0};  print_index < this->get_fff_prints().size(); ++print_index) {
         const std::unique_ptr<Print> &print{this->get_fff_prints()[print_index]};
         if (!print || print->empty()) {
             continue;
         }
-        this->p->background_process.set_fff_print(print.get());
-        this->p->background_process.set_temp_output_path(print_index);
-        this->p->background_process.select_technology(this->p->printer_technology);
 
-        PrintHostJob upload_job;
-        upload_job.upload_data = upload_job_template.upload_data;
-        upload_job.printhost = std::make_unique<PrusaConnectNew>(connect);
-        upload_job.cancelled = upload_job_template.cancelled;
-        const fs::path filename{upload_job.upload_data.upload_path};
-        upload_job.upload_data.upload_path =
+        const fs::path filename{upload_job_template.upload_data.upload_path};
+        paths.emplace_back(
             filename.stem().string()
             + "_bed" + std::to_string(print_index + 1)
-            + filename.extension().string();
-        this->p->background_process.prepare_upload(upload_job);
+            + filename.extension().string()
+        );
+    }
+
+    BulkExportDialog dialog{paths};
+    if (dialog.ShowModal() != wxID_OK) {
+        return;
+    }
+    paths = dialog.get_paths();
+
+    for (std::size_t print_index{0};  print_index < this->get_fff_prints().size(); ++print_index) {
+        const std::unique_ptr<Print> &print{this->get_fff_prints()[print_index]};
+        if (!print || print->empty()) {
+            continue;
+        }
+        with_mocked_fff_background_process(
+            *print,
+            this->p->gcode_results[print_index],
+            print_index,
+            [&](){
+                this->p->background_process.set_temp_output_path(print_index);
+                PrintHostJob upload_job;
+                upload_job.upload_data = upload_job_template.upload_data;
+                upload_job.printhost = std::make_unique<PrusaConnectNew>(connect);
+                upload_job.cancelled = upload_job_template.cancelled;
+                upload_job.upload_data.upload_path = paths[print_index];
+                this->p->background_process.prepare_upload(upload_job);
+            }
+        );
     }
 }
 

@@ -216,6 +216,12 @@ public:
 
     void apply_cut_object_to_model(size_t init_obj_idx, const ModelObjectPtrs& cut_objects);
 
+    void with_mocked_fff_background_process(
+        Print &print,
+        GCodeProcessorResult &result,
+        const int bed_index,
+        const std::function<void()> &callable
+    );
     void export_gcode(bool prefer_removable);
     void export_all_gcodes(bool prefer_removable);
     void export_stl_obj(bool extended = false, bool selection_only = false);
