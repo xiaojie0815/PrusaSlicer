@@ -256,9 +256,16 @@ bool UserAccount::on_connect_uiid_map_success(const std::string& data, AppConfig
         BOOST_LOG_TRIVIAL(error) << "Could not parse prusaconnect message. " << e.what();
         return false;
     }
+    pt::ptree printers_ptree;
+    if (auto it = ptree.find("printers"); it != ptree.not_found()) {
+        printers_ptree = it->second;
+    } else {
+        BOOST_LOG_TRIVIAL(error) << "Could not parse prusaconnect message. \"printers\" subtree is missing.";
+        return false;
+    }
 
-    for (const auto& printer_tree : ptree) {
-        const auto printer_uuid = printer_tree.second.get_optional<std::string>("printer_uuid");
+    for (const auto& printer_tree : printers_ptree) {
+        const auto printer_uuid = printer_tree.second.get_optional<std::string>("uuid");
         if (!printer_uuid) {
             continue;
         }
@@ -266,6 +273,10 @@ bool UserAccount::on_connect_uiid_map_success(const std::string& data, AppConfig
         if (!printer_model) {
             continue;
         }
+
+        std::map<std::string, std::vector<std::string>> config_options_to_match; 
+        UserAccountUtils::fill_config_options_from_json(ptree, config_options_to_match);
+
         const auto nozzle_diameter_opt = printer_tree.second.get_optional<std::string>("nozzle_diameter");
         const std::string nozzle_diameter = (nozzle_diameter_opt && *nozzle_diameter_opt != "0.0") ? *nozzle_diameter_opt : std::string();
         std::pair<std::string, std::string> model_nozzle_pair = { *printer_model, nozzle_diameter };

@@ -26,7 +26,8 @@ enum class ConnectPrinterState {
 };
 // <std::pair<std::string, std::string> is pair of printer_model and nozzle_diameter. std::vector<size_t> is vector of ConnectPrinterState counters
 typedef std::map<std::pair<std::string, std::string>, std::vector<size_t>> ConnectPrinterStateMap;
-typedef std::map< std::string, std::pair<std::string, std::string>> ConnectUUIDToModelNozzleMap;
+// inner map is map of parameters
+typedef std::map< std::string, std::map<std::string, std::string>> ConnectUUIDToModelNozzleMap;
 // Class UserAccount should handle every request for entities outside PrusaSlicer like PrusaAuth or PrusaConnect.
 // Outside communication is implemented in class UserAccountCommunication that runs separate thread. Results come back in events to Plater.
 // All incoming data shoud be stored in UserAccount.
