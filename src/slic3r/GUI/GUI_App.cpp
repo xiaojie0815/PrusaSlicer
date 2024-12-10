@@ -1327,12 +1327,10 @@ void GUI_App::remove_desktop_files_dialog()
         return;
     }
     // Inform about fails.
-    std::string fails_serialized;
-    std::string text = _"Failed to remove desktop files:"; 
+    std::string text = "Failed to remove desktop files:"; 
     text += "\n";
     for (const boost::filesystem::path& entry : fails) { 
-        text += GUI::format_wxstr("%1%\n",entry.string());
-        fails_serialized += entry.string() + ";";
+        text += GUI::format("%1%\n",entry.string());
     }
     BOOST_LOG_TRIVIAL(error) << text;
 }
