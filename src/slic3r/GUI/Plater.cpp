@@ -581,8 +581,7 @@ struct Plater::priv
     std::string                 last_output_path;
     std::string                 last_output_dir_path;
     bool                        inside_snapshot_capture() { return m_prevent_snapshots != 0; }
-	bool                        process_completed_with_error { false };
-   
+
 private:
     bool layers_height_allowed() const;
 
@@ -1888,13 +1887,61 @@ void Plater::priv::selection_changed()
     view3D->render();
 }
 
+std::size_t count_instances(SpanOfConstPtrs<PrintObject> objects) {
+    return std::accumulate(
+        objects.begin(),
+        objects.end(),
+        std::size_t{},
+        [](const std::size_t result, const PrintObject *object){
+            return result + object->instances().size();
+        }
+    );
+}
+
+std::size_t count_instances(const std::map<ObjectID, int> &bed_instances, const int bed_index) {
+    return std::accumulate(
+        bed_instances.begin(),
+        bed_instances.end(),
+        std::size_t{},
+        [&](const std::size_t result, const auto &key_value){
+            const auto &[object_id, _bed_index]{key_value};
+            if (_bed_index != bed_index) {
+                return result;
+            }
+            return result + 1;
+        }
+    );
+}
+
 void Plater::priv::object_list_changed()
 {
     const bool export_in_progress = this->background_process.is_export_scheduled(); // || ! send_gcode_file.empty());
-    // XXX: is this right?
-    const bool model_fits = view3D->get_canvas3d()->check_volumes_outside_state() == ModelInstancePVS_Inside;
+                                                                                    //
+    if (printer_technology == ptFFF) {
+        for (std::size_t bed_index{}; bed_index < s_multiple_beds.get_number_of_beds(); ++bed_index) {
+            const std::size_t print_instances_count{
+                count_instances(wxGetApp().plater()->get_fff_prints()[bed_index]->objects())
+            };
+            const std::size_t bed_instances_count{
+                count_instances(s_multiple_beds.get_inst_map(), bed_index)
+            };
+            if (print_instances_count != bed_instances_count) {
+                s_print_statuses[bed_index] = PrintStatus::outside;
+            } else if (print_instances_count == 0) {
+                s_print_statuses[bed_index] = PrintStatus::empty;
+            }
+        }
+    } else {
+        if (model.objects.empty()) {
+            s_print_statuses[s_multiple_beds.get_active_bed()] = PrintStatus::empty;
+        }
+    }
 
-    sidebar->enable_buttons(s_multiple_beds.is_bed_occupied(s_multiple_beds.get_active_bed()) && !model.objects.empty() && !export_in_progress && model_fits);
+    sidebar->enable_buttons(
+        s_multiple_beds.is_bed_occupied(s_multiple_beds.get_active_bed())
+        && !export_in_progress
+        && is_sliceable(s_print_statuses[s_multiple_beds.get_active_bed()])
+    );
 }
 
 void Plater::priv::select_all()
@@ -2302,6 +2349,34 @@ unsigned int Plater::priv::update_background_process(bool force_validation, bool
         throw std::runtime_error{"Ivalid printer technology!"};
     }
 
+    for (std::size_t bed_index{}; bed_index < s_multiple_beds.get_number_of_beds(); ++bed_index) {
+        if (printer_technology == ptFFF) {
+            if (apply_statuses[bed_index] != Print::ApplyStatus::APPLY_STATUS_UNCHANGED) {
+                s_print_statuses[bed_index] = PrintStatus::idle;
+            }
+        } else if (printer_technology == ptSLA) {
+            if (apply_statuses[0] != Print::ApplyStatus::APPLY_STATUS_UNCHANGED) {
+                s_print_statuses[bed_index] = PrintStatus::idle;
+            }
+        } else {
+            throw std::runtime_error{"Ivalid printer technology!"};
+        }
+    }
+
+    if (printer_technology == ptFFF) {
+        for (std::size_t bed_index{0}; bed_index < q->p->fff_prints.size(); ++bed_index) {
+            const std::unique_ptr<Print> &print{q->p->fff_prints[bed_index]};
+            using MultipleBedsUtils::with_single_bed_model_fff;
+            with_single_bed_model_fff(model, bed_index, [&](){
+                std::vector<std::string> warnings;
+                std::string err{print->validate(&warnings)};
+                if (!err.empty()) {
+                    s_print_statuses[bed_index] = PrintStatus::invalid;
+                }
+            });
+        }
+    }
+
     const bool any_status_changed{std::any_of(
         apply_statuses.begin(),
         apply_statuses.end(),
@@ -2345,7 +2420,6 @@ unsigned int Plater::priv::update_background_process(bool force_validation, bool
 
         notification_manager->set_slicing_progress_hidden();
     }
-
 
     if ((invalidated != Print::APPLY_STATUS_UNCHANGED || force_validation) && ! background_process.empty()) {
 		// The delayed error message is no more valid.
@@ -2410,7 +2484,7 @@ unsigned int Plater::priv::update_background_process(bool force_validation, bool
                 return return_state;
             }
         }
-    
+
         if (! this->delayed_error_message.empty())
     	// Reusing the old state.
         return_state |= UPDATE_BACKGROUND_PROCESS_INVALID;
@@ -2423,7 +2497,6 @@ unsigned int Plater::priv::update_background_process(bool force_validation, bool
 		actualize_slicing_warnings(*this->background_process.current_print());
         actualize_object_warnings(*this->background_process.current_print());
 		show_warning_dialog = false;
-		process_completed_with_error = false;  
 	} 
 
     if (invalidated != Print::APPLY_STATUS_UNCHANGED && was_running && ! this->background_process.running() &&
@@ -2439,7 +2512,7 @@ unsigned int Plater::priv::update_background_process(bool force_validation, bool
         const wxString invalid_str = _L("Invalid data");
         for (auto btn : {ActionButtonType::Reslice, ActionButtonType::SendGCode, ActionButtonType::Export})
             sidebar->set_btn_label(btn, invalid_str);
-        process_completed_with_error = true;
+        s_print_statuses[s_multiple_beds.get_active_bed()] = PrintStatus::invalid;
     }
     else
     {
@@ -2455,9 +2528,7 @@ unsigned int Plater::priv::update_background_process(bool force_validation, bool
         const wxString slice_string = background_process.running() && wxGetApp().get_mode() == comSimple ?
                                       _L("Slicing") + dots : _L("Slice now");
         sidebar->set_btn_label(ActionButtonType::Reslice, slice_string);
-        if (background_process.empty()) {
-            sidebar->enable_buttons(false);
-        } else if (background_process.finished())
+        if (background_process.finished())
             show_action_buttons(false);
         else if (!background_process.empty() &&
                  !background_process.running()) /* Do not update buttons if background process is running
@@ -2467,6 +2538,7 @@ unsigned int Plater::priv::update_background_process(bool force_validation, bool
             show_action_buttons(true);
     }
 
+    this->q->object_list_changed();
     return return_state;
 }
 
@@ -3076,10 +3148,12 @@ void Plater::priv::set_current_panel(wxPanel* panel)
 
         if (wxGetApp().is_editor()) {
             // see: Plater::priv::object_list_changed()
-            // FIXME: it may be better to have a single function making this check and let it be called wherever needed
             bool export_in_progress = this->background_process.is_export_scheduled();
-            bool model_fits = view3D->get_canvas3d()->check_volumes_outside_state() != ModelInstancePVS_Partly_Outside;
-            if (s_multiple_beds.is_bed_occupied(s_multiple_beds.get_active_bed()) && !model.objects.empty() && !export_in_progress && model_fits) {
+            if (
+                s_multiple_beds.is_bed_occupied(s_multiple_beds.get_active_bed())
+                && !export_in_progress
+                && is_sliceable(s_print_statuses[s_multiple_beds.get_active_bed()])
+            ) {
                 preview->get_canvas3d()->init_gcode_viewer();
                 preview->get_canvas3d()->load_gcode_shells();
                 q->reslice();
@@ -3258,6 +3332,7 @@ void Plater::priv::on_slicing_began()
     notification_manager->close_notification_of_type(NotificationType::SignDetected);
     notification_manager->close_notification_of_type(NotificationType::ExportFinished);
     notification_manager->set_slicing_progress_began();
+    s_print_statuses[s_multiple_beds.get_active_bed()] = PrintStatus::running;
 }
 void Plater::priv::add_warning(const Slic3r::PrintStateBase::Warning& warning, size_t oid)
 {
@@ -3349,15 +3424,19 @@ void Plater::priv::on_process_completed(SlicingProcessCompletedEvent &evt)
             const wxString invalid_str = _L("Invalid data");
             for (auto btn : { ActionButtonType::Reslice, ActionButtonType::SendGCode, ActionButtonType::Export })
                 sidebar->set_btn_label(btn, invalid_str);
-            process_completed_with_error = true;
         }
         has_error = true;
+        s_print_statuses[s_multiple_beds.get_active_bed()] = PrintStatus::invalid;
     }
     if (evt.cancelled()) {
         this->notification_manager->set_slicing_progress_canceled(_u8L("Slicing Cancelled."));
+        s_print_statuses[s_multiple_beds.get_active_bed()] = PrintStatus::idle;
     }
 
     this->sidebar->show_sliced_info_sizer(evt.success());
+    if (evt.success()) {
+        s_print_statuses[s_multiple_beds.get_active_bed()] = PrintStatus::finished;
+    }
 
     // This updates the "Slice now", "Export G-code", "Arrange" buttons status.
     // Namely, it refreshes the "Out of print bed" property of all the ModelObjects, and it enables
@@ -5904,7 +5983,7 @@ void Plater::export_gcode(bool prefer_removable)
         return;
 
 
-    if (p->process_completed_with_error)
+    if (!is_sliceable(s_print_statuses[s_multiple_beds.get_active_bed()]))
         return;
 
     // If possible, remove accents from accented latin characters.
@@ -6395,7 +6474,7 @@ void Plater::export_toolpaths_to_obj() const
 void Plater::reslice()
 {
     // There is "invalid data" button instead "slice now"
-    if (p->process_completed_with_error)
+    if (!is_sliceable(s_print_statuses[s_multiple_beds.get_active_bed()]))
         return;
 
     // In case SLA gizmo is in editing mode, refuse to continue
