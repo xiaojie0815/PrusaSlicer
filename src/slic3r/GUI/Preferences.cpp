@@ -637,13 +637,6 @@ void PreferencesDialog::build()
 			L("Show \"Log in\" button in application top bar"),
 			L("If enabled, PrusaSlicer will show up \"Log in\" button in application top bar."),
 			app_config->get_bool("show_login_button"));
-		
-#if defined(__linux__) && !defined(SLIC3R_DESKTOP_INTEGRATION)  
-        append_bool_option(m_optgroup_other, "check_old_desktop_files",
-			L("Check outdated desktop files for removal"),
-			L("If enabled, PrusaSlicer will search for outdated desktop files at startup and ask for removal."),
-			app_config->get("check_old_desktop_files") == "1");
-#endif //defined(__linux__) && !defined(SLIC3R_DESKTOP_INTEGRATION)  
 
 		append_bool_option(m_optgroup_other, "downloader_url_registered",
 			L("Allow downloads from Printables.com"),

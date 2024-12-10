@@ -1314,55 +1314,12 @@ static int get_app_font_pt_size(const AppConfig* app_config)
 #if defined(__linux__) && !defined(SLIC3R_DESKTOP_INTEGRATION)  
 void GUI_App::remove_desktop_files_dialog()
 {
-    if (app_config->get("check_old_desktop_files") == "0") {
-        return;
-    }
     // Find all old existing desktop file
     std::vector<boost::filesystem::path> found_desktop_files;
     DesktopIntegrationDialog::find_all_desktop_files(found_desktop_files);
     if(found_desktop_files.empty()) {
         return;
     }
-    // Some files might be unaccessible for us, if already tried, it is saved in appconfig.
-    std::vector<std::string> old_fails;
-    std::string old_fails_serialized = app_config->get("old_desktop_files_fails");
-    boost::split(old_fails, old_fails_serialized, boost::is_any_of(";"));
-    if (found_desktop_files.size() <= old_fails.size()) {
-        bool all_are_fails = true;
-        for (const boost::filesystem::path& entry : found_desktop_files) { 
-            if (std::find(old_fails.begin(), old_fails.end(), entry.string()) == old_fails.end()) {
-                all_are_fails = false;
-                break;
-            }
-        }
-        if (all_are_fails)  {
-            BOOST_LOG_TRIVIAL(debug) << "Only desktop files that failed to remove before were found.";
-            return;
-        }
-    }
-    wxString text;
-    // Dialog asking to delete the files.
-    if (app_config->get("check_old_desktop_files") == "1") {    
-        text = _L("Some outdated desktop files related to PrusaSlicer were found on your system. "
-            "These files are no longer used by this version of PrusaSlicer and may cause issues, such as problems logging in via third-party accounts.");
-        text += "\n\n";
-        for (const boost::filesystem::path& entry : found_desktop_files) { 
-            text += GUI::format_wxstr("%1%\n",entry.string());
-        }
-         text += "\n";
-         text += _L("Would you like to remove these files now?");
-        RichMessageDialog dialog(nullptr, text, _L("Outdated Desktop Files Detected"), wxICON_QUESTION | wxYES_NO);
-        dialog.ShowCheckBox(_L("Don’t show this message again"));
-         // Wait for modal.
-        bool is_yes = dialog.ShowModal() == wxID_YES;
-        if (dialog.IsCheckBoxChecked()) {
-            app_config->set("check_old_desktop_files", is_yes ? "auto" : "0");
-        }
-        if (!is_yes) {
-            return;
-        }
-    }
-    
     // Delete files.
     std::vector<boost::filesystem::path> fails;
     DesktopIntegrationDialog::remove_desktop_file_list(found_desktop_files, fails);
@@ -1371,17 +1328,13 @@ void GUI_App::remove_desktop_files_dialog()
     }
     // Inform about fails.
     std::string fails_serialized;
-    text = _L("Failed to remove desktop files."); 
-    text += "\n\n";
+    std::string text = _"Failed to remove desktop files:"; 
+    text += "\n";
     for (const boost::filesystem::path& entry : fails) { 
         text += GUI::format_wxstr("%1%\n",entry.string());
         fails_serialized += entry.string() + ";";
     }
-    // Save fails for next run.
-    app_config->set("old_desktop_files_fails", fails_serialized);
-    
-    RichMessageDialog dlg2(nullptr, text, _L("Desktop integration"), wxICON_WARNING | wxOK_DEFAULT);
-    dlg2.ShowModal();
+    BOOST_LOG_TRIVIAL(error) << text;
 }
 #endif //(__linux__) && !defined(SLIC3R_DESKTOP_INTEGRATION)
 

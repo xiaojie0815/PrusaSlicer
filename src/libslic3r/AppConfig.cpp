@@ -238,11 +238,6 @@ void AppConfig::set_defaults()
         set("sys_menu_enabled", "1");
 #endif // _WIN32
 
-#ifdef __linux__
-    if (get("check_old_desktop_files").empty())
-        set("check_old_desktop_files", "1");    // /"0" - dont check, "1" - check and ask, "auto" - check and dont ask
-#endif // __linux__
-
     // Remove legacy window positions/sizes
     erase("", "main_frame_maximized");
     erase("", "main_frame_pos");
