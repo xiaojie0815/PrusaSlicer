@@ -54,7 +54,7 @@ public:
 	int    get_last_hovered_bed() const { return m_last_hovered_bed; }
 
     void   update_shown_beds(Model& model, const BuildVolume& build_volume, bool only_remove = false);
-	bool   rearrange_after_load(Model& model, const BuildVolume& build_volume, std::function<void()> update_fn);
+	bool   rearrange_after_load(Model& model, const BuildVolume& build_volume);
 	void   set_loading_project_flag(bool project) { m_loading_project = project; }
 	bool   get_loading_project_flag() const { return m_loading_project; }
 

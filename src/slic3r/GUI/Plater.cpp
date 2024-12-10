@@ -1245,6 +1245,7 @@ std::vector<size_t> Plater::priv::load_files(const std::vector<fs::path>& input_
 
     auto *new_model = (!load_model || one_by_one) ? nullptr : new Slic3r::Model();
     std::vector<size_t> obj_idxs;
+    boost::optional<Semver> prusaslicer_generator_version;
 
     int answer_convert_from_meters          = wxOK_DEFAULT;
     int answer_convert_from_imperial_units  = wxOK_DEFAULT;
@@ -1285,6 +1286,7 @@ std::vector<size_t> Plater::priv::load_files(const std::vector<fs::path>& input_
 
         Slic3r::Model model;
         bool is_project_file = type_prusa;
+
         try {
             if (type_3mf || type_zip_amf) {
 #ifdef __linux__
@@ -1304,7 +1306,13 @@ std::vector<size_t> Plater::priv::load_files(const std::vector<fs::path>& input_
                 {
                     DynamicPrintConfig config_loaded;
                     ConfigSubstitutionContext config_substitutions{ ForwardCompatibilitySubstitutionRule::Enable };
-                    model = Slic3r::Model::read_from_archive(path.string(), &config_loaded, &config_substitutions, only_if(load_config, Model::LoadAttribute::CheckVersion));
+                    model = Slic3r::Model::read_from_archive(
+                        path.string(),
+                        &config_loaded,
+                        &config_substitutions,
+                        prusaslicer_generator_version,
+                        only_if(load_config, Model::LoadAttribute::CheckVersion)
+                    );
                     if (load_config && !config_loaded.empty()) {
                         // Based on the printer technology field found in the loaded config, select the base for the config,
                         loaded_printer_technology = Preset::printer_technology(config_loaded);
@@ -1600,15 +1608,20 @@ std::vector<size_t> Plater::priv::load_files(const std::vector<fs::path>& input_
             // this is required because the selected object changed and the flatten on face an sla support gizmos need to be updated accordingly
             view3D->get_canvas3d()->update_gizmos_on_off_state();
     }
-        
+
     GLGizmoSimplify::add_simplify_suggestion_notification(
         obj_idxs, model.objects, *notification_manager);
 
-    s_multiple_beds.rearrange_after_load(model, q->build_volume(), [this]() {
-            q->canvas3D()->check_volumes_outside_state();
-            s_multiple_beds.ensure_wipe_towers_on_beds(model, fff_prints);
-            s_multiple_beds.update_shown_beds(model, q->build_volume());
-         });
+    if (
+        prusaslicer_generator_version
+        && *prusaslicer_generator_version < Semver("2.9.0-alpha1")
+    ) {
+        BOOST_LOG_TRIVIAL(info) << "Rearranging legacy project...";
+        s_multiple_beds.rearrange_after_load(model, q->build_volume());
+    }
+    q->canvas3D()->check_volumes_outside_state();
+    s_multiple_beds.ensure_wipe_towers_on_beds(model, fff_prints);
+    s_multiple_beds.update_shown_beds(model, q->build_volume());
     update();
 
     return obj_idxs;
