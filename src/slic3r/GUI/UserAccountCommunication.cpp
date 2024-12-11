@@ -305,7 +305,7 @@ std::string UserAccountCommunication::get_shared_session_key()
 
 void UserAccountCommunication::set_polling_enabled(bool enabled)
 {
-    return m_session->set_polling_action(enabled ? UserAccountActionID::USER_ACCOUNT_ACTION_CONNECT_PRINTER_MODELS : UserAccountActionID::USER_ACCOUNT_ACTION_DUMMY);
+        return m_session->set_polling_action(enabled ? UserAccountActionID::USER_ACCOUNT_ACTION_CONNECT_STATUS : UserAccountActionID::USER_ACCOUNT_ACTION_DUMMY);
 }
 
 void UserAccountCommunication::on_uuid_map_success()

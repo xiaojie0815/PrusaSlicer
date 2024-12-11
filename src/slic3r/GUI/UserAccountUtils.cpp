@@ -42,10 +42,10 @@ pt::ptree parse_tree_for_subtree(const pt::ptree& tree, const std::string& param
     return pt::ptree();
 }
 
-void json_to_ptree(boost::property_tree::ptree& ptree, const std::string& json) {
+void json_to_ptree(boost::property_tree::ptree& out_ptree, const std::string& json) {
     try {
         std::stringstream ss(json);
-        pt::read_json(ss, ptree);
+        pt::read_json(ss, out_ptree);
     } catch (const std::exception &e) {
         BOOST_LOG_TRIVIAL(error) << "Failed to parse json to ptree. " << e.what();
         BOOST_LOG_TRIVIAL(error) << "json: " << json;
@@ -54,7 +54,7 @@ void json_to_ptree(boost::property_tree::ptree& ptree, const std::string& json) 
 
 } // namespace
 
-std::string get_nozzle_from_json(boost::property_tree::ptree& ptree) {
+std::string get_nozzle_from_json(const boost::property_tree::ptree& ptree) {
     assert(!ptree.empty());
 
     std::string out = parse_tree_for_param(ptree, "nozzle_diameter");
@@ -78,7 +78,7 @@ std::string get_keyword_from_json(boost::property_tree::ptree& ptree, const std:
     return parse_tree_for_param(ptree, keyword);
 }
 
-void fill_supported_printer_models_from_json(boost::property_tree::ptree& ptree, std::vector<std::string>& result) 
+void fill_supported_printer_models_from_json(const boost::property_tree::ptree& ptree, std::vector<std::string>& result) 
 {
     assert(!ptree.empty());
     std::string printer_model = parse_tree_for_param(ptree, "printer_model");
@@ -107,7 +107,7 @@ std::string json_var_to_opt_string(const std::string& json_var)
     return json_var;
 }
 
-void fill_config_options_from_json_inner(boost::property_tree::ptree& ptree, std::map<std::string, std::vector<std::string>>& result,  const std::map<std::string, std::string>& parameters) 
+void fill_config_options_from_json_inner(const boost::property_tree::ptree& ptree, std::map<std::string, std::vector<std::string>>& result,  const std::map<std::string, std::string>& parameters) 
 {
     pt::ptree slots = parse_tree_for_subtree(ptree, "tools"); 
     for (const auto &subtree : slots) {
@@ -143,7 +143,7 @@ void fill_config_options_from_json_inner(boost::property_tree::ptree& ptree, std
 }
 }
 
-void fill_config_options_from_json(boost::property_tree::ptree& ptree, std::map<std::string, std::vector<std::string>>& result) 
+void fill_config_options_from_json(const boost::property_tree::ptree& ptree, std::map<std::string, std::vector<std::string>>& result) 
 {
     assert(!ptree.empty());
     /*
@@ -334,72 +334,45 @@ const Preset* find_preset_by_nozzle_and_options(
     for (const Preset &preset : collection) {
         // trim repo prefix
         std::string printer_model = preset.config.opt_string("printer_model");
-        std::string vendor_repo_prefix;
-        if (preset.vendor) {
-            vendor_repo_prefix = preset.vendor->repo_prefix;
-        } else if (std::string inherits = preset.inherits(); !inherits.empty()) {
-            const Preset *parent = collection.find_preset(inherits);
-            if (parent && parent->vendor) {
-                vendor_repo_prefix = parent->vendor->repo_prefix;
-            }
-        }
-        if (printer_model.find(vendor_repo_prefix) == 0) {
-            printer_model = printer_model.substr(vendor_repo_prefix.size()
-            );
-            boost::trim_left(printer_model);
-        }
+        const PresetWithVendorProfile& printer_with_vendor = collection.get_preset_with_vendor_profile(preset);
+        printer_model = preset.trim_vendor_repo_prefix(printer_model, printer_with_vendor.vendor);
        
         if (!preset.is_system || printer_model != model_id)
             continue;
-        if (preset.printer_technology() == ptFFF) {
-            // options (including nozzle_diameter)
-            bool failed = false;
-            for (const auto& opt : options) {
-                assert(preset.config.has(opt.first));
-                // We compare only first value now, but options contains data for all (some might be empty tho)
-                std::string opt_val;
-                if (preset.config.option(opt.first)->is_scalar()) {
-                    opt_val = preset.config.option(opt.first)->serialize();
-                } else {
-                    switch (preset.config.option(opt.first)->type()) {
-                    case coInts:     opt_val = std::to_string(static_cast<const ConfigOptionInts*>(preset.config.option(opt.first))->values[0]); break;
-                    case coFloats:   
-                        opt_val = GUI::into_u8(double_to_string(static_cast<const ConfigOptionFloats*>(preset.config.option(opt.first))->values[0]));
-                        if (size_t pos = opt_val.find(",") != std::string::npos)
-                            opt_val.replace(pos, 1, 1, '.');
-                        break;
-                    case coStrings:  opt_val = static_cast<const ConfigOptionStrings*>(preset.config.option(opt.first))->values[0]; break;
-                    case coBools:    opt_val = static_cast<const ConfigOptionBools*>(preset.config.option(opt.first))->values[0] ? "1" : "0"; break;
-                    default:
-                       assert(false);
-                       continue;
-                    }
-                }
-           
-                if (opt_val != opt.second[0])
-                {
-                    failed = true;
+        // options (including nozzle_diameter)
+        bool failed = false;
+        for (const auto& opt : options) {
+            assert(preset.config.has(opt.first));
+            // We compare only first value now, but options contains data for all (some might be empty tho)
+            std::string opt_val;
+            if (preset.config.option(opt.first)->is_scalar()) {
+                opt_val = preset.config.option(opt.first)->serialize();
+            } else {
+                switch (preset.config.option(opt.first)->type()) {
+                case coInts:     opt_val = std::to_string(static_cast<const ConfigOptionInts*>(preset.config.option(opt.first))->values[0]); break;
+                case coFloats:   
+                    opt_val = GUI::into_u8(double_to_string(static_cast<const ConfigOptionFloats*>(preset.config.option(opt.first))->values[0]));
+                    if (size_t pos = opt_val.find(",") != std::string::npos)
+                        opt_val.replace(pos, 1, 1, '.');
                     break;
+                case coStrings:  opt_val = static_cast<const ConfigOptionStrings*>(preset.config.option(opt.first))->values[0]; break;
+                case coBools:    opt_val = static_cast<const ConfigOptionBools*>(preset.config.option(opt.first))->values[0] ? "1" : "0"; break;
+                default:
+                   assert(false);
+                   continue;
                 }
             }
-            if (!failed) {
-                results.push_back(&preset);
-            }
-        } else {
         
+            if (opt_val != opt.second[0])
+            {
+                failed = true;
+                break;
+            }
         }
-    }
-    // find visible without prefix
-    for (const Preset *preset : results) {
-        if (preset->is_visible && preset->config.opt_string("printer_model") == model_id) {
-            return preset;
+        if (!failed) {
+            results.push_back(&preset);
         }
-    }
-    // find one visible
-    for (const Preset *preset : results) {
-        if (preset->is_visible) {
-            return preset;
-        }
+        
     }
     // find one without prefix
     for (const Preset* preset : results) {
