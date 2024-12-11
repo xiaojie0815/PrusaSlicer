@@ -278,6 +278,13 @@ void WebViewPanel::on_loaded(wxWebViewEvent& evt)
 {
     if (evt.GetURL().IsEmpty())
         return;
+
+    if (evt.GetURL().StartsWith(m_default_url)) {
+        define_css();
+    } else {
+        m_styles_defined = false;
+    }
+
     m_load_default_url_on_next_error = false;
     if (evt.GetURL().Find(GUI::format_wxstr("/web/%1%.html", m_loading_html)) != wxNOT_FOUND && m_load_default_url) {
         m_load_default_url = false;
@@ -554,10 +561,15 @@ void WebViewPanel::do_reload()
 {
     if (!m_browser) {
         return;
+    }   
+    // IsBusy on Linux very often returns true due to loading about:blank after loading requested url.
+#ifndef __linux__
+    if (m_browser->IsBusy()) {
+        return;
     }
+#endif
     const wxString current_url = m_browser->GetCurrentURL();
-    if (current_url.StartsWith(m_default_url))
-    {
+    if (current_url.StartsWith(m_default_url)) {
         m_browser->Reload();
         return;
     }
@@ -569,6 +581,7 @@ void WebViewPanel::load_default_url()
      if (!m_browser || m_do_late_webview_create) {
         return;
     }
+    m_styles_defined = false;
     load_url(m_default_url);
 }
 
@@ -579,12 +592,33 @@ void WebViewPanel::sys_color_changed()
 #endif
 }
 
+void WebViewPanel::on_app_quit_event(const std::string& message_data)
+{
+    // MacOS only suplement for cmd+Q
+    wxGetApp().Exit();
+}
+
+void WebViewPanel::on_app_minimize_event(const std::string& message_data)
+{
+    // MacOS only suplement for cmd+M
+     wxGetApp().mainframe->Iconize(true);
+}
+void WebViewPanel::define_css()
+{
+    assert(false);
+}
+
 ConnectWebViewPanel::ConnectWebViewPanel(wxWindow* parent)
     : WebViewPanel(parent, GUI::from_u8(Utils::ServiceConfig::instance().connect_url()), { "_prusaSlicer" }, "connect_loading", "connect_error", false)
 {  
     auto* plater = wxGetApp().plater();
     plater->Bind(EVT_UA_LOGGEDOUT, &ConnectWebViewPanel::on_user_logged_out, this);
     plater->Bind(EVT_UA_ID_USER_SUCCESS, &ConnectWebViewPanel::on_user_token, this);
+
+    m_actions["appQuit"] = std::bind(&WebViewPanel::on_app_quit_event, this, std::placeholders::_1);
+    m_actions["appMinimize"] = std::bind(&WebViewPanel::on_app_minimize_event, this, std::placeholders::_1);
+    m_actions["reloadHomePage"] = std::bind(&ConnectWebViewPanel::on_reload_event, this, std::placeholders::_1);
+
 }
 
 void ConnectWebViewPanel::late_create()
@@ -796,6 +830,12 @@ void ConnectWebViewPanel::on_navigation_request(wxWebViewEvent &evt)
     m_url->SetValue(evt.GetURL());
 #endif
     BOOST_LOG_TRIVIAL(debug) << "Navigation requested to: " << into_u8(evt.GetURL());
+
+    // we need to do this to redefine css when reload is hit
+    if (evt.GetURL().StartsWith(m_default_url) && evt.GetURL() == m_browser->GetCurrentURL()) {
+        m_styles_defined = false;
+    }
+
     if (evt.GetURL() == m_default_url) {
         m_reached_default_url = true;
         return;
@@ -828,7 +868,22 @@ void ConnectWebViewPanel::on_connect_action_error(const std::string &message_dat
 
 void ConnectWebViewPanel::on_reload_event(const std::string& message_data)
 {
-    load_default_url();
+    // Event from our error page button or keyboard shortcut 
+    m_styles_defined = false;
+    try {
+        std::stringstream ss(message_data);
+        pt::ptree ptree;
+        pt::read_json(ss, ptree);
+        if (const auto keyboard = ptree.get_optional<bool>("fromKeyboard"); keyboard && *keyboard) {
+            do_reload();
+        } else {
+            // On error page do load of default url.
+            load_default_url();
+        }
+    } catch (const std::exception &e) {
+        BOOST_LOG_TRIVIAL(error) << "Could not parse printables message. " << e.what();
+        return;
+    }
 }
 
 void ConnectWebViewPanel::logout()
@@ -877,18 +932,57 @@ void ConnectWebViewPanel::on_connect_action_print(const std::string& message_dat
     assert(false);
 }
 
+void ConnectWebViewPanel::define_css()
+{
+    
+    if (m_styles_defined) {
+        return;
+    }
+    m_styles_defined = true;
+    BOOST_LOG_TRIVIAL(debug) << __FUNCTION__;
+#if defined(__APPLE__) 
+    // WebView on Windows does read keyboard shortcuts
+    // Thus doing f.e. Reload twice would make the oparation to fail
+    std::string script = R"(
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'F5' || (event.ctrlKey && event.key === 'r') || (event.metaKey && event.key === 'r')) {
+                 window.webkit.messageHandlers._prusaSlicer.postMessage(JSON.stringify({ action: 'reloadHomePage', fromKeyboard: 1}));
+            }
+            if (event.metaKey && event.key === 'q') {
+                 window.webkit.messageHandlers._prusaSlicer.postMessage(JSON.stringify({ action: 'appQuit'}));
+            }
+            if (event.metaKey && event.key === 'm') {
+                 window.webkit.messageHandlers._prusaSlicer.postMessage(JSON.stringify({ action: 'appMinimize'}));
+            }
+        });
+    )";
+    run_script(script);
+
+#endif // defined(__APPLE__)
+}
+
 PrinterWebViewPanel::PrinterWebViewPanel(wxWindow* parent, const wxString& default_url)
     : WebViewPanel(parent, default_url, {"ExternalApp"}, "other_loading", "other_error", false)
 {
+    m_events["reloadHomePage"] = std::bind(&PrinterWebViewPanel::on_reload_event, this, std::placeholders::_1);
+    m_events["appQuit"] = std::bind(&WebViewPanel::on_app_quit_event, this, std::placeholders::_1);
+    m_events["appMinimize"] = std::bind(&WebViewPanel::on_app_minimize_event, this, std::placeholders::_1);
 }
 
 void PrinterWebViewPanel::on_navigation_request(wxWebViewEvent &evt)
 {
     const wxString url = evt.GetURL();
-    if (url.StartsWith(m_default_url) && !m_api_key_sent) {
+    if (url.StartsWith(m_default_url)) {
         m_reached_default_url = true;
-        if (!m_usr.empty() && !m_psk.empty()) {
-            send_credentials();
+        if (url == m_browser->GetCurrentURL()) {
+            // we need to do this to redefine css when reload is hit
+            m_styles_defined = false;
+        }
+
+        if ( !m_api_key_sent) {
+            if (!m_usr.empty() && !m_psk.empty()) {
+                send_credentials();
+            }
         }
     } else if (m_reached_default_url && evt.GetURL().Find(GUI::format_wxstr("/web/%1%.html", m_loading_html)) != wxNOT_FOUND) {
         // Do not allow back button to loading screen
@@ -900,6 +994,13 @@ void PrinterWebViewPanel::on_loaded(wxWebViewEvent& evt)
 {
     if (evt.GetURL().IsEmpty())
         return;
+
+    if (evt.GetURL().StartsWith(m_default_url)) {
+        define_css();
+    } else {
+        m_styles_defined = false;
+    }
+
     m_load_default_url_on_next_error = false;
     if (evt.GetURL().Find(GUI::format_wxstr("/web/%1%.html", m_loading_html)) != wxNOT_FOUND && m_load_default_url) {
         m_load_default_url = false;
@@ -912,8 +1013,35 @@ void PrinterWebViewPanel::on_loaded(wxWebViewEvent& evt)
 }
 void PrinterWebViewPanel::on_script_message(wxWebViewEvent& evt)
 {
-    // Only reload messages are being sent now.
-    load_default_url();
+    BOOST_LOG_TRIVIAL(debug) << "received message from Physical printer page: " << evt.GetString();
+    handle_message(into_u8(evt.GetString()));
+}
+
+void PrinterWebViewPanel::handle_message(const std::string& message)
+{
+
+    std::string event_string;
+    try {
+        std::stringstream ss(message);
+        pt::ptree ptree;
+        pt::read_json(ss, ptree);
+        if (const auto action = ptree.get_optional<std::string>("event"); action) {
+            event_string = *action;
+        }
+    }
+    catch (const std::exception& e) {
+        BOOST_LOG_TRIVIAL(error) << "Could not parse printables message. " << e.what();
+        return;
+    }
+
+    if (event_string.empty()) {
+        BOOST_LOG_TRIVIAL(error) << "Received invalid message from printables (missing event). Message: " << message;
+        return;
+    }
+    assert(m_events.find(event_string) != m_events.end()); // this assert means there is an event that has no handling.
+    if (m_events.find(event_string) != m_events.end()) {
+        m_events[event_string](message);
+    }
 }
 
 void PrinterWebViewPanel::send_api_key()
@@ -957,20 +1085,67 @@ void PrinterWebViewPanel::send_credentials()
     setup_webview_with_credentials(m_browser, m_usr, m_psk);
 }
 
+void PrinterWebViewPanel::define_css()
+{
+    
+    if (m_styles_defined) {
+        return;
+    }
+    m_styles_defined = true;
+    BOOST_LOG_TRIVIAL(debug) << __FUNCTION__;
+#if defined(__APPLE__) 
+    // WebView on Windows does read keyboard shortcuts
+    // Thus doing f.e. Reload twice would make the oparation to fail
+    std::string script = R"(
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'F5' || (event.ctrlKey && event.key === 'r') || (event.metaKey && event.key === 'r')) {
+                 window.webkit.messageHandlers.ExternalApp.postMessage(JSON.stringify({ event: 'reloadHomePage', fromKeyboard: 1}));
+            }
+            if (event.metaKey && event.key === 'q') {
+                 window.webkit.messageHandlers.ExternalApp.postMessage(JSON.stringify({ event: 'appQuit'}));
+            }
+            if (event.metaKey && event.key === 'm') {
+                 window.webkit.messageHandlers.ExternalApp.postMessage(JSON.stringify({ event: 'appMinimize'}));
+            }
+        });
+    )";
+    run_script(script);
+
+#endif // defined(__APPLE__)
+}
+
+void PrinterWebViewPanel::on_reload_event(const std::string& message_data)
+{
+    // Event from our error page button or keyboard shortcut 
+    m_styles_defined = false;
+    try {
+        std::stringstream ss(message_data);
+        pt::ptree ptree;
+        pt::read_json(ss, ptree);
+        if (const auto keyboard = ptree.get_optional<bool>("fromKeyboard"); keyboard && *keyboard) {
+            do_reload();
+        } else {
+            // On error page do load of default url.
+            load_default_url();
+        }
+    } catch (const std::exception &e) {
+        BOOST_LOG_TRIVIAL(error) << "Could not parse message. " << e.what();
+        return;
+    }
+}
 
 PrintablesWebViewPanel::PrintablesWebViewPanel(wxWindow* parent)
     : WebViewPanel(parent, GUI::from_u8(Utils::ServiceConfig::instance().printables_url()), { "ExternalApp" }, "other_loading", "other_error", false)
 {  
-    
-
     m_events["accessTokenExpired"] = std::bind(&PrintablesWebViewPanel::on_printables_event_access_token_expired, this, std::placeholders::_1);
-    m_events["reloadHomePage"] = std::bind(&PrintablesWebViewPanel::on_reload_event, this, std::placeholders::_1);
     m_events["printGcode"] = std::bind(&PrintablesWebViewPanel::on_printables_event_print_gcode, this, std::placeholders::_1);
     m_events["downloadFile"] = std::bind(&PrintablesWebViewPanel::on_printables_event_download_file, this, std::placeholders::_1);
     m_events["sliceFile"] = std::bind(&PrintablesWebViewPanel::on_printables_event_slice_file, this, std::placeholders::_1);
     m_events["requiredLogin"] = std::bind(&PrintablesWebViewPanel::on_printables_event_required_login, this, std::placeholders::_1);
-
-   
+    m_events["openExternalUrl"] = std::bind(&PrintablesWebViewPanel::on_printables_event_open_url, this, std::placeholders::_1);
+    m_events["reloadHomePage"] = std::bind(&PrintablesWebViewPanel::on_reload_event, this, std::placeholders::_1);
+    m_events["appQuit"] = std::bind(&WebViewPanel::on_app_quit_event, this, std::placeholders::_1);
+    m_events["appMinimize"] = std::bind(&WebViewPanel::on_app_minimize_event, this, std::placeholders::_1);
 }
 
 void PrintablesWebViewPanel::handle_message(const std::string& message)
@@ -1002,9 +1177,13 @@ void PrintablesWebViewPanel::handle_message(const std::string& message)
 
 void PrintablesWebViewPanel::on_navigation_request(wxWebViewEvent &evt)
 {
-    const wxString url = evt.GetURL();
+    const wxString url = evt.GetURL();   
     if (url.StartsWith(m_default_url)) {
         m_reached_default_url = true;
+        if (url == m_browser->GetCurrentURL()) {
+            // we need to do this to redefine css when reload is hit
+            m_styles_defined = false;
+        }
     } else if (m_reached_default_url && url.StartsWith("http")) {
         BOOST_LOG_TRIVIAL(info) << evt.GetURL() <<  " does not start with default url. Vetoing.";
         evt.Veto();
@@ -1240,9 +1419,22 @@ void PrintablesWebViewPanel::on_printables_event_access_token_expired(const std:
 
 void PrintablesWebViewPanel::on_reload_event(const std::string& message_data)
 {
-    // Event from our error / loading html pages
+    // Event from our error page button or keyboard shortcut 
     m_styles_defined = false;
-    load_default_url();
+    try {
+        std::stringstream ss(message_data);
+        pt::ptree ptree;
+        pt::read_json(ss, ptree);
+        if (const auto keyboard = ptree.get_optional<bool>("fromKeyboard"); keyboard && *keyboard) {
+            do_reload();
+        } else {
+            // On error page do load of default url.
+            load_default_url();
+        }
+    } catch (const std::exception &e) {
+        BOOST_LOG_TRIVIAL(error) << "Could not parse printables message. " << e.what();
+        return;
+    }
 }
 
 namespace {
@@ -1342,20 +1534,36 @@ void PrintablesWebViewPanel::on_printables_event_required_login(const std::strin
     BOOST_LOG_TRIVIAL(debug) << __FUNCTION__ << " " << message_data;
     wxGetApp().printables_login_request();
 }
+void PrintablesWebViewPanel::on_printables_event_open_url(const std::string& message_data)
+{
+    BOOST_LOG_TRIVIAL(debug) << __FUNCTION__ << " " << message_data;
+
+     try {
+        std::stringstream ss(message_data);
+        pt::ptree ptree;
+        pt::read_json(ss, ptree);
+        if (const auto url = ptree.get_optional<std::string>("url"); url) {
+            wxGetApp().open_browser_with_warning_dialog(GUI::from_u8(*url));
+        }
+    } catch (const std::exception &e) {
+        BOOST_LOG_TRIVIAL(error) << "Could not parse Printables message. " << e.what();
+        return;
+    }    
+}
 
 void PrintablesWebViewPanel::define_css()
 {
+    
     if (m_styles_defined) {
         return;
     }
     m_styles_defined = true;
     BOOST_LOG_TRIVIAL(debug) << __FUNCTION__;
-    const std::string script = R"(
+    std::string script = R"(
+        // Loading overlay and Notification style
         var style = document.createElement('style');
         style.innerHTML = `
-        body {
-            /* Add your body styles here */
-        }
+        body {}
         .slic3r-loading-overlay {
             position: fixed;
             top: 0;
@@ -1436,8 +1644,51 @@ void PrintablesWebViewPanel::define_css()
             font-weight: bold;
         }
         `;
-        document.head.appendChild(style);       
+        document.head.appendChild(style); 
+    
+        // Capture click on hypertext
+        // Rewritten from mobileApp code
+        (function() {
+            const listenerKey = 'custom-click-listener';
+            if (!document[listenerKey]) {
+                document.addEventListener( 'click', function(event) {
+                    const target = event.target.closest('a[href]');
+                    if (!target) return; // Ignore clicks that are not on links
+                    const url = target.href;
+                    // Allow empty iframe navigation
+                    if (url === 'about:blank') {
+                        return; // Let it proceed
+                    }
+                    // Debug log for navigation
+                    console.log(`Printables:onNavigationRequest: ${url}`);
+                    // Handle all non-printables.com domains in an external browser
+                    if (!/printables\.com/.test(url)) {
+                        window.ExternalApp.postMessage(JSON.stringify({ event: 'openExternalUrl', url }))
+                        event.preventDefault();
+                    }
+                    // Default: Allow navigation to proceed
+                },true); // Capture the event during the capture phase
+                document[listenerKey] = true;
+            }
+        })();
     )";
+#if defined(__APPLE__) 
+    // WebView on Windows does read keyboard shortcuts
+    // Thus doing f.e. Reload twice would make the oparation to fail
+    script += R"(
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'F5' || (event.ctrlKey && event.key === 'r') || (event.metaKey && event.key === 'r')) {
+                window.ExternalApp.postMessage(JSON.stringify({ event: 'reloadHomePage', fromKeyboard: 1}));
+            }
+            if (event.metaKey && event.key === 'q') {
+                window.ExternalApp.postMessage(JSON.stringify({ event: 'appQuit'}));
+            }
+            if (event.metaKey && event.key === 'm') {
+                window.ExternalApp.postMessage(JSON.stringify({ event: 'appMinimize'}));
+            }
+        });
+    )";
+#endif // defined(__APPLE__)
     run_script(script);
 }
 
