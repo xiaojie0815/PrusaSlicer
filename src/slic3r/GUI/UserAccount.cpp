@@ -3,8 +3,11 @@
 #include "UserAccountUtils.hpp"
 #include "format.hpp"
 #include "GUI.hpp"
+#include "GUI_App.hpp"
 
 #include "libslic3r/Utils.hpp"
+#include "libslic3r/Preset.hpp"
+#include "libslic3r/PresetBundle.hpp"
 
 #include <boost/regex.hpp>
 #include <boost/property_tree/ptree.hpp>
@@ -210,15 +213,17 @@ bool UserAccount::on_connect_printers_success(const std::string& data, AppConfig
             BOOST_LOG_TRIVIAL(error) << "Missing printer model for printer uuid: " << *printer_uuid;
             continue;
         }
-        std::pair<std::string, std::string> model_nozzle_pair = m_printer_uuid_map[*printer_uuid];
+        
+        std::string printer_name = m_printer_uuid_map[*printer_uuid];
 
-        if (new_printer_map.find(model_nozzle_pair) == new_printer_map.end()) {
-            new_printer_map[model_nozzle_pair].reserve(static_cast<size_t>(ConnectPrinterState::CONNECT_PRINTER_STATE_COUNT));
+        if (new_printer_map.find(printer_name) == new_printer_map.end()) {
+            new_printer_map[printer_name].reserve(static_cast<size_t>(ConnectPrinterState::CONNECT_PRINTER_STATE_COUNT));
             for (size_t i = 0; i < static_cast<size_t>(ConnectPrinterState::CONNECT_PRINTER_STATE_COUNT); i++) {
-                new_printer_map[model_nozzle_pair].push_back(0);
+                new_printer_map[printer_name].push_back(0);
             }
         }
-        new_printer_map[model_nozzle_pair][static_cast<size_t>(state)] += 1;
+        new_printer_map[printer_name][static_cast<size_t>(state)] += 1;
+        
     }
 
     // compare new and old printer map and update old map into new
@@ -277,10 +282,20 @@ bool UserAccount::on_connect_uiid_map_success(const std::string& data, AppConfig
         std::map<std::string, std::vector<std::string>> config_options_to_match; 
         UserAccountUtils::fill_config_options_from_json(ptree, config_options_to_match);
 
+        const Preset* printer_preset = UserAccountUtils::find_preset_by_nozzle_and_options(wxGetApp().preset_bundle->printers, *printer_model, config_options_to_match);
+        BOOST_LOG_TRIVIAL(error) <<  (printer_preset ? printer_preset->name : std::string("UNKNOWN")) << " " << *printer_uuid;
+        if (printer_preset) {
+            m_printer_uuid_map[*printer_uuid] = printer_preset->name;
+        } else {
+            //assert(false);
+            BOOST_LOG_TRIVIAL(error) << "Failed to find preset for printer model: " << *printer_model;
+        }
+        /*
         const auto nozzle_diameter_opt = printer_tree.second.get_optional<std::string>("nozzle_diameter");
         const std::string nozzle_diameter = (nozzle_diameter_opt && *nozzle_diameter_opt != "0.0") ? *nozzle_diameter_opt : std::string();
         std::pair<std::string, std::string> model_nozzle_pair = { *printer_model, nozzle_diameter };
         m_printer_uuid_map[*printer_uuid] = model_nozzle_pair;
+        */
     }
     m_communication->on_uuid_map_success();
     return on_connect_printers_success(data, app_config, out_printers_changed);

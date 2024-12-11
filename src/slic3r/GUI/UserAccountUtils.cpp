@@ -1,5 +1,9 @@
 #include "UserAccountUtils.hpp"
 
+#include "libslic3r/Preset.hpp"
+#include "slic3r/GUI/Field.hpp"
+#include "slic3r/GUI/GUI.hpp"
+
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/log/trivial.hpp>
 #include <boost/lexical_cast.hpp>
@@ -318,6 +322,95 @@ std::string get_print_data_from_json(const std::string& json, const std::string&
     result += json.substr(end_of_filename_data, end_of_sub - end_of_filename_data);
     result += ",\"size\":%2%}";
     return result;
+}
+
+const Preset* find_preset_by_nozzle_and_options(
+    const PrinterPresetCollection& collection
+    , const std::string& model_id
+    , std::map<std::string, std::vector<std::string>>& options) 
+{
+    // find all matching presets when repo prefix is omitted
+    std::vector<const Preset*> results;
+    for (const Preset &preset : collection) {
+        // trim repo prefix
+        std::string printer_model = preset.config.opt_string("printer_model");
+        std::string vendor_repo_prefix;
+        if (preset.vendor) {
+            vendor_repo_prefix = preset.vendor->repo_prefix;
+        } else if (std::string inherits = preset.inherits(); !inherits.empty()) {
+            const Preset *parent = collection.find_preset(inherits);
+            if (parent && parent->vendor) {
+                vendor_repo_prefix = parent->vendor->repo_prefix;
+            }
+        }
+        if (printer_model.find(vendor_repo_prefix) == 0) {
+            printer_model = printer_model.substr(vendor_repo_prefix.size()
+            );
+            boost::trim_left(printer_model);
+        }
+       
+        if (!preset.is_system || printer_model != model_id)
+            continue;
+        if (preset.printer_technology() == ptFFF) {
+            // options (including nozzle_diameter)
+            bool failed = false;
+            for (const auto& opt : options) {
+                assert(preset.config.has(opt.first));
+                // We compare only first value now, but options contains data for all (some might be empty tho)
+                std::string opt_val;
+                if (preset.config.option(opt.first)->is_scalar()) {
+                    opt_val = preset.config.option(opt.first)->serialize();
+                } else {
+                    switch (preset.config.option(opt.first)->type()) {
+                    case coInts:     opt_val = std::to_string(static_cast<const ConfigOptionInts*>(preset.config.option(opt.first))->values[0]); break;
+                    case coFloats:   
+                        opt_val = GUI::into_u8(double_to_string(static_cast<const ConfigOptionFloats*>(preset.config.option(opt.first))->values[0]));
+                        if (size_t pos = opt_val.find(",") != std::string::npos)
+                            opt_val.replace(pos, 1, 1, '.');
+                        break;
+                    case coStrings:  opt_val = static_cast<const ConfigOptionStrings*>(preset.config.option(opt.first))->values[0]; break;
+                    case coBools:    opt_val = static_cast<const ConfigOptionBools*>(preset.config.option(opt.first))->values[0] ? "1" : "0"; break;
+                    default:
+                       assert(false);
+                       continue;
+                    }
+                }
+           
+                if (opt_val != opt.second[0])
+                {
+                    failed = true;
+                    break;
+                }
+            }
+            if (!failed) {
+                results.push_back(&preset);
+            }
+        } else {
+        
+        }
+    }
+    // find visible without prefix
+    for (const Preset *preset : results) {
+        if (preset->is_visible && preset->config.opt_string("printer_model") == model_id) {
+            return preset;
+        }
+    }
+    // find one visible
+    for (const Preset *preset : results) {
+        if (preset->is_visible) {
+            return preset;
+        }
+    }
+    // find one without prefix
+    for (const Preset* preset : results) {
+        if (preset->config.opt_string("printer_model") == model_id) {
+            return preset;
+        }
+    }
+    if (results.size() != 0) {
+       return results.front();
+    }
+    return nullptr;
 }
 
 }}} // Slic3r::GUI::UserAccountUtils

@@ -7,7 +7,10 @@
 
 #include <boost/property_tree/ptree.hpp>
 
-namespace Slic3r { namespace GUI {
+namespace Slic3r { 
+class Preset;
+class PrinterPresetCollection;
+namespace GUI {
 namespace UserAccountUtils {
 
 // If ptree parameter is empty, json parameter needs to contain data and ptree is filled.
@@ -23,6 +26,7 @@ void fill_material_from_json(const std::string& json, std::vector<std::string>& 
 
 std::string get_print_data_from_json(const std::string &json, const std::string &keyword);
 
+const Preset* find_preset_by_nozzle_and_options( const PrinterPresetCollection& collection, const std::string& model_id, std::map<std::string, std::vector<std::string>>& options);
 }}} // Slic3r::GUI::UserAccountUtils
 
 #endif // slic3r_UserAccountUtils_hpp_
