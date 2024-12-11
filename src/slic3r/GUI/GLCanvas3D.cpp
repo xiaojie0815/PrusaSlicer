@@ -6617,7 +6617,7 @@ bool bed_selector_thumbnail(
 ) {
     ImGuiWindow* window = GImGui->CurrentWindow;
     const ImVec2 current_position = GImGui->CurrentWindow->DC.CursorPos;
-    const ImVec2 state_pos = current_position + ImVec2(3.f * border, side - 20.f * scale) * wxGetApp().imgui()->get_style_scaling();
+    const ImVec2 state_pos = current_position + ImVec2(3.f * border, side - 20.f * scale);
 
     const bool clicked{ImGui::ImageButton(
         (void*)(int64_t)texture_id,
@@ -6643,23 +6643,53 @@ bool bed_selector_thumbnail(
     return clicked;
 }
 
-bool slice_all_beds_button(bool is_active, const ImVec2 size, const ImVec2 padding) 
+bool slice_all_beds_button(bool is_active, const ImVec2 size)
 {
-    ImGui::PushStyleColor(ImGuiCol_Button, ImGuiPureWrap::COL_GREY_DARK);
-    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImGuiPureWrap::COL_ORANGE_DARK);
-    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImGuiPureWrap::COL_ORANGE_DARK);
-    ImGui::PushStyleColor(ImGuiCol_Border, is_active ? ImGuiPureWrap::COL_BUTTON_ACTIVE : ImGuiPureWrap::COL_GREY_DARK);
+    const wchar_t   icon = ImGui::SliceAllBtnIcon;
+    std::string     btn_name = boost::nowide::narrow(std::wstring{ icon });
 
-    std::string slice_all_btn_name = boost::nowide::narrow(std::wstring{ ImGui::SliceAllBtnIcon });
-    bool clicked = ImGui::Button(slice_all_btn_name.c_str(), size + padding);
+    ImGuiButtonFlags flags = ImGuiButtonFlags_None;
+
+    ImGuiWindow* window = ImGui::GetCurrentWindow();
+    if (window->SkipItems)
+        return false;
+
+    ImGuiContext& g = *GImGui;
+    const ImGuiStyle& style = g.Style;
+    const ImGuiID id = window->GetID(btn_name.c_str());
+    const ImFontAtlasCustomRect* const rect = wxGetApp().imgui()->GetTextureCustomRect(icon);
+    const ImVec2 label_size = ImVec2(rect->Width, rect->Height);
+
+    ImVec2 pos = window->DC.CursorPos;
+    const ImRect bb(pos, pos + size);
+    ImGui::ItemSize(size, style.FramePadding.y);
+    if (!ImGui::ItemAdd(bb, id))
+        return false;
+
+    if (g.CurrentItemFlags & ImGuiItemFlags_ButtonRepeat)
+        flags |= ImGuiButtonFlags_Repeat;
+
+    bool hovered, held;
+    bool pressed = ImGui::ButtonBehavior(bb, id, &hovered, &held, flags);
+
+    // Render
+    const ImU32 col = ImGui::GetColorU32((held && hovered) ? ImGuiPureWrap::COL_ORANGE_DARK : hovered ? ImGuiPureWrap::COL_ORANGE_LIGHT : ImGuiPureWrap::COL_GREY_DARK);
+    ImGui::RenderNavHighlight(bb, id);
+    ImGui::PushStyleColor(ImGuiCol_Border, is_active ? ImGuiPureWrap::COL_BUTTON_ACTIVE : ImGuiPureWrap::COL_GREY_DARK);
+    ImGui::RenderFrame(bb.Min, bb.Max, col, true, style.FrameRounding);
+    ImGui::PopStyleColor();
+
+    if (g.LogEnabled)
+        ImGui::LogSetNextTextDecoration("[", "]");
+    ImGui::RenderTextClipped(bb.Min + style.FramePadding, bb.Max - style.FramePadding, btn_name.c_str(), NULL, &label_size, style.ButtonTextAlign, &bb);
+
+    IMGUI_TEST_ENGINE_ITEM_INFO(id, label, window->DC.LastItemStatusFlags);
 
     if (ImGui::IsItemHovered()) {
         ImGui::SetTooltip("%s", _u8L("Slice all").c_str());
     }
 
-    ImGui::PopStyleColor(4);
-
-    return clicked;
+    return pressed;
 }
 
 void Slic3r::GUI::GLCanvas3D::_render_bed_selector()
@@ -6785,7 +6815,7 @@ void Slic3r::GUI::GLCanvas3D::_render_bed_selector()
 
         if (
             current_printer_technology() == ptFFF &&
-            slice_all_beds_button(s_multiple_beds.is_autoslicing(), btn_size, btn_padding)
+            slice_all_beds_button(s_multiple_beds.is_autoslicing(), btn_size + btn_padding)
         ) {
             if (!s_multiple_beds.is_autoslicing()) {
                 s_multiple_beds.start_autoslice([this](int i, bool user) { this->select_bed(i, user); });
