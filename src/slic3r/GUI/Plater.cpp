@@ -2098,12 +2098,16 @@ void Plater::priv::process_validation_warning(const std::vector<std::string>& wa
     if (warnings.empty())
         notification_manager->close_notification_of_type(NotificationType::ValidateWarning);
 
-    // Always close warnings BedTemperaturesDiffer and ShrinkageCompensationsDiffer before next processing.
+    // Always close warnings BedTemperaturesDiffer, ShrinkageCompensationsDiffer, WipeTowerNozzleDiameterDiffer and SupportNozzleDiameterDiffer before next processing.
     notification_manager->close_notification_of_type(NotificationType::BedTemperaturesDiffer);
     notification_manager->close_notification_of_type(NotificationType::ShrinkageCompensationsDiffer);
+    notification_manager->close_notification_of_type(NotificationType::WipeTowerNozzleDiameterDiffer);
+    notification_manager->close_notification_of_type(NotificationType::SupportNozzleDiameterDiffer);
 
     for (std::string text : warnings) {
         std::string                        hypertext         = "";
+        std::string                        text_after        = "";
+        bool                               multiline         = false;
         NotificationType                   notification_type = NotificationType::ValidateWarning;
         std::function<bool(wxEvtHandler*)> action_fn         = [](wxEvtHandler*){ return false; };
 
@@ -2128,12 +2132,26 @@ void Plater::priv::process_validation_warning(const std::vector<std::string>& wa
             text              = _u8L("Filament shrinkage will not be used because filament shrinkage "
                                      "for the used filaments differs significantly.");
             notification_type = NotificationType::ShrinkageCompensationsDiffer;
+        } else if (text == "_WIPE_TOWER_NOZZLE_DIAMETER_DIFFER") {
+            text              = _u8L("Using the wipe tower for extruders with different nozzle diameters "
+                                     "is experimental, so proceed with caution.");
+            notification_type = NotificationType::WipeTowerNozzleDiameterDiffer;
+        } else if (text == "_SUPPORT_NOZZLE_DIAMETER_DIFFER") {
+            text              = _u8L("Printing supports with different nozzle diameters "
+                                     "is experimental. For best results, switch to Organic supports and");
+            hypertext         = _u8L("assign a specific extruder for supports.");
+            multiline         = true;
+            notification_type = NotificationType::SupportNozzleDiameterDiffer;
+            action_fn = [](wxEvtHandler*) {
+                GUI::wxGetApp().jump_to_option("support_material_extruder", Preset::Type::TYPE_PRINT, boost::nowide::widen("Multiple Extruders"));
+                return false;
+            };
         }
 
         notification_manager->push_notification(
             notification_type,
             NotificationManager::NotificationLevel::WarningNotificationLevel,
-            _u8L("WARNING:") + "\n" + text, hypertext, action_fn
+            _u8L("WARNING:") + "\n" + text, hypertext, action_fn, text_after, 0, multiline
         );
     }
 }
