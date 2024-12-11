@@ -285,7 +285,7 @@ bool UserAccount::on_connect_uiid_map_success(const std::string& data, AppConfig
         const Preset* printer_preset = UserAccountUtils::find_preset_by_nozzle_and_options(wxGetApp().preset_bundle->printers, *printer_model, config_options_to_match);
         if (printer_preset) {
             // Preset can have repo prefix
-            std::string trimmed_name = printer_preset->config.opt_string("printer_model");
+            std::string trimmed_name = printer_preset->name;
             const PresetWithVendorProfile& printer_with_vendor = wxGetApp().preset_bundle->printers.get_preset_with_vendor_profile(*printer_preset);
             trimmed_name = printer_preset->trim_vendor_repo_prefix(trimmed_name, printer_with_vendor.vendor);
             m_printer_uuid_map[*printer_uuid] = trimmed_name;
