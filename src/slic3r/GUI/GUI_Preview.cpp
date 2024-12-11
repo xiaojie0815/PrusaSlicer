@@ -938,6 +938,7 @@ void Preview::load_print_as_fff(bool keep_z_range)
     }
 
     if (wxGetApp().is_editor() && !has_layers) {
+        m_canvas->reset_gcode_toolpaths();
         m_canvas->reset_gcode_layers_times_cache();
         m_canvas->load_gcode_shells();
         hide_layers_slider();
