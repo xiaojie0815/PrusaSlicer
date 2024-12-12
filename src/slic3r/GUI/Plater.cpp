@@ -6035,8 +6035,7 @@ void Plater::export_gcode_to_path(
 struct PrintToExport {
     std::reference_wrapper<Slic3r::Print> print;
     std::reference_wrapper<Slic3r::GCodeProcessorResult> processor_result;
-    boost::filesystem::path output_path;
-    std::size_t bed{};
+    int bed{};
 };
 
 void Plater::with_mocked_fff_background_process(
@@ -6079,13 +6078,12 @@ void Plater::export_all_gcodes(bool prefer_removable) {
     const fs_path &output_dir{*optional_output_dir};
 
 
-    std::vector<PrintToExport> prints_to_export;
-    std::vector<fs::path> paths;
+    std::map<int, PrintToExport> prints_to_export;
+    std::vector<std::pair<int, fs::path>> paths;
 
-    for (std::size_t print_index{0};  print_index < this->get_fff_prints().size(); ++print_index) {
-
+    for (int print_index{0};  print_index < this->get_fff_prints().size(); ++print_index) {
         const std::unique_ptr<Print> &print{this->get_fff_prints()[print_index]};
-        if (!print || print->empty()) {
+        if (!print || !is_sliceable(s_print_statuses[print_index])) {
             continue;
         }
 
@@ -6111,28 +6109,27 @@ void Plater::export_all_gcodes(bool prefer_removable) {
             + default_filename.extension().string()
         };
         const fs::path output_file{output_dir / filename};
-        prints_to_export.push_back({*print, this->p->gcode_results[print_index], output_file, print_index});
-        paths.push_back(output_file);
+        prints_to_export.insert({
+            print_index,
+            {*print, this->p->gcode_results[print_index], print_index}
+        });
+        paths.emplace_back(print_index, output_file);
     }
 
     BulkExportDialog dialog{paths};
     if (dialog.ShowModal() != wxID_OK) {
         return;
     }
-    std::vector<std::optional<fs::path>> output_paths{dialog.get_paths()};
-    for (std::size_t path_index{0}; path_index < paths.size(); ++path_index) {
-        prints_to_export[path_index].output_path = paths[path_index];
-    }
+    const std::vector<std::pair<int, std::optional<fs::path>>> output_paths{dialog.get_paths()};
 
     bool path_on_removable_media{false};
-
-
-    for (std::size_t path_index{0}; path_index < paths.size(); ++path_index) {
-        PrintToExport print_to_export{prints_to_export[path_index]};
-        if (!output_paths[path_index]) {
+    for (auto &[bed_index, optional_path] : output_paths) {
+        if (!optional_path) {
             continue;
         }
-        print_to_export.output_path = *output_paths[path_index];
+
+        const PrintToExport &print_to_export{prints_to_export.at(bed_index)};
+        const fs::path &path{*optional_path};
         with_mocked_fff_background_process(
             print_to_export.print,
             print_to_export.processor_result,
@@ -6140,10 +6137,10 @@ void Plater::export_all_gcodes(bool prefer_removable) {
             [&](){
                 this->p->background_process.set_temp_output_path(print_to_export.bed);
                 export_gcode_to_path(
-                    print_to_export.output_path,
+                    path,
                     [&](const bool on_removable){
                         this->p->background_process.finalize_gcode(
-                            print_to_export.output_path.string(),
+                            path.string(),
                             path_on_removable_media
                         );
                         path_on_removable_media = on_removable || path_on_removable_media;
@@ -6729,48 +6726,51 @@ void Plater::connect_gcode_all() {
     }
     const PrusaConnectNew connect{*print_host_ptr};
 
-    std::vector<fs::path> paths;
+    std::vector<std::pair<int, fs::path>> paths;
 
     for (std::size_t print_index{0};  print_index < this->get_fff_prints().size(); ++print_index) {
         const std::unique_ptr<Print> &print{this->get_fff_prints()[print_index]};
-        if (!print || print->empty()) {
+        if (!print || !is_sliceable(s_print_statuses[print_index])) {
             continue;
         }
 
         const fs::path filename{upload_job_template.upload_data.upload_path};
-        paths.emplace_back(
+        paths.emplace_back(print_index, fs::path{
             filename.stem().string()
             + "_bed" + std::to_string(print_index + 1)
             + filename.extension().string()
-        );
+        });
     }
 
     BulkExportDialog dialog{paths};
     if (dialog.ShowModal() != wxID_OK) {
         return;
     }
-    const std::vector<std::optional<fs::path>> output_paths{dialog.get_paths()};
+    const std::vector<std::pair<int, std::optional<fs::path>>> output_paths{dialog.get_paths()};
 
-    for (std::size_t print_index{0};  print_index < this->get_fff_prints().size(); ++print_index) {
-        if (!output_paths[print_index]) {
+    for (const auto &key_value : output_paths) {
+        const int bed_index{key_value.first};
+        const std::optional<fs::path> &optional_path{key_value.second};
+        if (!optional_path) {
             continue;
         }
+        const fs::path &path{*optional_path};
 
-        const std::unique_ptr<Print> &print{this->get_fff_prints()[print_index]};
+        const std::unique_ptr<Print> &print{this->get_fff_prints()[bed_index]};
         if (!print || print->empty()) {
             continue;
         }
         with_mocked_fff_background_process(
             *print,
-            this->p->gcode_results[print_index],
-            print_index,
+            this->p->gcode_results[bed_index],
+            bed_index,
             [&](){
-                this->p->background_process.set_temp_output_path(print_index);
+                this->p->background_process.set_temp_output_path(bed_index);
                 PrintHostJob upload_job;
                 upload_job.upload_data = upload_job_template.upload_data;
                 upload_job.printhost = std::make_unique<PrusaConnectNew>(connect);
                 upload_job.cancelled = upload_job_template.cancelled;
-                upload_job.upload_data.upload_path = *output_paths[print_index];
+                upload_job.upload_data.upload_path = path;
                 this->p->background_process.prepare_upload(upload_job);
             }
         );
