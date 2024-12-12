@@ -6119,7 +6119,7 @@ void Plater::export_all_gcodes(bool prefer_removable) {
     if (dialog.ShowModal() != wxID_OK) {
         return;
     }
-    paths = dialog.get_paths();
+    std::vector<std::optional<fs::path>> output_paths{dialog.get_paths()};
     for (std::size_t path_index{0}; path_index < paths.size(); ++path_index) {
         prints_to_export[path_index].output_path = paths[path_index];
     }
@@ -6127,7 +6127,12 @@ void Plater::export_all_gcodes(bool prefer_removable) {
     bool path_on_removable_media{false};
 
 
-    for (const PrintToExport &print_to_export : prints_to_export) {
+    for (std::size_t path_index{0}; path_index < paths.size(); ++path_index) {
+        PrintToExport print_to_export{prints_to_export[path_index]};
+        if (!output_paths[path_index]) {
+            continue;
+        }
+        print_to_export.output_path = *output_paths[path_index];
         with_mocked_fff_background_process(
             print_to_export.print,
             print_to_export.processor_result,
@@ -6744,9 +6749,13 @@ void Plater::connect_gcode_all() {
     if (dialog.ShowModal() != wxID_OK) {
         return;
     }
-    paths = dialog.get_paths();
+    const std::vector<std::optional<fs::path>> output_paths{dialog.get_paths()};
 
     for (std::size_t print_index{0};  print_index < this->get_fff_prints().size(); ++print_index) {
+        if (!output_paths[print_index]) {
+            continue;
+        }
+
         const std::unique_ptr<Print> &print{this->get_fff_prints()[print_index]};
         if (!print || print->empty()) {
             continue;
@@ -6761,7 +6770,7 @@ void Plater::connect_gcode_all() {
                 upload_job.upload_data = upload_job_template.upload_data;
                 upload_job.printhost = std::make_unique<PrusaConnectNew>(connect);
                 upload_job.cancelled = upload_job_template.cancelled;
-                upload_job.upload_data.upload_path = paths[print_index];
+                upload_job.upload_data.upload_path = *output_paths[print_index];
                 this->p->background_process.prepare_upload(upload_job);
             }
         );
