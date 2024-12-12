@@ -35,7 +35,8 @@ enum class PrintStatus {
     finished,
     outside,
     invalid,
-    empty
+    empty,
+    toolpath_outside
 };
 
 bool is_sliceable(const PrintStatus status);

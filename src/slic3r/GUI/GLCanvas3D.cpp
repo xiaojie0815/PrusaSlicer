@@ -6230,10 +6230,20 @@ void GLCanvas3D::_render_background()
         use_error_color = m_dynamic_background_enabled &&
         (current_printer_technology() != ptSLA || !m_volumes.empty());
 
-        if (!m_volumes.empty())
-            use_error_color &= _is_any_volume_outside().first;
-        else
-            use_error_color &= m_gcode_viewer.has_data() && !m_gcode_viewer.is_contained_in_bed();
+        if (s_multiple_beds.is_autoslicing()) {
+            use_error_color &= std::any_of(
+                s_print_statuses.begin(),
+                s_print_statuses.end(),
+                [](const PrintStatus status){
+                    return status == PrintStatus::toolpath_outside;
+                }
+            );
+        } else {
+            if (!m_volumes.empty())
+                use_error_color &= _is_any_volume_outside().first;
+            else
+                use_error_color &= m_gcode_viewer.has_data() && !m_gcode_viewer.is_contained_in_bed();
+        }
     }
 
     // Draws a bottom to top gradient over the complete screen.
@@ -6581,11 +6591,12 @@ void GLCanvas3D::_render_overlays()
 std::string get_status_text(PrintStatus status) {
     switch(status) {
         case PrintStatus::idle: return _u8L("Unsliced");
-        case PrintStatus::running: return _u8L("Slicing...");
+        case PrintStatus::running: return _u8L("Slicing") + "...";
         case PrintStatus::finished: return _u8L("Sliced");
-        case PrintStatus::outside: return _u8L("Outside");
-        case PrintStatus::invalid: return _u8L("Invalid");
+        case PrintStatus::outside: return _u8L("Object at boundary");
+        case PrintStatus::invalid: return _u8L("Invalid data");
         case PrintStatus::empty: return _u8L("Empty");
+        case PrintStatus::toolpath_outside: return _u8L("Toolpath exceeds bounds");
     }
     return {};
 }
@@ -6598,6 +6609,7 @@ wchar_t get_raw_status_icon(const PrintStatus status) {
         case PrintStatus::outside: return ImGui::PrintIdle;
         case PrintStatus::invalid: return ImGui::PrintIdle;
         case PrintStatus::empty: return ImGui::PrintIdle;
+        case PrintStatus::toolpath_outside: return ImGui::PrintIdle;
     }
     return ImGui::PrintIdle;
 }
@@ -6740,8 +6752,11 @@ void Slic3r::GUI::GLCanvas3D::_render_bed_selector()
             }
 
             bool clicked = false;
-            if (!is_sliceable(print_status)) {
-                ImGui::Button(get_status_text(print_status).c_str(), btn_size + btn_padding);
+            if (
+                !is_sliceable(print_status)
+                || print_status == PrintStatus::toolpath_outside
+            ) {
+                clicked = ImGui::Button(get_status_text(print_status).c_str(), btn_size + btn_padding);
             } else if (
                 i >= int(s_bed_selector_thumbnail_texture_ids.size())
             ) {
