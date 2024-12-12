@@ -6765,9 +6765,20 @@ void Slic3r::GUI::GLCanvas3D::_render_bed_selector()
             bool clicked = false;
             if (
                 !is_sliceable(print_status)
-                || print_status == PrintStatus::toolpath_outside
             ) {
-                clicked = ImGui::Button(get_status_text(print_status).c_str(), btn_size + btn_padding);
+                clicked = button_with_icon(
+                    ImGui::WarningMarkerDisabled,
+                    get_status_text(print_status),
+                    !inactive,
+                    btn_size + btn_padding
+                );
+            } else if (print_status == PrintStatus::toolpath_outside) {
+                clicked = button_with_icon(
+                    ImGui::WarningMarker,
+                    get_status_text(print_status),
+                    !inactive,
+                    btn_size + btn_padding
+                );
             } else if (
                 i >= int(s_bed_selector_thumbnail_texture_ids.size())
             ) {
