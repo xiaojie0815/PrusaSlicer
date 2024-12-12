@@ -6624,13 +6624,14 @@ bool bed_selector_thumbnail(
     const float side,
     const float border,
     const float scale,
-    const GLuint texture_id,
+    const int bed_id,
     const std::optional<PrintStatus> status
 ) {
     ImGuiWindow* window = GImGui->CurrentWindow;
     const ImVec2 current_position = GImGui->CurrentWindow->DC.CursorPos;
     const ImVec2 state_pos = current_position + ImVec2(3.f * border, side - 20.f * scale);
 
+    const GLuint texture_id = s_bed_selector_thumbnail_texture_ids[bed_id];
     const bool clicked{ImGui::ImageButton(
         (void*)(int64_t)texture_id,
         size - padding,
@@ -6652,12 +6653,23 @@ bool bed_selector_thumbnail(
         );
     }
 
+    const ImVec2 id_pos = current_position + ImVec2(3.f * border, 1.5f * border);
+    const std::string id = std::to_string(bed_id+1);
+
+    window->DrawList->AddText(
+        GImGui->Font,
+        GImGui->FontSize * 1.5f,
+        id_pos,
+        ImGui::GetColorU32(ImGuiCol_Text),
+        id.c_str(),
+        id.c_str() + id.size()
+    );
+
     return clicked;
 }
 
-bool slice_all_beds_button(bool is_active, const ImVec2 size)
+bool button_with_icon(const wchar_t icon, const std::string& tooltip, bool is_active, const ImVec2 size)
 {
-    const wchar_t   icon = ImGui::SliceAllBtnIcon;
     std::string     btn_name = boost::nowide::narrow(std::wstring{ icon });
 
     ImGuiButtonFlags flags = ImGuiButtonFlags_None;
@@ -6697,9 +6709,8 @@ bool slice_all_beds_button(bool is_active, const ImVec2 size)
 
     IMGUI_TEST_ENGINE_ITEM_INFO(id, label, window->DC.LastItemStatusFlags);
 
-    if (ImGui::IsItemHovered()) {
-        ImGui::SetTooltip("%s", _u8L("Slice all").c_str());
-    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("%s", tooltip.c_str());
 
     return pressed;
 }
@@ -6770,7 +6781,7 @@ void Slic3r::GUI::GLCanvas3D::_render_bed_selector()
                     btn_side,
                     btn_border,
                     scale,
-                    s_bed_selector_thumbnail_texture_ids[i],
+                    i,
                     current_printer_technology() == ptFFF ? std::optional{print_status} : std::nullopt
                 );
             }
@@ -6830,7 +6841,7 @@ void Slic3r::GUI::GLCanvas3D::_render_bed_selector()
 
         if (
             current_printer_technology() == ptFFF &&
-            slice_all_beds_button(s_multiple_beds.is_autoslicing(), btn_size + btn_padding)
+            button_with_icon(ImGui::SliceAllBtnIcon, _u8L("Slice all"), s_multiple_beds.is_autoslicing(), btn_size + btn_padding)
         ) {
             if (!s_multiple_beds.is_autoslicing()) {
                 s_multiple_beds.start_autoslice([this](int i, bool user) { this->select_bed(i, user); });
