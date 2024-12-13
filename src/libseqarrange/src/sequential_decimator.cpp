@@ -64,14 +64,14 @@ void print_ConcludingMessage(void)
 void print_Help(void)
 {
     printf("Usage:\n");
-    printf("sequential_prusa [--input-file=<string>]\n");
-    printf("                 [--output-file=<string>]\n");
-    printf("                 [--tolerance=<double>]\n");
-    printf("                 [--x-pos=<double> (in mm)]\n");
-    printf("                 [--y-pos=<double> (in mm)]\n");
-    printf("                 [--x-nozzle=<int> (in coord_t)]\n");
-    printf("                 [--y-nozzle=<int> (in coord_t)]\n");            
-    printf("                 [--help]\n");		
+    printf("sequential_decimator [--input-file=<string>]\n");
+    printf("                     [--output-file=<string>]\n");
+    printf("                     [--tolerance=<double>]\n");
+    printf("                     [--x-pos=<double> (in mm)]\n");
+    printf("                     [--y-pos=<double> (in mm)]\n");
+    printf("                     [--x-nozzle=<int> (in coord_t)]\n");
+    printf("                     [--y-nozzle=<int> (in coord_t)]\n");            
+    printf("                     [--help]\n");		
     printf("\n");
     printf("\n");
     printf("Defaults: --input-file=arrange_data_export.txt\n");
@@ -215,6 +215,13 @@ int decimate_Polygons(const CommandParameters &command_parameters)
 	{	    
 	    cout << "    " << point.x() << "  " << point.y() << endl;
 	}
+
+	BoundingBox bounding_box = get_extents(shift_polygon);
+
+	cout << "    BB" << endl;
+	cout << "    " << bounding_box.min.x() << "  " << bounding_box.min.y() << endl;
+	cout << "    " << bounding_box.max.x() << "  " << bounding_box.max.y() << endl;
+	cout << endl;	
     }
     
     if (command_parameters.output_filename != "")

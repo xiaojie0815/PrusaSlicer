@@ -139,6 +139,8 @@
 #include "PresetArchiveDatabase.hpp"
 #include "BulkExportDialog.hpp"
 
+#include "ArrangeHelper.hpp"
+
 #ifdef __APPLE__
 #include "Gizmos/GLGizmosManager.hpp"
 #endif // __APPLE__
