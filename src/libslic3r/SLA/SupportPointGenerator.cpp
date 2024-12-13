@@ -517,8 +517,9 @@ void prepare_supports_for_layer(LayerSupportPoints &supports, float layer_z,
 /// <param name="config"></param>
 void remove_supports_out_of_part(NearPoints& near_points, const LayerPart &part,
     const SupportPointGeneratorConfig &config) {
-    ExPolygons extend_shape = offset_ex(*part.shape, config.removing_delta, ClipperLib::jtSquare);
-    near_points.remove_out_of(extend_shape);
+    // Offsetting is made in data preparation - speed up caused by paralelization 
+    //ExPolygons extend_shape = offset_ex(*part.shape, config.removing_delta, ClipperLib::jtSquare);
+    near_points.remove_out_of(part.extend_shape);
 }
 
 /// <summary>
@@ -662,8 +663,8 @@ SupportPointGeneratorData Slic3r::sla::prepare_generator_data(
 
     // Generate Extents and SampleLayers
     execution::for_each(ex_tbb, size_t(0), result.slices.size(),
-        [&result, &heights, throw_on_cancel](size_t layer_id) {
-        if ((layer_id % 8) == 0)
+    [&result, &heights, throw_on_cancel](size_t layer_id) {
+        if ((layer_id % 128) == 0)
             // Don't call the following function too often as it flushes
             // CPU write caches due to synchronization primitves.
             throw_on_cancel();
@@ -674,12 +675,12 @@ SupportPointGeneratorData Slic3r::sla::prepare_generator_data(
         layer.parts.reserve(islands.size());
         for (const ExPolygon &island : islands) {
             layer.parts.push_back(LayerPart{
-                &island, 
+                &island, {},
                 get_extents(island.contour)
                 // sample - only hangout part of expolygon could be known after linking
             });
         }        
-    }, 32 /*gransize*/);
+    }, 4 /*gransize*/);
 
     double sample_distance_in_um = scale_(config.discretize_overhang_step);
     double sample_distance_in_um2 = sample_distance_in_um * sample_distance_in_um;
@@ -687,8 +688,7 @@ SupportPointGeneratorData Slic3r::sla::prepare_generator_data(
     // Link parts by intersections
     execution::for_each(ex_tbb, size_t(1), result.slices.size(),
     [&result, sample_distance_in_um2, throw_on_cancel](size_t layer_id) {
-        if ((layer_id % 2) == 0)
-            // Don't call the following function too often as it flushes CPU write caches due to synchronization primitves.
+        if ((layer_id % 16) == 0)
             throw_on_cancel();
 
         LayerParts &parts_above = result.layers[layer_id].parts;
@@ -712,19 +712,32 @@ SupportPointGeneratorData Slic3r::sla::prepare_generator_data(
 
             if (it_above->prev_parts.empty())
                 continue;
+        }
+    }, 8 /* gransize */);
+
+    // Sample overhangs part of island
+    execution::for_each(ex_tbb, size_t(1), result.slices.size(),
+    [&result, sample_distance_in_um2, throw_on_cancel](size_t layer_id) {
+        if ((layer_id % 32) == 0)
+            throw_on_cancel();
+
+        LayerParts &parts = result.layers[layer_id].parts;
+        for (auto it_part = parts.begin(); it_part < parts.end(); ++it_part) {
+            if (it_part->prev_parts.empty())
+                continue; // island
 
             // IMPROVE: overhangs could be calculated with Z coordninate
-            // soo one will know source shape of point and do not have to search this information
-            // Get inspiration at https://github.com/Prusa-Development/PrusaSlicerPrivate/blob/e00c46f070ec3d6fc325640b0dd10511f8acf5f7/src/libslic3r/PerimeterGenerator.cpp#L399
-            it_above->samples = sample_overhangs(*it_above, sample_distance_in_um2);
+            // soo one will know source shape of point and do not have to search this
+            // information Get inspiration at
+            // https://github.com/Prusa-Development/PrusaSlicerPrivate/blob/e00c46f070ec3d6fc325640b0dd10511f8acf5f7/src/libslic3r/PerimeterGenerator.cpp#L399
+            it_part->samples = sample_overhangs(*it_part, sample_distance_in_um2);
         }
     }, 8 /* gransize */);
 
     // Detect peninsula
     execution::for_each(ex_tbb, size_t(1), result.slices.size(),
     [&layers = result.layers, &config, throw_on_cancel](size_t layer_id) {
-        if ((layer_id % 16) == 0)
-            // Don't call the following function too often as it flushes CPU write caches due to synchronization primitves.
+        if ((layer_id % 32) == 0)
             throw_on_cancel();
         LayerParts &parts = layers[layer_id].parts;
         for (auto it_part = parts.begin(); it_part < parts.end(); ++it_part) {
@@ -732,6 +745,16 @@ SupportPointGeneratorData Slic3r::sla::prepare_generator_data(
                 continue; // island
             create_peninsulas(*it_part, config);
         }
+    }, 8 /* gransize */);
+
+    // calc extended parts, more info PrepareSupportConfig::removing_delta
+    execution::for_each(ex_tbb, size_t(1), result.slices.size(),
+    [&layers = result.layers, delta = config.removing_delta, throw_on_cancel](size_t layer_id) {
+        if ((layer_id % 16) == 0)
+            throw_on_cancel();
+        LayerParts &parts = layers[layer_id].parts;
+        for (auto it_part = parts.begin(); it_part < parts.end(); ++it_part)
+            it_part->extend_shape = offset_ex(*it_part->shape, delta, ClipperLib::jtSquare);
     }, 8 /* gransize */);
     return result;
 }

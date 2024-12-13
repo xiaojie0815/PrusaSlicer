@@ -23,6 +23,12 @@ struct PrepareSupportConfig
 
     // Distance from previous layer part to still supported
     float peninsula_self_supported_width = scale_(1.5); // [in scaled mm]
+
+    // To be able support same 2d area multipletimes,
+    // It is neccessary to remove support point form near KDTree structure
+    // Must be greater than surface texture and lower than self supporting area
+    // May be use maximal island distance
+    float removing_delta = scale_(5.);
 };
 
 /// <summary>
