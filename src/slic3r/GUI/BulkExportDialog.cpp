@@ -18,7 +18,7 @@
 #include "GUI.hpp"
 #include "GUI_App.hpp"
 #include "format.hpp"
-#include "Tab.hpp"
+#include "MsgDialog.hpp"
 
 namespace fs = boost::filesystem;
 
@@ -27,7 +27,7 @@ namespace GUI {
 
 constexpr auto BORDER_W = 10;
 
-void BulkExportDialog::Item::init_input_name_ctrl(wxBoxSizer* input_path_sizer, const std::string &path)
+void BulkExportDialog::Item::init_input_name_ctrl(wxFlexGridSizer* row_sizer, const std::string &path)
 {
 #ifdef _WIN32
     const long style = wxBORDER_SIMPLE;
@@ -37,31 +37,52 @@ void BulkExportDialog::Item::init_input_name_ctrl(wxBoxSizer* input_path_sizer, 
     m_text_ctrl = new wxTextCtrl(m_parent, wxID_ANY, from_u8(path), wxDefaultPosition, wxSize(45 * wxGetApp().em_unit(), -1), style);
     wxGetApp().UpdateDarkUI(m_text_ctrl);
     m_text_ctrl->Bind(wxEVT_TEXT, [this](wxCommandEvent&) { update(); });
+    m_text_ctrl->Bind(wxEVT_UPDATE_UI, [this](wxUpdateUIEvent& event) { event.Enable(selected); });
 
-    input_path_sizer->Add(m_text_ctrl, 1, wxEXPAND, BORDER_W);
+    row_sizer->Add(m_text_ctrl, 1, wxEXPAND);
 }
+
+void BulkExportDialog::Item::init_selection_ctrl(wxFlexGridSizer* row_sizer, int bed_index)
+{
+    m_checkbox = new ::CheckBox(m_parent, std::to_string(bed_index + 1));
+    m_checkbox->SetFont(wxGetApp().bold_font());
+    wxGetApp().UpdateDarkUI(m_checkbox);
+    m_checkbox->Bind(wxEVT_CHECKBOX, [this](wxCommandEvent& event) {
+        this->selected = event.IsChecked();
+    });
+
+    row_sizer->Add(m_checkbox, 0, wxALIGN_CENTER_VERTICAL);
+    m_checkbox->SetValue(this->selected);
+}
+
 BulkExportDialog::Item::Item(
     wxWindow *parent,
-    wxBoxSizer *sizer,
-    const boost::filesystem::path &path,
+    wxFlexGridSizer*sizer,
+    const std::optional<const boost::filesystem::path>& path_opt,
+    const int bed_index,
     Validator validator
 ):
-    path(path),
+    bed_index(bed_index),
     m_parent(parent),
     m_valid_bmp(new wxStaticBitmap(m_parent, wxID_ANY, *get_bmp_bundle("tick_mark"))),
-    m_valid_label(new wxStaticText(m_parent, wxID_ANY, "")),
-    m_validator(std::move(validator)),
-    m_directory(path.parent_path())
+    m_validator(std::move(validator))
 {
-    m_valid_label->SetFont(wxGetApp().bold_font());
+    if (path_opt) {
+        path = *path_opt;
+        m_directory = path.parent_path();
+    }
 
-    wxBoxSizer* input_path_sizer = new wxBoxSizer(wxHORIZONTAL);
-    input_path_sizer->Add(m_valid_bmp, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, BORDER_W);
-    init_input_name_ctrl(input_path_sizer, path.filename().string());
+    init_selection_ctrl(sizer, bed_index);
+    init_input_name_ctrl(sizer, path.filename().string());
+    sizer->Add(m_valid_bmp, 0, wxALIGN_CENTER_VERTICAL | wxLEFT, BORDER_W);
 
-    sizer->Add(input_path_sizer,0, wxEXPAND | wxTOP, BORDER_W);
-    sizer->Add(m_valid_label,   0, wxEXPAND | wxLEFT,   3*BORDER_W);
+    if (!path_opt) {
+        m_checkbox->Enable(false);
+        m_checkbox->SetValue(false);
+        selected = false;
+    }
 
+    m_valid_bmp->Bind(wxEVT_UPDATE_UI, [this](wxUpdateUIEvent& event) { event.Show(selected); });
     update();
 }
 
@@ -157,13 +178,11 @@ void BulkExportDialog::Item::update()
     // for duplicates;
     const auto [status, info_line]{m_validator(path, filename)};
 
-    m_valid_label->SetLabel(info_line);
-    m_valid_label->Show(!info_line.IsEmpty());
+    m_valid_bmp->SetToolTip(info_line);
+
     m_status = status;
 
     update_valid_bmp();
-
-    m_parent->Layout();
 }
 
 std::string get_bmp_name(const BulkExportDialog::ItemStatus status) {
@@ -181,11 +200,11 @@ void BulkExportDialog::Item::update_valid_bmp()
     m_valid_bmp->SetBitmap(*get_bmp_bundle(get_bmp_name(m_status)));
 }
 
-BulkExportDialog::BulkExportDialog(const std::vector<fs::path> &paths):
+BulkExportDialog::BulkExportDialog(const std::vector<std::pair<int, std::optional<fs::path>>> &paths):
     DPIDialog(
         nullptr,
         wxID_ANY,
-        paths.size() == 1 ? _L("Save bed") : _L("Save beds"),
+        paths.size() == 1 ? _L("Export bed") : _L("Export beds"),
         wxDefaultPosition,
         wxSize(45 * wxGetApp().em_unit(), 5 * wxGetApp().em_unit()),
         wxDEFAULT_DIALOG_STYLE | wxICON_WARNING
@@ -199,15 +218,16 @@ BulkExportDialog::BulkExportDialog(const std::vector<fs::path> &paths):
 
     wxBoxSizer* topSizer = new wxBoxSizer(wxVERTICAL);
 
-    m_sizer = new wxBoxSizer(wxVERTICAL);
+    m_sizer = new wxFlexGridSizer(paths.size(), 3, wxSize(0.5*BORDER_W, BORDER_W));
 
-    for (const fs::path& path : paths) {
-        AddItem(path);
+    for (const auto&[bed_index, path] : paths) {
+        AddItem(path, bed_index);
     }
 
     // Add dialog's buttons
     wxStdDialogButtonSizer* btns = this->CreateStdDialogButtonSizer(wxOK | wxCANCEL);
     wxButton* btnOK = static_cast<wxButton*>(this->FindWindowById(wxID_OK, this));
+    btnOK->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) { accept(); });
     btnOK->Bind(wxEVT_UPDATE_UI, [this](wxUpdateUIEvent& evt)   { evt.Enable(enable_ok_btn()); });
 
     topSizer->Add(m_sizer,  0, wxEXPAND | wxALL, BORDER_W);
@@ -224,39 +244,64 @@ BulkExportDialog::BulkExportDialog(const std::vector<fs::path> &paths):
 #endif
 }
 
-void BulkExportDialog::AddItem(const fs::path& path)
+void BulkExportDialog::AddItem(const std::optional<const boost::filesystem::path>& path, int bed_index)
 {
-    m_items.push_back(std::make_unique<Item>(this, m_sizer, path, PathValidator{m_items}));
+    m_items.push_back(std::make_unique<Item>(this, m_sizer, path, bed_index, PathValidator{m_items}));
+}
+
+void BulkExportDialog::accept()
+{
+    if (has_warnings()) {
+        MessageDialog dialog(nullptr,
+            _L("Some of the selected files already exists. Do you want to replace them?"),
+            _L("Export Beds"), wxYES_NO | wxICON_QUESTION);
+        if (dialog.ShowModal() == wxID_NO)
+            return;
+    }
+
+    EndModal(wxID_OK);
 }
 
 bool BulkExportDialog::enable_ok_btn() const
 {
     for (const auto &item : m_items)
-        if (!item->is_valid()) {
+        if (item->selected && !item->is_valid()) {
             return false;
         }
 
-    return true;
+    bool all_unselected{ true };
+    for (const auto& item : m_items)
+        if (item->selected) {
+            all_unselected = false;
+            break;
+        }
+
+    return !all_unselected;
 }
 
-bool BulkExportDialog::Layout()
-{
-    const bool ret = DPIDialog::Layout();
-    this->Fit();
-    return ret;
-}
-
-std::vector<boost::filesystem::path> BulkExportDialog::get_paths() const {
-    std::vector<boost::filesystem::path> result;
+std::vector<std::pair<int, std::optional<fs::path>>> BulkExportDialog::get_paths() const {
+    std::vector<std::pair<int, std::optional<fs::path>>> result;
     std::transform(
         m_items.begin(),
         m_items.end(),
         std::back_inserter(result),
-        [](const auto &item){
-            return item->path;
+        [](const auto &item) -> std::pair<int, std::optional<fs::path>> {
+            if (!item->selected) {
+                return {item->bed_index, std::nullopt};
+            }
+            return {item->bed_index, item->path};
         }
     );
     return result;
+}
+
+bool BulkExportDialog::has_warnings() const
+{
+    for (const auto& item : m_items)
+        if (item->selected && item->is_warning()) {
+            return true;
+        }
+    return false;
 }
 
 void BulkExportDialog::on_dpi_changed(const wxRect&)

@@ -9,11 +9,15 @@
 #include <boost/filesystem/path.hpp>
 #include "wxExtensions.hpp"
 #include "GUI_Utils.hpp"
+#include <optional>
+
+#include "Widgets/CheckBox.hpp"
 
 class wxString;
 class wxStaticText;
 class wxTextCtrl;
 class wxStaticBitmap;
+class wxFlexGridSizer;
 
 namespace Slic3r {
 class Print;
@@ -36,8 +40,9 @@ public:
         >;
         Item(
             wxWindow *parent,
-            wxBoxSizer *sizer,
-            const boost::filesystem::path &path,
+            wxFlexGridSizer *sizer,
+            const std::optional<const boost::filesystem::path>& path,
+            const int bed_index,
             Validator validator
         );
         Item(const Item &) = delete;
@@ -49,39 +54,45 @@ public:
         // directly to its address.
 
         void update_valid_bmp();
-        bool is_valid() const { return m_status != ItemStatus::NoValid; }
+        bool is_valid()   const { return m_status != ItemStatus::NoValid; }
+        bool is_warning() const { return m_status == ItemStatus::Warning; }
 
         boost::filesystem::path path;
+        int bed_index{};
+        bool selected{true};
 
     private:
         ItemStatus m_status{ItemStatus::NoValid};
         wxWindow *m_parent{nullptr};
         wxStaticBitmap *m_valid_bmp{nullptr};
         wxTextCtrl *m_text_ctrl{nullptr};
-        wxStaticText *m_valid_label{nullptr};
+        ::CheckBox *m_checkbox{nullptr};
         Validator m_validator;
         boost::filesystem::path m_directory{};
 
-        void init_input_name_ctrl(wxBoxSizer *input_name_sizer, const std::string &path);
+        void init_input_name_ctrl(wxFlexGridSizer*row_sizer, const std::string &path);
+        void init_selection_ctrl(wxFlexGridSizer*row_sizer, int bed_index);
         void update();
     };
 
 private:
     // This must be a unique ptr, because Item does not have copy nor move constructors.
     std::vector<std::unique_ptr<Item>> m_items;
-    wxBoxSizer *m_sizer{nullptr};
+    wxFlexGridSizer*m_sizer{nullptr};
 
 public:
-    BulkExportDialog(const std::vector<boost::filesystem::path> &paths);
-    bool Layout() override;
-    std::vector<boost::filesystem::path> get_paths() const;
+
+    BulkExportDialog(const std::vector<std::pair<int, std::optional<boost::filesystem::path>>> &paths);
+    std::vector<std::pair<int, std::optional<boost::filesystem::path>>> get_paths() const;
+    bool has_warnings() const;
 
 protected:
     void on_dpi_changed(const wxRect &) override;
     void on_sys_color_changed() override {}
 
 private:
-    void AddItem(const boost::filesystem::path &path);
+    void AddItem(const std::optional<const boost::filesystem::path>& path, int bed_index);
+    void accept();
     bool enable_ok_btn() const;
 };
 

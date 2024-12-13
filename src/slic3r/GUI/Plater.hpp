@@ -58,6 +58,7 @@ namespace UndoRedo {
 namespace GUI {
 
 wxDECLARE_EVENT(EVT_SCHEDULE_BACKGROUND_PROCESS, SimpleEvent);
+wxDECLARE_EVENT(EVT_REGENERATE_BED_THUMBNAILS, SimpleEvent);
 
 class MainFrame;
 class GLCanvas3D;
@@ -122,7 +123,6 @@ public:
     void reload_print();
     void object_list_changed();
     void generate_thumbnail(ThumbnailData& data, unsigned int w, unsigned int h, const ThumbnailsParams& thumbnail_params, Camera::EType camera_type);
-    void regenerate_thumbnails();
 
     std::vector<size_t> load_files(const std::vector<boost::filesystem::path>& input_files, bool load_model = true, bool load_config = true, bool imperial_units = false);
     // To be called when providing a list of files to the GUI slic3r on command line.
@@ -216,6 +216,12 @@ public:
 
     void apply_cut_object_to_model(size_t init_obj_idx, const ModelObjectPtrs& cut_objects);
 
+    void with_mocked_fff_background_process(
+        Print &print,
+        GCodeProcessorResult &result,
+        const int bed_index,
+        const std::function<void()> &callable
+    );
     void export_gcode(bool prefer_removable);
     void export_all_gcodes(bool prefer_removable);
     void export_stl_obj(bool extended = false, bool selection_only = false);

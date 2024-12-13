@@ -170,6 +170,7 @@ wxDEFINE_EVENT(EVT_SLICING_COMPLETED,               wxCommandEvent);
 // BackgroundSlicingProcess finished either with success or error.
 wxDEFINE_EVENT(EVT_PROCESS_COMPLETED,               SlicingProcessCompletedEvent);
 wxDEFINE_EVENT(EVT_EXPORT_BEGAN,                    wxCommandEvent);
+wxDEFINE_EVENT(EVT_REGENERATE_BED_THUMBNAILS, SimpleEvent);
 
 // Plater::DropTarget
 
@@ -563,7 +564,7 @@ struct Plater::priv
 
     void generate_thumbnail(ThumbnailData& data, unsigned int w, unsigned int h, const ThumbnailsParams& thumbnail_params, Camera::EType camera_type);
     ThumbnailsList generate_thumbnails(const ThumbnailsParams& params, Camera::EType camera_type);
-    void regenerate_thumbnails();
+    void regenerate_thumbnails(SimpleEvent&);
 
     void bring_instance_forward() const;
 
@@ -581,8 +582,7 @@ struct Plater::priv
     std::string                 last_output_path;
     std::string                 last_output_dir_path;
     bool                        inside_snapshot_capture() { return m_prevent_snapshots != 0; }
-	bool                        process_completed_with_error { false };
-   
+
 private:
     bool layers_height_allowed() const;
 
@@ -772,6 +772,7 @@ void Plater::priv::init()
         q->Bind(EVT_EXPORT_BEGAN, &priv::on_export_began, this);
         q->Bind(EVT_GLVIEWTOOLBAR_3D, [this](SimpleEvent&) { q->select_view_3D("3D"); });
         q->Bind(EVT_GLVIEWTOOLBAR_PREVIEW, [this](SimpleEvent&) { q->select_view_3D("Preview"); });
+        q->Bind(EVT_REGENERATE_BED_THUMBNAILS, &priv::regenerate_thumbnails, this);
     }
 
     // Drop target:
@@ -1891,10 +1892,39 @@ void Plater::priv::selection_changed()
 void Plater::priv::object_list_changed()
 {
     const bool export_in_progress = this->background_process.is_export_scheduled(); // || ! send_gcode_file.empty());
-    // XXX: is this right?
-    const bool model_fits = view3D->get_canvas3d()->check_volumes_outside_state() == ModelInstancePVS_Inside;
+                                                                                    //
+    if (printer_technology == ptFFF) {
+        for (std::size_t bed_index{}; bed_index < s_multiple_beds.get_number_of_beds(); ++bed_index) {
+            if (
+                wxGetApp().plater()->get_fff_prints()[bed_index]->empty()) {
+                s_print_statuses[bed_index] = PrintStatus::empty;
+            }
+            for (const ModelObject *object : wxGetApp().model().objects) {
+                for (const ModelInstance *instance : object->instances) {
+                    const auto it{s_multiple_beds.get_inst_map().find(instance->id())};
+                    if (
+                        it != s_multiple_beds.get_inst_map().end()
+                        && it->second == bed_index
+                        && instance->printable
+                        && instance->print_volume_state == ModelInstancePVS_Partly_Outside
+                    ) {
+                        s_print_statuses[bed_index] = PrintStatus::outside;
+                        break;
+                    }
+                }
+            }
+        }
+    } else {
+        if (model.objects.empty()) {
+            s_print_statuses[s_multiple_beds.get_active_bed()] = PrintStatus::empty;
+        }
+    }
 
-    sidebar->enable_buttons(s_multiple_beds.is_bed_occupied(s_multiple_beds.get_active_bed()) && !model.objects.empty() && !export_in_progress && model_fits);
+    sidebar->enable_buttons(
+        s_multiple_beds.is_bed_occupied(s_multiple_beds.get_active_bed())
+        && !export_in_progress
+        && is_sliceable(s_print_statuses[s_multiple_beds.get_active_bed()])
+    );
 }
 
 void Plater::priv::select_all()
@@ -2182,7 +2212,7 @@ std::vector<Print::ApplyStatus> apply_to_inactive_beds(
     return result;
 }
 
-void Plater::priv::regenerate_thumbnails() {
+void Plater::priv::regenerate_thumbnails(SimpleEvent&) {
     const int num{s_multiple_beds.get_number_of_beds()};
     if (num <= 1 || num > MAX_NUMBER_OF_BEDS) {
         return;
@@ -2302,6 +2332,34 @@ unsigned int Plater::priv::update_background_process(bool force_validation, bool
         throw std::runtime_error{"Ivalid printer technology!"};
     }
 
+    for (std::size_t bed_index{}; bed_index < s_multiple_beds.get_number_of_beds(); ++bed_index) {
+        if (printer_technology == ptFFF) {
+            if (apply_statuses[bed_index] != Print::ApplyStatus::APPLY_STATUS_UNCHANGED) {
+                s_print_statuses[bed_index] = PrintStatus::idle;
+            }
+        } else if (printer_technology == ptSLA) {
+            if (apply_statuses[0] != Print::ApplyStatus::APPLY_STATUS_UNCHANGED) {
+                s_print_statuses[bed_index] = PrintStatus::idle;
+            }
+        } else {
+            throw std::runtime_error{"Ivalid printer technology!"};
+        }
+    }
+
+    if (printer_technology == ptFFF) {
+        for (std::size_t bed_index{0}; bed_index < q->p->fff_prints.size(); ++bed_index) {
+            const std::unique_ptr<Print> &print{q->p->fff_prints[bed_index]};
+            using MultipleBedsUtils::with_single_bed_model_fff;
+            with_single_bed_model_fff(model, bed_index, [&](){
+                std::vector<std::string> warnings;
+                std::string err{print->validate(&warnings)};
+                if (!err.empty()) {
+                    s_print_statuses[bed_index] = PrintStatus::invalid;
+                }
+            });
+        }
+    }
+
     const bool any_status_changed{std::any_of(
         apply_statuses.begin(),
         apply_statuses.end(),
@@ -2316,7 +2374,7 @@ unsigned int Plater::priv::update_background_process(bool force_validation, bool
 
     // If current bed was invalidated, update thumbnails for all beds:
     if (any_status_changed) {
-        regenerate_thumbnails();
+        wxQueueEvent(this->q, new SimpleEvent(EVT_REGENERATE_BED_THUMBNAILS));
     }
 
     // Just redraw the 3D canvas without reloading the scene to consume the update of the layer height profile.
@@ -2345,7 +2403,6 @@ unsigned int Plater::priv::update_background_process(bool force_validation, bool
 
         notification_manager->set_slicing_progress_hidden();
     }
-
 
     if ((invalidated != Print::APPLY_STATUS_UNCHANGED || force_validation) && ! background_process.empty()) {
 		// The delayed error message is no more valid.
@@ -2410,7 +2467,7 @@ unsigned int Plater::priv::update_background_process(bool force_validation, bool
                 return return_state;
             }
         }
-    
+
         if (! this->delayed_error_message.empty())
     	// Reusing the old state.
         return_state |= UPDATE_BACKGROUND_PROCESS_INVALID;
@@ -2423,7 +2480,6 @@ unsigned int Plater::priv::update_background_process(bool force_validation, bool
 		actualize_slicing_warnings(*this->background_process.current_print());
         actualize_object_warnings(*this->background_process.current_print());
 		show_warning_dialog = false;
-		process_completed_with_error = false;  
 	} 
 
     if (invalidated != Print::APPLY_STATUS_UNCHANGED && was_running && ! this->background_process.running() &&
@@ -2439,7 +2495,7 @@ unsigned int Plater::priv::update_background_process(bool force_validation, bool
         const wxString invalid_str = _L("Invalid data");
         for (auto btn : {ActionButtonType::Reslice, ActionButtonType::SendGCode, ActionButtonType::Export})
             sidebar->set_btn_label(btn, invalid_str);
-        process_completed_with_error = true;
+        s_print_statuses[s_multiple_beds.get_active_bed()] = PrintStatus::invalid;
     }
     else
     {
@@ -2455,9 +2511,7 @@ unsigned int Plater::priv::update_background_process(bool force_validation, bool
         const wxString slice_string = background_process.running() && wxGetApp().get_mode() == comSimple ?
                                       _L("Slicing") + dots : _L("Slice now");
         sidebar->set_btn_label(ActionButtonType::Reslice, slice_string);
-        if (background_process.empty()) {
-            sidebar->enable_buttons(false);
-        } else if (background_process.finished())
+        if (background_process.finished())
             show_action_buttons(false);
         else if (!background_process.empty() &&
                  !background_process.running()) /* Do not update buttons if background process is running
@@ -2467,6 +2521,7 @@ unsigned int Plater::priv::update_background_process(bool force_validation, bool
             show_action_buttons(true);
     }
 
+    this->q->object_list_changed();
     return return_state;
 }
 
@@ -3076,10 +3131,12 @@ void Plater::priv::set_current_panel(wxPanel* panel)
 
         if (wxGetApp().is_editor()) {
             // see: Plater::priv::object_list_changed()
-            // FIXME: it may be better to have a single function making this check and let it be called wherever needed
             bool export_in_progress = this->background_process.is_export_scheduled();
-            bool model_fits = view3D->get_canvas3d()->check_volumes_outside_state() != ModelInstancePVS_Partly_Outside;
-            if (s_multiple_beds.is_bed_occupied(s_multiple_beds.get_active_bed()) && !model.objects.empty() && !export_in_progress && model_fits) {
+            if (
+                s_multiple_beds.is_bed_occupied(s_multiple_beds.get_active_bed())
+                && !export_in_progress
+                && is_sliceable(s_print_statuses[s_multiple_beds.get_active_bed()])
+            ) {
                 preview->get_canvas3d()->init_gcode_viewer();
                 preview->get_canvas3d()->load_gcode_shells();
                 q->reslice();
@@ -3258,6 +3315,7 @@ void Plater::priv::on_slicing_began()
     notification_manager->close_notification_of_type(NotificationType::SignDetected);
     notification_manager->close_notification_of_type(NotificationType::ExportFinished);
     notification_manager->set_slicing_progress_began();
+    s_print_statuses[s_multiple_beds.get_active_bed()] = PrintStatus::running;
 }
 void Plater::priv::add_warning(const Slic3r::PrintStateBase::Warning& warning, size_t oid)
 {
@@ -3349,15 +3407,19 @@ void Plater::priv::on_process_completed(SlicingProcessCompletedEvent &evt)
             const wxString invalid_str = _L("Invalid data");
             for (auto btn : { ActionButtonType::Reslice, ActionButtonType::SendGCode, ActionButtonType::Export })
                 sidebar->set_btn_label(btn, invalid_str);
-            process_completed_with_error = true;
         }
         has_error = true;
+        s_print_statuses[s_multiple_beds.get_active_bed()] = PrintStatus::invalid;
     }
     if (evt.cancelled()) {
         this->notification_manager->set_slicing_progress_canceled(_u8L("Slicing Cancelled."));
+        s_print_statuses[s_multiple_beds.get_active_bed()] = PrintStatus::idle;
     }
 
     this->sidebar->show_sliced_info_sizer(evt.success());
+    if (evt.success()) {
+        s_print_statuses[s_multiple_beds.get_active_bed()] = PrintStatus::finished;
+    }
 
     // This updates the "Slice now", "Export G-code", "Arrange" buttons status.
     // Namely, it refreshes the "Out of print bed" property of all the ModelObjects, and it enables
@@ -4008,13 +4070,15 @@ void Plater::priv::show_autoslicing_action_buttons() const {
         sidebar->Layout();
     }
 
-    const bool all_finished{std::all_of(
-        this->fff_prints.begin(),
-        this->fff_prints.end(),
-        [](const std::unique_ptr<Print> &print){
-            return print->finished() || print->empty();
+    bool all_finished{true};
+    for (std::size_t bed_index{}; bed_index < s_multiple_beds.get_number_of_beds(); ++bed_index) {
+        const std::unique_ptr<Print> &print{this->fff_prints[bed_index]};
+        if (!print->finished() && is_sliceable(s_print_statuses[bed_index])) {
+            all_finished = false;
+            break;
         }
-    )};
+    }
+
     sidebar->enable_bulk_buttons(all_finished);
 }
 
@@ -4708,10 +4772,6 @@ void Plater::reload_print()
 void Plater::object_list_changed()
 {
     p->object_list_changed();
-}
-
-void Plater::regenerate_thumbnails() {
-    p->regenerate_thumbnails();
 }
 
 std::vector<size_t> Plater::load_files(const std::vector<fs::path>& input_files, bool load_model, bool load_config, bool imperial_units /*= false*/) { return p->load_files(input_files, load_model, load_config, imperial_units); }
@@ -5887,11 +5947,6 @@ std::optional<fs::path> Plater::get_multiple_output_dir(const std::string &start
     }
 
     const fs::path output_path{into_path(dlg.GetPath())};
-    if (auto error{check_output_path_has_error(output_path)}) {
-        const t_link_clicked on_link_clicked = [](const std::string& key) -> void { wxGetApp().jump_to_option(key); };
-        ErrorDialog(this, *error, on_link_clicked).ShowModal();
-        return std::nullopt;
-    }
     return output_path;
 }
 
@@ -5904,7 +5959,7 @@ void Plater::export_gcode(bool prefer_removable)
         return;
 
 
-    if (p->process_completed_with_error)
+    if (!is_sliceable(s_print_statuses[s_multiple_beds.get_active_bed()]))
         return;
 
     // If possible, remove accents from accented latin characters.
@@ -5956,15 +6011,40 @@ void Plater::export_gcode_to_path(
 struct PrintToExport {
     std::reference_wrapper<Slic3r::Print> print;
     std::reference_wrapper<Slic3r::GCodeProcessorResult> processor_result;
-    boost::filesystem::path output_path;
-    std::size_t bed{};
+    int bed{};
 };
+
+void Plater::with_mocked_fff_background_process(
+    Print &print,
+    GCodeProcessorResult &result,
+    const int bed_index,
+    const std::function<void()> &callable
+) {
+    Print *original_print{&active_fff_print()};
+    GCodeProcessorResult *original_result{this->p->background_process.get_gcode_result()};
+    const int original_bed{s_multiple_beds.get_active_bed()};
+    PrinterTechnology original_technology{this->printer_technology()};
+    ScopeGuard guard{[&](){
+        this->p->background_process.set_fff_print(original_print);
+        this->p->background_process.set_gcode_result(original_result);
+        this->p->background_process.select_technology(original_technology);
+        s_multiple_beds.set_active_bed(original_bed);
+    }};
+
+    this->p->background_process.set_fff_print(&print);
+    this->p->background_process.set_gcode_result(&result);
+    this->p->background_process.select_technology(this->p->printer_technology);
+    s_multiple_beds.set_active_bed(bed_index);
+
+    callable();
+}
 
 void Plater::export_all_gcodes(bool prefer_removable) {
     const auto optional_default_output_file{this->get_default_output_file()};
     if (!optional_default_output_file) {
         return;
     }
+
     const fs::path &default_output_file{*optional_default_output_file};
     const std::string start_dir{get_output_start_dir(prefer_removable, default_output_file)};
     const auto optional_output_dir{get_multiple_output_dir(start_dir)};
@@ -5973,58 +6053,76 @@ void Plater::export_all_gcodes(bool prefer_removable) {
     }
     const fs_path &output_dir{*optional_output_dir};
 
-    std::vector<PrintToExport> prints_to_export;
-    std::vector<fs::path> paths;
 
-    for (std::size_t print_index{0};  print_index < this->get_fff_prints().size(); ++print_index) {
+    std::map<int, PrintToExport> prints_to_export;
+    std::vector<std::pair< int, std::optional<fs::path> >> paths;
+
+    for (int print_index{0};  print_index < s_multiple_beds.get_number_of_beds(); ++print_index) {
         const std::unique_ptr<Print> &print{this->get_fff_prints()[print_index]};
-        if (!print || print->empty()) {
+        if (!print || !is_sliceable(s_print_statuses[print_index])) {
+            paths.emplace_back(print_index, std::nullopt);
             continue;
         }
 
+        fs::path default_filename{default_output_file.filename()};
+        this->with_mocked_fff_background_process(
+            *print,
+            this->p->gcode_results[print_index],
+            print_index,
+            [&](){
+                const auto optional_file{this->get_default_output_file()};
+                if (!optional_file) {
+                    return;
+                }
+                const fs::path &default_file{*optional_file};
+                default_filename = default_file.filename();
+            }
+        );
+
         const fs::path filename{
-            default_output_file.stem().string()
+            default_filename.stem().string()
             + "_bed"
             + std::to_string(print_index + 1)
-            + default_output_file.extension().string()
+            + default_filename.extension().string()
         };
         const fs::path output_file{output_dir / filename};
-        prints_to_export.push_back({*print, this->p->gcode_results[print_index], output_file, print_index});
-        paths.push_back(output_file);
+        prints_to_export.insert({
+            print_index,
+            {*print, this->p->gcode_results[print_index], print_index}
+        });
+        paths.emplace_back(print_index, output_file);
     }
 
     BulkExportDialog dialog{paths};
     if (dialog.ShowModal() != wxID_OK) {
         return;
     }
-    paths = dialog.get_paths();
-    for (std::size_t path_index{0}; path_index < paths.size(); ++path_index) {
-        prints_to_export[path_index].output_path = paths[path_index];
-    }
+    const std::vector<std::pair<int, std::optional<fs::path>>> output_paths{dialog.get_paths()};
 
     bool path_on_removable_media{false};
+    for (auto &[bed_index, optional_path] : output_paths) {
+        if (!optional_path) {
+            continue;
+        }
 
-    Print *original_print{&active_fff_print()};
-    GCodeProcessorResult *original_result{this->p->background_process.get_gcode_result()};
-    const int original_bed{s_multiple_beds.get_active_bed()};
-    ScopeGuard guard{[&](){
-        this->p->background_process.set_fff_print(original_print);
-        this->p->background_process.set_gcode_result(original_result);
-        s_multiple_beds.set_active_bed(original_bed);
-    }};
-
-    for (const PrintToExport &print_to_export : prints_to_export) {
-        this->p->background_process.set_fff_print(&print_to_export.print.get());
-        this->p->background_process.set_gcode_result(&print_to_export.processor_result.get());
-        this->p->background_process.set_temp_output_path(print_to_export.bed);
-        export_gcode_to_path(
-            print_to_export.output_path,
-            [&](const bool on_removable){
-                this->p->background_process.finalize_gcode(
-                    print_to_export.output_path.string(),
-                    path_on_removable_media
+        const PrintToExport &print_to_export{prints_to_export.at(bed_index)};
+        const fs::path &path{*optional_path};
+        with_mocked_fff_background_process(
+            print_to_export.print,
+            print_to_export.processor_result,
+            print_to_export.bed,
+            [&](){
+                this->p->background_process.set_temp_output_path(print_to_export.bed);
+                export_gcode_to_path(
+                    path,
+                    [&](const bool on_removable){
+                        this->p->background_process.finalize_gcode(
+                            path.string(),
+                            path_on_removable_media
+                        );
+                        path_on_removable_media = on_removable || path_on_removable_media;
+                    }
                 );
-                path_on_removable_media = on_removable || path_on_removable_media;
             }
         );
     }
@@ -6395,7 +6493,7 @@ void Plater::export_toolpaths_to_obj() const
 void Plater::reslice()
 {
     // There is "invalid data" button instead "slice now"
-    if (p->process_completed_with_error)
+    if (!is_sliceable(s_print_statuses[s_multiple_beds.get_active_bed()]))
         return;
 
     // In case SLA gizmo is in editing mode, refuse to continue
@@ -6605,35 +6703,55 @@ void Plater::connect_gcode_all() {
     }
     const PrusaConnectNew connect{*print_host_ptr};
 
-    Print *original_print{&active_fff_print()};
-    const int original_bed{s_multiple_beds.get_active_bed()};
-    PrinterTechnology original_technology{this->printer_technology()};
+    std::vector<std::pair< int, std::optional<fs::path> >> paths;
 
-    ScopeGuard guard{[&](){
-        this->p->background_process.set_fff_print(original_print);
-        s_multiple_beds.set_active_bed(original_bed);
-        this->p->background_process.select_technology(original_technology);
-    }};
-
-    for (std::size_t print_index{0};  print_index < this->get_fff_prints().size(); ++print_index) {
+    for (std::size_t print_index{0};  print_index < s_multiple_beds.get_number_of_beds(); ++print_index) {
         const std::unique_ptr<Print> &print{this->get_fff_prints()[print_index]};
+        if (!print || !is_sliceable(s_print_statuses[print_index])) {
+            paths.emplace_back(print_index, std::nullopt);
+            continue;
+        }
+
+        const fs::path filename{upload_job_template.upload_data.upload_path};
+        paths.emplace_back(print_index, fs::path{
+            filename.stem().string()
+            + "_bed" + std::to_string(print_index + 1)
+            + filename.extension().string()
+        });
+    }
+
+    BulkExportDialog dialog{paths};
+    if (dialog.ShowModal() != wxID_OK) {
+        return;
+    }
+    const std::vector<std::pair<int, std::optional<fs::path>>> output_paths{dialog.get_paths()};
+
+    for (const auto &key_value : output_paths) {
+        const int bed_index{key_value.first};
+        const std::optional<fs::path> &optional_path{key_value.second};
+        if (!optional_path) {
+            continue;
+        }
+        const fs::path &path{*optional_path};
+
+        const std::unique_ptr<Print> &print{this->get_fff_prints()[bed_index]};
         if (!print || print->empty()) {
             continue;
         }
-        this->p->background_process.set_fff_print(print.get());
-        this->p->background_process.set_temp_output_path(print_index);
-        this->p->background_process.select_technology(this->p->printer_technology);
-
-        PrintHostJob upload_job;
-        upload_job.upload_data = upload_job_template.upload_data;
-        upload_job.printhost = std::make_unique<PrusaConnectNew>(connect);
-        upload_job.cancelled = upload_job_template.cancelled;
-        const fs::path filename{upload_job.upload_data.upload_path};
-        upload_job.upload_data.upload_path =
-            filename.stem().string()
-            + "_bed" + std::to_string(print_index + 1)
-            + filename.extension().string();
-        this->p->background_process.prepare_upload(upload_job);
+        with_mocked_fff_background_process(
+            *print,
+            this->p->gcode_results[bed_index],
+            bed_index,
+            [&](){
+                this->p->background_process.set_temp_output_path(bed_index);
+                PrintHostJob upload_job;
+                upload_job.upload_data = upload_job_template.upload_data;
+                upload_job.printhost = std::make_unique<PrusaConnectNew>(connect);
+                upload_job.cancelled = upload_job_template.cancelled;
+                upload_job.upload_data.upload_path = path;
+                this->p->background_process.prepare_upload(upload_job);
+            }
+        );
     }
 }
 
