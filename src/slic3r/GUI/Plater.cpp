@@ -6060,11 +6060,12 @@ void Plater::export_all_gcodes(bool prefer_removable) {
 
 
     std::map<int, PrintToExport> prints_to_export;
-    std::vector<std::pair<int, fs::path>> paths;
+    std::vector<std::pair< int, std::optional<fs::path> >> paths;
 
-    for (int print_index{0};  print_index < this->get_fff_prints().size(); ++print_index) {
+    for (int print_index{0};  print_index < s_multiple_beds.get_number_of_beds(); ++print_index) {
         const std::unique_ptr<Print> &print{this->get_fff_prints()[print_index]};
         if (!print || !is_sliceable(s_print_statuses[print_index])) {
+            paths.emplace_back(print_index, std::nullopt);
             continue;
         }
 
@@ -6707,11 +6708,12 @@ void Plater::connect_gcode_all() {
     }
     const PrusaConnectNew connect{*print_host_ptr};
 
-    std::vector<std::pair<int, fs::path>> paths;
+    std::vector<std::pair< int, std::optional<fs::path> >> paths;
 
-    for (std::size_t print_index{0};  print_index < this->get_fff_prints().size(); ++print_index) {
+    for (std::size_t print_index{0};  print_index < s_multiple_beds.get_number_of_beds(); ++print_index) {
         const std::unique_ptr<Print> &print{this->get_fff_prints()[print_index]};
         if (!print || !is_sliceable(s_print_statuses[print_index])) {
+            paths.emplace_back(print_index, std::nullopt);
             continue;
         }
 
