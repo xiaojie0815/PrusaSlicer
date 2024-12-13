@@ -691,14 +691,10 @@ void PrintablesConnectUploadDialog::on_connect_action_close_dialog(const std::st
 }
 
 LoginWebViewDialog::LoginWebViewDialog(wxWindow *parent, std::string &ret_val, const wxString& url, wxEvtHandler* evt_handler)
-    : WebViewDialog(parent, GUI::format_wxstr("file://%1%/web/other_loading.html", boost::filesystem::path(resources_dir()).generic_string()), _L("Log in dialog"), wxSize(50 * wxGetApp().em_unit(), 80 * wxGetApp().em_unit()), {})
+    : WebViewDialog(parent, url, _L("Log in dialog"), wxSize(50 * wxGetApp().em_unit(), 80 * wxGetApp().em_unit()), {})
     , m_ret_val(ret_val)
     , p_evt_handler(evt_handler)
 {
-    // Loading screen is sent to WebViewDialog constructor to first load.
-    // In on_loaded real url is requested.
-    // This gives us space to delete cookies before requesting login page. (So it is never logged in)
-    m_default_url = url;
     Centre();
 }
 void LoginWebViewDialog::on_navigation_request(wxWebViewEvent &evt)
@@ -731,22 +727,6 @@ void LoginWebViewDialog::on_dpi_changed(const wxRect &suggested_rect)
     SetMinSize(size);
     Fit();
     Refresh();
-}
-
-void LoginWebViewDialog::on_loaded(wxWebViewEvent &evt)
-{
-    BOOST_LOG_TRIVIAL(debug) << "LoginWebViewDialog::on_loaded " << evt.GetURL();  
-    
-    if (!m_did_default_url_request && evt.GetURL().Find("/web/other_loading.html") != wxNOT_FOUND) {
-        m_did_default_url_request = true;
-        delete_cookies(m_browser, Utils::ServiceConfig::instance().account_url());
-        delete_cookies(m_browser, "https://accounts.google.com");
-        delete_cookies(m_browser, "https://appleid.apple.com");
-        delete_cookies(m_browser, "https://facebook.com");
-        m_browser->LoadURL(m_default_url);
-        return;
-    }
-    
 }
 } // GUI
 } // Slic3r
