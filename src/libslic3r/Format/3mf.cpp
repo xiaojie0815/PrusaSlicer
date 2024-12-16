@@ -1432,9 +1432,10 @@ namespace Slic3r {
                                                     float(std::atof(object_data_points[i+0].c_str())),
                                                     float(std::atof(object_data_points[i+1].c_str())),
                                                     float(std::atof(object_data_points[i+2].c_str()))),
-                                                    float(std::atof(object_data_points[i+3].c_str()))});
-													//FIXME storing boolean as 0 / 1 and importing it as float.
-                                                    //std::abs(std::atof(object_data_points[i+4].c_str()) - 1.) < EPSILON);
+                                                float(std::atof(object_data_points[i+3].c_str())),
+												//FIXME storing boolean as 0 / 1 and importing it as float.
+                                                std::abs(std::atof(object_data_points[i+4].c_str()) - 1.) < EPSILON ?
+                                                    sla::SupportPointType::island : sla::SupportPointType::manual_add});
                 }
 
                 if (!sla_support_points.empty())

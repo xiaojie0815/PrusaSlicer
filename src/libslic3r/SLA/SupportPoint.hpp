@@ -22,9 +22,9 @@ enum class SupportPointType {
     manual_add,
     island, // no move, island should be grouped
     slope,
-    thin,
-    stability,
-    edge
+    //thin,
+    //stability,
+    //edge
 };
 
 /// <summary>

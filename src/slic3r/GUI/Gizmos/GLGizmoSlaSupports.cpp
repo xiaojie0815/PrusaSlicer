@@ -3,6 +3,7 @@
 ///|/
 ///|/ PrusaSlicer is released under the terms of the AGPLv3 or higher
 ///|/
+#include <format>
 #include "libslic3r/libslic3r.h"
 #include "GLGizmoSlaSupports.hpp"
 #include "slic3r/GUI/MainFrame.hpp"
@@ -17,6 +18,7 @@
 #include "slic3r/GUI/GUI.hpp"
 #include "slic3r/GUI/GUI_ObjectSettings.hpp"
 #include "slic3r/GUI/GUI_ObjectList.hpp"
+#include "slic3r/GUI/format.hpp"
 #include "slic3r/GUI/NotificationManager.hpp"
 #include "slic3r/GUI/MsgDialog.hpp"
 #include "libslic3r/PresetBundle.hpp"
@@ -46,8 +48,7 @@ bool GLGizmoSlaSupports::on_init()
     m_desc["remove_all"]       = _u8L("Remove all points");
     m_desc["apply_changes"]    = _u8L("Apply changes");
     m_desc["discard_changes"]  = _u8L("Discard changes");
-    m_desc["minimal_distance"] = _u8L("Minimal points distance") + ": ";
-    m_desc["points_density"]   = _u8L("Support points density") + ": ";
+    m_desc["points_density"]   = _u8L("Support points density");
     m_desc["auto_generate"]    = _u8L("Auto-generate points");
     m_desc["manual_editing"]   = _u8L("Manual editing");
     m_desc["clipping_of_view"] = _u8L("Clipping of view")+ ": ";
@@ -597,7 +598,7 @@ RENDER_AGAIN:
 
     // First calculate width of all the texts that are could possibly be shown. We will decide set the dialog width based on that:
 
-    const float settings_sliders_left = std::max(ImGuiPureWrap::calc_text_size(m_desc.at("minimal_distance")).x, ImGuiPureWrap::calc_text_size(m_desc.at("points_density")).x) + m_imgui->scaled(1.f);
+    const float settings_sliders_left = ImGuiPureWrap::calc_text_size(m_desc.at("points_density")).x + m_imgui->scaled(1.f);
     const float clipping_slider_left = std::max(ImGuiPureWrap::calc_text_size(m_desc.at("clipping_of_view")).x, ImGuiPureWrap::calc_text_size(m_desc.at("reset_direction")).x) + m_imgui->scaled(1.5f);
     const float diameter_slider_left = ImGuiPureWrap::calc_text_size(m_desc.at("head_diameter")).x + m_imgui->scaled(1.f);
     const float minimal_slider_width = m_imgui->scaled(4.f);
@@ -679,64 +680,72 @@ RENDER_AGAIN:
     }
     else { // not in editing mode:
         m_imgui->disabled_begin(!is_input_enabled());
-        if (int density = static_cast<const ConfigOptionInt*>(get_config_options({"support_points_density_relative"})[0])->value;
-            ImGui::SliderInt("points_density", &density, 0, 200, "%d %%")) {
-            mo->config.set("support_points_density_relative", density);
-        } else if (ImGui::IsItemHovered()) {
-             ImGui::SetTooltip("Divider for the supported radius\nSmaller mean less point(75% -> supported radius is enlaged to 133%, for 50% it is 200% of radius)\nLarger mean more points(125% -> supported radius is reduced to 80%, for value 150% it is 66% of radius, for 200% -> 50%)");
-        }
+        //ImGui::AlignTextToFramePadding();
 
+        ImGuiPureWrap::text(m_desc.at("points_density"));
+        //ImGui::SameLine(settings_sliders_left);
+        const char *support_points_density = "support_points_density_relative";
+        float density = static_cast<const ConfigOptionInt*>(get_config_options({support_points_density})[0])->value;        
+        if (m_imgui->slider_float("##density", &density, 0.f, 200.f, "%.f %%")){
+            mo->config.set(support_points_density, (int) density);
+        } else if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Divider for the supported radius\n"
+                "Smaller value means less point, supported radius is enlarged.\n"
+                "Larger value means more points, supported radius is reduced.\n"
+                "-- density percent ----- radisu change from 100 --\n"
+                "|         50         |             200           |\n"
+                "|         75         |             133           |\n"
+                "|        125         |              80           |\n"
+                "|        150         |              66           |\n"
+                "|        200         |              50           |\n");
+        
+        const ImGuiWrapper::LastSliderStatus &density_status = m_imgui->get_last_slider_status();
+        static std::optional<int> density_stash; // Value for undo/redo stack is written on stop dragging
+        if (density_status.clicked) // stash the values of the settings so we know what to revert to after undo
+            density_stash = (int)density;
+        if (density_status.deactivated_after_edit && density_stash.has_value()) { //  slider released
+            mo->config.set(support_points_density, *density_stash);
+            density_stash.reset();
+            Plater::TakeSnapshot snapshot(wxGetApp().plater(), _L("Support parameter change"));
+            mo->config.set(support_points_density, (int) density);
+            wxGetApp().obj_list()->update_and_show_object_settings_item();
+        }
+                
+        const sla::SupportPoints &supports = m_normal_cache;
+        int count_user_edited = 0;
+        int count_island = 0;
+        for (const sla::SupportPoint &support : supports)
+            switch (support.type) { 
+            case sla::SupportPointType::manual_add: ++count_user_edited; break;
+            case sla::SupportPointType::island:     ++count_island;      break;
+            //case sla::SupportPointType::slope:
+            default: assert(support.type == sla::SupportPointType::slope); }
+
+        std::string stats;
+        if (supports.empty()) {
+            stats = "No support points generated yet.";
+        } else if (count_user_edited == 0) {
+            stats = GUI::format("%d support points generated (%d on islands)",
+                (int) supports.size(), count_island);
+        } else {
+            stats = GUI::format("%d(%d manual) support points (%d on islands)", 
+                (int) supports.size(), count_user_edited, count_island);
+        }
+        ImVec4 light_gray{0.4f, 0.4f, 0.4f, 1.0f};
+        ImGui::TextColored(light_gray, stats.c_str());
+
+        ImGui::Separator(); // START temporary debug
+        ImGui::Text("Between delimiters is temporary GUI");
         sla::SampleConfig &sample_config = sla::SampleConfigFactory::get_sample_config();
         if (float overhang_sample_distance = sample_config.prepare_config.discretize_overhang_step;
             m_imgui->slider_float("overhang discretization", &overhang_sample_distance, 2e-5f, 10.f, "%.2f mm")){
             sample_config.prepare_config.discretize_overhang_step = overhang_sample_distance;
         } else if (ImGui::IsItemHovered())
             ImGui::SetTooltip("Smaller will slow down. Step for discretization overhang outline for test of support need");        
-
+        
         draw_island_config();
-       
-
         ImGui::Text("Distribution depends on './resources/data/sla_support.svg'\ninstruction for edit are in file");
-
-        //ImGui::AlignTextToFramePadding();
-        //ImGuiPureWrap::text(m_desc.at("minimal_distance"));
-        //ImGui::SameLine(settings_sliders_left);
-        //ImGui::PushItemWidth(window_width - settings_sliders_left);
-
-        //std::vector<const ConfigOption*> opts = get_config_options({"support_points_density_relative", "support_points_minimal_distance"});
-        //float density = static_cast<const ConfigOptionInt*>(opts[0])->value;
-        //float minimal_point_distance = static_cast<const ConfigOptionFloat*>(opts[1])->value;
-
-        //m_imgui->slider_float("##minimal_point_distance", &minimal_point_distance, 0.f, 20.f, "%.f mm");
-        //bool slider_clicked = m_imgui->get_last_slider_status().clicked; // someone clicked the slider
-        //bool slider_edited = m_imgui->get_last_slider_status().edited; // someone is dragging the slider
-        //bool slider_released = m_imgui->get_last_slider_status().deactivated_after_edit; // someone has just released the slider
-
-        //ImGui::AlignTextToFramePadding();
-        //ImGuiPureWrap::text(m_desc.at("points_density"));
-        //ImGui::SameLine(settings_sliders_left);
-
-        //m_imgui->slider_float("##points_density", &density, 0.f, 200.f, "%.f %%");
-        //slider_clicked |= m_imgui->get_last_slider_status().clicked;
-        //slider_edited |= m_imgui->get_last_slider_status().edited;
-        //slider_released |= m_imgui->get_last_slider_status().deactivated_after_edit;
-
-        //if (slider_clicked) { // stash the values of the settings so we know what to revert to after undo
-        //    m_minimal_point_distance_stash = minimal_point_distance;
-        //    m_density_stash = density;
-        //}
-        //if (slider_edited) {
-        //    mo->config.set("support_points_minimal_distance", minimal_point_distance);
-        //    mo->config.set("support_points_density_relative", (int)density);
-        //}
-        //if (slider_released) {
-        //    mo->config.set("support_points_minimal_distance", m_minimal_point_distance_stash);
-        //    mo->config.set("support_points_density_relative", (int)m_density_stash);
-        //    Plater::TakeSnapshot snapshot(wxGetApp().plater(), _L("Support parameter change"));
-        //    mo->config.set("support_points_minimal_distance", minimal_point_distance);
-        //    mo->config.set("support_points_density_relative", (int)density);
-        //    wxGetApp().obj_list()->update_and_show_object_settings_item();
-        //}
+        ImGui::Separator();
 
         if (ImGuiPureWrap::button(m_desc.at("auto_generate")))
             auto_generate();
@@ -1270,10 +1279,9 @@ void GLGizmoSlaSupports::get_data_from_backend()
     for (const SLAPrintObject* po : m_parent.sla_print()->objects()) {
         if (po->model_object()->id() == mo->id()) {
             m_normal_cache.clear();
-            const std::vector<sla::SupportPoint>& points = po->get_support_points();
             auto mat = po->trafo().inverse().cast<float>();
-            for (unsigned int i=0; i<points.size();++i)
-                m_normal_cache.emplace_back(sla::SupportPoint{mat * points[i].pos, points[i].head_front_radius});
+            for (const sla::SupportPoint &p : po->get_support_points())
+                m_normal_cache.emplace_back(sla::SupportPoint{mat * p.pos, p.head_front_radius, p.type});
 
             mo->sla_points_status = sla::PointsStatus::AutoGenerated;
             break;
