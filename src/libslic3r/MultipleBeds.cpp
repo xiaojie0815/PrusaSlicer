@@ -355,6 +355,8 @@ void MultipleBeds::update_shown_beds(Model& model, const BuildVolume& build_volu
     m_number_of_beds = std::min(this->get_max_beds(), max_bed + 1);
     model.update_print_volume_state(build_volume);
     set_active_bed(m_number_of_beds != original_number_of_beds ? 0 : stash_active);
+    if (m_number_of_beds != original_number_of_beds)
+        request_next_bed(false);
 }
 
 bool MultipleBeds::rearrange_after_load(Model& model, const BuildVolume& build_volume)
@@ -372,6 +374,8 @@ bool MultipleBeds::rearrange_after_load(Model& model, const BuildVolume& build_v
         model.update_print_volume_state(build_volume);
         request_next_bed(false);
         set_active_bed(m_number_of_beds != original_number_of_beds ? 0 : stash_active);
+        if (m_number_of_beds != original_number_of_beds)
+            request_next_bed(false);
     });
 
     m_legacy_layout = true;
