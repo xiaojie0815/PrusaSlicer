@@ -4047,7 +4047,6 @@ void Plater::priv::show_autoslicing_action_buttons() const {
     if (!s_multiple_beds.is_autoslicing()) {
         return;
     }
-    wxWindowUpdateLocker noUpdater(sidebar);
 
     DynamicPrintConfig* selected_printer_config = wxGetApp().preset_bundle->physical_printers.get_selected_printer_config();
     const auto print_host_opt = selected_printer_config ? selected_printer_config->option<ConfigOptionString>("print_host") : nullptr;
