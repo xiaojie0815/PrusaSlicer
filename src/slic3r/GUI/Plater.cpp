@@ -1618,7 +1618,7 @@ std::vector<size_t> Plater::priv::load_files(const std::vector<fs::path>& input_
     q->canvas3D()->check_volumes_outside_state();
     s_multiple_beds.ensure_wipe_towers_on_beds(model, fff_prints);
     s_multiple_beds.update_shown_beds(model, q->build_volume());
-    update();
+    update((unsigned int)UpdateParams::FORCE_BACKGROUND_PROCESSING_UPDATE);
 
     return obj_idxs;
 }
