@@ -709,6 +709,7 @@ RENDER_AGAIN:
             Plater::TakeSnapshot snapshot(wxGetApp().plater(), _L("Support parameter change"));
             mo->config.set(support_points_density, (int) density);
             wxGetApp().obj_list()->update_and_show_object_settings_item();
+            auto_generate();
         }
                 
         const sla::SupportPoints &supports = m_normal_cache;

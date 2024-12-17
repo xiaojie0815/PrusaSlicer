@@ -469,6 +469,26 @@ template<class Cont> BoundingBoxf3 csgmesh_positive_bb(const Cont &csg)
     return bb3d;
 }
 
+void SLAPrint::Steps::prepare_for_generate_supports(SLAPrintObject &po) {
+    using namespace sla;
+    std::vector<ExPolygons> slices = po.get_model_slices(); // copy
+    const std::vector<float> &heights = po.m_model_height_levels;
+    const PrepareSupportConfig &prepare_cfg = SampleConfigFactory::get_sample_config().prepare_config;
+    ThrowOnCancel cancel = [this]() { throw_if_canceled(); };
+
+    // scaling for the sub operations
+    double d = objectstep_scale * OBJ_STEP_LEVELS[slaposSupportPoints] / 200.0;
+    double init = current_status();
+    StatusFunction status = [this, d, init](unsigned st) {
+        double current = init + st * d;
+        if (std::round(current_status()) < std::round(current))
+            report_status(current, OBJ_STEP_LABELS(slaposSupportPoints));
+    };
+
+    po.m_support_point_generator_data =
+        prepare_generator_data(std::move(slices), heights, prepare_cfg, cancel, status);
+}
+
 // The slicing will be performed on an imaginary 1D grid which starts from
 // the bottom of the bounding box created around the supported model. So
 // the first layer which is usually thicker will be part of the supports
@@ -543,6 +563,8 @@ void SLAPrint::Steps::slice_model(SLAPrintObject &po)
     // We apply the printer correction offset here.
     apply_printer_corrections(po, soModel);
 
+    // We need to prepare data in previous step to create interactive support point generation
+    prepare_for_generate_supports(po);
 //    po.m_preview_meshes[slaposObjectSlice] = po.get_mesh_to_print();
 //    report_status(-2, "", SlicingStatus::RELOAD_SLA_PREVIEW);
 }
@@ -677,17 +699,11 @@ void SLAPrint::Steps::support_points(SLAPrintObject &po)
     // TODO: filter small unprintable islands in slices
     // (Island with area smaller than 1 pixel was skipped in support generator)
 
-    std::vector<ExPolygons> slices = po.get_model_slices(); // copy
-    const std::vector<float>& heights = po.m_model_height_levels;
     ThrowOnCancel cancel = [this]() { throw_if_canceled(); };
     StatusFunction status = statuscb;
 
-    const PrepareSupportConfig &prepare_cfg = config.island_configuration.prepare_config;
-    SupportPointGeneratorData data = 
-        prepare_generator_data(std::move(slices), heights, prepare_cfg, cancel, status);
-
     LayerSupportPoints layer_support_points = 
-        generate_support_points(data, config, cancel, status);
+        generate_support_points(po.m_support_point_generator_data, config, cancel, status);
 
     const AABBMesh& emesh = po.m_supportdata->input.emesh;
     // Maximal move of support point to mesh surface,
