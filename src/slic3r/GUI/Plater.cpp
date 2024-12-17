@@ -7342,6 +7342,7 @@ bool Plater::set_printer_technology(PrinterTechnology printer_technology)
     p->printer_technology = printer_technology;
     bool ret = p->background_process.select_technology(printer_technology);
     if (ret) {
+        s_print_statuses.fill(PrintStatus::idle);
         // Update the active presets.
     }
     //FIXME for SLA synchronize
