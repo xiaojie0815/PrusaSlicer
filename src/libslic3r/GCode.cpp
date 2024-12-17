@@ -1356,8 +1356,15 @@ void GCodeGenerator::_do_export(Print& print, GCodeOutputStream &file, Thumbnail
                     } else {
                         // Just continue printing, no action necessary.
                     }
-
                 }
+
+                // When priming is enabled, extruders are ordered (inside ToolOrdering::collect_extruder_statistics())
+                // in such a way that the last one is the first printing extruder (actually printing, not just priming).
+                const unsigned int first_printing_extruder_after_priming = tool_ordering.all_extruders().back();
+
+                // Because CoolingBuffer doesn't process the priming of extruders, set the current extruder
+                // to the actual first printing extruder (that is also the last primed extruder).
+                m_cooling_buffer->set_current_extruder(first_printing_extruder_after_priming);
             }
             print.throw_if_canceled();
         }
