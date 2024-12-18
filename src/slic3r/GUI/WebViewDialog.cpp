@@ -15,6 +15,7 @@
 
 #include <libslic3r/PresetBundle.hpp> // IWYU pragma: keep
 
+#include <thread>
 
 #include <wx/webview.h>
 #include <wx/display.h>
@@ -80,7 +81,7 @@ WebViewDialog::WebViewDialog(wxWindow* parent, const wxString& url, const wxStri
         topsizer->Add(text, 0, wxALIGN_LEFT | wxBOTTOM, 10);
         return;
     }
-    WebView::webview_create(m_browser, this, GUI::format_wxstr("file://%1%/web/%2%.html", boost::filesystem::path(resources_dir()).generic_string(), m_loading_html), m_script_message_hadler_names);
+    WebView::webview_create(m_browser, this, url, m_script_message_hadler_names);
     
     if (Utils::ServiceConfig::instance().webdev_enabled()) {
         m_browser->EnableContextMenu();
@@ -139,7 +140,6 @@ WebViewDialog::WebViewDialog(wxWindow* parent, const wxString& url, const wxStri
 
     Bind(wxEVT_CLOSE_WINDOW, ([this](wxCloseEvent& evt) { EndModal(wxID_CANCEL); }));
 
-    m_browser->LoadURL(url);   
 #ifdef DEBUG_URL_PANEL
     m_url->SetLabelText(url);
 #endif
@@ -706,6 +706,7 @@ void LoginWebViewDialog::on_navigation_request(wxWebViewEvent &evt)
         delete_cookies(m_browser, "https://appleid.apple.com");
         delete_cookies(m_browser, "https://facebook.com");
         evt.Veto();
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
         m_ret_val = into_u8(url);
         EndModal(wxID_OK);
     } else if (url.Find(L"accounts.google.com") != wxNOT_FOUND
