@@ -22,14 +22,6 @@
 #include "TriangleSelector.hpp"
 #include "MultipleBeds.hpp"
 
-#include "Format/AMF.hpp"
-#include "Format/OBJ.hpp"
-#include "Format/STL.hpp"
-#include "Format/3mf.hpp"
-#include "Format/STEP.hpp"
-#include "Format/SVG.hpp"
-#include "Format/PrintRequest.hpp"
-
 #include <float.h>
 
 #include <boost/algorithm/string/predicate.hpp>
@@ -148,109 +140,6 @@ const CustomGCode::Info& Model::custom_gcode_per_print_z() const
 {
     return custom_gcode_per_print_z_vector[s_multiple_beds.get_active_bed()];
 }
-
-
-// Loading model from a file, it may be a simple geometry file as STL or OBJ, however it may be a project file as well.
-Model Model::read_from_file(const std::string& input_file, DynamicPrintConfig* config, ConfigSubstitutionContext* config_substitutions, LoadAttributes options)
-{
-    Model model;
-
-    DynamicPrintConfig temp_config;
-    ConfigSubstitutionContext temp_config_substitutions_context(ForwardCompatibilitySubstitutionRule::EnableSilent);
-    if (config == nullptr)
-        config = &temp_config;
-    if (config_substitutions == nullptr)
-        config_substitutions = &temp_config_substitutions_context;
-
-    bool result = false;
-    if (boost::algorithm::iends_with(input_file, ".stl"))
-        result = load_stl(input_file.c_str(), &model);
-    else if (boost::algorithm::iends_with(input_file, ".obj"))
-        result = load_obj(input_file.c_str(), &model);
-    else if (boost::algorithm::iends_with(input_file, ".step") || boost::algorithm::iends_with(input_file, ".stp"))
-        result = load_step(input_file.c_str(), &model);
-    else if (boost::algorithm::iends_with(input_file, ".amf") || boost::algorithm::iends_with(input_file, ".amf.xml"))
-        result = load_amf(input_file.c_str(), config, config_substitutions, &model, options & LoadAttribute::CheckVersion);
-    else if (boost::algorithm::iends_with(input_file, ".3mf") || boost::algorithm::iends_with(input_file, ".zip")) {
-        //FIXME options & LoadAttribute::CheckVersion ? 
-        boost::optional<Semver> prusaslicer_generator_version;
-        result = load_3mf(input_file.c_str(), *config, *config_substitutions, &model, false, prusaslicer_generator_version);
-    } else if (boost::algorithm::iends_with(input_file, ".svg"))
-        result = load_svg(input_file, model);
-    else if (boost::ends_with(input_file, ".printRequest"))
-        result = load_printRequest(input_file.c_str(), &model);
-    else
-        throw Slic3r::RuntimeError("Unknown file format. Input file must have .stl, .obj, .step/.stp, .svg, .amf(.xml) or extension .3mf(.zip).");
-
-    if (! result)
-        throw Slic3r::RuntimeError("Loading of a model file failed.");
-
-    if (model.objects.empty())
-        throw Slic3r::RuntimeError("The supplied file couldn't be read because it's empty");
-
-    if (!boost::ends_with(input_file, ".printRequest"))
-        for (ModelObject *o : model.objects)
-            o->input_file = input_file;
-
-    if (options & LoadAttribute::AddDefaultInstances)
-        model.add_default_instances();
-
-    for (CustomGCode::Info& info : model.custom_gcode_per_print_z_vector) {
-        CustomGCode::update_custom_gcode_per_print_z_from_config(info, config);
-        CustomGCode::check_mode_for_custom_gcode_per_print_z(info);
-    }
-
-    sort_remove_duplicates(config_substitutions->substitutions);
-    return model;
-}
-
-// Loading model from a file (3MF or AMF), not from a simple geometry file (STL or OBJ).
-Model Model::read_from_archive(
-    const std::string& input_file,
-    DynamicPrintConfig* config,
-    ConfigSubstitutionContext* config_substitutions,
-    boost::optional<Semver> &prusaslicer_generator_version,
-    LoadAttributes options
-) {
-    assert(config != nullptr);
-    assert(config_substitutions != nullptr);
-
-    Model model;
-
-    bool result = false;
-    if (boost::algorithm::iends_with(input_file, ".3mf") || boost::algorithm::iends_with(input_file, ".zip")) {
-        result = load_3mf(input_file.c_str(), *config, *config_substitutions, &model, options & LoadAttribute::CheckVersion, prusaslicer_generator_version);
-    } else if (boost::algorithm::iends_with(input_file, ".zip.amf"))
-        result = load_amf(input_file.c_str(), config, config_substitutions, &model, options & LoadAttribute::CheckVersion);
-    else
-        throw Slic3r::RuntimeError("Unknown file format. Input file must have .3mf or .zip.amf extension.");
-
-    if (!result)
-        throw Slic3r::RuntimeError("Loading of a model file failed.");
-
-    for (ModelObject *o : model.objects) {
-//        if (boost::algorithm::iends_with(input_file, ".zip.amf"))
-//        {
-//            // we remove the .zip part of the extension to avoid it be added to filenames when exporting
-//            o->input_file = boost::ireplace_last_copy(input_file, ".zip.", ".");
-//        }
-//        else
-            o->input_file = input_file;
-    }
-
-    if (options & LoadAttribute::AddDefaultInstances)
-        model.add_default_instances();
-
-    for (CustomGCode::Info& info : model.custom_gcode_per_print_z_vector) {
-        CustomGCode::update_custom_gcode_per_print_z_from_config(info, config);
-        CustomGCode::check_mode_for_custom_gcode_per_print_z(info);
-    }
-
-    handle_legacy_sla(*config);
-
-    return model;
-}
-
 ModelObject* Model::add_object()
 {
     this->objects.emplace_back(new ModelObject(this));

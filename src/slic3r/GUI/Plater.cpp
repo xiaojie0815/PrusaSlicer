@@ -77,6 +77,7 @@
 #include "libslic3r/PresetBundle.hpp"
 #include "libslic3r/miniz_extension.hpp"
 #include "libslic3r/ModelProcessing.hpp"
+#include "libslic3r/FileReader.hpp"
 #include "libslic3r/MultipleBeds.hpp"
 
 // For stl export
@@ -1303,7 +1304,7 @@ std::vector<size_t> Plater::priv::load_files(const std::vector<fs::path>& input_
                 {
                     DynamicPrintConfig config_loaded;
                     ConfigSubstitutionContext config_substitutions{ ForwardCompatibilitySubstitutionRule::Enable };
-                    model = Slic3r::Model::read_from_archive(
+                    model = FileReader::read_from_archive(
                         path.string(),
                         &config_loaded,
                         &config_substitutions,
@@ -1368,7 +1369,7 @@ std::vector<size_t> Plater::priv::load_files(const std::vector<fs::path>& input_
                 }
             }
             else {
-                model = Slic3r::Model::read_from_file(path.string(), nullptr, nullptr, only_if(load_config, Model::LoadAttribute::CheckVersion));
+                model = FileReader::read_from_file(path.string(), nullptr, nullptr, only_if(load_config, FileReader::LoadAttribute::CheckVersion));
                 for (auto obj : model.objects)
                     if (obj->name.empty())
                         obj->name = fs::path(obj->input_file).filename().string();
@@ -2638,7 +2639,7 @@ bool Plater::priv::replace_volume_with_stl(int object_idx, int volume_idx, const
 
     Model new_model;
     try {
-        new_model = Model::read_from_file(path, nullptr, nullptr, Model::LoadAttribute::AddDefaultInstances);
+        new_model = FileReader::load_model(path);
         for (ModelObject* model_object : new_model.objects) {
             model_object->center_around_origin();
             model_object->ensure_on_bed();
@@ -2888,7 +2889,7 @@ void Plater::priv::reload_from_disk()
         Model new_model;
         try
         {
-            new_model = Model::read_from_file(path, nullptr, nullptr, Model::LoadAttribute::AddDefaultInstances);
+            new_model = FileReader::load_model(path);
             for (ModelObject* model_object : new_model.objects) {
                 model_object->center_around_origin();
                 model_object->ensure_on_bed();

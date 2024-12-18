@@ -264,6 +264,8 @@ set(SLIC3R_SOURCES
     Model.hpp
     ModelProcessing.cpp
     ModelProcessing.hpp
+    FileReader.cpp
+    FileReader.hpp
     MultiMaterialSegmentation.cpp
     MultiMaterialSegmentation.hpp
     MeshNormals.hpp

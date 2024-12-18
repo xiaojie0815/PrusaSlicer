@@ -9,6 +9,7 @@
 #include "libslic3r/TextConfiguration.hpp"
 #include "libslic3r/BuildVolume.hpp" // IWYU pragma: keep
 #include "libslic3r/ModelProcessing.hpp"
+#include "libslic3r/FileReader.hpp"
 #include "GUI_ObjectList.hpp"
 #include "GUI_Factories.hpp"
 #include "GUI_ObjectManipulation.hpp"
@@ -1608,10 +1609,10 @@ void ObjectList::load_from_files(const wxArrayString& input_files, ModelObject& 
 
         Model model;
         try {
-            model = Model::read_from_file(input_file);
+            model = FileReader::load_model(input_file);
         }
         catch (std::exception& e) {
-            auto msg = _L("Error!") + " " + input_file + " : " + e.what() + ".";
+            auto msg = _L("Error!") + " " + input_file + " : " + _(e.what()) + ".";
             show_error(parent, msg);
             exit(1);
         }

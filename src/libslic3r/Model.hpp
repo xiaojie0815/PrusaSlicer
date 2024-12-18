@@ -14,17 +14,14 @@
 #define slic3r_Model_hpp_
 
 #include "libslic3r.h"
-#include "enum_bitmask.hpp"
 #include "Geometry.hpp"
 #include "ObjectID.hpp"
 #include "Point.hpp"
-#include "PrintConfig.hpp"
 #include "Slicing.hpp"
 #include "SLA/SupportPoint.hpp"
 #include "SLA/Hollowing.hpp"
 #include "TriangleMesh.hpp"
 #include "CustomGCode.hpp"
-#include "enum_bitmask.hpp"
 #include "TextConfiguration.hpp"
 #include "EmbossShape.hpp"
 #include "TriangleSelector.hpp"
@@ -1295,24 +1292,6 @@ public:
 
     OBJECTBASE_DERIVED_COPY_MOVE_CLONE(Model)
 
-    enum class LoadAttribute : int {
-        AddDefaultInstances,
-        CheckVersion
-    };
-    using LoadAttributes = enum_bitmask<LoadAttribute>;
-
-    static Model read_from_file(
-        const std::string& input_file, 
-        DynamicPrintConfig* config = nullptr, ConfigSubstitutionContext* config_substitutions = nullptr,
-        LoadAttributes options = LoadAttribute::AddDefaultInstances);
-    static Model read_from_archive(
-        const std::string& input_file,
-        DynamicPrintConfig* config,
-        ConfigSubstitutionContext* config_substitutions,
-        boost::optional<Semver> &prusaslicer_generator_version,
-        LoadAttributes options = LoadAttribute::AddDefaultInstances
-    );
-
     // Add a new ModelObject to this Model, generate a new ID for this ModelObject.
     ModelObject* add_object();
     ModelObject* add_object(const char *name, const char *path, const TriangleMesh &mesh);
@@ -1380,8 +1359,6 @@ private:
 		ar(materials, objects, wipe_tower_vector);
     }
 };
-
-ENABLE_ENUM_BITMASK_OPERATORS(Model::LoadAttribute)
 
 #undef OBJECTBASE_DERIVED_COPY_MOVE_CLONE
 #undef OBJECTBASE_DERIVED_PRIVATE_COPY_MOVE

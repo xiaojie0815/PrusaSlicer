@@ -9,6 +9,7 @@
 #include "slic3r/GUI/Jobs/ArrangeJob2.hpp"
 
 #include "libslic3r/Model.hpp"
+#include "libslic3r/FileReader.hpp"
 #include "libslic3r/SLAPrint.hpp"
 
 #include "libslic3r/Format/3mf.hpp"
@@ -84,7 +85,7 @@ TEST_CASE("Basic arrange with cube", "[arrangejob]") {
     DynamicPrintConfig cfg;
     cfg.load_from_ini(basepath + "default_fff.ini",
                       ForwardCompatibilitySubstitutionRule::Enable);
-    Model m = Model::read_from_file(basepath + "20mm_cube.obj", &cfg);
+    Model m = FileReader::load_model(basepath + "20mm_cube.obj");
 
     UIThreadWorker w;
     arr2::ArrangeSettings settings;
