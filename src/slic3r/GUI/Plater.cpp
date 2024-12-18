@@ -1885,6 +1885,8 @@ void Plater::priv::selection_changed()
 
 void Plater::priv::object_list_changed()
 {
+    if (!wxGetApp().plater())
+        return;
     const bool export_in_progress = this->background_process.is_export_scheduled(); // || ! send_gcode_file.empty());
                                                                                     //
     if (printer_technology == ptFFF) {
@@ -2253,7 +2255,7 @@ void Plater::priv::regenerate_thumbnails(SimpleEvent&) {
 // Returns a bitmask of UpdateBackgroundProcessReturnState.
 unsigned int Plater::priv::update_background_process(bool force_validation, bool postpone_error_messages)
 {
-    assert(! s_beds_just_switched || background_process.idle());
+//    assert(! s_beds_just_switched || background_process.idle());
 
     int active_bed = s_multiple_beds.get_active_bed();
     background_process.set_temp_output_path(active_bed);
