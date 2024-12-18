@@ -800,9 +800,7 @@ void GUI_App::post_init()
             if (plater()->load_files(fns) && this->init_params->input_files.size() == 1) {
                 // Update application titlebar when opening a project file
                 const std::string& filename = this->init_params->input_files.front();
-                if (boost::algorithm::iends_with(filename, ".amf") ||
-                    boost::algorithm::iends_with(filename, ".amf.xml") ||
-                    boost::algorithm::iends_with(filename, ".3mf"))
+                if (boost::algorithm::iends_with(filename, ".3mf"))
                     this->plater()->set_project_filename(from_u8(filename));
             }
             if (this->init_params->delete_after_load) {

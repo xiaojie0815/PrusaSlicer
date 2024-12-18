@@ -298,8 +298,9 @@ int CLI::run(int argc, char **argv)
                 // When loading an AMF or 3MF, config is imported as well, including the printer technology.
                 DynamicPrintConfig config;
                 ConfigSubstitutionContext config_substitutions(config_substitution_rule);
+                boost::optional<Semver> prusaslicer_generator_version;
                 //FIXME should we check the version here? // | Model::LoadAttribute::CheckVersion ?
-                model = FileReader::read_from_file(file, &config, &config_substitutions, FileReader::LoadAttribute::AddDefaultInstances);
+                model = FileReader::load_model_with_config(file, &config, &config_substitutions, prusaslicer_generator_version, FileReader::LoadAttribute::AddDefaultInstances);
                 PrinterTechnology other_printer_technology = get_printer_technology(config);
                 if (printer_technology == ptUnknown) {
                     printer_technology = other_printer_technology;

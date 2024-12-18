@@ -14,34 +14,10 @@
 #include "Model.hpp"
 #include "ModelProcessing.hpp"
 
+#include <boost/filesystem.hpp>
+#include <boost/log/trivial.hpp>
+
 namespace Slic3r::ModelProcessing {
-
-bool looks_like_multipart_object(const Model& model)
-{
-    if (model.objects.size() <= 1)
-        return false;
-
-    BoundingBoxf3 tbb;
-
-    for (const ModelObject* obj : model.objects) {
-        if (obj->volumes.size() > 1 || obj->config.keys().size() > 1)
-            return false;
-
-        BoundingBoxf3 bb_this = obj->volumes[0]->mesh().bounding_box();
-
-        // FIXME: There is sadly the case when instances are empty (AMF files). The normalization of instances in that
-        // case is performed only after this function is called. For now (shortly before the 2.7.2 release, let's
-        // just do this non-invasive check. Reordering all the functions could break it much more.
-        BoundingBoxf3 tbb_this = (!obj->instances.empty() ? obj->instances[0]->transform_bounding_box(bb_this) : bb_this);
-
-        if (!tbb.defined)
-            tbb = tbb_this;
-        else if (tbb.intersects(tbb_this) || tbb.shares_boundary(tbb_this))
-            // The volumes has intersects bounding boxes or share some boundary
-            return true;
-    }
-    return false;
-}
 
 // Generate next extruder ID string, in the range of (1, max_extruders).
 static inline int auto_extruder_id(unsigned int max_extruders, unsigned int& cntr)
@@ -100,33 +76,6 @@ void convert_to_multipart_object(Model& model, unsigned int max_extruders)
     model.add_object(*object);
 }
 
-static constexpr const double volume_threshold_inches = 9.0; // 9 = 3*3*3;
-
-bool looks_like_imperial_units(const Model& model)
-{
-    if (model.objects.empty())
-        return false;
-
-    for (ModelObject* obj : model.objects)
-        if (get_object_mesh_stats(obj).volume < volume_threshold_inches) {
-            if (!obj->is_cut())
-                return true;
-            bool all_cut_parts_look_like_imperial_units = true;
-            for (ModelObject* obj_other : model.objects) {
-                if (obj_other == obj)
-                    continue;
-                if (obj_other->cut_id.is_equal(obj->cut_id) && get_object_mesh_stats(obj_other).volume >= volume_threshold_inches) {
-                    all_cut_parts_look_like_imperial_units = false;
-                    break;
-                }
-            }
-            if (all_cut_parts_look_like_imperial_units)
-                return true;
-        }
-
-    return false;
-}
-
 void convert_from_imperial_units(Model& model, bool only_small_volumes)
 {
     static constexpr const float in_to_mm = 25.4f;
@@ -146,20 +95,6 @@ void convert_from_imperial_units(ModelVolume* volume)
     volume->scale_geometry_after_creation(25.4f);
     volume->set_offset(Vec3d(0, 0, 0));
     volume->source.is_converted_from_inches = true;
-}
-
-static constexpr const double volume_threshold_meters = 0.001; // 0.001 = 0.1*0.1*0.1
-
-bool looks_like_saved_in_meters(const Model& model)
-{
-    if (model.objects.size() == 0)
-        return false;
-
-    for (ModelObject* obj : model.objects)
-        if (get_object_mesh_stats(obj).volume < volume_threshold_meters)
-            return true;
-
-    return false;
 }
 
 void convert_from_meters(Model& model, bool only_small_volumes)
@@ -242,23 +177,6 @@ void convert_units(Model& model_to, ModelObject* object_from, ConversionType con
     new_object->invalidate_bounding_box();
 
     BOOST_LOG_TRIVIAL(trace) << "ModelObject::convert_units - end";
-}
-
-
-static constexpr const double zero_volume = 0.0000000001;
-
-int removed_objects_with_zero_volume(Model& model)
-{
-    if (model.objects.size() == 0)
-        return 0;
-
-    int removed = 0;
-    for (int i = int(model.objects.size()) - 1; i >= 0; i--)
-        if (get_object_mesh_stats(model.objects[i]).volume < zero_volume) {
-            model.delete_object(size_t(i));
-            removed++;
-        }
-    return removed;
 }
 
 TriangleMeshStats get_object_mesh_stats(const ModelObject* object)

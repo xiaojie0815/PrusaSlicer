@@ -12,8 +12,6 @@
 ///|/
 #pragma once
 
-//#include "TriangleMesh.hpp"
-
 #include "PrintConfig.hpp"
 #include "enum_bitmask.hpp"
 
@@ -30,19 +28,32 @@ namespace FileReader
     };
     using LoadAttributes = enum_bitmask<LoadAttribute>;
 
-    Model read_from_file(const std::string& input_file,
-                         DynamicPrintConfig* config = nullptr, 
-                         ConfigSubstitutionContext* config_substitutions = nullptr,
-                         LoadAttributes options = LoadAttribute::AddDefaultInstances);
-    Model read_from_archive(const std::string& input_file,
-                            DynamicPrintConfig* config, 
-                            ConfigSubstitutionContext* config_substitutions,
-                            boost::optional<Semver> &prusaslicer_generator_version,
-                            LoadAttributes options = LoadAttribute::AddDefaultInstances);
+    struct LoadStats {
+        int     deleted_objects_cnt         { 0 };
+        bool    looks_like_saved_in_meters  { false };
+        bool    looks_like_imperial_units   { false };
+        bool    looks_like_multipart_object { false };
+    };
 
-    Model           load_model(const std::string& input_file);
-    Model           load_model(const std::string& input_file, std::string& errors);
+    // Load model from input file and return the its mesh. 
+    // Throw RuntimeError if some problem was detected during model loading
     TriangleMesh    load_mesh(const std::string& input_file);
+
+    // Load model from input file and fill statistics if it's required.
+    // In respect to the params will be applied needed convertions over the model.
+    // Exceptions don't catched inside
+    Model           load_model(const std::string& input_file,
+                               LoadAttributes options = LoadAttribute::AddDefaultInstances, 
+                               LoadStats* statistics = nullptr);
+
+    // Load model, config and config substitutions from input file and fill statistics if it's required.
+    // Exceptions don't catched inside
+    Model           load_model_with_config(const std::string& input_file,
+                                           DynamicPrintConfig* config,
+                                           ConfigSubstitutionContext* config_substitutions,
+                                           boost::optional<Semver> &prusaslicer_generator_version,
+                                           LoadAttributes options,
+                                           LoadStats* statistics = nullptr);
 }
     
 ENABLE_ENUM_BITMASK_OPERATORS(FileReader::LoadAttribute)

@@ -30,20 +30,18 @@ enum class ConversionType : int {
 
 namespace ModelProcessing
 {
-    bool    looks_like_multipart_object(const Model& model);
+    static constexpr const double volume_threshold_inches = 9.0;    // 9 = 3*3*3;
+    static constexpr const double volume_threshold_meters = 0.001;  // 0.001 = 0.1*0.1*0.1
+
     void    convert_to_multipart_object(Model& model, unsigned int max_extruders);
 
-    bool    looks_like_imperial_units(const Model& model);
     void    convert_from_imperial_units(Model& model, bool only_small_volumes);
     void    convert_from_imperial_units(ModelVolume* volume);
 
-    bool    looks_like_saved_in_meters(const Model& model);
     void    convert_from_meters(Model& model, bool only_small_volumes);
     void    convert_from_meters(ModelVolume* volume);
 
     void    convert_units(Model& model_to, ModelObject* object_from, ConversionType conv_type, std::vector<int> volume_idxs);
-
-    int     removed_objects_with_zero_volume(Model& model); 
 
     // Get full stl statistics for all object's meshes
     TriangleMeshStats   get_object_mesh_stats(const ModelObject* object);
