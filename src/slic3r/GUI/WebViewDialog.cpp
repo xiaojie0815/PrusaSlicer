@@ -15,8 +15,6 @@
 
 #include <libslic3r/PresetBundle.hpp> // IWYU pragma: keep
 
-#include <thread>
-
 #include <wx/webview.h>
 #include <wx/display.h>
 
@@ -706,7 +704,6 @@ void LoginWebViewDialog::on_navigation_request(wxWebViewEvent &evt)
         delete_cookies(m_browser, "https://appleid.apple.com");
         delete_cookies(m_browser, "https://facebook.com");
         evt.Veto();
-        std::this_thread::sleep_for(std::chrono::milliseconds(500));
         m_ret_val = into_u8(url);
         EndModal(wxID_OK);
     } else if (url.Find(L"accounts.google.com") != wxNOT_FOUND
