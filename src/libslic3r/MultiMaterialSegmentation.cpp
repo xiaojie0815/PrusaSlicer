@@ -1801,6 +1801,9 @@ std::vector<std::vector<ExPolygons>> segmentation_by_painting(const PrintObject 
             throw_on_cancel_callback();
 
             std::vector<ColorProjectionLines> &input_polygons_projection_lines = input_polygons_projection_lines_layers[layer_idx];
+            if (input_polygons_projection_lines.empty()) {
+                continue;
+            }
 
             if constexpr (MM_SEGMENTATION_DEBUG_COLOR_RANGES) {
                 export_color_projection_lines_color_ranges_to_svg(debug_out_path("mm-color-ranges-%d.svg", layer_idx), input_polygons_projection_lines, input_expolygons[layer_idx]);
