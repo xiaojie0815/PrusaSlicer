@@ -113,7 +113,14 @@ void fill_config_options_from_json_inner(const boost::property_tree::ptree& ptre
     for (const auto &subtree : slots) {
        size_t slot_id;
         try {
-            slot_id = boost::lexical_cast<std::size_t>(subtree.first);
+            // id could "1" for extruder
+            // or "1.1" for MMU (than we need number after dot as id)
+            size_t dot_pos = subtree.first.find('.');
+            if (dot_pos != std::string::npos) {
+                slot_id = boost::lexical_cast<size_t>(subtree.first.substr(dot_pos + 1));
+            } else {
+                slot_id = boost::lexical_cast<std::size_t>(subtree.first);
+            }
         } catch (const boost::bad_lexical_cast&) {
             continue;
         }
@@ -285,6 +292,12 @@ void fill_material_from_json(const std::string& json, std::vector<std::string>& 
     if (result_map.find("hardened") != result_map.end())  {
         for (const std::string& val : result_map["hardened"]) {
             avoid_abrasive_result.emplace_back(val == "0" ? 1 : 0);
+        }
+        // MMU has "hardened" only under tool 1
+        if (avoid_abrasive_result.size() == 1 && material_result.size() > avoid_abrasive_result.size()) {
+            for (size_t i = 1; i < material_result.size(); i++) {
+                avoid_abrasive_result.emplace_back(avoid_abrasive_result[0]);
+            }
         }
     }
 }
