@@ -136,7 +136,7 @@ bool UserAccount::on_user_id_success(const std::string data, std::string& out_us
     for (const auto& section : ptree) {
         const auto opt = ptree.get_optional<std::string>(section.first);
         if (opt) {
-            BOOST_LOG_TRIVIAL(debug) << static_cast<std::string>(section.first) << "    " << *opt;
+            //BOOST_LOG_TRIVIAL(debug) << static_cast<std::string>(section.first) << "    " << *opt;
             m_account_user_data[section.first] = *opt;
         }
        
@@ -181,11 +181,14 @@ void UserAccount::on_communication_fail()
     }
 }
 
-
+void UserAccount::on_race_lost()
+{
+    m_communication->on_race_lost();
+}
 
 bool UserAccount::on_connect_printers_success(const std::string& data, AppConfig* app_config, bool& out_printers_changed)
 {
-    BOOST_LOG_TRIVIAL(debug) << "Prusa Connect printers message: " << data;
+    BOOST_LOG_TRIVIAL(trace) << "Prusa Connect printers message: " << data;
     pt::ptree ptree;
     try {
         std::stringstream ss(data);

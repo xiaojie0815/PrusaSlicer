@@ -28,6 +28,7 @@ wxDECLARE_EVENT(EVT_UA_AVATAR_SUCCESS, UserAccountSuccessEvent);
 wxDECLARE_EVENT(EVT_UA_PRUSACONNECT_PRINTER_DATA_SUCCESS, UserAccountSuccessEvent);
 wxDECLARE_EVENT(EVT_UA_FAIL, UserAccountFailEvent); // Soft fail - clears only after some number of fails
 wxDECLARE_EVENT(EVT_UA_RESET, UserAccountFailEvent); // Hard fail - clears all
+wxDECLARE_EVENT(EVT_UA_RACE_LOST, UserAccountFailEvent); // Hard fail - clears all
 wxDECLARE_EVENT(EVT_UA_PRUSACONNECT_PRINTER_DATA_FAIL, UserAccountFailEvent); // Failed to get data for printer to select, soft fail, action does not repeat
 wxDECLARE_EVENT(EVT_UA_REFRESH_TIME, UserAccountTimeEvent);
 wxDECLARE_EVENT(EVT_UA_ENQUEUED_REFRESH, SimpleEvent);
@@ -104,11 +105,12 @@ struct ActionQueueData
 class UserAccountSession
 {
 public:
-    UserAccountSession(wxEvtHandler* evt_handler, const std::string& access_token, const std::string& refresh_token, const std::string& shared_session_key, bool polling_enabled)
+    UserAccountSession(wxEvtHandler* evt_handler, const std::string& access_token, const std::string& refresh_token, const std::string& shared_session_key, long long next_token_timeout, bool polling_enabled)
         : p_evt_handler(evt_handler)
         , m_access_token(access_token)
         , m_refresh_token(refresh_token)
         , m_shared_session_key(shared_session_key)
+        , m_next_token_timeout(next_token_timeout)
         , m_polling_action(polling_enabled ? UserAccountActionID::USER_ACCOUNT_ACTION_CONNECT_PRINTER_MODELS : UserAccountActionID::USER_ACCOUNT_ACTION_DUMMY)
        
     {
@@ -159,6 +161,7 @@ public:
     // Special enques, that sets callbacks.
     void enqueue_test_with_refresh();
     void enqueue_refresh(const std::string& body);
+    void enqueue_refresh_race(const std::string refresh_token_from_store = std::string());
     void process_action_queue();
 
     bool is_initialized() const {
@@ -183,13 +186,15 @@ public:
         return m_next_token_timeout;
     }
 
-    //void set_polling_enabled(bool enabled) {m_polling_action = enabled ? UserAccountActionID::USER_ACCOUNT_ACTION_CONNECT_PRINTER_MODELS : UserAccountActionID::USER_ACCOUNT_ACTION_DUMMY; }
+    void set_tokens(const std::string& access_token, const std::string& refresh_token, const std::string& shared_session_key, long long expires_in);
+
     void set_polling_action(UserAccountActionID action) { 
         std::lock_guard<std::mutex> lock(m_session_mutex);
         m_polling_action = action; 
     }
 private:
     void refresh_fail_callback(const std::string& body);
+    void refresh_fail_soft_callback(const std::string& body);
     void cancel_queue();
     void code_exchange_fail_callback(const std::string& body);
     void token_success_callback(const std::string& body);

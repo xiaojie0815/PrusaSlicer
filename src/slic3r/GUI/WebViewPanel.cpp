@@ -422,7 +422,7 @@ void WebViewPanel::run_script(const wxString& javascript)
     // Remember the script we run in any case, so the next time the user opens
     // the "Run Script" dialog box, it is shown there for convenient updating.
     m_javascript = javascript;
-    BOOST_LOG_TRIVIAL(debug) << "RunScript " << javascript << "\n";
+    BOOST_LOG_TRIVIAL(trace) << "RunScript " << javascript << "\n";
     m_browser->RunScriptAsync(javascript);
 }
 
@@ -1377,6 +1377,7 @@ void PrintablesWebViewPanel::send_refreshed_token(const std::string& access_toke
     if (m_load_default_url) {
         return;
     }
+    BOOST_LOG_TRIVIAL(debug) << __FUNCTION__;
     hide_loading_overlay();
     wxString script = GUI::format_wxstr("window.postMessage(JSON.stringify({"
         "event: 'accessTokenChange',"
@@ -1390,6 +1391,7 @@ void PrintablesWebViewPanel::send_will_refresh()
     if (m_load_default_url) {
         return;
     }
+    BOOST_LOG_TRIVIAL(debug) << __FUNCTION__;
     wxString script = "window.postMessage(JSON.stringify({ event: 'accessTokenWillChange' }))";
     run_script(script);
 }
@@ -1420,6 +1422,7 @@ void PrintablesWebViewPanel::on_printables_event_access_token_expired(const std:
     BOOST_LOG_TRIVIAL(debug) << __FUNCTION__;
     m_refreshing_token = true;
     show_loading_overlay();
+   
     wxGetApp().plater()->get_user_account()->request_refresh();
 }
 

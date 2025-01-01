@@ -1009,6 +1009,11 @@ void Plater::priv::init()
             BOOST_LOG_TRIVIAL(error) << "Failed communication with Prusa Account: " << evt.data;
             user_account->on_communication_fail();
         });
+        this->q->Bind(EVT_UA_RACE_LOST, [this](UserAccountFailEvent& evt) {
+            BOOST_LOG_TRIVIAL(debug) << "Renew token race lost: " << evt.data;
+            user_account->on_race_lost();
+        });
+        
         this->q->Bind(EVT_UA_PRUSACONNECT_STATUS_SUCCESS, [this](UserAccountSuccessEvent& evt) {
             std::string text;
             bool printers_changed = false;

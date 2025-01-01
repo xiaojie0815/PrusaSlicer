@@ -59,6 +59,7 @@ public:
     bool on_user_id_success(const std::string data, std::string& out_username);
     // Called on EVT_UA_FAIL, triggers test after several calls
     void on_communication_fail();
+    void on_race_lost();
     bool on_connect_printers_success(const std::string& data, AppConfig* app_config, bool& out_printers_changed);
     bool on_connect_uiid_map_success(const std::string& data, AppConfig* app_config, bool& out_printers_changed);
 
