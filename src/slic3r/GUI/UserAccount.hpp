@@ -105,7 +105,7 @@ private:
         {"READY"    , ConnectPrinterState::CONNECT_PRINTER_READY},
         {"ATTENTION", ConnectPrinterState::CONNECT_PRINTER_ATTENTION},
         {"BUSY"     , ConnectPrinterState::CONNECT_PRINTER_BUSY},
-        {"ERROR"     , ConnectPrinterState::CONNECT_PRINTER_ERROR},
+        {"ERROR"    , ConnectPrinterState::CONNECT_PRINTER_ERROR},
     };
 };
 }} // namespace slic3r::GUI
