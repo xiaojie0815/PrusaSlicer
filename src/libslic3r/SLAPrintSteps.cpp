@@ -702,8 +702,19 @@ void SLAPrint::Steps::support_points(SLAPrintObject &po)
     ThrowOnCancel cancel = [this]() { throw_if_canceled(); };
     StatusFunction status = statuscb;
 
-    LayerSupportPoints layer_support_points = 
-        generate_support_points(po.m_support_point_generator_data, config, cancel, status);
+    // update permanent support points
+    SupportPointGeneratorData &data = po.m_support_point_generator_data;
+
+    data.permanent_supports.clear();
+    for (const SupportPoint &p : po.model_object()->sla_support_points)
+        if (p.type == SupportPointType::manual_add) {
+            data.permanent_supports.push_back(p);
+            data.permanent_supports.back().pos = 
+                po.trafo().cast<float>() * data.permanent_supports.back().pos;
+        }
+    std::sort(data.permanent_supports.begin(), data.permanent_supports.end(), 
+        [](const SupportPoint& p1,const SupportPoint& p2){ return p1.pos.z() < p2.pos.z(); });
+    LayerSupportPoints layer_support_points = generate_support_points(data, config, cancel, status);
 
     const AABBMesh& emesh = po.m_supportdata->input.emesh;
     // Maximal move of support point to mesh surface,
@@ -713,6 +724,10 @@ void SLAPrint::Steps::support_points(SLAPrintObject &po)
         std::numeric_limits<float>::epsilon();
     SupportPoints support_points = 
         move_on_mesh_surface(layer_support_points, emesh, allowed_move, cancel);
+
+    // Naive implementation only append permanent supports to the result
+    support_points.insert(support_points.end(), 
+        data.permanent_supports.begin(), data.permanent_supports.end());
 
     throw_if_canceled();
 

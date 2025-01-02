@@ -33,9 +33,8 @@ namespace Slic3r {
 namespace GUI {
 
 GLGizmoSlaSupports::GLGizmoSlaSupports(GLCanvas3D& parent, const std::string& icon_filename, unsigned int sprite_id)
-: GLGizmoSlaBase(parent, icon_filename, sprite_id, slaposDrillHoles)
-{
-    show_sla_supports(true);
+    : GLGizmoSlaBase(parent, icon_filename, sprite_id, slaposDrillHoles /*slaposSupportPoints*/) {
+    show_sla_supports(false);
 }
 
 bool GLGizmoSlaSupports::on_init()
@@ -144,8 +143,6 @@ void GLGizmoSlaSupports::on_render()
     glsafe(::glEnable(GL_BLEND));
     glsafe(::glEnable(GL_DEPTH_TEST));
 
-    show_sla_supports(!m_editing_mode);
-
     render_volumes();
     render_points(selection);
 
@@ -198,10 +195,15 @@ void GLGizmoSlaSupports::render_points(const Selection& selection)
     const Transform3d& view_matrix = camera.get_view_matrix();
     shader->set_uniform("projection_matrix", camera.get_projection_matrix());
 
+    const ColorRGBA selected_color = ColorRGBA::REDISH();
+    const ColorRGBA hovered_color = ColorRGBA::CYAN();
+    const ColorRGBA island_color = ColorRGBA::BLUEISH();
+    const ColorRGBA inactive_color = ColorRGBA::LIGHT_GRAY();
+    const ColorRGBA manual_color = ColorRGBA::ORANGE();
+
     ColorRGBA render_color;
     for (size_t i = 0; i < cache_size; ++i) {
         const sla::SupportPoint& support_point = m_editing_mode ? m_editing_cache[i].support_point : m_normal_cache[i];
-        const bool point_selected = m_editing_mode ? m_editing_cache[i].selected : false;
 
         const bool clipped = is_mesh_point_clipped(support_point.pos.cast<double>());
         if (i < m_point_raycasters.size()) {
@@ -211,22 +213,18 @@ void GLGizmoSlaSupports::render_points(const Selection& selection)
         if (clipped)
             continue;
 
+        render_color = support_point.type == sla::SupportPointType::manual_add ?
+            manual_color : inactive_color;
         // First decide about the color of the point.
-        if (size_t(m_hover_id) == i && m_editing_mode) // ignore hover state unless editing mode is active
-            render_color = { 0.f, 1.f, 1.f, 1.f };
-        else { // neigher hover nor picking
-            bool supports_new_island = m_lock_unique_islands && support_point.type == sla::SupportPointType::island;
-            if (m_editing_mode) {
-                if (point_selected)
-                    render_color = { 1.f, 0.3f, 0.3f, 1.f};
-                else
-                    if (supports_new_island)
-                        render_color = { 0.3f, 0.3f, 1.f, 1.f };
-                    else
-                        render_color = { 0.7f, 0.7f, 0.7f, 1.f };
+        if (m_editing_mode) {
+            if (size_t(m_hover_id) == i) // ignore hover state unless editing mode is active
+                render_color = hovered_color;
+            else if (m_editing_cache[i].selected)
+                render_color = selected_color;
+            else if (m_lock_unique_islands) {
+                render_color = support_point.type == sla::SupportPointType::island?
+                    island_color :  ColorRGBA{ 0.7f, 0.7f, 0.7f, 1.f };
             }
-            else
-                render_color = { 0.5f, 0.5f, 0.5f, 1.f };
         }
 
         m_cone.model.set_color(render_color);
@@ -680,10 +678,16 @@ RENDER_AGAIN:
     }
     else { // not in editing mode:
         m_imgui->disabled_begin(!is_input_enabled());
-        //ImGui::AlignTextToFramePadding();
-
         ImGuiPureWrap::text(m_desc.at("points_density"));
-        //ImGui::SameLine(settings_sliders_left);
+        ImGui::SameLine();
+
+        if (ImGui::Checkbox("##ShowSupportStructure", &m_show_support_structure)){
+            show_sla_supports(m_show_support_structure);
+            if (m_show_support_structure)
+                reslice_until_step(slaposPad);
+        } else if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("%s", _u8L("Show/Hide supporting structure").c_str());
+        
         const char *support_points_density = "support_points_density_relative";
         float density = static_cast<const ConfigOptionInt*>(get_config_options({support_points_density})[0])->value;        
         if (m_imgui->slider_float("##density", &density, 0.f, 200.f, "%.f %%")){
@@ -711,7 +715,7 @@ RENDER_AGAIN:
             wxGetApp().obj_list()->update_and_show_object_settings_item();
             auto_generate();
         }
-                
+        
         const sla::SupportPoints &supports = m_normal_cache;
         int count_user_edited = 0;
         int count_island = 0;
@@ -734,22 +738,26 @@ RENDER_AGAIN:
         }
         ImVec4 light_gray{0.4f, 0.4f, 0.4f, 1.0f};
         ImGui::TextColored(light_gray, stats.c_str());
+        if (supports.empty()){
+            ImGui::SameLine();
+            if (ImGuiPureWrap::button(m_desc.at("auto_generate")))
+                auto_generate();
+        }
 
-        ImGui::Separator(); // START temporary debug
-        ImGui::Text("Between delimiters is temporary GUI");
-        sla::SampleConfig &sample_config = sla::SampleConfigFactory::get_sample_config();
-        if (float overhang_sample_distance = sample_config.prepare_config.discretize_overhang_step;
-            m_imgui->slider_float("overhang discretization", &overhang_sample_distance, 2e-5f, 10.f, "%.2f mm")){
-            sample_config.prepare_config.discretize_overhang_step = overhang_sample_distance;
-        } else if (ImGui::IsItemHovered())
-            ImGui::SetTooltip("Smaller will slow down. Step for discretization overhang outline for test of support need");        
-        
-        draw_island_config();
-        ImGui::Text("Distribution depends on './resources/data/sla_support.svg'\ninstruction for edit are in file");
-        ImGui::Separator();
-
-        if (ImGuiPureWrap::button(m_desc.at("auto_generate")))
-            auto_generate();
+        //ImGui::Separator(); // START temporary debug
+        //ImGui::Text("Between delimiters is temporary GUI");
+        //sla::SampleConfig &sample_config = sla::SampleConfigFactory::get_sample_config();
+        //if (float overhang_sample_distance = sample_config.prepare_config.discretize_overhang_step;
+        //    m_imgui->slider_float("overhang discretization", &overhang_sample_distance, 2e-5f, 10.f, "%.2f mm")){
+        //    sample_config.prepare_config.discretize_overhang_step = overhang_sample_distance;
+        //} else if (ImGui::IsItemHovered())
+        //    ImGui::SetTooltip("Smaller will slow down. Step for discretization overhang outline for test of support need");        
+        //
+        //draw_island_config();
+        //ImGui::Text("Distribution depends on './resources/data/sla_support.svg'\ninstruction for edit are in file");
+        //ImGui::Separator();
+        //if (ImGuiPureWrap::button(m_desc.at("auto_generate")))
+        //    auto_generate();
 
         ImGui::Separator();
         if (ImGuiPureWrap::button(m_desc.at("manual_editing")))
@@ -1180,7 +1188,7 @@ void GLGizmoSlaSupports::editing_mode_apply_changes()
         mo->sla_support_points.clear();
         mo->sla_support_points = m_normal_cache;
 
-        reslice_until_step(slaposPad);
+        reslice_until_step(m_show_support_structure ? slaposPad : slaposSupportPoints);
     }
 }
 
@@ -1280,7 +1288,8 @@ void GLGizmoSlaSupports::get_data_from_backend()
     for (const SLAPrintObject* po : m_parent.sla_print()->objects()) {
         if (po->model_object()->id() == mo->id()) {
             m_normal_cache.clear();
-            auto mat = po->trafo().inverse().cast<float>();
+            
+            auto mat = po->trafo().inverse().cast<float>(); // TODO: WTF trafo????? !!!!!!
             for (const sla::SupportPoint &p : po->get_support_points())
                 m_normal_cache.emplace_back(sla::SupportPoint{mat * p.pos, p.head_front_radius, p.type});
 
@@ -1298,25 +1307,25 @@ void GLGizmoSlaSupports::auto_generate()
 {
     //wxMessageDialog dlg(GUI::wxGetApp().plater(), 
     MessageDialog dlg(GUI::wxGetApp().plater(), 
-                        _L("Autogeneration will erase all manually edited points.") + "\n\n" +
-                        _L("Are you sure you want to do it?") + "\n",
+                        _L("Autogeneration with manually edited points is inperfect but preserve wanted postion of supports.") + "\n\n" +
+                        _L("Do you want to remove manually edited points?") + "\n",
                         _L("Warning"), wxICON_WARNING | wxYES | wxNO);
-
     ModelObject* mo = m_c->selection_info()->model_object();
-
-    if (mo->sla_points_status != sla::PointsStatus::UserModified || m_normal_cache.empty() || dlg.ShowModal() == wxID_YES) {
-        Plater::TakeSnapshot snapshot(wxGetApp().plater(), _L("Autogenerate support points"));
-        wxGetApp().CallAfter([this]() { reslice_until_step(slaposSupportPoints); });
-        mo->sla_points_status = sla::PointsStatus::Generating;
+    if (mo->sla_points_status == sla::PointsStatus::UserModified &&
+        dlg.ShowModal() == wxID_YES) {
+        mo->sla_support_points.clear();
     }
+    Plater::TakeSnapshot snapshot(wxGetApp().plater(), _L("Autogenerate support points"));
+    wxGetApp().CallAfter([this]() { reslice_until_step(
+        m_show_support_structure ? slaposPad : slaposSupportPoints); });
+    mo->sla_points_status = sla::PointsStatus::Generating;
 }
-
-
 
 void GLGizmoSlaSupports::switch_to_editing_mode()
 {
     wxGetApp().plater()->enter_gizmos_stack();
     m_editing_mode = true;
+    show_sla_supports(false);
     m_editing_cache.clear();
     for (const sla::SupportPoint& sp : m_normal_cache)
         m_editing_cache.emplace_back(sp);
@@ -1330,6 +1339,7 @@ void GLGizmoSlaSupports::disable_editing_mode()
 {
     if (m_editing_mode) {
         m_editing_mode = false;
+        show_sla_supports(m_show_support_structure);
         wxGetApp().plater()->leave_gizmos_stack();
         m_parent.set_as_dirty();
         unregister_point_raycasters_for_picking();

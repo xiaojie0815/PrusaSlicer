@@ -93,6 +93,7 @@ private:
 
     void draw_island_config();
 
+    bool m_show_support_structure = false;
     bool m_lock_unique_islands = false;
     bool m_editing_mode = false;            // Is editing mode active?
     float m_new_point_head_diameter;        // Size of a new point.

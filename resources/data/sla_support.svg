@@ -26,13 +26,13 @@
      showgrid="false"
      showborder="true"
      borderlayer="true"
-     inkscape:zoom="19.02887"
-     inkscape:cx="14.845863"
-     inkscape:cy="132.29897"
-     inkscape:window-width="2400"
-     inkscape:window-height="1261"
-     inkscape:window-x="-9"
-     inkscape:window-y="-9"
+     inkscape:zoom="3.3638608"
+     inkscape:cx="115.78957"
+     inkscape:cy="88.588685"
+     inkscape:window-width="1920"
+     inkscape:window-height="1129"
+     inkscape:window-x="1912"
+     inkscape:window-y="-8"
      inkscape:window-maximized="1"
      inkscape:current-layer="layer1" />
   <defs
@@ -130,19 +130,19 @@
        id="path12735" />
     <path
        style="fill:none;stroke:#b50000;stroke-width:0.4;stroke-linejoin:round;stroke-dasharray:none;stop-color:#000000"
-       d="M 4,0 6,3.8987591 8,15 10,40"
+       d="M 3.5,0 4.0915916,3.8987591 5,15 6,40"
        id="path3587"
        sodipodi:nodetypes="cccc" />
     <text
        xml:space="preserve"
        style="font-size:1.05833px;line-height:0;font-family:'Cascadia Code';-inkscape-font-specification:'Cascadia Code';text-align:center;text-decoration-color:#000000;text-anchor:middle;fill:#364e59;stroke:none;stroke-width:0.4;stroke-linejoin:round;stroke-dasharray:none;stop-color:#000000"
-       x="16.386877"
+       x="9.5439215"
        y="-7.5019774"
        id="text4929"><tspan
          sodipodi:role="line"
          id="tspan4927"
          style="font-size:1.05833px;fill:#364e59;stroke:none;stroke-width:0.4"
-         x="16.386877"
+         x="9.5439215"
          y="-7.5019774">island supports</tspan></text>
     <text
        xml:space="preserve"
@@ -211,7 +211,7 @@
          id="tspan7390">interface</tspan></text>
     <path
        style="fill:#ba00ff;stroke:#364e59;stroke-width:0.1;stroke-linejoin:round;stroke-dasharray:none;marker-end:url(#Arrow2);stop-color:#000000"
-       d="M 13.379759,-7.2418186 10.65352,-0.96342022"
+       d="m 6.5368033,-7.2418186 -2.726239,6.27839838"
        id="path7457"
        sodipodi:nodetypes="cc" />
     <text
@@ -252,7 +252,7 @@
        id="path9401-5" />
     <path
        style="fill:#364e59;stroke:#364e59;stroke-width:0.1;stroke-linejoin:round;stroke-dasharray:none;stop-color:#000000"
-       d="m 10.778332,39.821948 48.064712,0"
+       d="M 3.9353759,39.821947 H 58.843042"
        id="path9670"
        sodipodi:nodetypes="cc" />
     <text

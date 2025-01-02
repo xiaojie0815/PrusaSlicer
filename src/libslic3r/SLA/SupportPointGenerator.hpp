@@ -145,6 +145,7 @@ using LayerSupportPoints = std::vector<LayerSupportPoint>;
 struct Layer
 {
     // Absolute distance from Zero - copy value from heights<float>
+    // It represents center of layer(range of layer is half layer size above and belowe)
     float print_z; // [in mm]
 
     // data for one expolygon
@@ -165,6 +166,9 @@ struct SupportPointGeneratorData
     // and connection between layers for its part
     // NOTE: contain links into slices
     Layers layers;
+
+    // Manualy edited supports by user should be permanent
+    SupportPoints permanent_supports;
 };
 
 // call during generation of support points to check cancel event

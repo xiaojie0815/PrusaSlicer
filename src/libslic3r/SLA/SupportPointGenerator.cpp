@@ -9,12 +9,14 @@
 #include "libslic3r/Execution/Execution.hpp"
 #include "libslic3r/KDTreeIndirect.hpp"
 #include "libslic3r/ClipperUtils.hpp"
-
+#include "libslic3r/AABBTreeLines.hpp" // closest point to layer part
 // SupportIslands
 #include "libslic3r/SLA/SupportIslands/UniformSupportIsland.hpp"
 
 using namespace Slic3r;
 using namespace Slic3r::sla;
+
+//#define PERMANENT_SUPPORTS
 
 namespace {
 /// <summary>
@@ -799,6 +801,105 @@ std::vector<Vec2f> load_curve_from_file() {
     return {};
 }
 
+#ifdef PERMANENT_SUPPORTS
+// Processing permanent support points
+// Permanent are manualy edited points by user
+namespace {
+struct LayerSupport
+{
+    SupportPoint point;
+    Point layer_position;
+    size_t part_index;
+};
+using LayerSupports = std::vector<LayerSupport>;
+
+size_t get_index_of_closest_part(const Point &coor, const LayerParts &parts) {
+    size_t count_lines = 0;
+    std::vector<size_t> part_lines_ends;
+    part_lines_ends.reserve(parts.size());
+    for (const LayerPart &part : parts) {
+        count_lines += count_points(*part.shape);
+        part_lines_ends.push_back(count_lines);
+    }
+    Linesf lines;
+    lines.reserve(count_lines);
+    for (const LayerPart &part : parts)
+        append(lines, to_linesf({*part.shape}));
+    AABBTreeIndirect::Tree<2, double> tree = 
+        AABBTreeLines::build_aabb_tree_over_indexed_lines(lines);
+
+    size_t line_idx = std::numeric_limits<size_t>::max();
+    Vec2d coor_d = coor.cast<double>();
+    Vec2d hit_point;
+    [[maybe_unused]] double distance_sq =
+        AABBTreeLines::squared_distance_to_indexed_lines(lines, tree, coor_d, line_idx, hit_point);
+    
+    // Find part index of closest line
+    for (size_t part_index = 0; part_index < part_lines_ends.size(); ++part_index)
+        if (line_idx < part_lines_ends[part_index]) {
+            // check point lais inside prev or next part shape
+            // When assert appear check that part index is really the correct one
+            assert(union_ex(
+                get_polygons(parts[part_index].prev_parts),
+                get_polygons(parts[part_index].next_parts)).contains(coor));
+            return part_index;
+        }
+    
+    assert(false); // not found
+    return 0;
+}
+
+LayerSupports supports_for_layer(const SupportPoints &points, size_t index, 
+    float print_z, const LayerParts &parts) {
+    if (index >= points.size())
+        return {};
+
+    LayerSupports result;
+    for (const SupportPoint &point = points[index]; point.pos.z() < print_z; ++index) {
+        // find layer part for support
+        size_t part_index = parts.size();
+        Point coor(static_cast<coord_t>(scale_(point.pos.x())),
+                   static_cast<coord_t>(scale_(point.pos.y())));
+
+        // find part for support point
+        for (const LayerPart &part : parts) {
+            if (part.shape_extent.contains(coor) &&
+                part.shape->contains(coor)) {
+                // parts do not overlap each other
+                assert(part_index >= parts.size());                
+                part_index = &part - &parts.front();                
+            }
+        }
+        if (part_index >= parts.size()) // support point is not in any part
+            part_index = get_index_of_closest_part(coor, parts);
+        result.push_back(LayerSupport{point, coor, part_index});
+    }
+    return {};
+}
+
+/// <summary>
+/// Guess range of layers by its centers
+/// NOTE: not valid range for variable layer height but divide space
+/// </summary>
+/// <param name="layers"></param>
+/// <param name="layer_id"></param>
+/// <returns>Range of layers</returns>
+MinMax<float> get_layer_range(const Layers &layers, size_t layer_id) {
+    assert(layer_id < layers.size());
+    if (layer_id >= layers.size())
+        return MinMax<float>{0., 0.};
+
+    float print_z = layers[layer_id].print_z;
+    float min = (layer_id == 0) ? 0.f : (layers[layer_id - 1].print_z + print_z) / 2.f;
+    float max = ((layer_id + 1) < layers.size()) ?
+        (layers[layer_id + 1].print_z + print_z) / 2.f :
+        print_z + (print_z - min); // last layer guess height by prev layer center
+    return MinMax<float>{min, max};
+}
+
+} // namespace
+#endif // PERMANENT_SUPPORTS
+
 LayerSupportPoints Slic3r::sla::generate_support_points(
     const SupportPointGeneratorData &data,
     const SupportPointGeneratorConfig &config,
@@ -822,17 +923,33 @@ LayerSupportPoints Slic3r::sla::generate_support_points(
     // Storage for support points used by grid
     LayerSupportPoints result;
 
+    // permanent supports MUST be sorted by z
+    assert(std::is_sorted(data.permanent_supports.begin(), data.permanent_supports.end(),
+        [](const SupportPoint &a, const SupportPoint &b) { return a.pos.z() < b.pos.z(); }));
+    // Index into data.permanent_supports
+    size_t permanent_index = 0;
+    // How to propagate permanent support position into previous layers? and how deep? requirements are chained.
+    // IMHO it should start togetjer from islands and permanent than propagate over surface
+
     // grid index == part in layer index
     std::vector<NearPoints> prev_grids; // same count as previous layer item size
     for (size_t layer_id = 0; layer_id < layers.size(); ++layer_id) {
         const Layer &layer = layers[layer_id];
-
         prepare_supports_for_layer(result, layer.print_z, config);
 
         // grid index == part in layer index
         std::vector<NearPoints> grids;
         grids.reserve(layer.parts.size());
+
+#ifdef PERMANENT_SUPPORTS
+        float layer_max_z = get_layer_range(layers, layer_id).max;
+        if (data.permanent_supports[permanent_index].pos.z() < layer_max_z){
+            LayerSupports permanent = 
+                supports_for_layer(data.permanent_supports, permanent_index, layer_max_z, layer.parts);
         
+        }
+#endif // PERMANENT_SUPPORTS
+
         for (const LayerPart &part : layer.parts) {
             if (part.prev_parts.empty()) { // Island ?
                 // only island add new grid
