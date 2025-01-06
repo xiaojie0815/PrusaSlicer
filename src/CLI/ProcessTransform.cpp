@@ -159,17 +159,22 @@ bool process_transform(Data& cli, const DynamicPrintConfig& print_config, std::v
 
     if (transform.has("cut")) {
         std::vector<Model> new_models;
+        const Vec3d plane_center = transform.opt_float("cut") * Vec3d::UnitZ();
         for (auto& model : models) {
+            Model new_model;
             model.translate(0, 0, -model.bounding_box_exact().min.z());  // align to z = 0
             size_t num_objects = model.objects.size();
             for (size_t i = 0; i < num_objects; ++i) {
-                Cut cut(model.objects.front(), 0, Geometry::translation_transform(transform.opt_float("cut") * Vec3d::UnitZ()),
+                ModelObject* mo = model.objects.front();
+                const Vec3d cut_center_offset = plane_center - mo->instances[0]->get_offset();
+                Cut cut(mo, 0, Geometry::translation_transform(cut_center_offset),
                     ModelObjectCutAttribute::KeepLower | ModelObjectCutAttribute::KeepUpper | ModelObjectCutAttribute::PlaceOnCutUpper);
                 auto cut_objects = cut.perform_with_plane();
                 for (ModelObject* obj : cut_objects)
-                    model.add_object(*obj);
+                    new_model.add_object(*obj);
                 model.delete_object(size_t(0));
             }
+            new_models.push_back(new_model);
         }
 
         // TODO: copy less stuff around using pointers
