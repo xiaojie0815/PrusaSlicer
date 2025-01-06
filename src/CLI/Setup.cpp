@@ -23,33 +23,55 @@
 
 namespace Slic3r::CLI {
 
-enum class Type
+Data::Data() 
 {
-    Input,
-    Overrides,
-    Transformations,
-    Misc,
-    Actions
-};
+    input_config        = CLI_DynamicPrintConfig(Type::Input,           &cli_input_config_def);
+    overrides_config    = CLI_DynamicPrintConfig(Type::Overrides,       &print_config_def);
+    transform_config    = CLI_DynamicPrintConfig(Type::Transformations, &cli_transform_config_def);
+    misc_config         = CLI_DynamicPrintConfig(Type::Misc,            &cli_misc_config_def);
+    actions_config      = CLI_DynamicPrintConfig(Type::Actions,         &cli_actions_config_def);
+}
+
+using opts_map = std::map<std::string, std::pair<std::string, Type> >;
+
+static opts_map get_opts_map(const Data& data)
+{
+    opts_map ret;
+
+    for (const CLI_DynamicPrintConfig* config : { &data.input_config    ,
+                                                  &data.overrides_config,
+                                                  &data.transform_config,
+                                                  &data.misc_config     ,
+                                                  &data.actions_config     }) 
+    {
+        for (const auto& oit : config->def()->options)
+            for (const std::string& t : oit.second.cli_args(oit.first))
+                ret[t] = { oit.first , config->type()};
+    }
+
+    return ret;
+}
+
+static CLI_DynamicPrintConfig* get_config(Data& data, Type type)
+{
+    for (CLI_DynamicPrintConfig* config : { &data.input_config    ,
+                                            &data.overrides_config,
+                                            &data.transform_config,
+                                            &data.misc_config     ,
+                                            &data.actions_config })
+    {
+        if (type == config->type())
+            return config;
+    }
+    
+    assert(false);
+    return nullptr;
+}
 
 static bool read(Data& data, int argc, const char* const argv[])
 {
     // cache the CLI option => opt_key mapping
-    std::map<std::string, std::pair<std::string, Type> > opts;
-
-    std::initializer_list<std::pair<const ConfigDef&, Type>> list = {
-        { cli_input_config_def,     Type::Input},
-        { print_config_def,         Type::Overrides},
-        { cli_transform_config_def, Type::Transformations},
-        { cli_misc_config_def,      Type::Misc},
-        { cli_actions_config_def,   Type::Actions}
-    };
-
-    for (const auto& [config_def, type] : list) {
-        for (const auto& oit : config_def.options)
-            for (const std::string& t : oit.second.cli_args(oit.first))
-                opts[t] = { oit.first , type };
-    }
+    opts_map opts = get_opts_map(data);
 
     bool parse_options = true;
     for (int i = 1; i < argc; ++i) {
@@ -100,33 +122,10 @@ static bool read(Data& data, int argc, const char* const argv[])
                 token = yes_token;
         }
 
-        //const t_config_option_key& opt_key = it->second.first;
-        //const ConfigOptionDef& optdef = *this->option_def(opt_key);
         const auto& [opt_key, type] = it->second;
-        const ConfigDef* config_def;
-        DynamicPrintConfig* config;
-        if (type == Type::Input) {
-            config_def = &cli_input_config_def;
-            config = &data.input_config;
-        }
-        else if (type == Type::Transformations) {
-            config_def = &cli_transform_config_def;
-            config = &data.transform_config;
-        }
-        else if(type == Type::Misc) {
-            config_def = &cli_misc_config_def;
-            config = &data.misc_config;
-        }
-        else if(type == Type::Actions) {
-            config_def = &cli_actions_config_def;
-            config = &data.actions_config;
-        }
-        else  {
-            config_def = &print_config_def;
-            config = &data.overrides_config;
-        }
 
-        const ConfigOptionDef* optdef = config_def->get(opt_key);
+        CLI_DynamicPrintConfig* config = get_config(data, type);
+        const ConfigOptionDef*  optdef = config->option_def(opt_key);
         assert(optdef);
 
         // If the option type expects a value and it was not already provided,

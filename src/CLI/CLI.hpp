@@ -3,8 +3,8 @@
 #include <string>
 #include <vector>
 
-#include "libslic3r/Config.hpp"
 #include "libslic3r/Model.hpp"
+#include "CLI_DynamicPrintConfig.hpp"
 
 #ifdef SLIC3R_GUI
 #include "slic3r/GUI/GUI_Init.hpp"
@@ -15,16 +15,18 @@ namespace Slic3r::CLI
     // struct which is filled from comand line input
     struct Data
     {
-        DynamicPrintConfig          input_config;
-        DynamicPrintConfig          overrides_config;
-        DynamicPrintConfig          transform_config;
-        DynamicPrintConfig          misc_config;
-        DynamicPrintConfig          actions_config;
+        Data();
+
+        CLI_DynamicPrintConfig      input_config;
+        CLI_DynamicPrintConfig      overrides_config;
+        CLI_DynamicPrintConfig      transform_config;
+        CLI_DynamicPrintConfig      misc_config;
+        CLI_DynamicPrintConfig      actions_config;
 
         std::vector<std::string>    input_files;
 
         bool empty() {
-            return  input_files.empty()
+            return input_files.empty()
                 && input_config.empty()
                 && overrides_config.empty()
                 && transform_config.empty()

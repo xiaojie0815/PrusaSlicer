@@ -99,6 +99,7 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/platform/osx/Info.plist.in ${CMAKE_CU
 set(SLIC3R_CLI_SOURCES
     PrusaSlicer.hpp
     CLI/CLI.hpp
+    CLI/CLI_DynamicPrintConfig.hpp
     CLI/PrintHelp.cpp
     CLI/Setup.cpp
     CLI/LoadPrintData.cpp
