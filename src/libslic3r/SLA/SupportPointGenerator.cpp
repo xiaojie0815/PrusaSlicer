@@ -805,14 +805,6 @@ std::vector<Vec2f> load_curve_from_file() {
 // Processing permanent support points
 // Permanent are manualy edited points by user
 namespace {
-struct LayerSupport
-{
-    SupportPoint point;
-    Point layer_position;
-    size_t part_index;
-};
-using LayerSupports = std::vector<LayerSupport>;
-
 size_t get_index_of_closest_part(const Point &coor, const LayerParts &parts) {
     size_t count_lines = 0;
     std::vector<size_t> part_lines_ends;
@@ -834,6 +826,9 @@ size_t get_index_of_closest_part(const Point &coor, const LayerParts &parts) {
     [[maybe_unused]] double distance_sq =
         AABBTreeLines::squared_distance_to_indexed_lines(lines, tree, coor_d, line_idx, hit_point);
     
+    if (distance_sq >= scale_(1) * scale_(1)) // point is farer than 1mm from any layer part
+        return parts.size(); // this support point should not be used any more
+
     // Find part index of closest line
     for (size_t part_index = 0; part_index < part_lines_ends.size(); ++part_index)
         if (line_idx < part_lines_ends[part_index]) {
@@ -841,21 +836,48 @@ size_t get_index_of_closest_part(const Point &coor, const LayerParts &parts) {
             // When assert appear check that part index is really the correct one
             assert(union_ex(
                 get_polygons(parts[part_index].prev_parts),
-                get_polygons(parts[part_index].next_parts)).contains(coor));
+                get_polygons(parts[part_index].next_parts))[0].contains(coor));
             return part_index;
         }
     
     assert(false); // not found
-    return 0;
+    return parts.size();
 }
 
-LayerSupports supports_for_layer(const SupportPoints &points, size_t index, 
-    float print_z, const LayerParts &parts) {
-    if (index >= points.size())
-        return {};
+struct PermanentSupport{
+    const SupportPoint &point; // reference to permanent
+    Point layer_position;
 
-    LayerSupports result;
-    for (const SupportPoint &point = points[index]; point.pos.z() < print_z; ++index) {
+    // Define wheere layer part when start influene support area
+    // When part is island also affect distribution of supports on island
+    size_t part_index;
+    size_t layer_index;
+};
+using PermanentSupports = std::vector<PermanentSupport>;
+
+/// <summary>
+/// Olny permanent supports which supports island are propagated under island
+/// (size of head define benevolence)
+/// </summary>
+/// <param name="result"></param>
+/// <param name="points"></param>
+/// <param name="index"></param>
+/// <param name="print_z"></param>
+/// <param name="parts"></param>
+/// <param name="layer_index"></param>
+void permanent_layer_supports(PermanentSupports& result,
+    const SupportPoints &points, size_t &index, 
+    float print_z, const LayerParts &parts, size_t layer_index) {
+    if (index >= points.size())
+        return;
+    
+    for (; index < points.size(); ++index) {
+        const SupportPoint &point = points[index];
+        if (point.pos.z() > print_z)
+            // support point belongs to another layer
+            // Points are sorted by z
+            break; 
+
         // find layer part for support
         size_t part_index = parts.size();
         Point coor(static_cast<coord_t>(scale_(point.pos.x())),
@@ -870,11 +892,14 @@ LayerSupports supports_for_layer(const SupportPoints &points, size_t index,
                 part_index = &part - &parts.front();                
             }
         }
-        if (part_index >= parts.size()) // support point is not in any part
+        if (part_index >= parts.size()) { // support point is not in any part
             part_index = get_index_of_closest_part(coor, parts);
-        result.push_back(LayerSupport{point, coor, part_index});
+            if (part_index >= parts.size()) // support is too far from any part
+                continue;
+        }
+        result.push_back(PermanentSupport{point, coor, part_index, layer_index});
     }
-    return {};
+    return;
 }
 
 /// <summary>
@@ -895,6 +920,38 @@ MinMax<float> get_layer_range(const Layers &layers, size_t layer_id) {
         (layers[layer_id + 1].print_z + print_z) / 2.f :
         print_z + (print_z - min); // last layer guess height by prev layer center
     return MinMax<float>{min, max};
+}
+
+/// <summary>
+/// Prepare permanent supports for layer's parts
+/// </summary>
+/// <param name="permanent_supports">Permanent supports</param>
+/// <param name="layers">Define heights of layers</param>
+/// <param name="config">Define how to propagate to previous layers</param>
+/// <returns>Supoorts to add into layer parts</returns>
+PermanentSupports prepare_permanent_supports(
+    const SupportPoints &permanent_supports,
+    const Layers &layers,
+    const SupportPointGeneratorConfig &config
+) {
+    // How to propagate permanent support position into previous layers? and how deep? requirements
+    // are chained. IMHO it should start togetjer from islands and permanent than propagate over surface
+
+    // permanent supports MUST be sorted by z
+    assert(std::is_sorted(permanent_supports.begin(), permanent_supports.end(),
+        [](const SupportPoint &a, const SupportPoint &b) { return a.pos.z() < b.pos.z(); }));
+
+    size_t permanent_index = 0;
+    PermanentSupports result;
+    for (size_t layer_id = 0; layer_id < layers.size(); ++layer_id) {
+        float layer_max_z = get_layer_range(layers, layer_id).max;
+        if (permanent_index < permanent_supports.size() &&
+            permanent_supports[permanent_index].pos.z() < layer_max_z) {
+            const Layer &layer = layers[layer_id];
+            permanent_layer_supports(result, permanent_supports, permanent_index, layer_max_z, layer.parts, layer_id);
+        }
+    }
+    return result;
 }
 
 } // namespace
@@ -923,13 +980,12 @@ LayerSupportPoints Slic3r::sla::generate_support_points(
     // Storage for support points used by grid
     LayerSupportPoints result;
 
-    // permanent supports MUST be sorted by z
-    assert(std::is_sorted(data.permanent_supports.begin(), data.permanent_supports.end(),
-        [](const SupportPoint &a, const SupportPoint &b) { return a.pos.z() < b.pos.z(); }));
+#ifdef PERMANENT_SUPPORTS
     // Index into data.permanent_supports
     size_t permanent_index = 0;
-    // How to propagate permanent support position into previous layers? and how deep? requirements are chained.
-    // IMHO it should start togetjer from islands and permanent than propagate over surface
+    PermanentSupports permanent_supports =
+        prepare_permanent_supports(data.permanent_supports, layers, config);
+#endif // PERMANENT_SUPPORTS
 
     // grid index == part in layer index
     std::vector<NearPoints> prev_grids; // same count as previous layer item size
@@ -940,15 +996,6 @@ LayerSupportPoints Slic3r::sla::generate_support_points(
         // grid index == part in layer index
         std::vector<NearPoints> grids;
         grids.reserve(layer.parts.size());
-
-#ifdef PERMANENT_SUPPORTS
-        float layer_max_z = get_layer_range(layers, layer_id).max;
-        if (data.permanent_supports[permanent_index].pos.z() < layer_max_z){
-            LayerSupports permanent = 
-                supports_for_layer(data.permanent_supports, permanent_index, layer_max_z, layer.parts);
-        
-        }
-#endif // PERMANENT_SUPPORTS
 
         for (const LayerPart &part : layer.parts) {
             if (part.prev_parts.empty()) { // Island ?
