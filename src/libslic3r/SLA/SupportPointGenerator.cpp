@@ -202,7 +202,7 @@ NearPoints create_near_points(
     const LayerPart &part,
     std::vector<NearPoints> &prev_grids
 ) {
-    const LayerParts::const_iterator &prev_part_it = part.prev_parts.front().part_it;
+    const LayerParts::const_iterator &prev_part_it = part.prev_parts.front();
     size_t index_of_prev_part = prev_part_it - prev_layer_parts.begin();
     NearPoints near_points = (prev_part_it->next_parts.size() == 1)?
         std::move(prev_grids[index_of_prev_part]) :
@@ -211,7 +211,7 @@ NearPoints create_near_points(
 
     // merge other grid in case of multiple previous parts
     for (size_t i = 1; i < part.prev_parts.size(); ++i) {
-        const LayerParts::const_iterator &prev_part_it = part.prev_parts[i].part_it;
+        const LayerParts::const_iterator &prev_part_it = part.prev_parts[i];
         size_t index_of_prev_part = prev_part_it - prev_layer_parts.begin();
         if (prev_part_it->next_parts.size() == 1) {
             near_points.merge(std::move(prev_grids[index_of_prev_part]));
@@ -260,7 +260,6 @@ void support_part_overhangs(
                     SupportPointType::slope
                 },
                 /* position_on_layer */ p,
-                /* direction_to_mass */ Point(1,0), // TODO: change direction
                 /* radius_curve_index */ 0,
                 /* current_radius */ static_cast<coord_t>(scale_(config.support_curve.front().x()))
                 });
@@ -291,7 +290,6 @@ void support_island(const LayerPart &part, NearPoints& near_points, float part_z
                 SupportPointType::island
             },
             /* position_on_layer */ sample->point,
-            /* direction_to_mass */ Point(0,0), // direction from bottom
             /* radius_curve_index */ 0,
             /* current_radius */ static_cast<coord_t>(scale_(cfg.support_curve.front().x()))
         });
@@ -314,7 +312,6 @@ void support_peninsulas(const Peninsulas& peninsulas, NearPoints& near_points, f
                     SupportPointType::island
                 },
                 /* position_on_layer */ support->point,
-                /* direction_to_mass */ Point(0, 0), // direction from bottom
                 /* radius_curve_index */ 0,
                 /* current_radius */ static_cast<coord_t>(scale_(cfg.support_curve.front().x()))
             });
@@ -329,12 +326,12 @@ void support_peninsulas(const Peninsulas& peninsulas, NearPoints& near_points, f
 Polygons get_polygons(const PartLinks& part_links) {
     size_t cnt = 0;
     for (const PartLink &part_link : part_links)
-        cnt += 1 + part_link.part_it->shape->holes.size();
+        cnt += 1 + part_link->shape->holes.size();
 
     Polygons out;
     out.reserve(cnt);
     for (const PartLink &part_link : part_links) {
-        const ExPolygon &shape = *part_link.part_it->shape;
+        const ExPolygon &shape = *part_link->shape;
         out.emplace_back(shape.contour);
         append(out, shape.holes);
     }
@@ -472,6 +469,17 @@ Points sample_overhangs(const LayerPart& part, double dist2) {
     return samples;
 }
 
+coord_t calc_influence_radius(float z_distance, const SupportPointGeneratorConfig &config) { 
+    float island_support_distance = config.support_curve.front().x() / config.density_relative;
+    if (z_distance >= island_support_distance)
+        return 0.f;
+    // IMPROVE: use curve interpolation instead of sqrt(stored in config).
+
+    // shape of supported area before permanent supports is sphere with radius of island_support_distance
+    return static_cast<coord_t>(scale_(
+        std::sqrt(sqr(island_support_distance) - sqr(z_distance))
+    ));
+}
 
 void prepare_supports_for_layer(LayerSupportPoints &supports, float layer_z, 
     const SupportPointGeneratorConfig &config) {
@@ -491,6 +499,11 @@ void prepare_supports_for_layer(LayerSupportPoints &supports, float layer_z,
 
         // find current segment
         float diff_z = layer_z - support.pos.z();
+        if (diff_z < 0.) {
+            // permanent support influence distribution of support points printed before.
+            support.current_radius = calc_influence_radius(-diff_z, config);
+            continue;
+        }
         while ((index + 1) < curve.size() && diff_z > curve[index + 1].y())
             ++index;
 
@@ -708,8 +721,8 @@ SupportPointGeneratorData Slic3r::sla::prepare_generator_data(
 
                 // TODO: check minimal intersection!
 
-                it_above->prev_parts.emplace_back(PartLink{it_below});
-                it_below->next_parts.emplace_back(PartLink{it_above});
+                it_above->prev_parts.push_back(it_below);
+                it_below->next_parts.push_back(it_above);
             }
 
             if (it_above->prev_parts.empty())
@@ -805,7 +818,8 @@ std::vector<Vec2f> load_curve_from_file() {
 // Processing permanent support points
 // Permanent are manualy edited points by user
 namespace {
-size_t get_index_of_closest_part(const Point &coor, const LayerParts &parts) {
+
+size_t get_index_of_closest_part(const Point &coor, const LayerParts &parts, double max_allowed_distance_sq) {
     size_t count_lines = 0;
     std::vector<size_t> part_lines_ends;
     part_lines_ends.reserve(parts.size());
@@ -826,7 +840,7 @@ size_t get_index_of_closest_part(const Point &coor, const LayerParts &parts) {
     [[maybe_unused]] double distance_sq =
         AABBTreeLines::squared_distance_to_indexed_lines(lines, tree, coor_d, line_idx, hit_point);
     
-    if (distance_sq >= scale_(1) * scale_(1)) // point is farer than 1mm from any layer part
+    if (distance_sq >= max_allowed_distance_sq) // point is farer than 1mm from any layer part
         return parts.size(); // this support point should not be used any more
 
     // Find part index of closest line
@@ -842,64 +856,6 @@ size_t get_index_of_closest_part(const Point &coor, const LayerParts &parts) {
     
     assert(false); // not found
     return parts.size();
-}
-
-struct PermanentSupport{
-    const SupportPoint &point; // reference to permanent
-    Point layer_position;
-
-    // Define wheere layer part when start influene support area
-    // When part is island also affect distribution of supports on island
-    size_t part_index;
-    size_t layer_index;
-};
-using PermanentSupports = std::vector<PermanentSupport>;
-
-/// <summary>
-/// Olny permanent supports which supports island are propagated under island
-/// (size of head define benevolence)
-/// </summary>
-/// <param name="result"></param>
-/// <param name="points"></param>
-/// <param name="index"></param>
-/// <param name="print_z"></param>
-/// <param name="parts"></param>
-/// <param name="layer_index"></param>
-void permanent_layer_supports(PermanentSupports& result,
-    const SupportPoints &points, size_t &index, 
-    float print_z, const LayerParts &parts, size_t layer_index) {
-    if (index >= points.size())
-        return;
-    
-    for (; index < points.size(); ++index) {
-        const SupportPoint &point = points[index];
-        if (point.pos.z() > print_z)
-            // support point belongs to another layer
-            // Points are sorted by z
-            break; 
-
-        // find layer part for support
-        size_t part_index = parts.size();
-        Point coor(static_cast<coord_t>(scale_(point.pos.x())),
-                   static_cast<coord_t>(scale_(point.pos.y())));
-
-        // find part for support point
-        for (const LayerPart &part : parts) {
-            if (part.shape_extent.contains(coor) &&
-                part.shape->contains(coor)) {
-                // parts do not overlap each other
-                assert(part_index >= parts.size());                
-                part_index = &part - &parts.front();                
-            }
-        }
-        if (part_index >= parts.size()) { // support point is not in any part
-            part_index = get_index_of_closest_part(coor, parts);
-            if (part_index >= parts.size()) // support is too far from any part
-                continue;
-        }
-        result.push_back(PermanentSupport{point, coor, part_index, layer_index});
-    }
-    return;
 }
 
 /// <summary>
@@ -921,6 +877,154 @@ MinMax<float> get_layer_range(const Layers &layers, size_t layer_id) {
         print_z + (print_z - min); // last layer guess height by prev layer center
     return MinMax<float>{min, max};
 }
+
+size_t get_index_of_layer_part(const Point& coor, const LayerParts& parts, double max_allowed_distance_sq) {
+    size_t part_index = parts.size();
+    // find part for support point
+    for (const LayerPart &part : parts) {
+        if (part.shape_extent.contains(coor) && part.shape->contains(coor)) {
+            // parts do not overlap each other
+            assert(part_index >= parts.size());
+            part_index = &part - &parts.front();
+        }
+    }
+    if (part_index >= parts.size()) { // support point is not in any part
+        part_index = get_index_of_closest_part(coor, parts, max_allowed_distance_sq);
+        // if (part_index >= parts.size()) // support is too far from any part
+    }
+    return part_index;
+}
+
+LayerParts::const_iterator get_closest_part(const PartLinks &links, Vec2d &coor) {
+    if (links.size() == 1)
+        return links.front();
+
+    Point coor_p = coor.cast<coord_t>();
+    // Note: layer part MUST not overlap each other
+    for (const PartLink &link : links) {
+        LayerParts::const_iterator part_it = link;
+        if (part_it->shape_extent.contains(coor_p) && 
+            part_it->shape->contains(coor_p)) {
+            return part_it;
+        }
+    }
+
+    size_t count_lines = 0;
+    std::vector<size_t> part_lines_ends;
+    part_lines_ends.reserve(links.size());
+    for (const PartLink &link: links) {
+        count_lines += count_points(*link->shape);
+        part_lines_ends.push_back(count_lines);
+    }
+    Linesf lines;
+    lines.reserve(count_lines);
+    for (const PartLink &link : links)
+        append(lines, to_linesf({*link->shape}));
+    AABBTreeIndirect::Tree<2, double> tree = 
+        AABBTreeLines::build_aabb_tree_over_indexed_lines(lines);
+
+    size_t line_idx = std::numeric_limits<size_t>::max();
+    Vec2d hit_point;
+    [[maybe_unused]] double distance_sq =
+        AABBTreeLines::squared_distance_to_indexed_lines(lines, tree, coor, line_idx, hit_point);
+    
+    // Find part index of closest line
+    for (size_t part_index = 0; part_index < part_lines_ends.size(); ++part_index) {
+        if (line_idx >= part_lines_ends[part_index])
+            continue;
+        
+        // check point lais inside prev or next part shape
+        // When assert appear check that part index is really the correct one
+        assert(union_ex(
+            get_polygons(links[part_index]->prev_parts),
+            get_polygons(links[part_index]->next_parts))[0].contains(coor.cast<coord_t>()));
+        coor = hit_point; // update closest point
+        return links[part_index];        
+    }
+    
+    assert(false); // not found
+    return links.front();
+}
+
+struct PartId {
+    // index into layers
+    size_t layer_id;
+    // index into parts of the previously addresed layer.
+    size_t part_id;
+};
+
+/// <summary>
+/// Dive into previous layers a trace influence over layer parts before support point
+/// </summary>
+/// <param name="part_id">Index of part that point will appear</param>
+/// <param name="layer_id">Index of layer where point will appear</param>
+/// <param name="p">Permanent support point</param>
+/// <param name="layers">All layers</param>
+/// <param name="config"></param>
+/// <returns>First influence: Layer_index + Part_index</returns>
+PartId get_index_of_first_influence(
+    const PartId& partid,
+    const SupportPoint &p,
+    const Point& coor,
+    const Layers &layers,
+    const SupportPointGeneratorConfig &config) {
+    // find layer part for support
+    
+    float max_influence_distance = std::max(
+        2 * p.head_front_radius, 
+        config.support_curve.front().x());
+
+    const LayerParts& parts = layers[partid.layer_id].parts;
+    LayerParts::const_iterator current_part_it = parts.cbegin() + partid.part_id;
+    LayerParts::const_iterator prev_part_it = current_part_it; // stop influence just before island
+    Vec2d coor_d = coor.cast<double>();
+
+    auto get_part_id = [&layers](size_t layer_index, const LayerParts::const_iterator& part_it) {
+        const LayerParts &parts = layers[layer_index].parts;
+        size_t part_index = part_it - parts.cbegin();
+        assert(part_index < parts.size());
+        return PartId{layer_index, part_index};
+    };
+    // Detect not propagate into island
+    // Island supports has different behavior
+    // p.pos.z() - p.head_front_radius >= layer.print_z
+    for (size_t i = 0; i <= partid.layer_id; ++i) {
+        size_t current_layer_id = partid.layer_id - i;
+        const Layer &layer = layers[current_layer_id];
+        float z_distance = p.pos.z() - layer.print_z;
+        if (z_distance >= max_influence_distance)
+            return get_part_id(current_layer_id, current_part_it); // above layer index
+        
+        const PartLinks &prev_parts = current_part_it->prev_parts;
+        if (prev_parts.empty()){
+            // Island support
+            return (z_distance < p.head_front_radius) ?
+                get_part_id(current_layer_id, current_part_it) :
+                get_part_id(current_layer_id + 1, prev_part_it);
+        }
+
+        prev_part_it = current_part_it;
+        current_part_it = get_closest_part(prev_parts, coor_d);
+    }
+
+    // It is unreachable!
+    // The first layer is always island
+    assert(false);
+    return PartId{std::numeric_limits<size_t>::max(), std::numeric_limits<size_t>::max()};
+}
+
+struct PermanentSupport {
+    SupportPoints::const_iterator point_it; // reference to permanent
+
+    // Define wheere layer part when start influene support area
+    // When part is island also affect distribution of supports on island
+    PartId influence;
+
+    // Position of support point in layer
+    PartId part;
+    Point layer_position;
+};
+using PermanentSupports = std::vector<PermanentSupport>;
 
 /// <summary>
 /// Prepare permanent supports for layer's parts
@@ -945,13 +1049,77 @@ PermanentSupports prepare_permanent_supports(
     PermanentSupports result;
     for (size_t layer_id = 0; layer_id < layers.size(); ++layer_id) {
         float layer_max_z = get_layer_range(layers, layer_id).max;
-        if (permanent_index < permanent_supports.size() &&
-            permanent_supports[permanent_index].pos.z() < layer_max_z) {
-            const Layer &layer = layers[layer_id];
-            permanent_layer_supports(result, permanent_supports, permanent_index, layer_max_z, layer.parts, layer_id);
+        if (permanent_index >= permanent_supports.size())
+            break; // no more permanent supports
+            
+        if (permanent_supports[permanent_index].pos.z() >= layer_max_z)
+            continue; // no permanent support for this layer
+            
+        const Layer &layer = layers[layer_id];
+        for (; permanent_index < permanent_supports.size(); ++permanent_index) {
+            SupportPoints::const_iterator point_it = permanent_supports.begin()+permanent_index;
+            if (point_it->pos.z() > layer_max_z)
+                // support point belongs to another layer
+                // Points are sorted by z
+                break;
+
+            // find layer part for support
+            Point coor(static_cast<coord_t>(scale_(point_it->pos.x())),
+                       static_cast<coord_t>(scale_(point_it->pos.y())));
+
+            double allowed_distance_sq = std::max(config.max_allowed_distance_sq,
+                sqr(scale_(point_it->head_front_radius)));            
+            size_t part_index = get_index_of_layer_part(coor, layer.parts, allowed_distance_sq);
+            if (part_index >= layer.parts.size()) 
+                continue; // support point is not in any part
+            
+            PartId part_id{layer_id, part_index};
+            // find part of first inlfuenced layer and part for this support point
+            PartId influence = get_index_of_first_influence(part_id, *point_it, coor, layers, config);
+            result.push_back(PermanentSupport{point_it, influence, part_id, coor});
         }
     }
+
+    // sort by layer index and part index
+    std::sort(result.begin(), result.end(), [](const PermanentSupport& s1, const PermanentSupport& s2) {
+        return s1.influence.layer_id != s2.influence.layer_id ?
+            s1.influence.layer_id < s2.influence.layer_id :
+            s1.influence.part_id < s2.influence.part_id; });
+
     return result;
+}
+
+bool exist_permanent_support(const PermanentSupports& supports, size_t current_support_index, 
+    size_t layer_index, size_t part_index) {
+    if (current_support_index >= supports.size())
+        return false;
+
+    const PartId &influence = supports[current_support_index].influence;
+    assert(influence.layer_id >= layer_index);
+    return influence.layer_id == layer_index && 
+           influence.part_id == part_index;
+}
+
+/// <summary>
+/// copy permanent supports into near points 
+/// </summary>
+/// <param name="near_points">OUTPUT for all permanent supports for this layer and part</param>
+/// <param name="supports">Copied from</param>
+/// <param name="support_index">current index into supports</param>
+/// <param name="layer_index">current layer index</param>
+/// <param name="part_index">current part index</param>
+void copy_permanent_supports(NearPoints& near_points, const PermanentSupports& supports, size_t& support_index, 
+    float print_z, size_t layer_index, size_t part_index, const SupportPointGeneratorConfig &config) {
+    while (exist_permanent_support(supports, support_index, layer_index, part_index)) {
+        const PermanentSupport &support = supports[support_index];
+        near_points.add(LayerSupportPoint{
+            /* SupportPoint */       *support.point_it,
+            /* position_on_layer */  support.layer_position, 
+            /* radius_curve_index */ 0, // before support point - earlier influence on point distribution
+            /* current_radius */     calc_influence_radius(fabs(support.point_it->pos.z() - print_z), config)
+        });
+        ++support_index;
+    }
 }
 
 } // namespace
@@ -1011,6 +1179,10 @@ LayerSupportPoints Slic3r::sla::generate_support_points(
             const LayerParts &prev_layer_parts = layers[layer_id - 1].parts;
             NearPoints near_points = create_near_points(prev_layer_parts, part, prev_grids);
             remove_supports_out_of_part(near_points, part, config);
+#ifdef PERMANENT_SUPPORTS
+            size_t part_id = &part - &layer.parts.front();            
+            copy_permanent_supports(near_points, permanent_supports, permanent_index, layer.print_z, layer_id, part_id, config);
+#endif // PERMANENT_SUPPORTS
             if (!part.peninsulas.empty())
                 support_peninsulas(part.peninsulas, near_points, layer.print_z, config);
             support_part_overhangs(part, config, near_points, layer.print_z, maximal_radius);

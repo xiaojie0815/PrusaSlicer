@@ -51,18 +51,16 @@ struct SupportPointGeneratorConfig{
 
     // Configuration for sampling island
     SampleConfig island_configuration = SampleConfigFactory::create(head_diameter);
+
+    // maximal allowed distance to layer part for permanent(manual edited) support
+    // helps to identify not wanted support points during automatic support generation.
+    double max_allowed_distance_sq = scale_(1) * scale_(1); // 1mm
 };
 
 struct LayerPart; // forward decl.
 using LayerParts = std::vector<LayerPart>;
 
-struct PartLink
-{
-    LayerParts::const_iterator part_it;
-    // float overlap_area; // sum of overlap areas
-    // ExPolygons overlap; // clipper intersection_ex
-    // ExPolygons overhang; // clipper diff_ex
-};
+using PartLink = LayerParts::const_iterator;
 #ifdef NDEBUG
 // In release mode, use the optimized container.
 using PartLinks = boost::container::small_vector<PartLink, 4>;
@@ -116,17 +114,9 @@ struct LayerPart {
 /// </summary>
 struct LayerSupportPoint: public SupportPoint
 {
-    // Pointer on source ExPolygon otherwise nullptr
-    //const LayerPart *part{nullptr}; 
-
     // 2d coordinate on layer
     // use only when part is not nullptr
     Point position_on_layer; // [scaled_ unit]
-
-    // 2d direction into expolygon mass
-    // used as ray to positioning 3d point on mesh surface
-    // Island has direction [0,0] - should be placed on surface from bottom
-    Point direction_to_mass;
 
     // index into curve to faster found radius for current layer
     size_t radius_curve_index = 0;
