@@ -32,6 +32,8 @@ wxDEFINE_EVENT(EVT_UA_RACE_LOST, UserAccountFailEvent);
 wxDEFINE_EVENT(EVT_UA_PRUSACONNECT_PRINTER_DATA_FAIL, UserAccountFailEvent);
 wxDEFINE_EVENT(EVT_UA_REFRESH_TIME, UserAccountTimeEvent);
 wxDEFINE_EVENT(EVT_UA_ENQUEUED_REFRESH, SimpleEvent);
+wxDEFINE_EVENT(EVT_UA_RETRY_NOTIFY, UserAccountFailEvent);
+wxDEFINE_EVENT(EVT_UA_CLOSE_RETRY_NOTIFICATION, SimpleEvent);
 
 void UserActionPost::perform(/*UNUSED*/ wxEvtHandler* evt_handler, /*UNUSED*/ const std::string& access_token, UserActionSuccessFn success_callback, UserActionFailFn fail_callback, const std::string& input) const
 {

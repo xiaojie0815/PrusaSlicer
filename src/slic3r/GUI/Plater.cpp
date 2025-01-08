@@ -1078,6 +1078,22 @@ void Plater::priv::init()
             }
             this->q->printables_to_connect_gcode(into_u8(evt.GetString()));
         });
+
+        this->q->Bind(EVT_UA_RETRY_NOTIFY, [this](UserAccountFailEvent& evt) {
+            this->notification_manager->close_notification_of_type(NotificationType::AccountTransientRetry);
+            this->notification_manager->push_notification(NotificationType::AccountTransientRetry
+                , NotificationManager::NotificationLevel::RegularNotificationLevel
+                , evt.data
+                , _u8L("Stop now.")
+                , [this](wxEvtHandler* ) {
+                    this->user_account->do_logout();
+			        return true; 
+		        });
+  
+        });
+        this->q->Bind(EVT_UA_CLOSE_RETRY_NOTIFICATION, [this](SimpleEvent& evt) {
+            this->notification_manager->close_notification_of_type(NotificationType::AccountTransientRetry);
+        });
     }
 
 	wxGetApp().other_instance_message_handler()->init(this->q);

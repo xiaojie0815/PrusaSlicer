@@ -315,7 +315,7 @@ void UserAccountCommunication::set_username(const std::string& username)
                 BOOST_LOG_TRIVIAL(error) << "Failed to write tokens to the secret store.";
             }
         } else {
-//#ifdef __linux__
+#ifdef __linux__
             // If we can't store the tokens in secret store, store them in file with chmod 600
             boost::filesystem::path target(boost::filesystem::path(Slic3r::data_dir()) / "UserAccount.dat") ;
             std::string data = "||||";
