@@ -693,19 +693,28 @@ LoginWebViewDialog::LoginWebViewDialog(wxWindow *parent, std::string &ret_val, c
     , m_ret_val(ret_val)
     , p_evt_handler(evt_handler)
 {
+    m_force_quit_timer.SetOwner(this, 0);
+    Bind(wxEVT_TIMER, [this](wxTimerEvent &evt)
+    {
+        m_force_quit = true;
+    });
     Centre();
 }
 void LoginWebViewDialog::on_navigation_request(wxWebViewEvent &evt)
 {
     wxString url = evt.GetURL();
     if (url.starts_with(L"prusaslicer")) {
-        delete_cookies(m_browser, Utils::ServiceConfig::instance().account_url());
-        delete_cookies(m_browser, "https://accounts.google.com");
-        delete_cookies(m_browser, "https://appleid.apple.com");
-        delete_cookies(m_browser, "https://facebook.com");
+        m_waiting_for_counters = true;
+        m_atomic_counter = 0;
+        m_counter_to_match = 4;
+        delete_cookies_with_counter(m_browser, Utils::ServiceConfig::instance().account_url(), m_atomic_counter);
+        delete_cookies_with_counter(m_browser, "https://accounts.google.com", m_atomic_counter);
+        delete_cookies_with_counter(m_browser, "https://appleid.apple.com", m_atomic_counter);
+        delete_cookies_with_counter(m_browser, "https://facebook.com", m_atomic_counter);
         evt.Veto();
         m_ret_val = into_u8(url);
-        EndModal(wxID_OK);
+        m_force_quit_timer.Start(2000, wxTIMER_ONE_SHOT);
+        // End modal is moved to on_idle        
     } else if (url.Find(L"accounts.google.com") != wxNOT_FOUND
         || url.Find(L"appleid.apple.com") != wxNOT_FOUND
         || url.Find(L"facebook.com") != wxNOT_FOUND) {         
@@ -726,5 +735,36 @@ void LoginWebViewDialog::on_dpi_changed(const wxRect &suggested_rect)
     Fit();
     Refresh();
 }
+
+void LoginWebViewDialog::on_idle(wxIdleEvent& WXUNUSED(evt))
+{
+    if (!m_browser)
+        return;
+    if (m_browser->IsBusy()) {
+       if constexpr (!is_linux) { 
+            wxSetCursor(wxCURSOR_ARROWWAIT);
+        }
+    } else {
+        if constexpr (!is_linux) { 
+            wxSetCursor(wxNullCursor);
+        }
+        if (m_load_error_page) {
+            m_load_error_page = false;
+            m_browser->LoadURL(GUI::format_wxstr("file://%1%/web/error_no_reload.html", boost::filesystem::path(resources_dir()).generic_string()));
+        }
+        if (m_waiting_for_counters && m_atomic_counter == m_counter_to_match)
+        {
+            EndModal(wxID_OK);
+        }
+        if (m_force_quit)
+        {
+            EndModal(wxID_OK);
+        }
+    }
+#ifdef DEBUG_URL_PANEL
+    m_button_stop->Enable(m_browser->IsBusy());
+#endif
+}
+
 } // GUI
 } // Slic3r
