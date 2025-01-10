@@ -450,7 +450,7 @@ Points rasterize(const ExPolygon &island, double distance) {
 SupportIslandPoints test_island_sampling(const ExPolygon &   island,
                                         const SampleConfig &config)
 {
-    auto points = uniform_support_island(island, config);
+    auto points = uniform_support_island(island, {}, config);
 
     Points chck_points = rasterize(island, config.head_radius); // TODO: Use resolution of printer
     bool is_ok = true;

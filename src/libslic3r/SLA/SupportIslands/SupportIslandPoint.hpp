@@ -25,6 +25,8 @@ public:
         thin_part_loop,       // on the last edge -> loop into itself part of island
         thick_part_outline,   // keep position align with island outline 
         thick_part_inner,     // point inside wide part, without restriction on move
+
+        permanent,            // permanent support point with static position
         undefined
     };
 

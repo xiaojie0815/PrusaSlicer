@@ -3,11 +3,11 @@
 #include <cmath>
 #include <optional>
 #include <vector>
-#include <optional>
 #include <cassert>
 #include <memory>
 
 #include <libslic3r/ClipperUtils.hpp> // allign
+#include <libslic3r/KDTreeIndirect.hpp> // closest point
 #include <libslic3r/Geometry.hpp>
 #include "libslic3r/Geometry/Voronoi.hpp"
 #include <libslic3r/Geometry/VoronoiOffset.hpp>
@@ -512,6 +512,65 @@ void align_samples(SupportIslandPoints &samples, const ExPolygon &island, const 
             " mm" << std::endl;
 #endif // SLA_SAMPLE_ISLAND_UTILS_STORE_ALIGNED_TO_SVG_PATH
     
+}
+
+void align_samples_with_permanent(
+    SupportIslandPoints &samples, const ExPolygon &island, const Points& permanent, const SampleConfig &config)
+{
+    assert(!permanent.empty());
+    if (permanent.empty())
+        return align_samples(samples, island, config);
+    
+    // detect whether add adding support points 
+    size_t tolerance = 1 + size_t(permanent.size() * 0.1); // 1 + 10% of permanent points
+    bool extend_permanent = samples.size() > (permanent.size() + tolerance);
+    if (!extend_permanent) // use only permanent support points
+        return samples.clear();
+
+    // find closest samples to permanent support points
+    Points points;
+    points.reserve(samples.size());
+    for (const SupportIslandPointPtr &p : samples)
+        points.push_back(p->point);
+    auto point_accessor = [&points](size_t idx, size_t dim) -> coord_t & {
+        return points[idx][dim]; };
+    KDTreeIndirect<2, coord_t, decltype(point_accessor)> tree(point_accessor, samples.size());
+    for (size_t i = 0; i < permanent.size(); ++i) {
+        std::array<size_t, 5> closests = find_closest_points<5>(tree, permanent[i]);        
+        bool found_closest = false;
+        for (size_t idx : closests) {
+            if (idx >= samples.size())
+                continue; // closest function return also size_t::max()
+            SupportIslandPointPtr &sample = samples[idx];
+            if (sample->type == SupportIslandPoint::Type::permanent)
+                continue; // already used
+            sample->type = SupportIslandPoint::Type::permanent;
+            found_closest = true;
+            break;
+        }
+        if (!found_closest) { // backup solution when closest 5 fails, took first non permanent
+            for (const auto &sample : samples)
+                if (sample->type != SupportIslandPoint::Type::permanent) {
+                    sample->type = SupportIslandPoint::Type::permanent;
+                    break;
+                }
+        }
+    }
+
+    // remove samples marked as permanent
+    samples.erase(std::remove_if(samples.begin(), samples.end(), [](const SupportIslandPointPtr &sample) {
+        return sample->type == SupportIslandPoint::Type::permanent; }), samples.end());
+
+    // add permanent into samples
+    for (const Point&p: permanent)
+        samples.push_back(
+            std::make_unique<SupportIslandNoMovePoint>(p, SupportIslandPoint::Type::permanent));
+    
+    align_samples(samples, island, config);
+
+    // remove permanent samples inserted for aligning
+    samples.erase(std::remove_if(samples.begin(), samples.end(), [](const SupportIslandPointPtr &sample) {
+        return sample->type == SupportIslandPoint::Type::permanent; }), samples.end());
 }
 
 /// <summary>
@@ -2231,7 +2290,8 @@ void draw(SVG &svg, const SupportIslandPoints &supportIslandPoints, coord_t radi
 /// uniform support island ///
 //////////////////////////////
 namespace Slic3r::sla {
-SupportIslandPoints uniform_support_island(const ExPolygon &island, const SampleConfig &config){
+SupportIslandPoints uniform_support_island(
+    const ExPolygon &island, const Points& permanent, const SampleConfig &config){
     ExPolygon simplified_island = get_simplified(island, config);
 #ifdef OPTION_TO_STORE_ISLAND
     std::string path;
@@ -2334,7 +2394,11 @@ SupportIslandPoints uniform_support_island(const ExPolygon &island, const Sample
 #endif // OPTION_TO_STORE_ISLAND
 
     // allign samples
-    align_samples(supports, island, config);
+    if (permanent.empty())
+        align_samples(supports, island, config);
+    else 
+        align_samples_with_permanent(supports, island, permanent, config);
+
 #ifdef OPTION_TO_STORE_ISLAND
     if (!path.empty()) {
         SVG svg = draw_island(path, island, simplified_island);
@@ -2354,7 +2418,8 @@ SupportIslandPoints uniform_support_island(const ExPolygon &island, const Sample
 }
 
 // Follow implementation "create_supports_for_thick_part("
-SupportIslandPoints uniform_support_peninsula(const Peninsula &peninsula, const SampleConfig &config){
+SupportIslandPoints uniform_support_peninsula(
+    const Peninsula &peninsula, const Points& permanent, const SampleConfig &config){
     // create_peninsula_field
     Field field;
     field.border = peninsula.unsuported_area;
@@ -2372,7 +2437,12 @@ SupportIslandPoints uniform_support_peninsula(const Peninsula &peninsula, const 
     std::transform(inner_points.begin(), inner_points.end(), std::back_inserter(results), 
         [&inner](const Point &point) { return std::make_unique<SupportIslandInnerPoint>(
                                       point, inner, SupportIslandPoint::Type::thick_part_inner);});
-    align_samples(results, peninsula.unsuported_area, config);
+    
+    // allign samples
+    if (permanent.empty())
+        align_samples(results, peninsula.unsuported_area, config);
+    else
+        align_samples_with_permanent(results, peninsula.unsuported_area, permanent, config);
     return results;
 }
 

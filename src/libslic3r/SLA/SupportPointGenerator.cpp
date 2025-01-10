@@ -16,8 +16,6 @@
 using namespace Slic3r;
 using namespace Slic3r::sla;
 
-//#define PERMANENT_SUPPORTS
-
 namespace {
 /// <summary>
 /// Struct to store support points in KD tree to fast search for nearest ones.
@@ -274,10 +272,11 @@ void support_part_overhangs(
 /// <param name="part">Island to support</param>
 /// <param name="near_points">OUT place to store new supports</param>
 /// <param name="part_z">z coordinate of part</param>
+/// <param name="permanent">z coordinate of part</param>
 /// <param name="cfg"></param>
 void support_island(const LayerPart &part, NearPoints& near_points, float part_z,
-    const SupportPointGeneratorConfig &cfg) {
-    SupportIslandPoints samples = uniform_support_island(*part.shape, cfg.island_configuration);
+    const Points &permanent, const SupportPointGeneratorConfig &cfg) {
+    SupportIslandPoints samples = uniform_support_island(*part.shape, permanent, cfg.island_configuration);
     for (const SupportIslandPointPtr &sample : samples)
         near_points.add(LayerSupportPoint{
             SupportPoint{
@@ -296,10 +295,10 @@ void support_island(const LayerPart &part, NearPoints& near_points, float part_z
 }
 
 void support_peninsulas(const Peninsulas& peninsulas, NearPoints& near_points, float part_z,
-    const SupportPointGeneratorConfig &cfg) {
+    const Points &permanent, const SupportPointGeneratorConfig &cfg) {
     for (const Peninsula& peninsula: peninsulas) {
         SupportIslandPoints peninsula_supports =
-            uniform_support_peninsula(peninsula, cfg.island_configuration);
+            uniform_support_peninsula(peninsula, permanent, cfg.island_configuration);
         for (const SupportIslandPointPtr &support : peninsula_supports)
             near_points.add(LayerSupportPoint{
                 SupportPoint{
@@ -814,11 +813,9 @@ std::vector<Vec2f> load_curve_from_file() {
     return {};
 }
 
-#ifdef PERMANENT_SUPPORTS
 // Processing permanent support points
 // Permanent are manualy edited points by user
 namespace {
-
 size_t get_index_of_closest_part(const Point &coor, const LayerParts &parts, double max_allowed_distance_sq) {
     size_t count_lines = 0;
     std::vector<size_t> part_lines_ends;
@@ -1041,6 +1038,9 @@ PermanentSupports prepare_permanent_supports(
     // How to propagate permanent support position into previous layers? and how deep? requirements
     // are chained. IMHO it should start togetjer from islands and permanent than propagate over surface
 
+    if (permanent_supports.empty())
+        return {};
+
     // permanent supports MUST be sorted by z
     assert(std::is_sorted(permanent_supports.begin(), permanent_supports.end(),
         [](const SupportPoint &a, const SupportPoint &b) { return a.pos.z() < b.pos.z(); }));
@@ -1102,10 +1102,12 @@ bool exist_permanent_support(const PermanentSupports& supports, size_t current_s
 
 /// <summary>
 /// copy permanent supports into near points 
+/// which has influence into current layer part
 /// </summary>
 /// <param name="near_points">OUTPUT for all permanent supports for this layer and part</param>
-/// <param name="supports">Copied from</param>
+/// <param name="supports">source for Copy</param>
 /// <param name="support_index">current index into supports</param>
+/// <param name="print_z">current layer index</param>
 /// <param name="layer_index">current layer index</param>
 /// <param name="part_index">current part index</param>
 void copy_permanent_supports(NearPoints& near_points, const PermanentSupports& supports, size_t& support_index, 
@@ -1118,12 +1120,23 @@ void copy_permanent_supports(NearPoints& near_points, const PermanentSupports& s
             /* radius_curve_index */ 0, // before support point - earlier influence on point distribution
             /* current_radius */     calc_influence_radius(fabs(support.point_it->pos.z() - print_z), config)
         });
+
+        // NOTE: increment index globaly
         ++support_index;
     }
 }
 
+Points get_permanents(const PermanentSupports &supports, size_t support_index, 
+    size_t layer_index, size_t part_index) {
+    Points result;
+    while (exist_permanent_support(supports, support_index, layer_index, part_index)) {
+        result.push_back(supports[support_index].layer_position); // copy
+        ++support_index; // only local(temporary) increment
+    }
+    return result;
+}
+
 } // namespace
-#endif // PERMANENT_SUPPORTS
 
 LayerSupportPoints Slic3r::sla::generate_support_points(
     const SupportPointGeneratorData &data,
@@ -1148,12 +1161,10 @@ LayerSupportPoints Slic3r::sla::generate_support_points(
     // Storage for support points used by grid
     LayerSupportPoints result;
 
-#ifdef PERMANENT_SUPPORTS
     // Index into data.permanent_supports
     size_t permanent_index = 0;
     PermanentSupports permanent_supports =
         prepare_permanent_supports(data.permanent_supports, layers, config);
-#endif // PERMANENT_SUPPORTS
 
     // grid index == part in layer index
     std::vector<NearPoints> prev_grids; // same count as previous layer item size
@@ -1166,11 +1177,12 @@ LayerSupportPoints Slic3r::sla::generate_support_points(
         grids.reserve(layer.parts.size());
 
         for (const LayerPart &part : layer.parts) {
-            if (part.prev_parts.empty()) { // Island ?
-                // only island add new grid
-                grids.emplace_back(&result);
-                // new island - needs support no doubt
-                support_island(part, grids.back(), layer.print_z, config);
+            size_t part_id = &part - &layer.parts.front();
+            if (part.prev_parts.empty()) { // Island ?                
+                grids.emplace_back(&result); // only island add new grid
+                Points permanent = get_permanents(permanent_supports, permanent_index, layer_id, part_id);
+                support_island(part, grids.back(), layer.print_z, permanent, config);
+                copy_permanent_supports(grids.back(), permanent_supports, permanent_index, layer.print_z, layer_id, part_id, config);
                 continue;
             }
 
@@ -1179,12 +1191,11 @@ LayerSupportPoints Slic3r::sla::generate_support_points(
             const LayerParts &prev_layer_parts = layers[layer_id - 1].parts;
             NearPoints near_points = create_near_points(prev_layer_parts, part, prev_grids);
             remove_supports_out_of_part(near_points, part, config);
-#ifdef PERMANENT_SUPPORTS
-            size_t part_id = &part - &layer.parts.front();            
+            if (!part.peninsulas.empty()) {
+                Points permanent = get_permanents(permanent_supports, permanent_index, layer_id, part_id);
+                support_peninsulas(part.peninsulas, near_points, layer.print_z, permanent, config);
+            }
             copy_permanent_supports(near_points, permanent_supports, permanent_index, layer.print_z, layer_id, part_id, config);
-#endif // PERMANENT_SUPPORTS
-            if (!part.peninsulas.empty())
-                support_peninsulas(part.peninsulas, near_points, layer.print_z, config);
             support_part_overhangs(part, config, near_points, layer.print_z, maximal_radius);
             grids.push_back(std::move(near_points));            
         }
