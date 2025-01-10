@@ -216,44 +216,43 @@ std::array<size_t, K> find_closest_points(
         const Tree      &kdtree;
         const PointType &point;
         const FilterFn   filter;
-
-        std::array<std::pair<size_t, CoordT>, K> results;
+        struct Result {
+            size_t index;
+            double distance_sq;
+        };
+        std::array<Result, K> results;
 
         Visitor(const Tree &kdtree, const PointType &point, FilterFn filter)
             : kdtree(kdtree), point(point), filter(filter)
         {
-            results.fill(std::make_pair(Tree::npos,
-                                        std::numeric_limits<CoordT>::max()));
+            results.fill(Result{Tree::npos, std::numeric_limits<double>::max()});
         }
         unsigned int operator()(size_t idx, size_t dimension)
         {
             if (this->filter(idx)) {
-                auto dist = CoordT(0);
+                double distance_sq = 0.;
                 for (size_t i = 0; i < D; ++i) {
                     CoordT d = point[i] - kdtree.coordinate(idx, i);
-                    dist += d * d;
+                    distance_sq += double(d) * d;
                 }
 
-                auto res = std::make_pair(idx, dist);
-                auto it  = std::lower_bound(results.begin(), results.end(),
-                                            res, [](auto &r1, auto &r2) {
-                                               return r1.second < r2.second;
-                                            });
-
+                Result res{idx, distance_sq};
+                auto lower_distance = [](const Result &r1, const Result &r2) {
+                    return r1.distance_sq < r2.distance_sq; };
+                auto it = std::lower_bound(results.begin(), results.end(), res, lower_distance);
                 if (it != results.end()) {
                     std::rotate(it, std::prev(results.end()), results.end());
                     *it = res;
                 }
             }
-            return kdtree.descent_mask(point[dimension],
-                                       results.front().second, idx,
-                                       dimension);
+            return kdtree.descent_mask(point[dimension], results.front().distance_sq, idx, dimension);
         }
     } visitor(kdtree, point, filter);
 
     kdtree.visit(visitor);
     std::array<size_t, K> ret;
-    for (size_t i = 0; i < K; i++) ret[i] = visitor.results[i].first;
+    for (size_t i = 0; i < K; i++)
+        ret[i] = visitor.results[i].index;
 
     return ret;
 }
