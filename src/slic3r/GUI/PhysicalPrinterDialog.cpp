@@ -17,6 +17,7 @@
 #include <wx/button.h>
 #include <wx/statbox.h>
 #include <wx/wupdlock.h>
+#include <wx/tooltip.h>
 #if wxUSE_SECRETSTORE 
 #include <wx/secretstore.h>
 #endif
