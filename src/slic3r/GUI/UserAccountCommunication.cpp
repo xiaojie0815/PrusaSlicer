@@ -305,7 +305,9 @@ std::string UserAccountCommunication::get_shared_session_key()
 
 void UserAccountCommunication::set_polling_enabled(bool enabled)
 {
-        return m_session->set_polling_action(enabled ? UserAccountActionID::USER_ACCOUNT_ACTION_CONNECT_STATUS : UserAccountActionID::USER_ACCOUNT_ACTION_DUMMY);
+    // Here enabled sets to USER_ACCOUNT_ACTION_CONNECT_PRINTER_MODELS so it gets full list on first,
+    // than it should change inside session to USER_ACCOUNT_ACTION_CONNECT_STATUS
+    return m_session->set_polling_action(enabled ? UserAccountActionID::USER_ACCOUNT_ACTION_CONNECT_PRINTER_MODELS : UserAccountActionID::USER_ACCOUNT_ACTION_DUMMY);
 }
 
 void UserAccountCommunication::on_uuid_map_success()
