@@ -91,6 +91,7 @@ public:
     void set_tokens(const StoreData store_data);
 
     void on_race_lost(); // T5
+    void on_store_read_request();
 private:
     std::unique_ptr<UserAccountSession>     m_session;
     std::thread                             m_thread;

@@ -452,6 +452,10 @@ void UserAccountCommunication::do_clear()
     m_session->clear();
     set_username({});
     m_token_timer->Stop();
+    m_slave_read_timer->Stop();
+    m_after_race_lost_timer->Stop();
+    m_next_token_refresh_at = 0;
+    m_behave_as_master = true;
 }
 
 void UserAccountCommunication::on_login_code_recieved(const std::string& url_message)
@@ -821,9 +825,49 @@ void UserAccountCommunication::on_after_race_lost_timer(wxTimerEvent& evt)
 
 void UserAccountCommunication::set_tokens(const StoreData store_data)
 {
+    if (m_token_timer->IsRunning()) {
+        m_token_timer->Stop();
+    } 
+    if (m_slave_read_timer->IsRunning()) {
+        m_slave_read_timer->Stop();
+    }
+    if (m_after_race_lost_timer->IsRunning()) {
+        m_after_race_lost_timer->Stop();
+    }
+
     long long next = store_data.next_timeout.empty() ? 0 : std::stoll(store_data.next_timeout);
     m_session->set_tokens(store_data.access_token, store_data.refresh_token, store_data.shared_session_key, next);
     enqueue_id_action();
+}
+
+void UserAccountCommunication::on_store_read_request()
+{
+    BOOST_LOG_TRIVIAL(debug) << __FUNCTION__;
+    StoreData stored_data;
+    read_stored_data(stored_data);
+
+    if (stored_data.refresh_token.empty()) {
+        BOOST_LOG_TRIVIAL(warning) << "Store is empty - logging out.";
+        do_logout();
+        return;
+    }
+    
+    std::string currrent_access_token = m_session->get_access_token();
+    if (currrent_access_token == stored_data.access_token)
+    {
+        BOOST_LOG_TRIVIAL(debug) << "Current token is up to date.";
+        return;
+    }
+
+    long long expires_in_second = stored_data.next_timeout.empty() ? 0 : std::stoll(stored_data.next_timeout) - std::time(nullptr);
+    const auto prior_expiration_secs = std::max(m_last_token_duration_seconds / 24, 10);
+    if (expires_in_second > 0 /*&& expires_in_second > prior_expiration_secs*/) {
+       BOOST_LOG_TRIVIAL(debug) << "Token is alive - using it.";
+       set_tokens(stored_data);
+       return;
+    } else {
+        BOOST_LOG_TRIVIAL(warning) << "Token read from store is expired!";
+    }
 }
 
 void UserAccountCommunication::on_polling_timer(wxTimerEvent& evt)

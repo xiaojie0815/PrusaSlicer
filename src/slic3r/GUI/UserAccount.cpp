@@ -14,6 +14,9 @@
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/log/trivial.hpp>
 
+#include "InstanceCheck.hpp"
+#include "GUI_App.hpp"
+
 #include <wx/stdpaths.h>
 
 namespace pt = boost::property_tree;
@@ -67,7 +70,9 @@ void UserAccount::do_login()
 }
 void UserAccount::do_logout()
 {
+    BOOST_LOG_TRIVIAL(debug) << __FUNCTION__;
     m_communication->do_logout();
+    Slic3r::GUI::wxGetApp().other_instance_message_handler()->multicast_message("STORE_READ"); 
 }
 
 std::string UserAccount::get_access_token()

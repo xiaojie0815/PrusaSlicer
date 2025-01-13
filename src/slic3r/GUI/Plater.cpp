@@ -896,6 +896,11 @@ void Plater::priv::init()
             BOOST_LOG_TRIVIAL(trace) << "Received login from other instance event.";
             user_account->on_login_code_recieved(evt.data);
         });
+        this->q->Bind(EVT_STORE_READ_REQUEST, [this](SimpleEvent& evt) {
+            BOOST_LOG_TRIVIAL(debug) << "Received store read request from other instance event.";
+            user_account->on_store_read_request();
+        });
+        
         this->q->Bind(EVT_LOGIN_VIA_WIZARD, [this](Event<std::string> &evt) {
             BOOST_LOG_TRIVIAL(trace) << "Received login from wizard.";
             user_account->on_login_code_recieved(evt.data);
@@ -970,6 +975,9 @@ void Plater::priv::init()
                     this->notification_manager->push_notification(NotificationType::UserAccountID, NotificationManager::NotificationLevel::ImportantNotificationLevel, text);
 
                     this->main_frame->on_account_login(user_account->get_access_token());
+
+                    // notify other instances
+                    Slic3r::GUI::wxGetApp().other_instance_message_handler()->multicast_message("STORE_READ"); 
                 } else {
                     // refresh do different operations than on_account_login
                     this->main_frame->on_account_did_refresh(user_account->get_access_token());

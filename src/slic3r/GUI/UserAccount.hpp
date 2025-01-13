@@ -79,6 +79,8 @@ public:
     void        set_current_printer_data(const std::string& data) { m_current_printer_data_json_from_connect = data; }
 
     void        set_refresh_time(int seconds) { m_communication->set_refresh_time(seconds); }
+
+    void        on_store_read_request() { m_communication->on_store_read_request(); }
 private:
     void set_username(const std::string& username);
    
