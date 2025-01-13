@@ -47,6 +47,8 @@
 #include "libslic3r/Geometry.hpp"
 #include "libslic3r/GCode/PostProcessor.hpp"
 #include "libslic3r/Model.hpp"
+#include "libslic3r/ModelProcessing.hpp"
+#include "libslic3r/FileReader.hpp"
 #include "libslic3r/CutUtils.hpp"
 #include <arrange-wrapper/ModelArrange.hpp>
 #include "libslic3r/Platform.hpp"
@@ -291,13 +293,14 @@ int CLI::run(int argc, char **argv)
             Model model;
             try {
                 if (has_config_from_profiles)
-                    model = Model::read_from_file(file, nullptr, nullptr, Model::LoadAttribute::AddDefaultInstances);
+                    model = FileReader::load_model(file);
                 else {
                 // When loading an AMF or 3MF, config is imported as well, including the printer technology.
                 DynamicPrintConfig config;
                 ConfigSubstitutionContext config_substitutions(config_substitution_rule);
+                boost::optional<Semver> prusaslicer_generator_version;
                 //FIXME should we check the version here? // | Model::LoadAttribute::CheckVersion ?
-                model = Model::read_from_file(file, &config, &config_substitutions, Model::LoadAttribute::AddDefaultInstances);
+                model = FileReader::load_model_with_config(file, &config, &config_substitutions, prusaslicer_generator_version, FileReader::LoadAttribute::AddDefaultInstances);
                 PrinterTechnology other_printer_technology = get_printer_technology(config);
                 if (printer_technology == ptUnknown) {
                     printer_technology = other_printer_technology;
@@ -563,7 +566,7 @@ int CLI::run(int argc, char **argv)
                 size_t num_objects = model.objects.size();
                 for (size_t i = 0; i < num_objects; ++ i) {
                     ModelObjectPtrs new_objects;
-                    model.objects.front()->split(&new_objects);
+                    ModelProcessing::split(model.objects.front(), &new_objects);
                     model.delete_object(size_t(0));
                 }
             }
