@@ -24,6 +24,40 @@ BoundingBoxf get_bounding_box(const Shells::Shell<> &shell) {
     return result;
 }
 
+SeamChoice get_max_y_choice(const std::vector<PerimeterLine> &possible_lines) {
+    if (possible_lines.empty()) {
+        throw std::runtime_error{"No possible lines!"};
+    }
+
+    Vec2d point{possible_lines.front().a};
+    std::size_t point_index{0};
+
+    for (const PerimeterLine &line : possible_lines) {
+        if (line.a.y() > point.y()) {
+            point = line.a;
+            point_index = line.previous_index;
+        }
+        if (line.b.y() > point.y()) {
+            point = line.b;
+            point_index = line.next_index;
+        }
+    }
+
+    return SeamChoice{point_index, point_index, point};
+}
+
+SeamChoice get_nearest(
+    const AABBTreeLines::LinesDistancer<PerimeterLine>& distancer,
+    const Vec2d point
+) {
+    const auto [_, line_index, resulting_point] = distancer.distance_from_lines_extra<false>(point);
+    return SeamChoice{
+        distancer.get_lines()[line_index].previous_index,
+        distancer.get_lines()[line_index].next_index,
+        resulting_point
+    };
+}
+
 struct RearestPointCalculator {
     double rear_tolerance;
     double rear_y_offset;
@@ -62,26 +96,26 @@ struct RearestPointCalculator {
         auto [_d, line_index_at_bb, point_bb] = possible_distancer.distance_from_lines_extra<false>(location_at_bb);
         const double y_distance{point.y() - point_bb.y()};
 
-        Vec2d result{point};
+        SeamChoice result{possible_lines[line_index].previous_index, possible_lines[line_index].next_index, point};
+
         if (y_distance < 0) {
-            result = point_bb;
+            result = get_nearest(
+                possible_distancer,
+                point_bb
+            );
         } else if (y_distance <= rear_tolerance) {
             const double factor{y_distance / rear_tolerance};
-            result = factor * point +  (1 - factor) * point_bb;
+            result = get_nearest(
+                possible_distancer,
+                factor * point +  (1 - factor) * point_bb
+            );
         }
 
-        if (bounding_box.max.y() - result.y() > rear_tolerance) {
-            for (const PerimeterLine &line : possible_lines) {
-                if (line.a.y() > result.y()) {
-                    result = line.a;
-                }
-                if (line.b.y() > result.y()) {
-                    result = line.b;
-                }
-            }
+        if (bounding_box.max.y() - result.position.y() > rear_tolerance) {
+            return get_max_y_choice(possible_lines);
         }
 
-        return SeamChoice{possible_lines[line_index].previous_index, possible_lines[line_index].next_index, result};
+        return result;
     }
 };
 } // namespace Impl
