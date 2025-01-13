@@ -2302,13 +2302,20 @@ std::pair<GCode::SmoothPath, std::size_t> split_with_seam(
     if (loop.paths.empty() || loop.paths.front().empty()) {
         return {SmoothPath{}, 0};
     }
-    if (const auto seam_point{boost::get<Point>(&seam)}; seam_point != nullptr) {
+    const auto seam_point{boost::get<Point>(&seam)};
+    const auto scarf{boost::get<Seams::Scarf::Scarf>(&seam)};
+
+    if (seam_point != nullptr) {
         return {
             smooth_path_cache.resolve_or_fit_split_with_seam(
                 loop, flipped, scaled_resolution, *seam_point, seam_point_merge_distance_threshold
             ),
             0};
-    } else if (const auto scarf{boost::get<Seams::Scarf::Scarf>(&seam)}; scarf != nullptr) {
+    } else if (scarf != nullptr && scarf->start_point == scarf->end_point) {
+        return {smooth_path_cache.resolve_or_fit_split_with_seam(
+            loop, flipped, scaled_resolution, scarf->start_point, seam_point_merge_distance_threshold
+        ), 0};
+    } else if (scarf != nullptr) {
         ExtrusionPaths paths{loop.paths};
         const auto apply_smoothing{[&](tcb::span<const ExtrusionPath> paths){
             return smooth_path_cache.resolve_or_fit(paths, false, scaled<double>(0.0015));
