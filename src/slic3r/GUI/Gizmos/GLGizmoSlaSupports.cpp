@@ -29,8 +29,92 @@
 static const double CONE_RADIUS = 0.25;
 static const double CONE_HEIGHT = 0.75;
 
-namespace Slic3r {
-namespace GUI {
+using namespace Slic3r;
+using namespace Slic3r::GUI;
+
+namespace {
+
+enum class IconType : unsigned {
+    show_support_points_selected,
+    show_support_points_unselected,
+    show_support_points_hovered,
+    show_support_structure_selected,
+    show_support_structure_unselected,
+    show_support_structure_hovered,
+    delete_icon,
+    delete_hovered,
+    delete_disabled,
+    // automatic calc of icon's count
+    _count
+};
+
+IconManager::Icons init_icons(IconManager &mng, ImVec2 size = ImVec2{50, 50}) {
+    mng.release();
+
+    // icon order has to match the enum IconType
+    IconManager::InitTypes init_types {        
+        {"support_structure_invisible.svg", size, IconManager::RasterType::color},           // show_support_points_selected
+        {"support_structure_invisible.svg", size, IconManager::RasterType::gray_only_data},  // show_support_points_unselected
+        {"support_structure_invisible.svg", size, IconManager::RasterType::color},           // show_support_points_hovered
+
+        {"support_structure.svg", size, IconManager::RasterType::color},           // show_support_structure_selected
+        {"support_structure.svg", size, IconManager::RasterType::gray_only_data},  // show_support_structure_unselected
+        {"support_structure.svg", size, IconManager::RasterType::color},           // show_support_structure_hovered
+
+        {"delete.svg", size, IconManager::RasterType::white_only_data}, // delete_icon
+        {"delete.svg", size, IconManager::RasterType::color},           // delete_hovered
+        {"delete.svg", size, IconManager::RasterType::gray_only_data},  // delete_disabled
+    };
+
+    assert(init_types.size() == static_cast<size_t>(IconType::_count));
+    std::string path = resources_dir() + "/icons/";
+    for (IconManager::InitType &init_type : init_types)
+        init_type.filepath = path + init_type.filepath;
+
+    return mng.init(init_types);
+}
+const IconManager::Icon &get_icon(const IconManager::Icons &icons, IconType type) { 
+    return *icons[static_cast<unsigned>(type)]; }
+
+/// <summary>
+/// Draw icon buttons to swap between show structure and only supports points
+/// </summary>
+/// <param name="show_support_structure">In|Out view mode</param>
+/// <param name="icons">all loaded icons</param>
+/// <returns>True when change is made</returns>
+bool draw_view_mode(bool &show_support_structure, const IconManager::Icons &icons) {
+    ImGui::PushStyleVar(ImGuiStyleVar_ChildBorderSize, 8.);
+    ScopeGuard sg([] { ImGui::PopStyleVar(); });
+
+    ImVec4 tint(1, 1, 1, 1);
+    ImVec4 border = ImGuiPureWrap::COL_ORANGE_DARK;
+    if (show_support_structure) {        
+        draw(get_icon(icons, IconType::show_support_structure_selected));
+        if(ImGui::IsItemHovered())
+            ImGui::SetTooltip("%s", _u8L("Visible support structure").c_str());
+        ImGui::SameLine();
+        if (clickable(get_icon(icons, IconType::show_support_points_unselected),
+                      get_icon(icons, IconType::show_support_points_hovered))) {
+            show_support_structure = false;
+            return true;
+        } else if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("%s", _u8L("Click to show support points without support structure").c_str()); 
+    } else { // !show_support_structure
+        if (clickable(get_icon(icons, IconType::show_support_structure_unselected),
+                      get_icon(icons, IconType::show_support_structure_hovered))) {
+            show_support_structure = true;
+            return true;
+        } else if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("%s", _u8L("Click to show support structure with pad").c_str()); 
+        ImGui::SameLine();
+        draw(get_icon(icons, IconType::show_support_points_selected));
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("%s", _u8L("Visible support points without support structure").c_str());
+    }
+    return false;
+}
+} // namespace
+
 
 GLGizmoSlaSupports::GLGizmoSlaSupports(GLCanvas3D& parent, const std::string& icon_filename, unsigned int sprite_id)
     : GLGizmoSlaBase(parent, icon_filename, sprite_id, slaposDrillHoles /*slaposSupportPoints*/) {
@@ -518,51 +602,21 @@ std::vector<const ConfigOption*> GLGizmoSlaSupports::get_config_options(const st
     return out;
 }
 
-
-
-/*
-void GLGizmoSlaSupports::find_intersecting_facets(const igl::AABB<Eigen::MatrixXf, 3>* aabb, const Vec3f& normal, double offset, std::vector<unsigned int>& idxs) const
-{
-    if (aabb->is_leaf()) { // this is a facet
-        // corner.dot(normal) - offset
-        idxs.push_back(aabb->m_primitive);
-    }
-    else { // not a leaf
-    using CornerType = Eigen::AlignedBox<float, 3>::CornerType;
-        bool sign = std::signbit(offset - normal.dot(aabb->m_box.corner(CornerType(0))));
-        for (unsigned int i=1; i<8; ++i)
-            if (std::signbit(offset - normal.dot(aabb->m_box.corner(CornerType(i)))) != sign) {
-                find_intersecting_facets(aabb->m_left, normal, offset, idxs);
-                find_intersecting_facets(aabb->m_right, normal, offset, idxs);
-            }
-    }
-}
-
-
-
-void GLGizmoSlaSupports::make_line_segments() const
-{
-    TriangleMeshSlicer tms(&m_c->m_model_object->volumes.front()->mesh);
-    Vec3f normal(0.f, 1.f, 1.f);
-    double d = 0.;
-
-    std::vector<IntersectionLine> lines;
-    find_intersections(&m_AABB, normal, d, lines);
-    ExPolygons expolys;
-    tms.make_expolygons_simple(lines, &expolys);
-
-    SVG svg("slice_loops.svg", get_extents(expolys));
-    svg.draw(expolys);
-    //for (const IntersectionLine &l : lines[i])
-    //    svg.draw(l, "red", 0);
-    //svg.draw_outline(expolygons, "black", "blue", 0);
-    svg.Close();
-}
-*/
-
-
 void GLGizmoSlaSupports::on_render_input_window(float x, float y, float bottom_limit)
 {
+    // Keep resolution of icons for 
+    static float rendered_line_height;    
+    if (float line_height = ImGui::GetTextLineHeightWithSpacing();
+        m_icons.empty() ||
+        rendered_line_height != line_height) { // change of view resolution
+        rendered_line_height = line_height;
+
+        // need regeneration when change resolution(move between monitors)
+        float width = std::round(line_height / 8 + 1) * 8;
+        ImVec2 icon_size{width, width};
+        m_icons = init_icons(m_icon_manager, icon_size);
+    }
+
     static float last_y = 0.0f;
     static float last_h = 0.0f;
 
@@ -681,13 +735,12 @@ RENDER_AGAIN:
         ImGuiPureWrap::text(m_desc.at("points_density"));
         ImGui::SameLine();
 
-        if (ImGui::Checkbox("##ShowSupportStructure", &m_show_support_structure)){
+        if (draw_view_mode(m_show_support_structure, m_icons)){
             show_sla_supports(m_show_support_structure);
             if (m_show_support_structure)
                 reslice_until_step(slaposPad);
-        } else if (ImGui::IsItemHovered())
-            ImGui::SetTooltip("%s", _u8L("Show/Hide supporting structure").c_str());
-        
+        }
+
         const char *support_points_density = "support_points_density_relative";
         float density = static_cast<const ConfigOptionInt*>(get_config_options({support_points_density})[0])->value;        
         if (m_imgui->slider_float("##density", &density, 0.f, 200.f, "%.f %%")){
@@ -738,11 +791,6 @@ RENDER_AGAIN:
         }
         ImVec4 light_gray{0.4f, 0.4f, 0.4f, 1.0f};
         ImGui::TextColored(light_gray, stats.c_str());
-        if (supports.empty()){
-            ImGui::SameLine();
-            if (ImGuiPureWrap::button(m_desc.at("auto_generate")))
-                auto_generate();
-        }
 
         //ImGui::Separator(); // START temporary debug
         //ImGui::Text("Between delimiters is temporary GUI");
@@ -756,8 +804,17 @@ RENDER_AGAIN:
         //draw_island_config();
         //ImGui::Text("Distribution depends on './resources/data/sla_support.svg'\ninstruction for edit are in file");
         //ImGui::Separator();
-        //if (ImGuiPureWrap::button(m_desc.at("auto_generate")))
-        //    auto_generate();
+
+        if (ImGuiPureWrap::button(m_desc.at("auto_generate")))
+            auto_generate();
+        ImGui::SameLine();
+        remove_all = button(
+            get_icon(m_icons, IconType::delete_icon), 
+            get_icon(m_icons, IconType::delete_hovered),
+            get_icon(m_icons, IconType::delete_disabled),
+            !is_input_enabled() || m_normal_cache.empty());
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("%s", m_desc.at("remove_all").c_str());
 
         ImGui::Separator();
         if (ImGuiPureWrap::button(m_desc.at("manual_editing")))
@@ -765,9 +822,9 @@ RENDER_AGAIN:
 
         m_imgui->disabled_end();
 
-        m_imgui->disabled_begin(!is_input_enabled() || m_normal_cache.empty());
-        remove_all = ImGuiPureWrap::button(m_desc.at("remove_all"));
-        m_imgui->disabled_end();
+        //m_imgui->disabled_begin(!is_input_enabled() || m_normal_cache.empty());
+        //remove_all = ImGuiPureWrap::button(m_desc.at("remove_all"));
+        //m_imgui->disabled_end();
 
         // ImGuiPureWrap::text("");
         // ImGuiPureWrap::text(m_c->m_model_object->sla_points_status == sla::PointsStatus::NoPoints ? _(L("No points  (will be autogenerated)")) :
@@ -1479,8 +1536,3 @@ SlaGizmoHelpDialog::SlaGizmoHelpDialog()
     SetSizer(hsizer);
     hsizer->SetSizeHints(this);
 }
-
-
-
-} // namespace GUI
-} // namespace Slic3r

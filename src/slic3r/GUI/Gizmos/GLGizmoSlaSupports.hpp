@@ -8,6 +8,7 @@
 #include "GLGizmoSlaBase.hpp"
 #include "slic3r/GUI/GLSelectionRectangle.hpp"
 #include "slic3r/GUI/I18N.hpp"
+#include "slic3r/GUI/IconManager.hpp"
 
 #include "libslic3r/SLA/SupportPoint.hpp"
 #include "libslic3r/ObjectID.hpp"
@@ -102,6 +103,9 @@ private:
     mutable std::vector<CacheEntry> m_editing_cache; // a support point and whether it is currently selected
     std::vector<sla::SupportPoint> m_normal_cache; // to restore after discarding changes or undo/redo
     ObjectID m_old_mo_id;
+
+    IconManager m_icon_manager;
+    IconManager::Icons m_icons;
 
     PickingModel m_sphere;
     PickingModel m_cone;
