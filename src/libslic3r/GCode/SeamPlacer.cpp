@@ -312,11 +312,15 @@ boost::variant<Point, Scarf::Scarf> finalize_seam_position(
         }
 
         if (loop.role() != ExtrusionRole::Perimeter) { // Outter perimeter
-            scarf.start_point = scaled(project_to_extrusion_loop(
+            const Vec2d start_point_candidate{project_to_extrusion_loop(
                 to_seam_choice(*outter_scarf_start_point, perimeter),
                 perimeter,
                 distancer
-            ).second);
+            ).second};
+            if ((start_point_candidate - outter_scarf_start_point->point).norm() > 5.0) {
+                return scaled(loop_point);
+            }
+            scarf.start_point = scaled(start_point_candidate);
             scarf.end_point = scaled(loop_point);
             scarf.end_point_previous_index = loop_line_index;
             return scarf;
@@ -359,18 +363,25 @@ boost::variant<Point, Scarf::Scarf> finalize_seam_position(
             if (!inner_scarf_start_point) {
                 return scaled(inner_scarf_end_point.point);
             }
-
-            scarf.start_point = scaled(project_to_extrusion_loop(
+            const Vec2d start_point_candidate{project_to_extrusion_loop(
                 to_seam_choice(*inner_scarf_start_point, perimeter),
                 perimeter,
                 distancer
-            ).second);
+            ).second};
+            if ((start_point_candidate - inner_scarf_start_point->point).norm() > 5.0) {
+                return scaled(loop_point);
+            }
+            scarf.start_point = scaled(start_point_candidate);
 
             const auto [end_point_previous_index, end_point]{project_to_extrusion_loop(
                 to_seam_choice(inner_scarf_end_point, perimeter),
                 perimeter,
                 distancer
             )};
+            if ((end_point - inner_scarf_end_point.point).norm() > 5.0) {
+                return scaled(loop_point);
+            }
+
             scarf.end_point = scaled(end_point);
             scarf.end_point_previous_index = end_point_previous_index;
             return scarf;
