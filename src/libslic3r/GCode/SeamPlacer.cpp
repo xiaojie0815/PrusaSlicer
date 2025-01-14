@@ -235,6 +235,24 @@ SeamChoice to_seam_choice(
     return result;
 }
 
+Geometry::Direction1D get_direction(
+    const bool flipped,
+    const ExPolygon &perimeter_polygon,
+    const ExtrusionLoop &loop
+) {
+    using Dir = Geometry::Direction1D;
+
+    Dir result{flipped ? Dir::forward : Dir::backward};
+
+    // In rare cases it may happen that the original geometry perimeter
+    // polygon has different direction to the actual extrusion loop.
+    // In that case the logic is exactly opposite.
+    if (perimeter_polygon.contour.is_clockwise() != loop.is_clockwise()) {
+        result = result == Dir::forward ? Dir::backward : Dir::forward;
+    }
+    return result;
+}
+
 boost::variant<Point, Scarf::Scarf> finalize_seam_position(
     const ExtrusionLoop &loop,
     const PrintRegion *region,
@@ -255,8 +273,7 @@ boost::variant<Point, Scarf::Scarf> finalize_seam_position(
     auto [loop_line_index, loop_point]{
         project_to_extrusion_loop(seam_choice, perimeter, distancer)};
 
-    const Geometry::Direction1D offset_direction{
-        flipped ? Geometry::Direction1D::forward : Geometry::Direction1D::backward};
+    const Geometry::Direction1D offset_direction{get_direction(flipped, perimeter_polygon, loop)};
 
     // ExtrusionRole::Perimeter is inner perimeter.
     if (do_staggering) {
