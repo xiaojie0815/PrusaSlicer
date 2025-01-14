@@ -680,7 +680,7 @@ void SLAPrint::Steps::support_points(SLAPrintObject &po)
     }
     
     // copy current configuration for sampling islands
-    config.island_configuration = SampleConfigFactory::get_sample_config(); // copy
+    config.island_configuration = SampleConfigFactory::get_sample_config(config.density_relative);
     
     // scaling for the sub operations
     double d = objectstep_scale * OBJ_STEP_LEVELS[slaposSupportPoints] / 100.0;

@@ -97,3 +97,24 @@ SampleConfig &SampleConfigFactory::get_sample_config() {
         gui_sample_config_opt = sla::SampleConfigFactory::create(.4f); 
     return *gui_sample_config_opt;
 }
+
+SampleConfig SampleConfigFactory::get_sample_config(float density) {
+    const SampleConfig &current = get_sample_config();
+    if (is_approx(density, 1.f))
+        return current;
+    if (density < .1f)
+        density = .1f; // minimal 10%
+
+    SampleConfig result = current; // copy
+    result.thin_max_distance = static_cast<coord_t>(current.thin_max_distance / density); // linear
+    result.thick_inner_max_distance = static_cast<coord_t>( // controll radius - quadratic
+        std::sqrt(sqr((double)current.thick_inner_max_distance) / density));
+    result.thick_outline_max_distance = static_cast<coord_t>(current.thick_outline_max_distance / density); // linear
+    // result.head_radius                       .. no change
+    // result.minimal_distance_from_outline     .. no change
+    // result.maximal_distance_from_outline     .. no change
+    // result.max_length_for_one_support_point  .. no change
+    // result.max_length_for_two_support_points .. no change
+    verify(result);
+    return result;
+}

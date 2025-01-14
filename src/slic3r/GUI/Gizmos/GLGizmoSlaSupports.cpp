@@ -742,19 +742,23 @@ RENDER_AGAIN:
         }
 
         const char *support_points_density = "support_points_density_relative";
-        float density = static_cast<const ConfigOptionInt*>(get_config_options({support_points_density})[0])->value;        
-        if (m_imgui->slider_float("##density", &density, 0.f, 200.f, "%.f %%")){
+        float density = static_cast<const ConfigOptionInt*>(get_config_options({support_points_density})[0])->value; 
+
+        wxString tooltip = _L(
+            "Divider for the supported radius\n"
+            "Smaller value means less point, supported radius is enlarged.\n"
+            "Larger value means more points, supported radius is reduced.\n"
+            "-- density percent ----- radisu change from 100 --\n"
+            "|         50         |             200           |\n"
+            "|         75         |             133           |\n"
+            "|        125         |              80           |\n"
+            "|        150         |              66           |\n"
+            "|        200         |              50           |\n");
+        if (m_imgui->slider_float("##density", &density, 50.f, 200.f, "%.f %%", 1.f, false, tooltip)){
+            if (density < 10.f) // not neccessary, but lower value seems pointless. Zero cause issues inside algorithms.
+                density = 10.f;
             mo->config.set(support_points_density, (int) density);
-        } else if (ImGui::IsItemHovered())
-            ImGui::SetTooltip("Divider for the supported radius\n"
-                "Smaller value means less point, supported radius is enlarged.\n"
-                "Larger value means more points, supported radius is reduced.\n"
-                "-- density percent ----- radisu change from 100 --\n"
-                "|         50         |             200           |\n"
-                "|         75         |             133           |\n"
-                "|        125         |              80           |\n"
-                "|        150         |              66           |\n"
-                "|        200         |              50           |\n");
+        }
         
         const ImGuiWrapper::LastSliderStatus &density_status = m_imgui->get_last_slider_status();
         static std::optional<int> density_stash; // Value for undo/redo stack is written on stop dragging
