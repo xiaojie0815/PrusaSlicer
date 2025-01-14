@@ -2550,7 +2550,12 @@ LayerResult GCodeGenerator::process_layer(
     if (extrusions.empty()) {
         return result;
     }
-    const Geometry::ArcWelder::Segment first_segment{*GCode::ExtrusionOrder::get_first_point(extrusions)};
+
+    const auto optional_first_segment{GCode::ExtrusionOrder::get_first_point(extrusions)};
+    if (!optional_first_segment) {
+        return result;
+    }
+    const Geometry::ArcWelder::Segment &first_segment{*optional_first_segment};
     const Vec3crd first_point{to_3d(first_segment.point, scaled(print_z + (first_segment.height_fraction - 1.0) * height))};
     const PrintInstance* first_instance{get_first_instance(extrusions, instances_to_print)};
     m_label_objects.update(first_instance);
