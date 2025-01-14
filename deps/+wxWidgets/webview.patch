@@ -11,5 +11,5 @@ diff -ur build.orig/cmake/lib/webview/CMakeLists.txt build/cmake/lib/webview/CMa
 -        set(WEBVIEW2_SHA256 "6a34bb553e18cfac7297b4031f3eac2558e439f8d16a45945c22945ac404105d")
 +        set(WEBVIEW2_SHA256 "805c79e05184fab18c9fe7b8ba820c598399b97adc1fbf5b0ea490efad91d5b8")
  
-         set(WEBVIEW2_DEFAULT_PACKAGE_DIR "${CMAKE_BINARY_DIR}/packages/Microsoft.Web.WebView2.${WEBVIEW2_VERSION}")
+         set(WEBVIEW2_DEFAULT_PACKAGE_DIR "${CMAKE_CURRENT_BINARY_DIR}/packages/Microsoft.Web.WebView2.${WEBVIEW2_VERSION}")
  
