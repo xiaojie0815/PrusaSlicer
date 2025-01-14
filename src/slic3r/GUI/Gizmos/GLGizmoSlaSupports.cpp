@@ -1362,19 +1362,10 @@ void GLGizmoSlaSupports::get_data_from_backend()
 
 void GLGizmoSlaSupports::auto_generate()
 {
-    //wxMessageDialog dlg(GUI::wxGetApp().plater(), 
-    MessageDialog dlg(GUI::wxGetApp().plater(), 
-                        _L("Autogeneration with manually edited points is inperfect but preserve wanted postion of supports.") + "\n\n" +
-                        _L("Do you want to remove manually edited points?") + "\n",
-                        _L("Warning"), wxICON_WARNING | wxYES | wxNO);
-    ModelObject* mo = m_c->selection_info()->model_object();
-    if (mo->sla_points_status == sla::PointsStatus::UserModified &&
-        dlg.ShowModal() == wxID_YES) {
-        mo->sla_support_points.clear();
-    }
     Plater::TakeSnapshot snapshot(wxGetApp().plater(), _L("Autogenerate support points"));
     wxGetApp().CallAfter([this]() { reslice_until_step(
         m_show_support_structure ? slaposPad : slaposSupportPoints); });
+    ModelObject* mo = m_c->selection_info()->model_object();
     mo->sla_points_status = sla::PointsStatus::Generating;
 }
 

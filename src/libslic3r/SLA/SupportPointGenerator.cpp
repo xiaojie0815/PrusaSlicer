@@ -1118,7 +1118,9 @@ void copy_permanent_supports(NearPoints& near_points, const PermanentSupports& s
             /* SupportPoint */       *support.point_it,
             /* position_on_layer */  support.layer_position, 
             /* radius_curve_index */ 0, // before support point - earlier influence on point distribution
-            /* current_radius */     calc_influence_radius(fabs(support.point_it->pos.z() - print_z), config)
+            /* current_radius */     calc_influence_radius(fabs(support.point_it->pos.z() - print_z), config),
+            /* active_in_part */ true,
+            /* is_permanent */ true
         });
 
         // NOTE: increment index globaly
@@ -1192,6 +1194,7 @@ LayerSupportPoints Slic3r::sla::generate_support_points(
             NearPoints near_points = create_near_points(prev_layer_parts, part, prev_grids);
             remove_supports_out_of_part(near_points, part, config);
             if (!part.peninsulas.empty()) {
+                // only get copy of points do not modify permanent_index
                 Points permanent = get_permanents(permanent_supports, permanent_index, layer_id, part_id);
                 support_peninsulas(part.peninsulas, near_points, layer.print_z, permanent, config);
             }
@@ -1209,6 +1212,10 @@ LayerSupportPoints Slic3r::sla::generate_support_points(
         if (old_status_int < status_int)
             statusfn(status_int);
     }
+    // Remove permanent supports from result
+    // To preserve permanent 3d position it is necessary to append points after move_on_mesh_surface
+    result.erase(std::remove_if(result.begin(), result.end(), 
+        [](const LayerSupportPoint &p) { return p.is_permanent; }), result.end());
     return result;
 }
 

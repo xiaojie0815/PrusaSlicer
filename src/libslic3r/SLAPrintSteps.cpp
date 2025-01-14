@@ -725,7 +725,8 @@ void SLAPrint::Steps::support_points(SLAPrintObject &po)
     SupportPoints support_points = 
         move_on_mesh_surface(layer_support_points, emesh, allowed_move, cancel);
 
-    // Naive implementation only append permanent supports to the result
+    // Generator count with permanent support positions but do not convert to LayerSupportPoints.
+    // To preserve permanent 3d position it is necessary to append points after move_on_mesh_surface
     support_points.insert(support_points.end(), 
         data.permanent_supports.begin(), data.permanent_supports.end());
 
