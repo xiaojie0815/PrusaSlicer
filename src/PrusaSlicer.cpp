@@ -78,11 +78,622 @@
 
 using namespace Slic3r;
 
+static void print_help(bool include_print_options = false, PrinterTechnology printer_technology = ptAny)
+{
+    boost::nowide::cout
+        << SLIC3R_BUILD_ID << " " << "based on Slic3r"
+#ifdef SLIC3R_GUI
+        << " (with GUI support)"
+#else /* SLIC3R_GUI */
+        << " (without GUI support)"
+#endif /* SLIC3R_GUI */
+        << std::endl
+        << "https://github.com/prusa3d/PrusaSlicer" << std::endl << std::endl
+        << "Usage: prusa-slicer [ ACTIONS ] [ TRANSFORM ] [ OPTIONS ] [ file.stl ... ]" << std::endl
+        << std::endl
+        << "Actions:" << std::endl;
+    cli_actions_config_def.print_cli_help(boost::nowide::cout, false);
+    //    << std::endl
+    //    << "Profiles sharing options:" << std::endl;
+    cli_profiles_sharing_config_def.print_cli_help(boost::nowide::cout, false);
+
+    boost::nowide::cout
+        << std::endl
+        << "Transform options:" << std::endl;
+    cli_transform_config_def.print_cli_help(boost::nowide::cout, false);
+
+    boost::nowide::cout
+        << std::endl
+        << "Other options:" << std::endl;
+    cli_misc_config_def.print_cli_help(boost::nowide::cout, false);
+
+    boost::nowide::cout
+        << std::endl
+        << "Print options are processed in the following order:" << std::endl
+        << "\t1) Config keys from the command line, for example --fill-pattern=stars" << std::endl
+        << "\t   (highest priority, overwrites everything below)" << std::endl
+        << "\t2) Config files loaded with --load" << std::endl
+        << "\t3) Config values loaded from amf or 3mf files" << std::endl;
+
+    if (include_print_options) {
+        boost::nowide::cout << std::endl;
+        print_config_def.print_cli_help(boost::nowide::cout, true, [printer_technology](const ConfigOptionDef& def)
+            { return printer_technology == ptAny || def.printer_technology == ptAny || printer_technology == def.printer_technology; });
+    }
+    else {
+        boost::nowide::cout
+            << std::endl
+            << "Run --help-fff / --help-sla to see the full listing of print options." << std::endl;
+    }
+}
+
 static PrinterTechnology get_printer_technology(const DynamicConfig &config)
 {
     const ConfigOptionEnum<PrinterTechnology> *opt = config.option<ConfigOptionEnum<PrinterTechnology>>("printer_technology");
     return (opt == nullptr) ? ptUnknown : opt->value;
 }
+
+// may be "validate_and_apply_printer_technology" will be better? 
+static bool can_apply_printer_technology(PrinterTechnology& printer_technology, const PrinterTechnology& other_printer_technology)
+{
+    if (printer_technology == ptUnknown) {
+        printer_technology = other_printer_technology;
+        return true;
+    }
+
+    bool invalid_other_pt = printer_technology != other_printer_technology && other_printer_technology != ptUnknown;
+
+    if (invalid_other_pt)
+        boost::nowide::cerr << "Mixing configurations for FFF and SLA technologies" << std::endl;
+
+    return !invalid_other_pt;
+}
+
+static bool process_profiles_sharing(const CliInParams& in)
+{
+    if (in.profiles_sharing.empty())
+        return false;
+
+    std::string ret;
+    for (auto const& opt_key : in.profiles_sharing) {
+        if (opt_key == "query-printer-models") {
+            ret = Slic3r::get_json_printer_models(get_printer_technology(in.config));
+            break;
+        }
+        else 
+        if (opt_key == "query-print-filament-profiles") {
+            const std::string printer_profile = in.config.opt_string("printer-profile");
+            if (printer_profile.empty()) {
+                boost::nowide::cerr << opt_key << " error: This action requires set 'printer-profile' option" << std::endl;
+                return true;
+            }
+
+            ret = Slic3r::get_json_print_filament_profiles(printer_profile);
+            if (ret.empty()) {
+                boost::nowide::cerr << opt_key << " error: Printer profile '" << printer_profile <<
+                                        "' wasn't found among installed printers." << std::endl <<
+                                        "Or the request can be wrong." << std::endl;
+                return true;
+            }
+            break;
+        }
+        else {
+            boost::nowide::cerr << "error: option not implemented yet: " << opt_key << std::endl;
+            break;
+        }
+    }
+
+    if (ret.empty()) {
+        boost::nowide::cerr << "Wrong request" << std::endl;
+        return true;
+    }
+
+    // use --output when available
+
+    std::string cmdline_param = in.config.opt_string("output");
+    if (cmdline_param.empty())
+        printf("%s", ret.c_str());
+    else {
+        // if we were supplied a directory, use it and append our automatically generated filename
+        boost::filesystem::path cmdline_path(cmdline_param);
+        boost::filesystem::path proposed_path = boost::filesystem::path(Slic3r::resources_dir()) / "out.json";
+        if (boost::filesystem::is_directory(cmdline_path))
+            proposed_path = (cmdline_path / proposed_path.filename());
+        else if (cmdline_path.extension().empty())
+            proposed_path = cmdline_path.replace_extension("json");
+        else
+            proposed_path = cmdline_path;
+        const std::string file = proposed_path.string();
+
+        boost::nowide::ofstream c;
+        c.open(file, std::ios::out | std::ios::trunc);
+        c << ret << std::endl;
+        c.close();
+
+        boost::nowide::cout << "Output for your request is written into " << file << std::endl;
+    }
+
+    return true;
+}
+
+static void print_config_substitutions(const ConfigSubstitutions& config_substitutions, const std::string& file)
+{
+    if (config_substitutions.empty())
+        return;
+    boost::nowide::cout << "The following configuration values were substituted when loading \" << file << \":\n";
+    for (const ConfigSubstitution& subst : config_substitutions)
+        boost::nowide::cout << "\tkey = \"" << subst.opt_def->opt_key << "\"\t loaded = \"" << subst.old_value << "\tsubstituted = \"" << subst.new_value->serialize() << "\"\n";
+}
+
+static bool apply_model_and_print_config_from_file(const std::string& file, Model& model, CliOutParams& cli)
+{
+    // When loading an AMF or 3MF, config is imported as well, including the printer technology.
+    DynamicPrintConfig config;
+    ConfigSubstitutionContext config_substitutions_ctxt(cli.config_substitution_rule);
+    //FIXME should we check the version here? // | Model::LoadAttribute::CheckVersion ?
+    model = FileReader::load_model_with_config(file, &config, &config_substitutions, prusaslicer_generator_version, FileReader::LoadAttribute::AddDefaultInstances);
+    if (!can_apply_printer_technology(cli.printer_technology, get_printer_technology(config)))
+        return false;
+
+    print_config_substitutions(config_substitutions_ctxt.substitutions, file);
+
+    // config is applied to cli.print_config before the current m_config values.
+    config += std::move(cli.print_config);
+    cli.print_config = std::move(config);
+
+    return true;
+}
+
+static bool has_print_action(const DynamicPrintAndCLIConfig& config) 
+{ 
+    return config.opt_bool("export_gcode") || config.opt_bool("export_sla"); 
+}
+
+static bool process_transform(  CliInParams& in,
+                                CliOutParams& out,
+                                const arr2::ArrangeBed& bed,
+                                const arr2::ArrangeSettingsView& arrange_cfg)
+{
+    for (auto const& opt_key : in.transforms) {
+        if (opt_key == "merge") {
+            Model m;
+            for (auto& model : out.models)
+                for (ModelObject* o : model.objects)
+                    m.add_object(*o);
+            // Rearrange instances unless --dont-arrange is supplied
+            if (!in.config.opt_bool("dont_arrange")) {
+                m.add_default_instances();
+                if (has_print_action(in.config))
+                    arrange_objects(m, bed, arrange_cfg);
+                else
+                    arrange_objects(m, arr2::InfiniteBed{}, arrange_cfg);
+            }
+            out.models.clear();
+            out.models.emplace_back(std::move(m));
+        }
+        else if (opt_key == "duplicate") {
+            for (auto& model : out.models) {
+                const bool all_objects_have_instances = std::none_of(
+                    model.objects.begin(), model.objects.end(),
+                    [](ModelObject* o) { return o->instances.empty(); }
+                );
+
+                int dups = in.config.opt_int("duplicate");
+                if (!all_objects_have_instances) model.add_default_instances();
+
+                try {
+                    if (dups > 1) {
+                        // if all input objects have defined position(s) apply duplication to the whole model
+                        duplicate(model, size_t(dups), bed, arrange_cfg);
+                    }
+                    else {
+                        arrange_objects(model, bed, arrange_cfg);
+                    }
+                }
+                catch (std::exception& ex) {
+                    boost::nowide::cerr << "error: " << ex.what() << std::endl;
+                    return false;
+                }
+            }
+        }
+        else if (opt_key == "duplicate_grid") {
+            std::vector<int>& ints = in.config.option<ConfigOptionInts>("duplicate_grid")->values;
+            const int x = ints.size() > 0 ? ints.at(0) : 1;
+            const int y = ints.size() > 1 ? ints.at(1) : 1;
+            FullPrintConfig    fff_print_config;
+            const double distance = fff_print_config.duplicate_distance.value;
+            for (auto& model : out.models)
+                model.duplicate_objects_grid(x, y, (distance > 0) ? distance : 6);  // TODO: this is not the right place for setting a default
+        }
+        else if (opt_key == "center") {
+            out.user_center_specified = true;
+            for (auto& model : out.models) {
+                model.add_default_instances();
+                // this affects instances:
+                model.center_instances_around_point(in.config.option<ConfigOptionPoint>("center")->value);
+                // this affects volumes:
+                //FIXME Vojtech: Who knows why the complete model should be aligned with Z as a single rigid body?
+                //model.align_to_ground();
+                BoundingBoxf3 bbox;
+                for (ModelObject* model_object : model.objects)
+                    // We are interested into the Z span only, therefore it is sufficient to measure the bounding box of the 1st instance only.
+                    bbox.merge(model_object->instance_bounding_box(0, false));
+                for (ModelObject* model_object : model.objects)
+                    for (ModelInstance* model_instance : model_object->instances)
+                        model_instance->set_offset(Z, model_instance->get_offset(Z) - bbox.min.z());
+            }
+        }
+        else if (opt_key == "align_xy") {
+            const Vec2d& p = in.config.option<ConfigOptionPoint>("align_xy")->value;
+            for (auto& model : out.models) {
+                BoundingBoxf3 bb = model.bounding_box_exact();
+                // this affects volumes:
+                model.translate(-(bb.min.x() - p.x()), -(bb.min.y() - p.y()), -bb.min.z());
+            }
+        }
+        else if (opt_key == "dont_arrange") {
+            // do nothing - this option alters other transform options
+        }
+        else if (opt_key == "ensure_on_bed") {
+            // do nothing, the value is used later
+        }
+        else if (opt_key == "rotate") {
+            for (auto& model : out.models)
+                for (auto& o : model.objects)
+                    // this affects volumes:
+                    o->rotate(Geometry::deg2rad(in.config.opt_float(opt_key)), Z);
+        }
+        else if (opt_key == "rotate_x") {
+            for (auto& model : out.models)
+                for (auto& o : model.objects)
+                    // this affects volumes:
+                    o->rotate(Geometry::deg2rad(in.config.opt_float(opt_key)), X);
+        }
+        else if (opt_key == "rotate_y") {
+            for (auto& model : out.models)
+                for (auto& o : model.objects)
+                    // this affects volumes:
+                    o->rotate(Geometry::deg2rad(in.config.opt_float(opt_key)), Y);
+        }
+        else if (opt_key == "scale") {
+            for (auto& model : out.models)
+                for (auto& o : model.objects)
+                    // this affects volumes:
+                    o->scale(in.config.get_abs_value(opt_key, 1));
+        }
+        else if (opt_key == "scale_to_fit") {
+            const Vec3d& opt = in.config.opt<ConfigOptionPoint3>(opt_key)->value;
+            if (opt.x() <= 0 || opt.y() <= 0 || opt.z() <= 0) {
+                boost::nowide::cerr << "--scale-to-fit requires a positive volume" << std::endl;
+                return false;
+            }
+            for (auto& model : out.models)
+                for (auto& o : model.objects)
+                    // this affects volumes:
+                    o->scale_to_fit(opt);
+        }
+        else if (opt_key == "cut") {
+            std::vector<Model> new_models;
+            for (auto& model : out.models) {
+                model.translate(0, 0, -model.bounding_box_exact().min.z());  // align to z = 0
+                size_t num_objects = model.objects.size();
+                for (size_t i = 0; i < num_objects; ++i) {
+                    Cut cut(model.objects.front(), 0, Geometry::translation_transform(in.config.opt_float("cut") * Vec3d::UnitZ()),
+                        ModelObjectCutAttribute::KeepLower | ModelObjectCutAttribute::KeepUpper | ModelObjectCutAttribute::PlaceOnCutUpper);
+                    auto cut_objects = cut.perform_with_plane();
+                    for (ModelObject* obj : cut_objects)
+                        model.add_object(*obj);
+                    model.delete_object(size_t(0));
+                }
+            }
+
+            // TODO: copy less stuff around using pointers
+            out.models = new_models;
+
+            if (in.actions.empty())
+                in.actions.push_back("export_stl");
+        }
+        else if (opt_key == "split") {
+            for (Model& model : out.models) {
+                size_t num_objects = model.objects.size();
+                for (size_t i = 0; i < num_objects; ++i) {
+                    ModelObjectPtrs new_objects;
+                    model.objects.front()->split(&new_objects);
+                    model.delete_object(size_t(0));
+                }
+            }
+        }
+        else if (opt_key == "delete-after-load") {
+            out.delete_after_load = true;
+        }
+        else {
+            boost::nowide::cerr << "error: option not implemented yet: " << opt_key << std::endl;
+            return false;
+        }
+    }
+
+    // All transforms have been dealt with. Now ensure that the objects are on bed.
+    // (Unless the user said otherwise.)
+    if (in.config.opt_bool("ensure_on_bed"))
+        for (auto& model : out.models)
+            for (auto& o : model.objects)
+                o->ensure_on_bed();
+
+    return true;
+}
+
+
+static std::string output_filepath(const Model& model, IO::ExportFormat format, const std::string cmdline_param)
+{
+    std::string ext;
+    switch (format) {
+    case IO::OBJ: ext = ".obj"; break;
+    case IO::STL: ext = ".stl"; break;
+    case IO::TMF: ext = ".3mf"; break;
+    default: assert(false); break;
+    };
+    auto proposed_path = boost::filesystem::path(model.propose_export_file_name_and_path(ext));
+    // use --output when available
+    if (!cmdline_param.empty()) {
+        // if we were supplied a directory, use it and append our automatically generated filename
+        boost::filesystem::path cmdline_path(cmdline_param);
+        if (boost::filesystem::is_directory(cmdline_path))
+            proposed_path = cmdline_path / proposed_path.filename();
+        else
+            proposed_path = cmdline_path;
+    }
+    return proposed_path.string();
+}
+
+static bool export_models(std::vector<Model>& models, IO::ExportFormat format, const std::string cmdline_param)
+{
+    for (Model& model : models) {
+        const std::string path = output_filepath(model, format, cmdline_param);
+        bool success = false;
+        switch (format) {
+        case IO::OBJ: success = Slic3r::store_obj(path.c_str(), &model);          break;
+        case IO::STL: success = Slic3r::store_stl(path.c_str(), &model, true);    break;
+        case IO::TMF: success = Slic3r::store_3mf(path.c_str(), &model, nullptr, false); break;
+        default: assert(false); break;
+        }
+        if (success)
+            std::cout << "File exported to " << path << std::endl;
+        else {
+            std::cerr << "File export to " << path << " failed" << std::endl;
+            return false;
+        }
+    }
+    return true;
+}
+
+static bool process_actions(  CliInParams& in,
+                            CliOutParams& out,
+                            const arr2::ArrangeBed& bed,
+                            const arr2::ArrangeSettingsView& arrange_cfg)
+{
+
+    for (auto const& opt_key : in.actions) {
+        if (opt_key == "help") {
+            print_help();
+        }
+        else if (opt_key == "help_fff") {
+            print_help(true, ptFFF);
+        }
+        else if (opt_key == "help_sla") {
+            print_help(true, ptSLA);
+        }
+        else if (opt_key == "save") {
+            //FIXME check for mixing the FFF / SLA parameters.
+            // or better save fff_print_config vs. sla_print_config
+            out.print_config.save(in.config.opt_string("save"));
+        }
+        else if (opt_key == "info") {
+            // --info works on unrepaired model
+            for (Model& model : out.models) {
+                model.add_default_instances();
+                model.print_info();
+            }
+        }
+        else if (opt_key == "export_stl") {
+            for (auto& model : out.models)
+                model.add_default_instances();
+            if (!export_models(out.models, IO::STL, in.config.opt_string("output")))
+                return 1;
+        }
+        else if (opt_key == "export_obj") {
+            for (auto& model : out.models)
+                model.add_default_instances();
+            if (!export_models(out.models, IO::OBJ, in.config.opt_string("output")))
+                return 1;
+        }
+        else if (opt_key == "export_3mf") {
+            if (!export_models(out.models, IO::TMF, in.config.opt_string("output")))
+                return 1;
+        }
+        else if (opt_key == "export_gcode" || opt_key == "export_sla" || opt_key == "slice") {
+            if (opt_key == "export_gcode" && out.printer_technology == ptSLA) {
+                boost::nowide::cerr << "error: cannot export G-code for an FFF configuration" << std::endl;
+                return 1;
+            }
+            else if (opt_key == "export_sla" && out.printer_technology == ptFFF) {
+                boost::nowide::cerr << "error: cannot export SLA slices for a SLA configuration" << std::endl;
+                return 1;
+            }
+            // Make a copy of the model if the current action is not the last action, as the model may be
+            // modified by the centering and such.
+            Model model_copy;
+            bool  make_copy = &opt_key != &in.actions.back();
+            for (Model& model_in : out.models) {
+                if (make_copy)
+                    model_copy = model_in;
+                Model& model = make_copy ? model_copy : model_in;
+                // If all objects have defined instances, their relative positions will be
+                // honored when printing (they will be only centered, unless --dont-arrange
+                // is supplied); if any object has no instances, it will get a default one
+                // and all instances will be rearranged (unless --dont-arrange is supplied).
+                std::string outfile = in.config.opt_string("output");
+                Print       fff_print;
+                SLAPrint    sla_print;
+                sla_print.set_status_callback(
+                    [](const PrintBase::SlicingStatus& s)
+                    {
+                        if (s.percent >= 0) { // FIXME: is this sufficient?
+                            printf("%3d%s %s\n", s.percent, "% =>", s.text.c_str());
+                            std::fflush(stdout);
+                        }
+                    });
+
+                PrintBase* print = (out.printer_technology == ptFFF) ? static_cast<PrintBase*>(&fff_print) : static_cast<PrintBase*>(&sla_print);
+                if (!in.config.opt_bool("dont_arrange")) {
+                    if (out.user_center_specified) {
+                        Vec2d c = in.config.option<ConfigOptionPoint>("center")->value;
+                        arrange_objects(model, arr2::InfiniteBed{ scaled(c) }, arrange_cfg);
+                    }
+                    else
+                        arrange_objects(model, bed, arrange_cfg);
+                }
+                if (out.printer_technology == ptFFF) {
+                    for (auto* mo : model.objects)
+                        fff_print.auto_assign_extruders(mo);
+                }
+                print->apply(model, out.print_config);
+                std::string err = print->validate();
+                if (!err.empty()) {
+                    boost::nowide::cerr << err << std::endl;
+                    return 1;
+                }
+                if (print->empty())
+                    boost::nowide::cout << "Nothing to print for " << outfile << " . Either the print is empty or no object is fully inside the print volume." << std::endl;
+                else
+                    try {
+                    std::string outfile_final;
+                    print->process();
+                    if (out.printer_technology == ptFFF) {
+
+
+
+
+
+                        std::function<ThumbnailsList(const ThumbnailsParams&)> thumbnail_generator_cli;
+                        if (!fff_print.model().objects.empty() && boost::iends_with(fff_print.model().objects.front()->input_file, ".3mf")) {
+                            std::string filename = fff_print.model().objects.front()->input_file;
+                            thumbnail_generator_cli = [filename](const ThumbnailsParams&) {
+                                ThumbnailsList list_out;
+
+                                mz_zip_archive archive;
+                                mz_zip_zero_struct(&archive);
+
+                                if (!open_zip_reader(&archive, filename))
+                                    return list_out;
+                                mz_uint num_entries = mz_zip_reader_get_num_files(&archive);
+                                mz_zip_archive_file_stat stat;
+
+                                int index = mz_zip_reader_locate_file(&archive, "Metadata/thumbnail.png", nullptr, 0);
+                                if (index < 0 || !mz_zip_reader_file_stat(&archive, index, &stat))
+                                    return list_out;
+                                std::string buffer;
+                                buffer.resize(int(stat.m_uncomp_size));
+                                mz_bool res = mz_zip_reader_extract_file_to_mem(&archive, stat.m_filename, buffer.data(), (size_t)stat.m_uncomp_size, 0);
+                                if (res == 0)
+                                    return list_out;
+                                close_zip_reader(&archive);
+
+                                std::vector<unsigned char> data;
+                                unsigned width = 0;
+                                unsigned height = 0;
+                                png::decode_png(buffer, data, width, height);
+
+                                {
+                                    // Flip the image vertically so it matches the convention in Thumbnails generator.
+                                    const int row_size = width * 4; // Each pixel is 4 bytes (RGBA)
+                                    std::vector<unsigned char> temp_row(row_size);
+                                    for (int i = 0; i < height / 2; ++i) {
+                                        unsigned char* top_row = &data[i * row_size];
+                                        unsigned char* bottom_row = &data[(height - i - 1) * row_size];
+                                        std::copy(bottom_row, bottom_row + row_size, temp_row.begin());
+                                        std::copy(top_row, top_row + row_size, bottom_row);
+                                        std::copy(temp_row.begin(), temp_row.end(), top_row);
+                                    }
+                                }
+
+                                ThumbnailData th;
+                                th.set(width, height);
+                                th.pixels = data;
+                                list_out.push_back(th);
+                                return list_out;
+                                };
+                        }
+
+
+
+
+
+                        // The outfile is processed by a PlaceholderParser.
+                        outfile = fff_print.export_gcode(outfile, nullptr, thumbnail_generator_cli);
+                        outfile_final = fff_print.print_statistics().finalize_output_path(outfile);
+                    }
+                    else {
+                        outfile = sla_print.output_filepath(outfile);
+                        // We need to finalize the filename beforehand because the export function sets the filename inside the zip metadata
+                        outfile_final = sla_print.print_statistics().finalize_output_path(outfile);
+                        sla_print.export_print(outfile_final);
+                    }
+                    if (outfile != outfile_final) {
+                        if (Slic3r::rename_file(outfile, outfile_final)) {
+                            boost::nowide::cerr << "Renaming file " << outfile << " to " << outfile_final << " failed" << std::endl;
+                            return false;
+                        }
+                        outfile = outfile_final;
+                    }
+                    // Run the post-processing scripts if defined.
+                    run_post_process_scripts(outfile, fff_print.full_print_config());
+                    boost::nowide::cout << "Slicing result exported to " << outfile << std::endl;
+                }
+                catch (const std::exception& ex) {
+                    boost::nowide::cerr << ex.what() << std::endl;
+                    return false;
+                }
+/*
+                print.center = ! in.config.has("center")
+                    && ! in.config.has("align_xy")
+                    && ! in.config.opt_bool("dont_arrange");
+                print.set_model(model);
+
+                // start chronometer
+                typedef std::chrono::high_resolution_clock clock_;
+                typedef std::chrono::duration<double, std::ratio<1> > second_;
+                std::chrono::time_point<clock_> t0{ clock_::now() };
+
+                const std::string outfile = this->output_filepath(model, IO::Gcode);
+                try {
+                    print.export_gcode(outfile);
+                } catch (std::runtime_error &e) {
+                    boost::nowide::cerr << e.what() << std::endl;
+                    return 1;
+                }
+                boost::nowide::cout << "G-code exported to " << outfile << std::endl;
+
+                // output some statistics
+                double duration { std::chrono::duration_cast<second_>(clock_::now() - t0).count() };
+                boost::nowide::cout << std::fixed << std::setprecision(0)
+                    << "Done. Process took " << (duration/60) << " minutes and "
+                    << std::setprecision(3)
+                    << std::fmod(duration, 60.0) << " seconds." << std::endl
+                    << std::setprecision(2)
+                    << "Filament required: " << print.total_used_filament() << "mm"
+                    << " (" << print.total_extruded_volume()/1000 << "cm3)" << std::endl;
+*/
+            }
+        }
+        else {
+            boost::nowide::cerr << "error: option not supported yet: " << opt_key << std::endl;
+            return false;
+        }
+    }
+
+    return true;
+}
+
 
 int CLI::run(int argc, char **argv)
 {
@@ -113,30 +724,35 @@ int CLI::run(int argc, char **argv)
         	"You may need to reconfigure the missing locales, likely by running the \"locale-gen\" and \"dpkg-reconfigure locales\" commands.\n"
 #endif
         	SLIC3R_APP_NAME " will now terminate.\n\n") + ex.what();
-    #if defined(_WIN32) && defined(SLIC3R_GUI)
-        if (m_actions.empty())
-        	// Empty actions means Slicer is executed in the GUI mode. Show a GUI message.
-            MessageBoxA(NULL, text.c_str(), caption.c_str(), MB_OK | MB_ICONERROR);
-    #endif
+#if defined(_WIN32) && defined(SLIC3R_GUI)
+        MessageBoxA(NULL, text.c_str(), caption.c_str(), MB_OK | MB_ICONERROR);
+#endif
         boost::nowide::cerr << text.c_str() << std::endl;
         return 1;
     }
 
-	if (! this->setup(argc, argv))
+    CliInParams cli_in;
+    if (! this->setup(argc, argv, cli_in))
 		return 1;
 
+    if (process_profiles_sharing(cli_in))
+        return 1;
+
+    CliOutParams cli_out;
+
+    /* ysFIXME it looks like m_extra_config is a redundant parametr
+    * because of m_extra_config is empty from the very beginning and is applied with ignorring of the non-existing options
+    * 
     m_extra_config.apply(m_config, true);
     m_extra_config.normalize_fdm();
-    
-    PrinterTechnology printer_technology = get_printer_technology(m_config);
+    */
 
-    bool							start_gui			= m_actions.empty() &&
+    cli_out.printer_technology = get_printer_technology(cli_in.config);
+
+    bool							start_gui			= cli_in.actions.empty() &&
         // cutting transformations are setting an "export" action.
-        std::find(m_transforms.begin(), m_transforms.end(), "cut") == m_transforms.end() &&
-        std::find(m_transforms.begin(), m_transforms.end(), "cut_x") == m_transforms.end() &&
-        std::find(m_transforms.begin(), m_transforms.end(), "cut_y") == m_transforms.end();
+        std::find(cli_in.transforms.begin(), cli_in.transforms.end(), "cut") == cli_in.transforms.end();
     bool                            start_downloader = false;
-    bool                            delete_after_load = false;
     std::string                     download_url;
     bool 							start_as_gcodeviewer =
 #ifdef _WIN32
@@ -146,13 +762,13 @@ int CLI::run(int argc, char **argv)
             boost::algorithm::iends_with(boost::filesystem::path(argv[0]).filename().string(), "gcodeviewer");
 #endif // _WIN32
 
-    const std::vector<std::string>              &load_configs		      = m_config.option<ConfigOptionStrings>("load", true)->values;
-    const ForwardCompatibilitySubstitutionRule   config_substitution_rule = m_config.option<ConfigOptionEnum<ForwardCompatibilitySubstitutionRule>>("config_compatibility", true)->value;
+    const std::vector<std::string> &load_configs = cli_in.config.option<ConfigOptionStrings>("load", true)->values;
+    cli_out.config_substitution_rule             = cli_in.config.option<ConfigOptionEnum<ForwardCompatibilitySubstitutionRule>>("config_compatibility", true)->value;
 
     // load config files supplied via --load
     for (auto const &file : load_configs) {
         if (! boost::filesystem::exists(file)) {
-            if (m_config.opt_bool("ignore_nonexistent_config")) {
+            if (cli_in.config.opt_bool("ignore_nonexistent_config")) {
                 continue;
             } else {
                 boost::nowide::cerr << "No such file: " << file << std::endl;
@@ -162,53 +778,64 @@ int CLI::run(int argc, char **argv)
         DynamicPrintConfig  config;
         ConfigSubstitutions config_substitutions;
         try {
-            config_substitutions = config.load(file, config_substitution_rule);
+            config_substitutions = config.load(file, cli_out.config_substitution_rule);
         } catch (std::exception &ex) {
             boost::nowide::cerr << "Error while reading config file \"" << file << "\": " << ex.what() << std::endl;
             return 1;
         }
-        if (! config_substitutions.empty()) {
-            boost::nowide::cout << "The following configuration values were substituted when loading \" << file << \":\n";
-            for (const ConfigSubstitution &subst : config_substitutions)
-                boost::nowide::cout << "\tkey = \"" << subst.opt_def->opt_key << "\"\t loaded = \"" << subst.old_value << "\tsubstituted = \"" << subst.new_value->serialize() << "\"\n";
-        }
-        config.normalize_fdm();
-        PrinterTechnology other_printer_technology = get_printer_technology(config);
-        if (printer_technology == ptUnknown) {
-            printer_technology = other_printer_technology;
-        } else if (printer_technology != other_printer_technology && other_printer_technology != ptUnknown) {
-            boost::nowide::cerr << "Mixing configurations for FFF and SLA technologies" << std::endl;
+
+        if (!can_apply_printer_technology(cli_out.printer_technology, get_printer_technology(config)))
             return 1;
-        }
-        m_print_config.apply(config);
+
+        print_config_substitutions(config_substitutions, file);
+
+        config.normalize_fdm();
+        cli_out.print_config.apply(config);
     }
 
-    bool has_config_from_profiles = m_profiles_sharing.empty() && 
-                                    (!m_config.opt_string("print-profile").empty()                              ||
-                                     !m_config.option<ConfigOptionStrings>("material-profile")->values.empty()  ||
-                                     !m_config.opt_string("printer-profile").empty()                        );
-    if (has_config_from_profiles && !check_and_load_input_profiles(printer_technology))
-        return 1;
+    bool has_config_from_profiles = cli_in.profiles_sharing.empty() && 
+                                    (!cli_in.config.opt_string("print-profile").empty()                              ||
+                                     !cli_in.config.option<ConfigOptionStrings>("material-profile")->values.empty()  ||
+                                     !cli_in.config.opt_string("printer-profile").empty()                        );
+
+    // load config from profiles set
+    if (has_config_from_profiles) {
+        Slic3r::DynamicPrintConfig config = {};
+        std::string errors = Slic3r::load_full_print_config(cli_in.config.opt_string("print-profile"),
+                                                            cli_in.config.option<ConfigOptionStrings>("material-profile")->values,
+                                                            cli_in.config.opt_string("printer-profile"),
+                                                            config, cli_out.printer_technology);
+        if (!errors.empty()) {
+            boost::nowide::cerr << errors << std::endl;
+            return 1;
+        }
+
+        if (!can_apply_printer_technology(cli_out.printer_technology, get_printer_technology(config)))
+            return 1;
+
+        config.normalize_fdm();
+        cli_out.print_config.apply(config);
+    }
 
 #ifdef SLIC3R_GUI
-    if (m_config.has("webdev")) {
-        Utils::ServiceConfig::instance().set_webdev_enabled(m_config.opt_bool("webdev"));
+    if (cli_in.config.has("webdev")) {
+        Utils::ServiceConfig::instance().set_webdev_enabled(cli_in.config.opt_bool("webdev"));
     }
     std::vector<std::string>::iterator it;
     bool opengl_aa = false;
-    it = std::find(m_actions.begin(), m_actions.end(), "opengl-aa");
-    if (it != m_actions.end()) {
+    it = std::find(cli_in.actions.begin(), cli_in.actions.end(), "opengl-aa");
+    if (it != cli_in.actions.end()) {
         start_gui = true;
         opengl_aa = true;
-        m_actions.erase(it);
+        cli_in.actions.erase(it);
     }
 #if SLIC3R_OPENGL_ES
     // are we starting as gcodeviewer ?
-    for (auto it = m_actions.begin(); it != m_actions.end(); ++it) {
+    for (auto it = cli_in.actions.begin(); it != cli_in.actions.end(); ++it) {
         if (*it == "gcodeviewer") {
             start_gui = true;
             start_as_gcodeviewer = true;
-            m_actions.erase(it);
+            cli_in.actions.erase(it);
             break;
         }
     }
@@ -218,17 +845,17 @@ int CLI::run(int argc, char **argv)
     bool                opengl_compatibility_profile = false;
 
     // search for special keys into command line parameters
-    it = std::find(m_actions.begin(), m_actions.end(), "gcodeviewer");
-    if (it != m_actions.end()) {
+    it = std::find(cli_in.actions.begin(), cli_in.actions.end(), "gcodeviewer");
+    if (it != cli_in.actions.end()) {
         start_gui = true;
         start_as_gcodeviewer = true;
-        m_actions.erase(it);
+        cli_in.actions.erase(it);
     }
 
-    it = std::find(m_actions.begin(), m_actions.end(), "opengl-version");
-    if (it != m_actions.end()) {
+    it = std::find(cli_in.actions.begin(), cli_in.actions.end(), "opengl-version");
+    if (it != cli_in.actions.end()) {
         const Semver opengl_minimum = Semver(3,2,0);
-        const std::string opengl_version_str = m_config.opt_string("opengl-version");
+        const std::string opengl_version_str = cli_in.config.opt_string("opengl-version");
         boost::optional<Semver> semver = Semver::parse(opengl_version_str);
         if (semver.has_value() && (*semver) >= opengl_minimum ) {
             opengl_version.first = semver->maj();
@@ -241,46 +868,47 @@ int CLI::run(int argc, char **argv)
             boost::nowide::cerr << "Required OpenGL version " << opengl_version_str << " is invalid. Must be greater than or equal to " <<
                 opengl_minimum.to_string() << "\n Option 'opengl-version' ignored." << std::endl;
         start_gui = true;
-        m_actions.erase(it);
+        cli_in.actions.erase(it);
     }
 
-    it = std::find(m_actions.begin(), m_actions.end(), "opengl-compatibility");
-    if (it != m_actions.end()) {
+    it = std::find(cli_in.actions.begin(), cli_in.actions.end(), "opengl-compatibility");
+    if (it != cli_in.actions.end()) {
         start_gui = true;
         opengl_compatibility_profile = true;
         // reset version as compatibility profile always take the highest version
         // supported by the graphic card
         opengl_version = std::make_pair(0, 0);
-        m_actions.erase(it);
+        cli_in.actions.erase(it);
     }
 
-    it = std::find(m_actions.begin(), m_actions.end(), "opengl-debug");
-    if (it != m_actions.end()) {
+    it = std::find(cli_in.actions.begin(), cli_in.actions.end(), "opengl-debug");
+    if (it != cli_in.actions.end()) {
         start_gui = true;
         opengl_debug = true;
-        m_actions.erase(it);
+        cli_in.actions.erase(it);
     }
 #endif // SLIC3R_OPENGL_ES
 #else // SLIC3R_GUI
     // If there is no GUI, we shall ignore the parameters. Remove them from the list.
     for (const std::string& s : { "opengl-version", "opengl-compatibility", "opengl-debug", "opengl-aa", "gcodeviewer" }) {
-        auto it = std::find(m_actions.cbegin(), m_actions.cend(), s);
-        if (it != m_actions.end()) {
+        auto it = std::find(cli_in.actions.cbegin(), cli_in.actions.cend(), s);
+        if (it != cli_in.actions.end()) {
             boost::nowide::cerr << "Parameter '" << s << "' is ignored, this PrusaSlicer build is CLI only." << std::endl;
-            m_actions.erase(it);
+            cli_in.actions.erase(it);
         }
     }
 #endif // SLIC3R_GUI
 
 
     // Read input file(s) if any.
-    for (const std::string& file : m_input_files)
+    for (const std::string& file : cli_in.input_files)
         if (is_gcode_file(file) && boost::filesystem::exists(file)) {
             start_as_gcodeviewer = true;
             break;
         }
+
     if (!start_as_gcodeviewer) {
-        for (const std::string& file : m_input_files) {
+        for (const std::string& file : cli_in.input_files) {
             if (boost::starts_with(file, "prusaslicer://")) {
                 start_downloader = true;
                 download_url = file;
@@ -294,35 +922,13 @@ int CLI::run(int argc, char **argv)
             try {
                 if (has_config_from_profiles)
                     model = FileReader::load_model(file);
-                else {
-                // When loading an AMF or 3MF, config is imported as well, including the printer technology.
-                DynamicPrintConfig config;
-                ConfigSubstitutionContext config_substitutions(config_substitution_rule);
-                boost::optional<Semver> prusaslicer_generator_version;
-                //FIXME should we check the version here? // | Model::LoadAttribute::CheckVersion ?
-                model = FileReader::load_model_with_config(file, &config, &config_substitutions, prusaslicer_generator_version, FileReader::LoadAttribute::AddDefaultInstances);
-                PrinterTechnology other_printer_technology = get_printer_technology(config);
-                if (printer_technology == ptUnknown) {
-                    printer_technology = other_printer_technology;
-                }
-                else if (printer_technology != other_printer_technology && other_printer_technology != ptUnknown) {
-                    boost::nowide::cerr << "Mixing configurations for FFF and SLA technologies" << std::endl;
+                else if (!apply_model_and_print_config_from_file(file, model, cli_out))
                     return 1;
-                }
-                if (! config_substitutions.substitutions.empty()) {
-                    boost::nowide::cout << "The following configuration values were substituted when loading \" << file << \":\n";
-                    for (const ConfigSubstitution& subst : config_substitutions.substitutions)
-                        boost::nowide::cout << "\tkey = \"" << subst.opt_def->opt_key << "\"\t loaded = \"" << subst.old_value << "\tsubstituted = \"" << subst.new_value->serialize() << "\"\n";
-                }
-                // config is applied to m_print_config before the current m_config values.
-                config += std::move(m_print_config);
-                m_print_config = std::move(config);
-                }
 
                 // If model for slicing is loaded from 3mf file, then its geometry has to be used and arrange couldn't be apply for this model.
-                if ((boost::algorithm::iends_with(file, ".3mf") || boost::algorithm::iends_with(file, ".zip")) && !m_config.opt_bool("dont_arrange")) {
+                if ((boost::algorithm::iends_with(file, ".3mf") || boost::algorithm::iends_with(file, ".zip")) && !cli_in.config.opt_bool("dont_arrange")) {
                     //So, check a state of "dont_arrange" parameter and set it to true, if its value is false.
-                    m_config.set_key_value("dont_arrange", new ConfigOptionBool(true));
+                    cli_in.config.set_key_value("dont_arrange", new ConfigOptionBool(true));
                 }
             }
             catch (std::exception& e) {
@@ -333,12 +939,12 @@ int CLI::run(int argc, char **argv)
                 boost::nowide::cerr << "Error: file is empty: " << file << std::endl;
                 continue;
             }
-            m_models.push_back(model);
+            cli_out.models.push_back(model);
         }
     }
 
     if (!start_gui) {
-        const auto* post_process = m_print_config.opt<ConfigOptionStrings>("post_process");
+        const auto* post_process = cli_out.print_config.opt<ConfigOptionStrings>("post_process");
         if (post_process != nullptr && !post_process->values.empty()) {
             boost::nowide::cout << "\nA post-processing script has been detected in the config data:\n\n";
             for (const auto& s : post_process->values) {
@@ -352,26 +958,28 @@ int CLI::run(int argc, char **argv)
         }
     }
 
+    /* ysFIXME
     // Apply command line options to a more specific DynamicPrintConfig which provides normalize()
     // (command line options override --load files)
-    m_print_config.apply(m_extra_config, true);
+    cli.print_config.apply(cli_in.extra_config, true);
     // Normalizing after importing the 3MFs / AMFs
-    m_print_config.normalize_fdm();
+    cli.print_config.normalize_fdm();
+    */
 
-    if (printer_technology == ptUnknown)
-        printer_technology = std::find(m_actions.begin(), m_actions.end(), "export_sla") == m_actions.end() ? ptFFF : ptSLA;
-    m_print_config.option<ConfigOptionEnum<PrinterTechnology>>("printer_technology", true)->value = printer_technology;
+    if (cli_out.printer_technology == ptUnknown)
+        cli_out.printer_technology = std::find(cli_in.actions.begin(), cli_in.actions.end(), "export_sla") == cli_in.actions.end() ? ptFFF : ptSLA;
+    cli_out.print_config.option<ConfigOptionEnum<PrinterTechnology>>("printer_technology", true)->value = cli_out.printer_technology;
 
     // Initialize full print configs for both the FFF and SLA technologies.
     FullPrintConfig    fff_print_config;
     SLAFullPrintConfig sla_print_config;
     
     // Synchronize the default parameters and the ones received on the command line.
-    if (printer_technology == ptFFF) {
-        fff_print_config.apply(m_print_config, true);
-        m_print_config.apply(fff_print_config, true);
+    if (cli_out.printer_technology == ptFFF) {
+        fff_print_config.apply(cli_out.print_config, true);
+        cli_out.print_config.apply(fff_print_config, true);
     } else {
-        assert(printer_technology == ptSLA);
+        assert(cli_out.printer_technology == ptSLA);
         sla_print_config.output_filename_format.value = "[input_filename_base].sl1";
         
         // The default bed shape should reflect the default display parameters
@@ -380,424 +988,29 @@ int CLI::run(int argc, char **argv)
         double h = sla_print_config.display_height.getFloat();
         sla_print_config.bed_shape.values = { Vec2d(0, 0), Vec2d(w, 0), Vec2d(w, h), Vec2d(0, h) };
         
-        sla_print_config.apply(m_print_config, true);
-        m_print_config.apply(sla_print_config, true);
+        sla_print_config.apply(cli_out.print_config, true);
+        cli_out.print_config.apply(sla_print_config, true);
     }
     
     {
-        std::string validity = m_print_config.validate();
+        std::string validity = cli_out.print_config.validate();
         if (! validity.empty()) {
             boost::nowide::cerr << "Error: The composite configation is not valid: " << validity << std::endl;
             return 1;
         }
     }
-    
-    // Loop through transform options.
-    bool user_center_specified = false;
 
     const Vec2crd gap{s_multiple_beds.get_bed_gap()};
-    arr2::ArrangeBed bed = arr2::to_arrange_bed(get_bed_shape(m_print_config), gap);
+    arr2::ArrangeBed bed = arr2::to_arrange_bed(get_bed_shape(cli_out.print_config), gap);
     arr2::ArrangeSettings arrange_cfg;
-    arrange_cfg.set_distance_from_objects(min_object_distance(m_print_config));
+    arrange_cfg.set_distance_from_objects(min_object_distance(cli_out.print_config));
 
-    for (auto const &opt_key : m_transforms) {
-        if (opt_key == "merge") {
-            Model m;
-            for (auto &model : m_models)
-                for (ModelObject *o : model.objects)
-                    m.add_object(*o);
-            // Rearrange instances unless --dont-arrange is supplied
-            if (! m_config.opt_bool("dont_arrange")) {
-                m.add_default_instances();
-                if (this->has_print_action())
-                    arrange_objects(m, bed, arrange_cfg);
-                else
-                    arrange_objects(m, arr2::InfiniteBed{}, arrange_cfg);
-            }
-            m_models.clear();
-            m_models.emplace_back(std::move(m));
-        } else if (opt_key == "duplicate") {
-            for (auto &model : m_models) {
-                const bool all_objects_have_instances = std::none_of(
-                    model.objects.begin(), model.objects.end(),
-                    [](ModelObject* o){ return o->instances.empty(); }
-                );
-                
-                int dups = m_config.opt_int("duplicate");
-                if (!all_objects_have_instances) model.add_default_instances();
-                
-                try {
-                    if (dups > 1) {
-                        // if all input objects have defined position(s) apply duplication to the whole model
-                        duplicate(model, size_t(dups), bed, arrange_cfg);
-                    } else {
-                        arrange_objects(model, bed, arrange_cfg);
-                    }
-                } catch (std::exception &ex) {
-                    boost::nowide::cerr << "error: " << ex.what() << std::endl;
-                    return 1;
-                }
-            }
-        } else if (opt_key == "duplicate_grid") {
-            std::vector<int> &ints = m_config.option<ConfigOptionInts>("duplicate_grid")->values;
-            const int x = ints.size() > 0 ? ints.at(0) : 1;
-            const int y = ints.size() > 1 ? ints.at(1) : 1;
-            const double distance = fff_print_config.duplicate_distance.value;
-            for (auto &model : m_models)
-                model.duplicate_objects_grid(x, y, (distance > 0) ? distance : 6);  // TODO: this is not the right place for setting a default
-        } else if (opt_key == "center") {
-        	user_center_specified = true;
-            for (auto &model : m_models) {
-                model.add_default_instances();
-                // this affects instances:
-                model.center_instances_around_point(m_config.option<ConfigOptionPoint>("center")->value);
-                // this affects volumes:
-                //FIXME Vojtech: Who knows why the complete model should be aligned with Z as a single rigid body?
-                //model.align_to_ground();
-                BoundingBoxf3 bbox;
-                for (ModelObject *model_object : model.objects)
-                    // We are interested into the Z span only, therefore it is sufficient to measure the bounding box of the 1st instance only.
-                    bbox.merge(model_object->instance_bounding_box(0, false));
-                for (ModelObject *model_object : model.objects)
-                    for (ModelInstance *model_instance : model_object->instances)
-                        model_instance->set_offset(Z, model_instance->get_offset(Z) - bbox.min.z());
-            }
-        } else if (opt_key == "align_xy") {
-            const Vec2d &p = m_config.option<ConfigOptionPoint>("align_xy")->value;
-            for (auto &model : m_models) {
-                BoundingBoxf3 bb = model.bounding_box_exact();
-                // this affects volumes:
-                model.translate(-(bb.min.x() - p.x()), -(bb.min.y() - p.y()), -bb.min.z());
-            }
-        } else if (opt_key == "dont_arrange") {
-            // do nothing - this option alters other transform options
-        } else if (opt_key == "ensure_on_bed") {
-            // do nothing, the value is used later
-        } else if (opt_key == "rotate") {
-            for (auto &model : m_models)
-                for (auto &o : model.objects)
-                    // this affects volumes:
-                    o->rotate(Geometry::deg2rad(m_config.opt_float(opt_key)), Z);
-        } else if (opt_key == "rotate_x") {
-            for (auto &model : m_models)
-                for (auto &o : model.objects)
-                    // this affects volumes:
-                    o->rotate(Geometry::deg2rad(m_config.opt_float(opt_key)), X);
-        } else if (opt_key == "rotate_y") {
-            for (auto &model : m_models)
-                for (auto &o : model.objects)
-                    // this affects volumes:
-                    o->rotate(Geometry::deg2rad(m_config.opt_float(opt_key)), Y);
-        } else if (opt_key == "scale") {
-            for (auto &model : m_models)
-                for (auto &o : model.objects)
-                    // this affects volumes:
-                    o->scale(m_config.get_abs_value(opt_key, 1));
-        } else if (opt_key == "scale_to_fit") {
-            const Vec3d &opt = m_config.opt<ConfigOptionPoint3>(opt_key)->value;
-            if (opt.x() <= 0 || opt.y() <= 0 || opt.z() <= 0) {
-                boost::nowide::cerr << "--scale-to-fit requires a positive volume" << std::endl;
-                return 1;
-            }
-            for (auto &model : m_models)
-                for (auto &o : model.objects)
-                    // this affects volumes:
-                    o->scale_to_fit(opt);
-        } else if (opt_key == "cut" || opt_key == "cut_x" || opt_key == "cut_y") {
-            std::vector<Model> new_models;
-            for (auto &model : m_models) {
-                model.translate(0, 0, -model.bounding_box_exact().min.z());  // align to z = 0
-                size_t num_objects = model.objects.size();
-                for (size_t i = 0; i < num_objects; ++ i) {
-
-#if 0
-                    if (opt_key == "cut_x") {
-                        o->cut(X, m_config.opt_float("cut_x"), &out);
-                    } else if (opt_key == "cut_y") {
-                        o->cut(Y, m_config.opt_float("cut_y"), &out);
-                    } else if (opt_key == "cut") {
-                        o->cut(Z, m_config.opt_float("cut"), &out);
-                    }
-#else
-//                    model.objects.front()->cut(0, m_config.opt_float("cut"), ModelObjectCutAttribute::KeepLower | ModelObjectCutAttribute::KeepUpper | ModelObjectCutAttribute::FlipLower);
-                    Cut cut(model.objects.front(), 0, Geometry::translation_transform(m_config.opt_float("cut") * Vec3d::UnitZ()),
-                                               ModelObjectCutAttribute::KeepLower | ModelObjectCutAttribute::KeepUpper | ModelObjectCutAttribute::PlaceOnCutUpper);
-                    auto cut_objects = cut.perform_with_plane();
-                    for (ModelObject* obj : cut_objects)
-                        model.add_object(*obj);
-#endif
-                    model.delete_object(size_t(0));
-                }
-            }
-
-            // TODO: copy less stuff around using pointers
-            m_models = new_models;
-
-            if (m_actions.empty())
-                m_actions.push_back("export_stl");
-        }
-#if 0
-        else if (opt_key == "cut_grid") {
-            std::vector<Model> new_models;
-            for (auto &model : m_models) {
-                TriangleMesh mesh = model.mesh();
-                mesh.repair();
-
-                std::vector<TriangleMesh> meshes = mesh.cut_by_grid(m_config.option<ConfigOptionPoint>("cut_grid")->value);
-                size_t i = 0;
-                for (TriangleMesh* m : meshes) {
-                    Model out;
-                    auto o = out.add_object();
-                    o->add_volume(*m);
-                    o->input_file += "_" + std::to_string(i++);
-                    delete m;
-                }
-            }
-
-            // TODO: copy less stuff around using pointers
-            m_models = new_models;
-
-            if (m_actions.empty())
-                m_actions.push_back("export_stl");
-        }
-#endif
-        else if (opt_key == "split") {
-            for (Model &model : m_models) {
-                size_t num_objects = model.objects.size();
-                for (size_t i = 0; i < num_objects; ++ i) {
-                    ModelObjectPtrs new_objects;
-                    ModelProcessing::split(model.objects.front(), &new_objects);
-                    model.delete_object(size_t(0));
-                }
-            }
-        } else if (opt_key == "repair") {
-            // Models are repaired by default.
-            //for (auto &model : m_models)
-            //    model.repair();
-
-        } else if (opt_key == "delete-after-load") {
-            delete_after_load = true;
-        } else {
-            boost::nowide::cerr << "error: option not implemented yet: " << opt_key << std::endl;
-            return 1;
-        }
-    }
-
-    // All transforms have been dealt with. Now ensure that the objects are on bed.
-    // (Unless the user said otherwise.)
-    if (m_config.opt_bool("ensure_on_bed"))
-        for (auto &model : m_models)
-            for (auto &o : model.objects)
-                o->ensure_on_bed();
+    // Loop through transform options.
+    if (!process_transform(cli_in, cli_out, bed, arrange_cfg))
+        return 1;
 
     // loop through action options
-    for (auto const &opt_key : m_actions) {
-        if (opt_key == "help") {
-            this->print_help();
-        } else if (opt_key == "help_fff") {
-            this->print_help(true, ptFFF);
-        } else if (opt_key == "help_sla") {
-            this->print_help(true, ptSLA);
-        } else if (opt_key == "save") {
-            //FIXME check for mixing the FFF / SLA parameters.
-            // or better save fff_print_config vs. sla_print_config
-            m_print_config.save(m_config.opt_string("save"));
-        } else if (opt_key == "info") {
-            // --info works on unrepaired model
-            for (Model &model : m_models) {
-                model.add_default_instances();
-                model.print_info();
-            }
-        } else if (opt_key == "export_stl") {
-            for (auto &model : m_models)
-                model.add_default_instances();
-            if (! this->export_models(IO::STL))
-                return 1;
-        } else if (opt_key == "export_obj") {
-            for (auto &model : m_models)
-                model.add_default_instances();
-            if (! this->export_models(IO::OBJ))
-                return 1;
-        } else if (opt_key == "export_3mf") {
-            if (! this->export_models(IO::TMF))
-                return 1;
-        } else if (opt_key == "export_gcode" || opt_key == "export_sla" || opt_key == "slice") {
-            if (opt_key == "export_gcode" && printer_technology == ptSLA) {
-                boost::nowide::cerr << "error: cannot export G-code for an FFF configuration" << std::endl;
-                return 1;
-            } else if (opt_key == "export_sla" && printer_technology == ptFFF) {
-                boost::nowide::cerr << "error: cannot export SLA slices for a SLA configuration" << std::endl;
-                return 1;
-            }
-            // Make a copy of the model if the current action is not the last action, as the model may be
-            // modified by the centering and such.
-            Model model_copy;
-            bool  make_copy = &opt_key != &m_actions.back();
-            for (Model &model_in : m_models) {
-                if (make_copy)
-                    model_copy = model_in;
-                Model &model = make_copy ? model_copy : model_in;
-                // If all objects have defined instances, their relative positions will be
-                // honored when printing (they will be only centered, unless --dont-arrange
-                // is supplied); if any object has no instances, it will get a default one
-                // and all instances will be rearranged (unless --dont-arrange is supplied).
-                std::string outfile = m_config.opt_string("output");
-                Print       fff_print;
-                SLAPrint    sla_print;
-                sla_print.set_status_callback(
-                            [](const PrintBase::SlicingStatus& s)
-                {
-                    if(s.percent >= 0) { // FIXME: is this sufficient?
-                        printf("%3d%s %s\n", s.percent, "% =>", s.text.c_str());
-                        std::fflush(stdout);
-                    }
-                });
-
-                PrintBase  *print = (printer_technology == ptFFF) ? static_cast<PrintBase*>(&fff_print) : static_cast<PrintBase*>(&sla_print);
-                if (! m_config.opt_bool("dont_arrange")) {
-                    if (user_center_specified) {
-                        Vec2d c = m_config.option<ConfigOptionPoint>("center")->value;
-                        arrange_objects(model, arr2::InfiniteBed{scaled(c)}, arrange_cfg);
-                    } else
-                        arrange_objects(model, bed, arrange_cfg);
-                }
-                if (printer_technology == ptFFF) {
-                    for (auto* mo : model.objects)
-                        fff_print.auto_assign_extruders(mo);
-                }
-                print->apply(model, m_print_config);
-                std::string err = print->validate();
-                if (! err.empty()) {
-                    boost::nowide::cerr << err << std::endl;
-                    return 1;
-                }
-                if (print->empty())
-                    boost::nowide::cout << "Nothing to print for " << outfile << " . Either the print is empty or no object is fully inside the print volume." << std::endl;
-                else
-                    try {
-                        std::string outfile_final;
-                        print->process();
-                        if (printer_technology == ptFFF) {
-
-
-
-
-
-                            std::function<ThumbnailsList(const ThumbnailsParams&)> thumbnail_generator_cli;
-                            if (!fff_print.model().objects.empty() && boost::iends_with(fff_print.model().objects.front()->input_file, ".3mf")) {
-                                std::string filename = fff_print.model().objects.front()->input_file;
-                                thumbnail_generator_cli = [filename](const ThumbnailsParams&) {
-                                    ThumbnailsList list_out;
-
-                                    mz_zip_archive archive;
-                                    mz_zip_zero_struct(&archive);
-
-                                    if (!open_zip_reader(&archive, filename))
-                                        return list_out;
-                                    mz_uint num_entries = mz_zip_reader_get_num_files(&archive);
-                                    mz_zip_archive_file_stat stat;
-
-                                    int index = mz_zip_reader_locate_file(&archive, "Metadata/thumbnail.png", nullptr, 0);
-                                    if (index < 0 || !mz_zip_reader_file_stat(&archive, index, &stat))
-                                        return list_out;
-                                    std::string buffer;
-                                    buffer.resize(int(stat.m_uncomp_size));
-                                    mz_bool res = mz_zip_reader_extract_file_to_mem(&archive, stat.m_filename, buffer.data(), (size_t)stat.m_uncomp_size, 0);
-                                    if (res == 0)
-                                        return list_out;
-                                    close_zip_reader(&archive);
-
-                                    std::vector<unsigned char> data;
-                                    unsigned width = 0;
-                                    unsigned height = 0;
-                                    png::decode_png(buffer, data, width, height);
-
-                                    {
-                                        // Flip the image vertically so it matches the convention in Thumbnails generator.
-                                        const int row_size = width * 4; // Each pixel is 4 bytes (RGBA)
-                                        std::vector<unsigned char> temp_row(row_size);
-                                        for (int i = 0; i < height / 2; ++i) {
-                                            unsigned char* top_row = &data[i * row_size];
-                                            unsigned char* bottom_row = &data[(height - i - 1) * row_size];
-                                            std::copy(bottom_row, bottom_row + row_size, temp_row.begin());
-                                            std::copy(top_row, top_row + row_size, bottom_row);
-                                            std::copy(temp_row.begin(), temp_row.end(), top_row);
-                                        }
-                                    }
-
-                                    ThumbnailData th;
-                                    th.set(width, height);
-                                    th.pixels = data;
-                                    list_out.push_back(th);
-                                    return list_out;
-                                };  
-                            }
-
-
-
-
-
-                            // The outfile is processed by a PlaceholderParser.
-                            outfile = fff_print.export_gcode(outfile, nullptr, thumbnail_generator_cli);
-                            outfile_final = fff_print.print_statistics().finalize_output_path(outfile);
-                        } else {
-                            outfile = sla_print.output_filepath(outfile);
-                            // We need to finalize the filename beforehand because the export function sets the filename inside the zip metadata
-                            outfile_final = sla_print.print_statistics().finalize_output_path(outfile);
-                            sla_print.export_print(outfile_final);
-                        }
-                        if (outfile != outfile_final) {
-                            if (Slic3r::rename_file(outfile, outfile_final)) {
-                                boost::nowide::cerr << "Renaming file " << outfile << " to " << outfile_final << " failed" << std::endl;
-                                return 1;
-                            }
-                            outfile = outfile_final;
-                        }
-                        // Run the post-processing scripts if defined.
-                        run_post_process_scripts(outfile, fff_print.full_print_config());
-                        boost::nowide::cout << "Slicing result exported to " << outfile << std::endl;
-                    } catch (const std::exception &ex) {
-                        boost::nowide::cerr << ex.what() << std::endl;
-                        return 1;
-                    }
-/*
-                print.center = ! m_config.has("center")
-                    && ! m_config.has("align_xy")
-                    && ! m_config.opt_bool("dont_arrange");
-                print.set_model(model);
-
-                // start chronometer
-                typedef std::chrono::high_resolution_clock clock_;
-                typedef std::chrono::duration<double, std::ratio<1> > second_;
-                std::chrono::time_point<clock_> t0{ clock_::now() };
-
-                const std::string outfile = this->output_filepath(model, IO::Gcode);
-                try {
-                    print.export_gcode(outfile);
-                } catch (std::runtime_error &e) {
-                    boost::nowide::cerr << e.what() << std::endl;
-                    return 1;
-                }
-                boost::nowide::cout << "G-code exported to " << outfile << std::endl;
-
-                // output some statistics
-                double duration { std::chrono::duration_cast<second_>(clock_::now() - t0).count() };
-                boost::nowide::cout << std::fixed << std::setprecision(0)
-                    << "Done. Process took " << (duration/60) << " minutes and "
-                    << std::setprecision(3)
-                    << std::fmod(duration, 60.0) << " seconds." << std::endl
-                    << std::setprecision(2)
-                    << "Filament required: " << print.total_used_filament() << "mm"
-                    << " (" << print.total_extruded_volume()/1000 << "cm3)" << std::endl;
-*/
-            }
-        } else {
-            boost::nowide::cerr << "error: option not supported yet: " << opt_key << std::endl;
-            return 1;
-        }
-    }
-
-    if (processed_profiles_sharing())
+    if (!process_actions(cli_in, cli_out, bed, arrange_cfg))
         return 1;
 
     if (start_gui) {
@@ -819,17 +1032,17 @@ int CLI::run(int argc, char **argv)
         params.argc = argc;
         params.argv = argv;
         params.load_configs = load_configs;
-        params.extra_config = std::move(m_extra_config);
-        params.input_files  = std::move(m_input_files);
+//        params.extra_config = std::move(m_extra_config);
+        params.input_files  = std::move(cli_in.input_files);
         if (has_config_from_profiles && params.input_files.empty()) {
-            params.selected_presets = Slic3r::GUI::CLISelectedProfiles{ m_config.opt_string("print-profile"),
-                                                                        m_config.opt_string("printer-profile") ,
-                                                                        m_config.option<ConfigOptionStrings>("material-profile")->values };
+            params.selected_presets = Slic3r::GUI::CLISelectedProfiles{ cli_in.config.opt_string("print-profile"),
+                                                                        cli_in.config.opt_string("printer-profile") ,
+                                                                        cli_in.config.option<ConfigOptionStrings>("material-profile")->values };
         }
         params.start_as_gcodeviewer = start_as_gcodeviewer;
         params.start_downloader = start_downloader;
         params.download_url = download_url;
-        params.delete_after_load = delete_after_load;
+        params.delete_after_load = cli_out.delete_after_load;
         params.opengl_aa = opengl_aa;
 #if !SLIC3R_OPENGL_ES
         params.opengl_version = opengl_version;
@@ -848,7 +1061,7 @@ int CLI::run(int argc, char **argv)
     return 0;
 }
 
-bool CLI::setup(int argc, char **argv)
+bool CLI::setup(int argc, char **argv, CliInParams& in)
 {
     {
 	    Slic3r::set_logging_level(1);
@@ -915,50 +1128,49 @@ bool CLI::setup(int argc, char **argv)
     // Parse all command line options into a DynamicConfig.
     // If any option is unsupported, print usage and abort immediately.
     t_config_option_keys opt_order;
-    if (! m_config.read_cli(argc, argv, &m_input_files, &opt_order)) {
+    if (! in.config.read_cli(argc, argv, &in.input_files, &opt_order)) {
         // Separate error message reported by the CLI parser from the help.
         boost::nowide::cerr << std::endl;
-        this->print_help();
+        print_help();
         return false;
     }
     // Parse actions and transform options.
     for (auto const &opt_key : opt_order) {
         if (cli_actions_config_def.has(opt_key))
-            m_actions.emplace_back(opt_key);
+            in.actions.emplace_back(opt_key);
         else if (cli_transform_config_def.has(opt_key))
-            m_transforms.emplace_back(opt_key);
+            in.transforms.emplace_back(opt_key);
         else if (cli_profiles_sharing_config_def.has(opt_key))
-            m_profiles_sharing.emplace_back(opt_key);
+            in.profiles_sharing.emplace_back(opt_key);
     }
 
     {
-        const ConfigOptionInt *opt_loglevel = m_config.opt<ConfigOptionInt>("loglevel");
+        const ConfigOptionInt *opt_loglevel = in.config.opt<ConfigOptionInt>("loglevel");
         if (opt_loglevel != 0)
             set_logging_level(opt_loglevel->value);
     }
 
     {
-        const ConfigOptionInt *opt_threads = m_config.opt<ConfigOptionInt>("threads");
+        const ConfigOptionInt *opt_threads = in.config.opt<ConfigOptionInt>("threads");
         if (opt_threads != nullptr)
             thread_count = opt_threads->value;
     }
 
     //FIXME Validating at this stage most likely does not make sense, as the config is not fully initialized yet.
-    std::string validity = m_config.validate();
+    std::string validity = in.config.validate();
 
     // Initialize with defaults.
-    for (const t_optiondef_map *options : { &cli_actions_config_def.options
+    // Some of those values will used later
+    for (const t_optiondef_map* options : { &cli_actions_config_def.options
                                           , &cli_transform_config_def.options
                                           , &cli_profiles_sharing_config_def.options
                                           , &cli_misc_config_def.options })
         for (const t_optiondef_map::value_type &optdef : *options)
-            m_config.option(optdef.first, true);
+            in.config.option(optdef.first, true);
 
-    if (std::string provided_datadir = m_config.opt_string("datadir"); provided_datadir.empty()) {
-        set_data_dir(get_default_datadir());
-    } else
-        set_data_dir(provided_datadir);
-    
+    const std::string provided_datadir = in.config.opt_string("datadir");
+    set_data_dir(provided_datadir.empty() ? get_default_datadir() : provided_datadir);
+
     //FIXME Validating at this stage most likely does not make sense, as the config is not fully initialized yet.
     if (!validity.empty()) {
         boost::nowide::cerr << "error: " << validity << std::endl;
@@ -968,215 +1180,6 @@ bool CLI::setup(int argc, char **argv)
     return true;
 }
 
-void CLI::print_help(bool include_print_options, PrinterTechnology printer_technology) const
-{
-    boost::nowide::cout
-        << SLIC3R_BUILD_ID << " " << "based on Slic3r"
-#ifdef SLIC3R_GUI
-        << " (with GUI support)"
-#else /* SLIC3R_GUI */
-        << " (without GUI support)"
-#endif /* SLIC3R_GUI */
-        << std::endl
-        << "https://github.com/prusa3d/PrusaSlicer" << std::endl << std::endl
-        << "Usage: prusa-slicer [ ACTIONS ] [ TRANSFORM ] [ OPTIONS ] [ file.stl ... ]" << std::endl
-        << std::endl
-        << "Actions:" << std::endl;
-    cli_actions_config_def.print_cli_help(boost::nowide::cout, false);
-        cli_profiles_sharing_config_def.print_cli_help(boost::nowide::cout, false);
-
-    boost::nowide::cout
-        << std::endl
-        << "Transform options:" << std::endl;
-        cli_transform_config_def.print_cli_help(boost::nowide::cout, false);
-
-    boost::nowide::cout
-        << std::endl
-        << "Other options:" << std::endl;
-        cli_misc_config_def.print_cli_help(boost::nowide::cout, false);
-
-    //boost::nowide::cout
-    //    << std::endl
-    //    << "Profiles sharing options:" << std::endl;
-    //    cli_profiles_sharing_config_def.print_cli_help(boost::nowide::cout, false);
-
-    boost::nowide::cout
-        << std::endl
-        << "Print options are processed in the following order:" << std::endl
-        << "\t1) Config keys from the command line, for example --fill-pattern=stars" << std::endl
-        << "\t   (highest priority, overwrites everything below)" << std::endl
-        << "\t2) Config files loaded with --load" << std::endl
-	    << "\t3) Config values loaded from amf or 3mf files" << std::endl;
-
-    if (include_print_options) {
-        boost::nowide::cout << std::endl;
-        print_config_def.print_cli_help(boost::nowide::cout, true, [printer_technology](const ConfigOptionDef &def)
-            { return printer_technology == ptAny || def.printer_technology == ptAny || printer_technology == def.printer_technology; });
-    } else {
-        boost::nowide::cout
-            << std::endl
-            << "Run --help-fff / --help-sla to see the full listing of print options." << std::endl;
-    }
-}
-
-bool CLI::export_models(IO::ExportFormat format)
-{
-    for (Model &model : m_models) {
-        const std::string path = this->output_filepath(model, format);
-        bool success = false;
-        switch (format) {
-            case IO::OBJ: success = Slic3r::store_obj(path.c_str(), &model);          break;
-            case IO::STL: success = Slic3r::store_stl(path.c_str(), &model, true);    break;
-            case IO::TMF: success = Slic3r::store_3mf(path.c_str(), &model, nullptr, false); break;
-            default: assert(false); break;
-        }
-        if (success)
-            std::cout << "File exported to " << path << std::endl;
-        else {
-            std::cerr << "File export to " << path << " failed" << std::endl;
-            return false;
-        }
-    }
-    return true;
-}
-
-std::string CLI::output_filepath(const Model &model, IO::ExportFormat format) const
-{
-    std::string ext;
-    switch (format) {
-        case IO::OBJ: ext = ".obj"; break;
-        case IO::STL: ext = ".stl"; break;
-        case IO::TMF: ext = ".3mf"; break;
-        default: assert(false); break;
-    };
-    auto proposed_path = boost::filesystem::path(model.propose_export_file_name_and_path(ext));
-    // use --output when available
-    std::string cmdline_param = m_config.opt_string("output");
-    if (! cmdline_param.empty()) {
-        // if we were supplied a directory, use it and append our automatically generated filename
-        boost::filesystem::path cmdline_path(cmdline_param);
-        if (boost::filesystem::is_directory(cmdline_path))
-            proposed_path = cmdline_path / proposed_path.filename();
-        else
-            proposed_path = cmdline_path;
-    }
-    return proposed_path.string();
-}
-
-std::set<std::string> query_options = {
-     "printer-profile"
-};
-
-bool CLI::processed_profiles_sharing()
-{
-    if (m_profiles_sharing.empty()) {
-#if 0 // fsFIXME !!! just for the test
-        Slic3r::DynamicPrintConfig config = {};
-        bool was_loaded = Slic3r::load_full_print_config("0.20mm QUALITY @MINI", "Prusament PLA", "Original Prusa MINI & MINI+", config);
-        return true;
-#else
-        return false;
-#endif
-    }
-
-    std::string ret;
-    for (auto const& opt_key : m_profiles_sharing) {
-        if (query_options.find(opt_key) != query_options.end())
-            continue;
-        if (opt_key == "query-printer-models") {
-            ret = Slic3r::get_json_printer_models(get_printer_technology(m_config));
-        }
-/*
-        else if (opt_key == "query-printer-profiles") {
-            if (!m_config.has("printer_model") || !m_config.has("printer_variant")) {
-                boost::nowide::cerr << "error in '" << opt_key << "' : this action requires set 'printer-model' and 'printer-variant' options" << std::endl;
-                break;
-            }
-            ret = Slic3r::get_json_printer_profiles(m_config.opt_string("printer_model"), m_config.opt_string("printer_variant"));
-
-            if (ret.empty())
-                boost::nowide::cerr <<  "Printer_model '" << m_config.opt_string("printer_model") <<
-                                        "' with printer_variant '" << m_config.opt_string("printer_variant") << 
-                                        "' wasn't found among installed printers." << std::endl << 
-                                        "Or the request can be wrong." << std::endl;
-        }
-*/
-        else if (opt_key == "query-print-filament-profiles") {
-            if (!m_config.has("printer-profile")) {
-                boost::nowide::cerr << "error: this action requires set printer-preset option" << opt_key << std::endl;
-                break;
-            }
-            ret = Slic3r::get_json_print_filament_profiles(m_config.opt_string("printer-profile"));
-
-            if (ret.empty())
-                boost::nowide::cerr <<  "Printer profile '" << m_config.opt_string("printer-profile") <<
-                                        "' wasn't found among installed printers." << std::endl << 
-                                        "Or the request can be wrong." << std::endl;
-        }
-        else {
-            boost::nowide::cerr << "error: option not implemented yet: " << opt_key << std::endl;
-            break;
-        }
-    }
-
-    // use --output when available
-
-    std::string cmdline_param = m_config.opt_string("output");
-    if (cmdline_param.empty()) {
-        if (ret.empty())
-            boost::nowide::cerr << "Wrong request" << std::endl;
-        else
-            printf("%s", ret.c_str());
-    }
-    else {
-        // if we were supplied a directory, use it and append our automatically generated filename
-        boost::filesystem::path cmdline_path(cmdline_param);
-        boost::filesystem::path proposed_path = boost::filesystem::path(Slic3r::resources_dir()) / "out.json";
-        if (boost::filesystem::is_directory(cmdline_path))
-            proposed_path = (cmdline_path / proposed_path.filename());
-        else if (cmdline_path.extension().empty())
-            proposed_path = cmdline_path.replace_extension("json");
-        else
-            proposed_path = cmdline_path;
-        const std::string file = proposed_path.string();
-
-        boost::nowide::ofstream c;
-        c.open(file, std::ios::out | std::ios::trunc);
-        c << ret << std::endl;
-        c.close();
-
-        boost::nowide::cout << "Output for your request is written into " << file << std::endl;
-    }
-
-    return true;
-}
-
-bool CLI::check_and_load_input_profiles(PrinterTechnology& printer_technology)
-{
-    Slic3r::DynamicPrintConfig config = {};
-    std::string ret = Slic3r::load_full_print_config(m_config.opt_string("print-profile"), 
-                                                     m_config.option<ConfigOptionStrings>("material-profile")->values,
-                                                     m_config.opt_string("printer-profile"), 
-                                                     config, printer_technology);
-    if (!ret.empty()) {
-        boost::nowide::cerr << ret << std::endl;
-        return false;
-    }
-
-    config.normalize_fdm();
-
-    PrinterTechnology other_printer_technology = get_printer_technology(config);
-    if (printer_technology == ptUnknown)
-        printer_technology = other_printer_technology;
-    else if (printer_technology != other_printer_technology && other_printer_technology != ptUnknown) {
-        boost::nowide::cerr << "Mixing configurations for FFF and SLA technologies" << std::endl;
-        return false;
-    }
-
-    m_print_config.apply(config);
-
-    return true;
-}
 
 // __has_feature() is used later for Clang, this is for compatibility with other compilers (such as GCC and MSVC)
 #ifndef __has_feature
