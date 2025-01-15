@@ -129,7 +129,7 @@ static bool process_input_files(std::vector<Model>& models, DynamicPrintConfig& 
 
         Model model;
         try {
-            if (has_full_config_from_profiles(cli)) {
+            if (has_full_config_from_profiles(cli) || !FileReader::is_project_file(file)) {
                 // we have full banch of options from profiles set
                 // so, just load a geometry
                 model = FileReader::load_model(file);
@@ -154,7 +154,7 @@ static bool process_input_files(std::vector<Model>& models, DynamicPrintConfig& 
             }
 
             // If model for slicing is loaded from 3mf file, then its geometry has to be used and arrange couldn't be apply for this model.
-            if ((boost::algorithm::iends_with(file, ".3mf") || boost::algorithm::iends_with(file, ".zip")) &&
+            if (FileReader::is_project_file(file) &&
                 (!cli.transform_config.has("dont_arrange") || !cli.transform_config.opt_bool("dont_arrange"))) {
                 //So, check a state of "dont_arrange" parameter and set it to true, if its value is false.
                 cli.transform_config.set_key_value("dont_arrange", new ConfigOptionBool(true));

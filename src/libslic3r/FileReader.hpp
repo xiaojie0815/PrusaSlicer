@@ -35,6 +35,8 @@ namespace FileReader
         bool    looks_like_multipart_object { false };
     };
 
+    bool            is_project_file(const std::string& input_file);
+
     // Load model from input file and return the its mesh. 
     // Throw RuntimeError if some problem was detected during model loading
     TriangleMesh    load_mesh(const std::string& input_file);
