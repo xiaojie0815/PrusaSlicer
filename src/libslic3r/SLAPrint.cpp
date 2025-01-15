@@ -1015,7 +1015,6 @@ bool SLAPrintObject::invalidate_state_by_config_options(const std::vector<t_conf
         } else if (
                opt_key == "support_points_density_relative"
             || opt_key == "support_enforcers_only"
-            || opt_key == "support_points_minimal_distance"
             ) {
             steps.emplace_back(slaposSupportPoints);
         } else if (

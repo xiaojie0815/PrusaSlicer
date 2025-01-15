@@ -604,7 +604,6 @@ static std::vector<std::string> s_Preset_sla_print_options {
     "branchingsupport_object_elevation",
 
     "support_points_density_relative",
-    "support_points_minimal_distance",
     "slice_closing_radius",
     "slicing_mode",
     "pad_enable",
