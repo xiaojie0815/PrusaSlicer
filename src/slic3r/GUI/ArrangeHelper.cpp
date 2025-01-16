@@ -209,9 +209,18 @@ bool check_seq_printability(const Model& model)
 
 	// FIXME: This does not consider plates, non-printable objects and instances.
 	Sequential::ScheduledPlate plate;
-	for (ModelObject* mo : model.objects) {
-		ModelInstance* mi = mo->instances.front();
-		plate.scheduled_objects.emplace_back(mo->id().id, scaled(mi->get_offset().x()), scaled(mi->get_offset().y()));
+	for (const ModelObject* mo : model.objects) {
+		int inst_id = -1;
+		for (const ModelInstance* mi : mo->instances) {
+			++inst_id;
+
+			auto it = s_multiple_beds.get_inst_map().find(mi->id());
+			if (it == s_multiple_beds.get_inst_map().end() || it->second != s_multiple_beds.get_active_bed())
+				continue;
+
+			Vec3d offset = s_multiple_beds.get_bed_translation(s_multiple_beds.get_active_bed());
+			plate.scheduled_objects.emplace_back(inst_id == 0 ? mo->id().id : mi->id().id, scaled(mi->get_offset().x() - offset.x()), scaled(mi->get_offset().y() - offset.y()));
+		}
 	}
 
 	return Sequential::check_ScheduledObjectsForSequentialPrintability(solver_config, printer_geometry, objects, std::vector<Sequential::ScheduledPlate>(1, plate));
