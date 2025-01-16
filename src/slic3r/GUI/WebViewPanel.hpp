@@ -148,6 +148,7 @@ protected:
     void on_connect_action_close_dialog(const std::string& message_data) override {assert(false);}
     void on_user_token(UserAccountSuccessEvent& e);
     void define_css() override;
+    void after_on_show(wxShowEvent& evt) override;
 private:
     static wxString get_login_script(bool refresh);
     static wxString get_logout_script();

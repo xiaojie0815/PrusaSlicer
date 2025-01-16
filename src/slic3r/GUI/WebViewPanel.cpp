@@ -642,6 +642,7 @@ void ConnectWebViewPanel::late_create()
 
 void ConnectWebViewPanel::on_user_token(UserAccountSuccessEvent& e)
 {
+    BOOST_LOG_TRIVIAL(debug) << __FUNCTION__;
     e.Skip();
     if (!m_browser) {
         return;
@@ -661,6 +662,7 @@ ConnectWebViewPanel::~ConnectWebViewPanel()
 
 wxString ConnectWebViewPanel::get_login_script(bool refresh)
 {
+    BOOST_LOG_TRIVIAL(debug) << __FUNCTION__;
     Plater* plater = wxGetApp().plater();
     const std::string& access_token = plater->get_user_account()->get_access_token();
     assert(!access_token.empty());
@@ -811,6 +813,7 @@ void ConnectWebViewPanel::on_page_will_load()
     if (!m_browser) {
         return;
     }
+    BOOST_LOG_TRIVIAL(debug) << __FUNCTION__;
     auto javascript = get_login_script(false);
     BOOST_LOG_TRIVIAL(debug) << "RunScript " << javascript << "\n";
     m_browser->AddUserScript(javascript);
@@ -860,6 +863,7 @@ void ConnectWebViewPanel::on_navigation_request(wxWebViewEvent &evt)
 
 void ConnectWebViewPanel::on_connect_action_error(const std::string &message_data)
 {
+    BOOST_LOG_TRIVIAL(debug) << __FUNCTION__;
     ConnectRequestHandler::on_connect_action_error(message_data);
     // TODO: make this more user friendly (and make sure only once opened if multiple errors happen)
 //    MessageDialog dialog(
@@ -874,6 +878,7 @@ void ConnectWebViewPanel::on_connect_action_error(const std::string &message_dat
 
 void ConnectWebViewPanel::on_reload_event(const std::string& message_data)
 {
+    BOOST_LOG_TRIVIAL(debug) << __FUNCTION__;
     // Event from our error page button or keyboard shortcut 
     m_styles_defined = false;
     try {
@@ -890,6 +895,12 @@ void ConnectWebViewPanel::on_reload_event(const std::string& message_data)
         BOOST_LOG_TRIVIAL(error) << "Could not parse printables message. " << e.what();
         return;
     }
+}
+
+void ConnectWebViewPanel::after_on_show(wxShowEvent& evt)
+{
+    BOOST_LOG_TRIVIAL(debug) << __FUNCTION__;
+    run_script("window.location.reload();");
 }
 
 void ConnectWebViewPanel::logout()
