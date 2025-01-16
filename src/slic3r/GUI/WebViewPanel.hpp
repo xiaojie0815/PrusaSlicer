@@ -221,6 +221,7 @@ private:
      void on_printables_event_slice_file(const std::string& message_data);
      void on_printables_event_required_login(const std::string& message_data);
      void on_printables_event_open_url(const std::string& message_data);
+     void on_dummy_event(const std::string& message_data) {}
      void load_default_url() override;
      std::string get_url_lang_theme(const wxString& url) const;
      void show_download_notification(const std::string& filename);
