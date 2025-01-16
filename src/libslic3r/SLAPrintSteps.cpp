@@ -704,19 +704,23 @@ void SLAPrint::Steps::support_points(SLAPrintObject &po)
 
     // update permanent support points
     SupportPointGeneratorData &data = po.m_support_point_generator_data;
+    const AABBMesh& emesh = po.m_supportdata->input.emesh;
 
     data.permanent_supports.clear();
-    for (const SupportPoint &p : po.model_object()->sla_support_points)
-        if (p.type == SupportPointType::manual_add) {
-            data.permanent_supports.push_back(p);
-            data.permanent_supports.back().pos = 
-                po.trafo().cast<float>() * data.permanent_supports.back().pos;
-        }
+    for (const SupportPoint &p : po.model_object()->sla_support_points) {
+        if (p.type != SupportPointType::manual_add)
+            continue;
+        Vec3f pos = po.trafo().cast<float>() * p.pos;
+        double dist_sq = emesh.squared_distance(pos.cast<double>());
+        if (dist_sq >= sqr(p.head_front_radius)) 
+            continue; // skip points outside the mesh
+        data.permanent_supports.push_back(p); // copy
+        data.permanent_supports.back().pos = pos; // ?? Why need transform the position?
+    }
     std::sort(data.permanent_supports.begin(), data.permanent_supports.end(), 
         [](const SupportPoint& p1,const SupportPoint& p2){ return p1.pos.z() < p2.pos.z(); });
     LayerSupportPoints layer_support_points = generate_support_points(data, config, cancel, status);
 
-    const AABBMesh& emesh = po.m_supportdata->input.emesh;
     // Maximal move of support point to mesh surface,
     // no more than height of layer
     assert(po.m_model_height_levels.size() > 1);
