@@ -1278,6 +1278,8 @@ void GCodeGenerator::_do_export(Print& print, GCodeOutputStream &file, Thumbnail
                 file.write(m_label_objects.maybe_stop_instance());
                 const double last_z{this->writer().get_position().z()};
                 file.write(this->writer().travel_to_z_force(last_z, "ensure z position"));
+                const double travel_z = std::max(last_z, double(m_max_layer_z));
+                file.write(this->writer().travel_to_z_force(travel_z, "ensure z position to clear all already printed objects"));
                 const Vec3crd from{to_3d(*this->last_position, scaled(this->m_last_layer_z))};
                 const Vec3crd to{0, 0, scaled(this->m_last_layer_z)};
                 file.write(this->travel_to(from, to, ExtrusionRole::None, "move to origin position for next object", [](){return "";}));
