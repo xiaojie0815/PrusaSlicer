@@ -1395,6 +1395,7 @@ std::vector<size_t> Plater::priv::load_files(const std::vector<fs::path>& input_
                     ModelProcessing::convert_from_imperial_units(model, false);
                 }
                 else if (load_stats.looks_like_saved_in_meters) {
+                    int answer = answer_convert_from_meters;
                     if (answer_convert_from_meters == wxOK_DEFAULT) {
                         RichMessageDialog dlg(q, format_wxstr(_L_PLURAL(
                             "The dimensions of the object from file %s seem to be defined in meters.\n"
@@ -1403,15 +1404,16 @@ std::vector<size_t> Plater::priv::load_files(const std::vector<fs::path>& input_
                             "The internal unit of PrusaSlicer is a millimeter. Do you want to recalculate the dimensions of these objects?", model.objects.size()), from_path(filename)) + "\n",
                             _L("The object is too small"), wxICON_QUESTION | wxYES_NO);
                         dlg.ShowCheckBox(_L("Apply to all the remaining small objects being loaded."));
-                        int answer = dlg.ShowModal();
+                        answer = dlg.ShowModal();
                         if (dlg.IsCheckBoxChecked())
                             answer_convert_from_meters = answer;
                     }
-                    if (answer_convert_from_meters == wxID_YES)
+                    if (answer == wxID_YES)
                         //FIXME up-scale only the small parts?
                         ModelProcessing::convert_from_meters(model, true);
                 }
                 else if (load_stats.looks_like_imperial_units) {
+                    int answer = answer_convert_from_imperial_units;
                     if (answer_convert_from_imperial_units == wxOK_DEFAULT) {
                         RichMessageDialog dlg(q, format_wxstr(_L_PLURAL(
                             "The dimensions of the object from file %s seem to be defined in inches.\n"
@@ -1420,16 +1422,17 @@ std::vector<size_t> Plater::priv::load_files(const std::vector<fs::path>& input_
                             "The internal unit of PrusaSlicer is a millimeter. Do you want to recalculate the dimensions of these objects?", model.objects.size()), from_path(filename)) + "\n",
                             _L("The object is too small"), wxICON_QUESTION | wxYES_NO);
                         dlg.ShowCheckBox(_L("Apply to all the remaining small objects being loaded."));
-                        int answer = dlg.ShowModal();
+                        answer = dlg.ShowModal();
                         if (dlg.IsCheckBoxChecked())
                             answer_convert_from_imperial_units = answer;
                     }
-                    if (answer_convert_from_imperial_units == wxID_YES)
+                    if (answer == wxID_YES)
                         //FIXME up-scale only the small parts?
                         ModelProcessing::convert_from_imperial_units(model, true);
                 }
 
                 if (load_stats.looks_like_multipart_object) {
+                    int answer = answer_consider_as_multi_part_objects;
                     if (answer_consider_as_multi_part_objects == wxOK_DEFAULT) {
                         RichMessageDialog dlg(q, _L(
                             "This file contains several objects positioned at multiple heights.\n"
@@ -1437,11 +1440,11 @@ std::vector<size_t> Plater::priv::load_files(const std::vector<fs::path>& input_
                             "the file be loaded as a single object having multiple parts?") + "\n",
                             _L("Multi-part object detected"), wxICON_QUESTION | wxYES_NO);
                         dlg.ShowCheckBox(_L("Apply to all objects being loaded."));
-                        int answer = dlg.ShowModal();
+                        answer = dlg.ShowModal();
                         if (dlg.IsCheckBoxChecked())
                             answer_consider_as_multi_part_objects = answer;
                     }
-                    if (/*!type_printRequest && */answer_consider_as_multi_part_objects == wxID_YES) //! type_printRequest is no need here, SLA allow multipart object now
+                    if (/*!type_printRequest && */answer == wxID_YES) //! type_printRequest is no need here, SLA allow multipart object now
                         ModelProcessing::convert_to_multipart_object(model, nozzle_dmrs->size());
                 }
             }
