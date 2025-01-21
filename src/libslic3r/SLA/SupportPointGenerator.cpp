@@ -17,6 +17,12 @@ using namespace Slic3r;
 using namespace Slic3r::sla;
 
 namespace {
+bool exist_point_in_distance(const Vec3f &p, float distance, const LayerSupportPoints &pts) {
+    float distance_sq = sqr(distance);
+    return std::any_of(pts.begin(), pts.end(), [&p, distance_sq](const LayerSupportPoint &sp) {
+        return (sp.pos - p).squaredNorm() < distance_sq; });
+}
+
 /// <summary>
 /// Struct to store support points in KD tree to fast search for nearest ones.
 /// </summary>
@@ -57,13 +63,17 @@ public:
     /// Remove support points from KD-Tree which lay out of expolygons
     /// </summary>
     /// <param name="shapes">Define area where could be support points</param>
-    void remove_out_of(const ExPolygons &shapes) {
+    /// <param name="current_z">Current layer z coordinate 
+    /// to prevent remove permanent points in prev layer influence</param>
+    void remove_out_of(const ExPolygons &shapes, float current_z) {
         std::vector<size_t> indices = get_indices();
         auto it = std::remove_if(indices.begin(), indices.end(), 
-            [&pts = *m_points.m_supports_ptr, &shapes](size_t point_index) {
-                const Point& p = pts.at(point_index).position_on_layer;
+            [&pts = *m_points.m_supports_ptr, &shapes, current_z](size_t point_index) {
+                const LayerSupportPoint& lsp = pts.at(point_index);
+                if (lsp.is_permanent && lsp.pos.z() >= current_z)
+                    return false;
                 return !std::any_of(shapes.begin(), shapes.end(), 
-                    [&p](const ExPolygon &shape) {
+                    [&p = lsp.position_on_layer](const ExPolygon &shape) {
                         return shape.contains(p);
                     });
             });
@@ -83,6 +93,7 @@ public:
         // IMPROVE: only add to existing tree, do not reconstruct tree
         std::vector<size_t> indices = get_indices();
         LayerSupportPoints &pts = *m_points.m_supports_ptr;
+        assert(!exist_point_in_distance(point.pos, point.head_front_radius, pts));
         size_t index = pts.size();
         pts.emplace_back(std::move(point));
         indices.push_back(index);
@@ -527,13 +538,13 @@ void prepare_supports_for_layer(LayerSupportPoints &supports, float layer_z,
 /// Wanted Side effect, it supports thiny part of overhangs
 /// </summary>
 /// <param name="near_points"></param>
-/// <param name="part"></param>
-/// <param name="config"></param>
-void remove_supports_out_of_part(NearPoints& near_points, const LayerPart &part,
-    const SupportPointGeneratorConfig &config) {
+/// <param name="part">current </param>
+/// <param name="current_z">Current layer z coordinate 
+/// to prevent remove permanent points in prev layer influence</param>
+void remove_supports_out_of_part(NearPoints &near_points, const LayerPart &part, float current_z) {
     // Offsetting is made in data preparation - speed up caused by paralelization 
     //ExPolygons extend_shape = offset_ex(*part.shape, config.removing_delta, ClipperLib::jtSquare);
-    near_points.remove_out_of(part.extend_shape);
+    near_points.remove_out_of(part.extend_shape, current_z);
 }
 
 /// <summary>
@@ -1192,7 +1203,7 @@ LayerSupportPoints Slic3r::sla::generate_support_points(
             assert(layer_id != 0);
             const LayerParts &prev_layer_parts = layers[layer_id - 1].parts;
             NearPoints near_points = create_near_points(prev_layer_parts, part, prev_grids);
-            remove_supports_out_of_part(near_points, part, config);
+            remove_supports_out_of_part(near_points, part, layer.print_z);
             if (!part.peninsulas.empty()) {
                 // only get copy of points do not modify permanent_index
                 Points permanent = get_permanents(permanent_supports, permanent_index, layer_id, part_id);
