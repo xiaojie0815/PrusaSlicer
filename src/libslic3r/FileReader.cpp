@@ -30,6 +30,12 @@
 
 namespace Slic3r::FileReader
 {
+
+bool is_project_file(const std::string& input_file)
+{
+    return boost::algorithm::iends_with(input_file, ".3mf") || boost::algorithm::iends_with(input_file, ".zip");
+} 
+
 // Loading model from a file, it may be a simple geometry file as STL or OBJ, however it may be a project file as well.
 static Model read_model_from_file(const std::string& input_file, LoadAttributes options)
 {
@@ -83,15 +89,14 @@ static Model read_all_from_file(const std::string& input_file,
                                 boost::optional<Semver> &prusaslicer_generator_version,
                                 LoadAttributes options)
 {
-    const bool is_project_file = boost::algorithm::iends_with(input_file, ".3mf") || boost::algorithm::iends_with(input_file, ".zip");
-    assert(is_project_file);
+    assert(is_project_file(input_file));
     assert(config != nullptr);
     assert(config_substitutions != nullptr);
 
     Model model;
 
     bool result = false;
-    if (is_project_file)
+    if (is_project_file(input_file))
         result = load_3mf(input_file.c_str(), *config, *config_substitutions, &model, options & LoadAttribute::CheckVersion, prusaslicer_generator_version);
     else
         throw Slic3r::RuntimeError(L("Unknown file format. Input file must have .3mf extension."));

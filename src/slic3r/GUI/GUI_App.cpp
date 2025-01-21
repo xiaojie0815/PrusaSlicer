@@ -907,7 +907,7 @@ wxGLContext* GUI_App::init_glcontext(wxGLCanvas& canvas)
     return m_opengl_mgr.init_glcontext(canvas);
 #else
     return m_opengl_mgr.init_glcontext(canvas, init_params != nullptr ? init_params->opengl_version : std::make_pair(0, 0),
-        init_params != nullptr ? init_params->opengl_compatibiity_profile : false, init_params != nullptr ? init_params->opengl_debug : false);
+        init_params != nullptr ? init_params->opengl_compatibility_profile : false, init_params != nullptr ? init_params->opengl_debug : false);
 #endif // SLIC3R_OPENGL_ES
 }
 
