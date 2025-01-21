@@ -23,8 +23,7 @@ static Sequential::PrinterGeometry get_printer_geometry() {
 
 	};
 
-	// Just hardcode MK4 geometry for now.
-	/*
+	// Just hardcode MK4 geometry for now.	
 	std::vector<ExtruderSlice> slices;
 	slices.push_back(ExtruderSlice{ 0,        CONVEX, { { {  -5000000,   -5000000 }, {  5000000,   -5000000 }, {  5000000,   5000000 }, {   -5000000,    5000000 } } } });
 	slices.push_back(ExtruderSlice{ 3000000,  CONVEX, { { { -10000000,  -21000000 }, { 37000000,  -21000000 }, { 37000000,  44000000 },	{  -10000000,  44000000 } },
@@ -32,10 +31,10 @@ static Sequential::PrinterGeometry get_printer_geometry() {
 	slices.push_back(ExtruderSlice{ 11000000, BOX,    { { {-350000000,   -23000000 }, {350000000,   -23000000 }, {350000000, -35000000 }, {-350000000, -35000000 } } } });
 	slices.push_back(ExtruderSlice{ 13000000, BOX,    { { { -12000000, -350000000 }, {  9000000, -350000000 }, {  9000000, -39000000 }, { -12000000, -39000000 } },
 							    { { -12000000, -250000000 }, {300000000, -250000000 }, {300000000, -82000000 }, { -12000000, -82000000} } } });
-	*/
-
+	
 
 	// Geometry (simplified head model) for the MK3S printer
+	/*
 	std::vector<ExtruderSlice> slices;
         slices.push_back(ExtruderSlice{ 0,        CONVEX, { { {   -5000000,  -5000000 }, {   5000000,  -5000000 }, {   5000000,    5000000 }, {   -5000000,    5000000 } } ,
                                                             { {  -30000000, -12000000 }, { -14000000, -12000000 }, { -14000000,    2000000 }, {  -30000000,    2000000 } } } });
@@ -45,7 +44,7 @@ static Sequential::PrinterGeometry get_printer_geometry() {
 	slices.push_back(ExtruderSlice{11000000,  BOX,    { { {   -8000000, -82000000 }, {   8000000, -82000000 }, {   8000000,  -36000000 }, {   -8000000,  -36000000 } },
 							    { {   -8000000, -82000000 }, { 250000000, -82000000 }, { 250000000, -300000000 }, {   -8000000, -300000000 } } } });
 	slices.push_back(ExtruderSlice{11000000,  BOX,    { { { -300000000, -35000000 }, { 300000000, -35000000 }, { 300000000,  -21000000 }, { -300000000,  -21000000 } } } });
-	
+	*/
 	Sequential::PrinterGeometry out;
 	out.x_size = scaled(s_multiple_beds.get_bed_size().x());
 	out.y_size = scaled(s_multiple_beds.get_bed_size().y());
