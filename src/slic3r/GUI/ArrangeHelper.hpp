@@ -8,9 +8,10 @@
 namespace Slic3r {
 
 	class Model;
+	class DynamicPrintConfig;
 
-	void arrange_model_sequential(Model& model);
-	bool check_seq_printability(const Model& model);
+	void arrange_model_sequential(Model& model, const DynamicPrintConfig& config);
+	bool check_seq_printability(const Model& model, const DynamicPrintConfig& config);
 
 
 	// This is just a helper class to collect data for seq. arrangement, running the arrangement
@@ -18,7 +19,7 @@ namespace Slic3r {
 	// into a separate thread without copying the Model or sharing it with UI thread.
 	class SeqArrange {
 	public:
-		explicit SeqArrange(const Model& model);
+		explicit SeqArrange(const Model& model, const DynamicPrintConfig& config);
 		void process_seq_arrange(std::function<void(int)> progress_fn);
 		void apply_seq_arrange(Model& model) const;
 

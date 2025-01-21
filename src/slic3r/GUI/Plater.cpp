@@ -625,7 +625,7 @@ Plater::priv::priv(Plater* q, MainFrame* main_frame)
     : q(q)
     , main_frame(main_frame)
     , config(Slic3r::DynamicPrintConfig::new_from_defaults_keys({
-        "bed_shape", "bed_custom_texture", "bed_custom_model", "complete_objects", "duplicate_distance", "extruder_clearance_radius", "skirts", "skirt_distance",
+        "bed_shape", "bed_custom_texture", "bed_custom_model", "complete_objects", "duplicate_distance", "extruder_clearance_radius", "extruder_clearance_height", "skirts", "skirt_distance",
         "brim_width", "brim_separation", "brim_type", "variable_layer_height", "nozzle_diameter", "single_extruder_multi_material",
         "wipe_tower", "wipe_tower_width", "wipe_tower_brim_width", "wipe_tower_cone_angle", "wipe_tower_extra_spacing", "wipe_tower_extra_flow", "wipe_tower_extruder",
         "extruder_colour", "filament_colour", "material_colour", "max_print_height", "printer_model", "printer_notes", "printer_technology",
@@ -7158,7 +7158,7 @@ void Plater::arrange()
 
     if (p->can_arrange()) {
         if (sequential)
-            replace_job(this->get_ui_job_worker(), std::make_unique<SeqArrangeJob>(this->model()));
+            replace_job(this->get_ui_job_worker(), std::make_unique<SeqArrangeJob>(this->model(), *p->config));
         else {
             auto& w = get_ui_job_worker();
             arrange(w, mode);

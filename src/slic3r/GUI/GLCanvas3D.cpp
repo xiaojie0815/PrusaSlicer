@@ -2231,7 +2231,7 @@ void GLCanvas3D::render()
 
        ImGui::Begin("TESTING ONLY (arrange)");
        if (ImGui::Button("Test seq printability:")) {
-           last_res = check_seq_printability(wxGetApp().plater()->model());
+           last_res = check_seq_printability(wxGetApp().plater()->model(), *m_config);
            time_start = std::chrono::high_resolution_clock::now();
        }
        ImGui::SameLine();

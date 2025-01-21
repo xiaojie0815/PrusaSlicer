@@ -16,7 +16,7 @@ namespace GUI {
 class SeqArrangeJob : public Job
 {
 public:
-    explicit SeqArrangeJob(const Model& model);
+    explicit SeqArrangeJob(const Model& model, const DynamicPrintConfig& config);
     virtual void process(Ctl &ctl) override;
     virtual void finalize(bool /*canceled*/, std::exception_ptr&) override;
 

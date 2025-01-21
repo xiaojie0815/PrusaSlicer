@@ -1,0 +1,99 @@
+{
+    "printers": [
+        {
+            "printer_notes_regex": ".*PRINTER_MODEL_MK4.*",
+            "gantry_model_filename": "prusa3d_mk4_gantry.stl",
+            "slices": [
+                {
+                    "height": "0",
+                    "type": "convex",
+                    "polygons": [
+                        "-5,-5;5,-5;5,5;-5,5"
+                    ]
+                },
+                {
+                    "height": "3",
+                    "type": "convex",
+                    "polygons": [
+                        "-10,-21;37,-21;37,44;-10,44",
+                        "-40,-45;38,-45;38,20;-40,20"
+                    ]
+                },
+                {
+                    "height": "11",
+                    "type": "box",
+                    "polygons": [
+                        "-350,-23;350,-23;350,-35;-350,-35"
+                    ]
+                },
+                {
+                    "height": "13",
+                    "type": "box",
+                    "polygons": [
+                        "-13,-84;11,-84;11,-38;-13,-38",
+                        "11,-300;300,-300;300,-84;11,-84"
+                    ]
+                }
+            ]
+        },
+        {
+            "printer_notes_regex": ".*PRINTER_MODEL_MK3.*",
+            "gantry_model_filename": "prusa3d_mk3_gantry.stl",
+            "slices": [
+                {
+                    "height": "0",
+                    "type": "convex",
+                    "polygons": [
+                        "-5,-5;5,-5;5,5;-5,5",
+                        "-30,-12;-14,-12;-14,2;-30,2"
+                    ]
+                },
+                {
+                    "height": "2",
+                    "type": "convex",
+                    "polygons": [
+                        "-20,-38;44,-38;44,18;-20,18"
+                    ]
+                },
+                {
+                    "height": "6",
+                    "type": "convex",
+                    "polygons": [
+                        "-34,-43;37,-43;37,16;-34,16",
+                        "-45,9;37,9;37,69;-45,69"
+                    ]
+                },
+                {
+                    "height": "11",
+                    "type": "box",
+                    "polygons": [
+                        "-8,-82;8,-82;8,-36;-8,-36",
+                        "-8,-82;250,-82;250,-300;-8,-300"
+                    ]
+                },
+                {
+                    "height": "17",
+                    "type": "box",
+                    "polygons": [
+                        "-300,-35;300,-35;300,-21;-300,-21"
+                    ]
+                }
+            ]
+        },
+        {
+            "printer_notes_regex": ".*PRINTER_MODEL_MINI.*",
+            "gantry_model_filename": "prusa3d_mini_gantry.stl",
+            "slices": ""
+        },
+        {
+            "printer_notes_regex": ".*PRINTER_MODEL_XL.*",
+            "gantry_model_filename": "prusa3d_xl_gantry.stl",
+            "slices": ""
+        },
+        {
+            "printer_notes_regex": ".*PRINTER_MODEL_CORE.*",
+            "gantry_model_filename": "prusa3d_coreone_gantry.stl",
+            "slices": ""
+        }
+    ]
+}
