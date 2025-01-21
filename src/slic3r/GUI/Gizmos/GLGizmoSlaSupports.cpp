@@ -743,7 +743,7 @@ RENDER_AGAIN:
 
         const char *support_points_density = "support_points_density_relative";
         float density = static_cast<const ConfigOptionInt*>(get_config_options({support_points_density})[0])->value; 
-
+        float old_density = density;
         wxString tooltip = _L(
             "Divider for the supported radius\n"
             "Smaller value means less point, supported radius is enlarged.\n"
@@ -762,9 +762,11 @@ RENDER_AGAIN:
         
         const ImGuiWrapper::LastSliderStatus &density_status = m_imgui->get_last_slider_status();
         static std::optional<int> density_stash; // Value for undo/redo stack is written on stop dragging
-        if (density_status.clicked) // stash the values of the settings so we know what to revert to after undo
-            density_stash = (int)density;
-        if (density_status.deactivated_after_edit && density_stash.has_value()) { //  slider released
+        if (!density_stash.has_value() && !is_approx(density, old_density)) // stash the values of the settings so we know what to revert to after undo
+            density_stash = (int)old_density;
+        if (density_status.deactivated_after_edit && density_stash.has_value()) { //  slider released            
+            // set configuration to value before slide
+            // to store this value on undo redo snapshot stack
             mo->config.set(support_points_density, *density_stash);
             density_stash.reset();
             Plater::TakeSnapshot snapshot(wxGetApp().plater(), _L("Support parameter change"));
