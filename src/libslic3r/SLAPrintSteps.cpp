@@ -18,6 +18,7 @@
 #include <libslic3r/OpenVDBUtils.hpp>
 #include <libslic3r/QuadricEdgeCollapse.hpp>
 #include <libslic3r/ClipperUtils.hpp>
+#include <libslic3r/KDTreeIndirect.hpp>
 #include <chrono>
 #include <algorithm>
 #include <array>
@@ -105,7 +106,76 @@ std::string PRINT_STEP_LABELS(size_t idx)
     assert(false); return "Out of bounds!";
 }
 
+using namespace sla;
+
+/// <summary>
+/// Copy permanent support points from model to permanent_supports
+/// </summary>
+/// <param name="permanent_supports">OUTPUT</param>
+/// <param name="object_supports"></param>
+/// <param name="emesh"></param>
+void prepare_permanent_support_points(
+    SupportPoints &permanent_supports, 
+    const SupportPoints &object_supports, 
+    const Transform3d &object_trafo,
+    const AABBMesh &emesh) {
+    // update permanent support points
+    permanent_supports.clear(); // previous supports are irelevant
+    for (const SupportPoint &p : object_supports) {
+        if (p.type != SupportPointType::manual_add)
+            continue;
+
+        // TODO: remove transformation
+        // ?? Why need transform the position?
+        Vec3f pos = (object_trafo * p.pos.cast<double>()).cast<float>();
+        double dist_sq = emesh.squared_distance(pos.cast<double>());
+        if (dist_sq >= sqr(p.head_front_radius)) {
+            // TODO: inform user about skipping points, which are far from surface
+            assert(false);
+            continue; // skip points outside the mesh
+        }
+        permanent_supports.push_back(p); // copy
+        permanent_supports.back().pos = pos; // ?? Why need transform the position?
+    }
+
+    // Prevent overlapped permanent supports
+    auto point_accessor = [&permanent_supports](size_t idx, size_t dim) -> float & {
+        return permanent_supports[idx].pos[dim]; };
+    std::vector<size_t> indices(permanent_supports.size());
+    std::iota(indices.begin(), indices.end(), 0);
+    KDTreeIndirect<3, float, decltype(point_accessor)> tree(point_accessor, indices);
+    for (SupportPoint &p : permanent_supports) {
+        if (p.head_front_radius < 0.f)
+            continue; // already marked for erase
+
+        std::vector<size_t> near_indices = find_nearby_points(tree, p.pos, p.head_front_radius);
+        assert(!near_indices.empty());
+        if (near_indices.size() == 1)
+            continue; // only support itself
+
+        size_t index = &p - &permanent_supports.front();
+        for (size_t near_index : near_indices) {
+            if (near_index == index)
+                continue; // support itself
+            SupportPoint p_near = permanent_supports[near_index];
+            if ((p.pos - p_near.pos).squaredNorm() > sqr(p.head_front_radius))
+                continue; // not near point
+            // IMPROVE: investigate neighbors of the near point
+            
+            // TODO: inform user about skip near point
+            assert(false);
+            permanent_supports[near_index].head_front_radius = -1.0f; // mark for erase
+        }
+    }
+
+    permanent_supports.erase(std::remove_if(permanent_supports.begin(), permanent_supports.end(), 
+        [&tree](const SupportPoint &p) { return p.head_front_radius < 0.f; }),permanent_supports.end());
+
+    std::sort(permanent_supports.begin(), permanent_supports.end(), 
+        [](const SupportPoint& p1,const SupportPoint& p2){ return p1.pos.z() < p2.pos.z(); });
 }
+
+} // namespace
 
 SLAPrint::Steps::Steps(SLAPrint *print)
     : m_print{print}
@@ -699,26 +769,15 @@ void SLAPrint::Steps::support_points(SLAPrintObject &po)
     // TODO: filter small unprintable islands in slices
     // (Island with area smaller than 1 pixel was skipped in support generator)
 
+    SupportPointGeneratorData &data = po.m_support_point_generator_data; 
+    SupportPoints &permanent_supports = data.permanent_supports;
+    const SupportPoints &object_supports = po.model_object()->sla_support_points;
+    const Transform3d& object_trafo = po.trafo();
+    const AABBMesh& emesh = po.m_supportdata->input.emesh;
+    prepare_permanent_support_points(permanent_supports, object_supports, object_trafo, emesh);
+
     ThrowOnCancel cancel = [this]() { throw_if_canceled(); };
     StatusFunction status = statuscb;
-
-    // update permanent support points
-    SupportPointGeneratorData &data = po.m_support_point_generator_data;
-    const AABBMesh& emesh = po.m_supportdata->input.emesh;
-
-    data.permanent_supports.clear();
-    for (const SupportPoint &p : po.model_object()->sla_support_points) {
-        if (p.type != SupportPointType::manual_add)
-            continue;
-        Vec3f pos = po.trafo().cast<float>() * p.pos;
-        double dist_sq = emesh.squared_distance(pos.cast<double>());
-        if (dist_sq >= sqr(p.head_front_radius)) 
-            continue; // skip points outside the mesh
-        data.permanent_supports.push_back(p); // copy
-        data.permanent_supports.back().pos = pos; // ?? Why need transform the position?
-    }
-    std::sort(data.permanent_supports.begin(), data.permanent_supports.end(), 
-        [](const SupportPoint& p1,const SupportPoint& p2){ return p1.pos.z() < p2.pos.z(); });
     LayerSupportPoints layer_support_points = generate_support_points(data, config, cancel, status);
 
     // Maximal move of support point to mesh surface,
@@ -729,10 +788,10 @@ void SLAPrint::Steps::support_points(SLAPrintObject &po)
     SupportPoints support_points = 
         move_on_mesh_surface(layer_support_points, emesh, allowed_move, cancel);
 
-    // Generator count with permanent support positions but do not convert to LayerSupportPoints.
+    // The Generator count with permanent support positions but do not convert to LayerSupportPoints.
     // To preserve permanent 3d position it is necessary to append points after move_on_mesh_surface
     support_points.insert(support_points.end(), 
-        data.permanent_supports.begin(), data.permanent_supports.end());
+        permanent_supports.begin(), permanent_supports.end());
 
     throw_if_canceled();
 
