@@ -77,7 +77,9 @@ static std::vector<Sequential::ObjectToPrint> get_objects_to_print(const Model& 
 			objects.emplace_back(Sequential::ObjectToPrint{int(inst_id == 0 ? mo->id().id  : mi->id().id), inst_id + 1 < mo->instances.size(),
 				scaled(mo->instance_bounding_box(inst_id).size().z()), {}});
 			for (double height : heights) {
-				Polygon pgn = its_convex_hull_2d_above(raw_mesh.its, mi->get_matrix_no_offset().cast<float>(), height);
+			        // It seems that zero level in the object instance is mi->get_offset().z(), however need to have bed as zero level,
+			        // hence substracting mi->get_offset().z() from height seems to be an easy hack
+				Polygon pgn = its_convex_hull_2d_above(raw_mesh.its, mi->get_matrix_no_offset().cast<float>(), height - mi->get_offset().z());
 				objects.back().pgns_at_height.emplace_back(std::make_pair(scaled(height), pgn));
 			}
 			++inst_id;
