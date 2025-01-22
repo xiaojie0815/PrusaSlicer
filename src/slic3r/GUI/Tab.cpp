@@ -1694,10 +1694,6 @@ void TabPrint::build()
     page = add_options_page(L("Output options"), "output+page_white");
         optgroup = page->new_optgroup(L("Sequential printing"));
         optgroup->append_single_option_line("complete_objects", "sequential-printing_124589");
-        line = { L("Extruder clearance"), "" };
-        line.append_option(optgroup->get_option("extruder_clearance_radius"));
-        line.append_option(optgroup->get_option("extruder_clearance_height"));
-        optgroup->append_line(line);
 
         optgroup = page->new_optgroup(L("Output file"));
         optgroup->append_single_option_line("gcode_comments");
@@ -2816,6 +2812,10 @@ void TabPrinter::build_fff()
         optgroup->append_single_option_line("use_volumetric_e");
         optgroup->append_single_option_line("variable_layer_height");
         optgroup->append_single_option_line("prefer_clockwise_movements");
+
+        optgroup = page->new_optgroup(L("Sequential printing limits"));
+        optgroup->append_single_option_line("extruder_clearance_radius");
+        optgroup->append_single_option_line("extruder_clearance_height");
 
     const int gcode_field_height = 15; // 150
     const int notes_field_height = 25; // 250
