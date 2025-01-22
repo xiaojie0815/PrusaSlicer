@@ -194,8 +194,10 @@ void prepare_UnreachableZonePolygons(const SolverConfiguration                  
 				     std::vector<Slic3r::Polygon>                     &unreachable_polygons);    
 
 bool check_PolygonSizeFitToPlate(const SolverConfiguration &solver_configuration, const Slic3r::Polygon &polygon);
+bool check_PolygonPositionWithinPlate(const SolverConfiguration &solver_configuration, coord_t x, coord_t y, const Slic3r::Polygon &polygon);
+    
 bool check_PolygonSizeFitToPlate(const SolverConfiguration &solver_configuration, coord_t scale_factor, const Slic3r::Polygon &polygon);    
-
+bool check_PolygonPositionWithinPlate(const SolverConfiguration &solver_configuration, coord_t scale_factor, coord_t x, coord_t y, const Slic3r::Polygon &polygon);
     
 /*----------------------------------------------------------------*/
 

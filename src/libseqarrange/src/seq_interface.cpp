@@ -177,7 +177,7 @@ bool check_ScheduledObjectsForSequentialPrintability(const SolverConfiguration  
     std::vector<std::vector<Slic3r::Polygon> > unreachable_polygons;
 
     std::map<int, int> flat_index_map;
-    
+   
     for (unsigned int i = 0; i < objects_to_print.size(); ++i)
     {
 	std::vector<Slic3r::Polygon> convex_level_polygons;	    
@@ -210,8 +210,8 @@ bool check_ScheduledObjectsForSequentialPrintability(const SolverConfiguration  
 			       scale_down_unreachable_polygons);
 	
 	unreachable_polygons.push_back(scale_down_unreachable_polygons);
-	polygons.push_back(scale_down_object_polygon);
-    }
+	polygons.push_back(scale_down_object_polygon);       
+    }    
     
     for (const auto& scheduled_plate: scheduled_plates)
     {
@@ -227,6 +227,22 @@ bool check_ScheduledObjectsForSequentialPrintability(const SolverConfiguration  
 	for (const auto& scheduled_object: scheduled_plate.scheduled_objects)
 	{   
 	    const auto& flat_index = flat_index_map.find(scheduled_object.id)->second;
+
+	    assert(!objects_to_print[flat_index].pgns_at_height.empty());
+	    
+	    if (!check_PolygonPositionWithinPlate(solver_configuration,
+						  SEQ_SLICER_SCALE_FACTOR,
+						  scheduled_object.x,
+						  scheduled_object.y,
+						  objects_to_print[flat_index].pgns_at_height[0].second))
+	    {
+                #ifdef DEBUG
+		{
+		    printf("Object placed outside plate.\n");
+		}
+	        #endif
+		return false;
+	    }
 
 	    plate_polygons.push_back(polygons[flat_index]);
 	    plate_unreachable_polygons.push_back(unreachable_polygons[flat_index]);

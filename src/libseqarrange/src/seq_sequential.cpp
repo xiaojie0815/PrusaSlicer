@@ -9,6 +9,7 @@
  */
 /*================================================================*/
 
+#include <libslic3r/SVG.hpp>
 #include <libslic3r/Geometry/ConvexHull.hpp>
 
 #include "seq_defs.hpp"
@@ -6238,6 +6239,147 @@ bool check_PointsOutsidePolygons(const std::vector<Rational>                    
 				 const std::vector<Slic3r::Polygon>               &polygons,
 				 const std::vector<std::vector<Slic3r::Polygon> > &unreachable_polygons)
 {
+    #ifdef DEBUG
+    {
+	printf("Levels U %d,%d\n", unreachable_polygons[0].size(), unreachable_polygons[1].size());
+	
+	int c = 0;
+	string svg_filename = "collision_checking.svg";
+	SVG checking_svg(svg_filename);
+	
+	for (unsigned int i = 0; i < polygons.size() - 1; ++i)
+	{
+	    Polygon display_polygon = polygons[i];
+	    
+	    for (unsigned int j = 0; j < display_polygon.points.size(); ++j)
+	    {	
+		display_polygon.points[j] = Point(SEQ_SVG_SCALE_FACTOR * (display_polygon.points[j].x() + dec_values_X[i].as_double()),
+						  SEQ_SVG_SCALE_FACTOR * (display_polygon.points[j].y() + dec_values_Y[i].as_double()));
+	    }
+	    
+	    string color;
+	    
+	    switch(c % 8)
+	    {
+	    case 0:
+	    {
+		color = "green";
+		break;
+	    }
+	    case 1:
+	    {
+		color = "blue";
+		break;
+	    }
+	    case 2:
+	    {
+		color = "red";	    
+		break;
+	    }
+	    case 3:
+	    {
+		color = "grey";	    
+		break;
+	    }
+	    case 4:
+	    {
+		color = "cyan";
+		break;
+	    }
+	    case 5:
+	    {
+		color = "magenta";
+		break;
+	    }
+	    case 6:
+	    {
+		color = "yellow";
+		break;
+	    }
+	    case 7:
+	    {
+		color = "black";
+		break;
+	    }
+	    case 8:
+	    {
+		color = "indigo";
+		break;
+	    }
+	    }
+	    checking_svg.draw(display_polygon, color);
+	    ++c;
+	}
+	for (unsigned int i = 1; i < unreachable_polygons.size(); ++i)
+	{
+	    for (unsigned int k = 0; k < unreachable_polygons[i].size(); ++k)
+	    {	
+		Polygon display_polygon = unreachable_polygons[i][k];
+		
+		for (unsigned int j = 0; j < display_polygon.points.size(); ++j)
+		{	
+		    display_polygon.points[j] = Point(SEQ_SVG_SCALE_FACTOR * (display_polygon.points[j].x() + dec_values_X[i].as_double()),
+						      SEQ_SVG_SCALE_FACTOR * (display_polygon.points[j].y() + dec_values_Y[i].as_double()));
+		}
+		
+		string color;
+		
+		switch(c % 8)
+		{
+		case 0:
+		{
+		    color = "green";
+		    break;
+		}
+		case 1:
+		{
+		    color = "blue";
+		    break;
+		}
+		case 2:
+		{
+		    color = "red";	    
+		    break;
+		}
+		case 3:
+		{
+		    color = "grey";	    
+		    break;
+		}
+		case 4:
+		{
+		    color = "cyan";
+		    break;
+		}
+		case 5:
+		{
+		    color = "magenta";
+		    break;
+		}
+		case 6:
+		{
+		    color = "yellow";
+		    break;
+		}
+		case 7:
+		{
+		    color = "black";
+		    break;
+		}
+		case 8:
+		{
+		    color = "indigo";
+		    break;
+		}
+		}
+		checking_svg.draw(display_polygon, color);
+		++c;		
+	    }
+	}	
+	checking_svg.Close();
+    }
+    #endif
+
     if (!polygons.empty())
     {
 	for (unsigned int i = 0; i < polygons.size() - 1; ++i)
@@ -6354,7 +6496,7 @@ bool check_PointsOutsidePolygons(const std::vector<Rational>                    
 					printf("X[i]: %.3f, Y[i]: %.3f, X[j]: %.3f, Y[j]: %.3f\n", dec_values_X[i].as_double(), dec_values_Y[i].as_double(), dec_values_X[j].as_double(), dec_values_Y[j].as_double());
 					printf("Outside 2: %.3f\n", outside);
 				    }
-				    #endif				
+				    #endif
 
 				    if (outside > -EPSILON)
 				    {

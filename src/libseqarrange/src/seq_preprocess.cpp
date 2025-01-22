@@ -694,7 +694,7 @@ void prepare_ExtruderPolygons(const SolverConfiguration                  &solver
 			      bool                                        extra_safety)
 {
     for (unsigned int j = 0; j < object_to_print.pgns_at_height.size(); ++j)
-    {    
+    {
 	coord_t height = object_to_print.pgns_at_height[j].first;
 
 	if (!object_to_print.pgns_at_height[j].second.points.empty())
@@ -780,14 +780,14 @@ void prepare_UnreachableZonePolygons(const SolverConfiguration                  
 				     std::vector<Slic3r::Polygon>                     &unreachable_polygons)
 {
     std::vector<std::vector<Slic3r::Polygon> > scaled_unreachable_polygons;
-    
+
     for (unsigned int i = 0; i < extruder_convex_level_polygons.size(); ++i)
     {
 	std::vector<Slic3r::Polygon> scaled_level_unreachable_polygons;	
 	extend_PolygonConvexUnreachableZone(solver_configuration,
 					    polygon,
 					    extruder_convex_level_polygons[i],
-					    scaled_level_unreachable_polygons);
+					    scaled_level_unreachable_polygons);	
 	scaled_unreachable_polygons.push_back(scaled_level_unreachable_polygons);
     }
 
@@ -826,19 +826,18 @@ void prepare_UnreachableZonePolygons(const SolverConfiguration                  
 {
     std::vector<std::vector<Slic3r::Polygon> > scaled_unreachable_polygons;    
     assert(extruder_convex_level_polygons.size() == convex_level_polygons.size());
-    
+
     for (unsigned int i = 0; i < extruder_convex_level_polygons.size(); ++i)
     {
-	    std::vector<Slic3r::Polygon> scaled_level_unreachable_polygons;
-	    extend_PolygonConvexUnreachableZone(solver_configuration,
-						convex_level_polygons[i],
-						extruder_convex_level_polygons[i],
-						scaled_level_unreachable_polygons);
-	    scaled_unreachable_polygons.push_back(scaled_level_unreachable_polygons);
+	std::vector<Slic3r::Polygon> scaled_level_unreachable_polygons;
+	extend_PolygonConvexUnreachableZone(solver_configuration,
+					    convex_level_polygons[i],
+					    extruder_convex_level_polygons[i],
+					    scaled_level_unreachable_polygons);
+	scaled_unreachable_polygons.push_back(scaled_level_unreachable_polygons);
     }
-
     assert(extruder_box_level_polygons.size() == box_level_polygons.size());
-    
+
     for (unsigned int i = 0; i < extruder_box_level_polygons.size(); ++i)
     {
 	std::vector<Slic3r::Polygon> scaled_level_unreachable_polygons;
@@ -884,6 +883,21 @@ bool check_PolygonSizeFitToPlate(const SolverConfiguration &solver_configuration
     return true;
 }
 
+bool check_PolygonPositionWithinPlate(const SolverConfiguration &solver_configuration, coord_t x, coord_t y, const Slic3r::Polygon &polygon)
+{
+    BoundingBox polygon_box = get_extents(polygon);
+
+    if (x + polygon_box.min.x() < 0 || x + polygon_box.max.x() > solver_configuration.x_plate_bounding_box_size)
+    {
+	return false;
+    }
+    if (y + polygon_box.min.y() < 0 || y + polygon_box.max.y() > solver_configuration.y_plate_bounding_box_size)    
+    {
+	return false;
+    }    
+    return true;
+}
+
 
 bool check_PolygonSizeFitToPlate(const SolverConfiguration &solver_configuration, coord_t scale_factor, const Slic3r::Polygon &polygon)
 {
@@ -901,6 +915,31 @@ bool check_PolygonSizeFitToPlate(const SolverConfiguration &solver_configuration
 	return false;
     }    
 
+    return true;    
+}
+
+
+bool check_PolygonPositionWithinPlate(const SolverConfiguration &solver_configuration, coord_t scale_factor, coord_t x, coord_t y, const Slic3r::Polygon &polygon)
+{
+    BoundingBox polygon_box = get_extents(polygon);
+
+    #ifdef DEBUG
+    {
+	printf("x: %d,%d\n", polygon_box.min.x() + x, polygon_box.max.x() + x);
+	printf("y: %d,%d\n", polygon_box.min.y() + y, polygon_box.max.y() + y);
+	printf("X: %d\n", solver_configuration.x_plate_bounding_box_size * scale_factor);
+	printf("Y: %d\n", solver_configuration.y_plate_bounding_box_size * scale_factor);
+    }
+    #endif
+	
+    if (x + polygon_box.min.x() < 0 || x + polygon_box.max.x() > solver_configuration.x_plate_bounding_box_size * scale_factor)
+    {
+	return false;
+    }
+    if (y + polygon_box.min.y() < 0 || y + polygon_box.max.y() > solver_configuration.y_plate_bounding_box_size * scale_factor)
+    {
+	return false;
+    }    
     return true;    
 }
 
