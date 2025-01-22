@@ -6247,7 +6247,7 @@ bool check_PointsOutsidePolygons(const std::vector<Rational>                    
 	string svg_filename = "collision_checking.svg";
 	SVG checking_svg(svg_filename);
 	
-	for (unsigned int i = 0; i < polygons.size() - 1; ++i)
+	for (unsigned int i = 0; i < polygons.size(); ++i)
 	{
 	    Polygon display_polygon = polygons[i];
 	    
@@ -6310,7 +6310,7 @@ bool check_PointsOutsidePolygons(const std::vector<Rational>                    
 	    checking_svg.draw(display_polygon, color);
 	    ++c;
 	}
-	for (unsigned int i = 1; i < unreachable_polygons.size(); ++i)
+	for (unsigned int i = 0; i < unreachable_polygons.size(); ++i)
 	{
 	    for (unsigned int k = 0; k < unreachable_polygons[i].size(); ++k)
 	    {	
