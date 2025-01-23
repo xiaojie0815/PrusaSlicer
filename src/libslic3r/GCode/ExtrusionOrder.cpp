@@ -421,9 +421,7 @@ std::vector<OverridenExtrusions> get_overriden_extrusions(
             std::vector<SliceExtrusions> slices_extrusions{get_slices_extrusions(
                 print, *layer, should_pick_extrusion, smooth_path, offset, extruder_id, previous_position
             )};
-            if (!slices_extrusions.empty()) {
-                result.push_back({offset, std::move(slices_extrusions)});
-            }
+            result.push_back({offset, std::move(slices_extrusions)});
         }
     }
     return result;
