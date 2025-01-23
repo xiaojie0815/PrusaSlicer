@@ -2994,6 +2994,10 @@ std::string GCodeGenerator::change_layer(
             Vec3d position{this->writer().get_position()};
             position.z() = print_z;
             this->writer().update_position(position);
+        } else {
+            Vec3d position{this->writer().get_position()};
+            position.z() = position.z() + m_config.z_offset;
+            this->writer().update_position(position);
         }
     }
 
