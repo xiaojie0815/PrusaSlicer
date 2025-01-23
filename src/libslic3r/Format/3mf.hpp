@@ -19,7 +19,18 @@ namespace Slic3r {
      * version 1 :  ThreeMF_support_points_version=1
                     object_id=1|-12.055421 -2.658771 10.000000 0.4 0.0
                     object_id=2|-14.051745 -3.570338 5.000000 0.6 1.0
-        // introduced header with version number; x,y,z,head_size,is_new_island)
+        // introduced header with version number; x,y,z,head_size,type)
+        // before 2.9.1 fifth float means is_island (bool flag) -> value from 0.9999f to 1.0001f means it is support for island otherwise not. User edited points has always value zero.
+        // since 2.9.1 fifth float means type -> starts show user edited points
+        // type range value meaning
+        // (float is used only for compatibility, string will be better)
+        // from    | to     | meaning
+        // --------------------------------
+        // 0.9999f | 1.0001 | island (no change)
+        // 1.9999f | 2.0001 | manual edited points loose info about island
+        // 2.9999f | 3.0001 | generated point by slope ration
+        // all other values are readed also as slope type
+
     */
 
     enum {
