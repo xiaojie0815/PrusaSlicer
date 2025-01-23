@@ -1585,7 +1585,6 @@ std::vector<size_t> Plater::priv::load_files(const std::vector<fs::path>& input_
     s_multiple_beds.ensure_wipe_towers_on_beds(model, fff_prints);
     s_multiple_beds.update_shown_beds(model, q->build_volume());
 
-    s_print_statuses.fill(PrintStatus::idle);
     update((unsigned int)UpdateParams::FORCE_BACKGROUND_PROCESSING_UPDATE);
 
     return obj_idxs;
@@ -1857,9 +1856,14 @@ void Plater::priv::object_list_changed()
                                                                                     //
     if (printer_technology == ptFFF) {
         for (std::size_t bed_index{}; bed_index < s_multiple_beds.get_number_of_beds(); ++bed_index) {
-            if (
-                wxGetApp().plater()->get_fff_prints()[bed_index]->empty()) {
+            if ( wxGetApp().plater()->get_fff_prints()[bed_index]->empty()) {
                 s_print_statuses[bed_index] = PrintStatus::empty;
+            } else if (
+                wxGetApp().plater()->get_fff_prints()[bed_index]->finished()
+                && is_sliceable(s_print_statuses[bed_index])
+                && s_print_statuses[bed_index] != PrintStatus::toolpath_outside
+            ) {
+                s_print_statuses[bed_index] = PrintStatus::finished;
             }
             for (const ModelObject *object : wxGetApp().model().objects) {
                 for (const ModelInstance *instance : object->instances) {
