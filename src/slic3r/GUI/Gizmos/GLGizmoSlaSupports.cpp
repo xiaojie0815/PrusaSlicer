@@ -297,8 +297,10 @@ void GLGizmoSlaSupports::render_points(const Selection& selection)
         if (clipped)
             continue;
 
-        render_color = support_point.type == sla::SupportPointType::manual_add ?
-            manual_color : inactive_color;
+        render_color = 
+            support_point.type == sla::SupportPointType::manual_add ? manual_color : 
+            support_point.type == sla::SupportPointType::island ? island_color :
+            inactive_color;
         // First decide about the color of the point.
         if (m_editing_mode) {
             if (size_t(m_hover_id) == i) // ignore hover state unless editing mode is active
@@ -307,7 +309,7 @@ void GLGizmoSlaSupports::render_points(const Selection& selection)
                 render_color = selected_color;
             else if (m_lock_unique_islands) {
                 render_color = support_point.type == sla::SupportPointType::island?
-                    island_color :  ColorRGBA{ 0.7f, 0.7f, 0.7f, 1.f };
+                    island_color : inactive_color;
             }
         }
 
@@ -744,16 +746,9 @@ RENDER_AGAIN:
         const char *support_points_density = "support_points_density_relative";
         float density = static_cast<const ConfigOptionInt*>(get_config_options({support_points_density})[0])->value; 
         float old_density = density;
-        wxString tooltip = _L(
-            "Divider for the supported radius\n"
-            "Smaller value means less point, supported radius is enlarged.\n"
-            "Larger value means more points, supported radius is reduced.\n"
-            "-- density percent ----- radisu change from 100 --\n"
-            "|         50         |             200           |\n"
-            "|         75         |             133           |\n"
-            "|        125         |              80           |\n"
-            "|        150         |              66           |\n"
-            "|        200         |              50           |\n");
+        wxString tooltip = _L("Change amount of the generated support points.\n"
+                              "Smaller value means less points and\n"
+                              "larger value means more points.");
         if (m_imgui->slider_float("##density", &density, 50.f, 200.f, "%.f %%", 1.f, false, tooltip)){
             if (density < 10.f) // not neccessary, but lower value seems pointless. Zero cause issues inside algorithms.
                 density = 10.f;

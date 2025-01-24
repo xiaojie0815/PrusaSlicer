@@ -143,7 +143,10 @@ public:
         m_tree.build(indices); // consume indices
     }
 
-private:
+    /// <summary>
+    /// Getter on used indices
+    /// </summary>
+    /// <returns>Current used Indices into m_points</returns>
     std::vector<size_t> get_indices() const {
         std::vector<size_t> indices = m_tree.get_nodes(); // copy
         // nodes in tree contain "max values for size_t" on unused leaf of tree,
@@ -154,6 +157,7 @@ private:
         return indices;
     }
 };
+using NearPointss = std::vector<NearPoints>;
 
 /// <summary>
 /// Intersection of line segment and circle
@@ -209,7 +213,7 @@ Point intersection_line_circle(const Point &p1, const Point &p2, const Point &cn
 NearPoints create_near_points(
     const LayerParts &prev_layer_parts,
     const LayerPart &part,
-    std::vector<NearPoints> &prev_grids
+    NearPointss &prev_grids
 ) {
     const LayerParts::const_iterator &prev_part_it = part.prev_parts.front();
     size_t index_of_prev_part = prev_part_it - prev_layer_parts.begin();
@@ -480,24 +484,31 @@ Points sample_overhangs(const LayerPart& part, double dist2) {
 }
 
 coord_t calc_influence_radius(float z_distance, const SupportPointGeneratorConfig &config) { 
-    float island_support_distance = config.support_curve.front().x() / config.density_relative;
-    if (z_distance >= island_support_distance)
+    float island_support_distance_sq = sqr(config.support_curve.front().x());
+    if (!is_approx(config.density_relative, 1.f, 1e-4f)) // exist relative density
+        island_support_distance_sq /= config.density_relative;
+    float z_distance_sq = sqr(z_distance);
+    if (z_distance_sq >= island_support_distance_sq)
         return 0.f;
     // IMPROVE: use curve interpolation instead of sqrt(stored in config).
-
     // shape of supported area before permanent supports is sphere with radius of island_support_distance
-    return static_cast<coord_t>(scale_(
-        std::sqrt(sqr(island_support_distance) - sqr(z_distance))
-    ));
+    return static_cast<coord_t>(scale_(std::sqrt(island_support_distance_sq - z_distance_sq)));
 }
 
 void prepare_supports_for_layer(LayerSupportPoints &supports, float layer_z, 
-    const SupportPointGeneratorConfig &config) {
+    const NearPointss& activ_points, const SupportPointGeneratorConfig &config) {
     auto set_radius = [&config](LayerSupportPoint &support, float radius) {
         if (!is_approx(config.density_relative, 1.f, 1e-4f)) // exist relative density
-            radius /= config.density_relative;
+            radius = std::sqrt(sqr(radius) / config.density_relative);
         support.current_radius = static_cast<coord_t>(scale_(radius));
     };
+
+    std::vector<bool> is_active(supports.size(), {false});
+    for (const NearPoints& pts : activ_points) {
+        std::vector<size_t> indices = pts.get_indices();
+        for (size_t i : indices)
+            is_active[i] = true;
+    }
 
     const std::vector<Vec2f>& curve = config.support_curve;
     // calculate support area for each support point as radius
@@ -506,6 +517,9 @@ void prepare_supports_for_layer(LayerSupportPoints &supports, float layer_z,
         size_t &index = support.radius_curve_index;
         if (index + 1 >= curve.size())
             continue; // already contain maximal radius
+
+        if (!is_active[&support - &supports.front()])
+            continue; // Point is not used in any part of the current layer 
 
         // find current segment
         float diff_z = layer_z - support.pos.z();
@@ -1180,13 +1194,13 @@ LayerSupportPoints Slic3r::sla::generate_support_points(
         prepare_permanent_supports(data.permanent_supports, layers, config);
 
     // grid index == part in layer index
-    std::vector<NearPoints> prev_grids; // same count as previous layer item size
+    NearPointss prev_grids; // same count as previous layer item size
     for (size_t layer_id = 0; layer_id < layers.size(); ++layer_id) {
         const Layer &layer = layers[layer_id];
-        prepare_supports_for_layer(result, layer.print_z, config);
+        prepare_supports_for_layer(result, layer.print_z, prev_grids, config);
 
         // grid index == part in layer index
-        std::vector<NearPoints> grids;
+        NearPointss grids;
         grids.reserve(layer.parts.size());
 
         for (const LayerPart &part : layer.parts) {
