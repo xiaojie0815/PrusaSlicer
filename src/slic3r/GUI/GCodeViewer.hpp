@@ -127,12 +127,13 @@ public:
             bool m_visible{ true };
             bool m_fixed_screen_size{ false };
             float m_scale_factor{ 1.0f };
+            bool m_generic_marker{ true };
 #if ENABLE_ACTUAL_SPEED_DEBUG
             ActualSpeedImguiWidget m_actual_speed_imgui_widget;
 #endif // ENABLE_ACTUAL_SPEED_DEBUG
 
         public:
-            void init();
+            void init(std::optional<std::unique_ptr<GLModel>>& model_opt);
 
             const BoundingBoxf3& get_bounding_box() const { return m_model.get_bounding_box(); }
 

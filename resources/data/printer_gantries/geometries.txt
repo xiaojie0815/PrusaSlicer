@@ -38,7 +38,7 @@
         },
         {
             "printer_notes_regex": ".*PRINTER_MODEL_MK3.*",
-            "gantry_model_filename": "prusa3d_mk3_gantry.stl",
+            "gantry_model_filename": "prusa3d_mk3s_gantry.stl",
             "slices": [
                 {
                     "height": "0",

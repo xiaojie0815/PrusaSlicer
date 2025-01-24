@@ -77,6 +77,7 @@
 #include <boost/log/trivial.hpp>
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/crc.hpp>
+#include <boost/regex.hpp>
 
 #include <iostream>
 #include <float.h>
@@ -152,6 +153,68 @@ void GLCanvas3D::select_bed(int i, bool triggered_by_user)
             wxGetApp().sidebar().switch_from_autoslicing_mode();
         }
     });
+}
+
+// Returns extruder model to visualize in the GCodeViewer:
+// - nullopt = same as before
+// - nullptr = none available, use generic
+// - GLModel = the model to use
+std::optional<std::unique_ptr<GLModel>> GLCanvas3D::get_current_marker_model() const
+{
+    std::optional<std::unique_ptr<GLModel>> out;
+
+    static std::string last_printer_notes;
+    static double old_r = 0.;
+    static double old_h = 0.;
+    static bool old_seq = false;
+
+    std::string printer_notes = m_config->opt_string("printer_notes");
+    double r = m_config->opt_float("extruder_clearance_radius");
+    double h = m_config->opt_float("extruder_clearance_height");
+    bool seq = m_config->opt_bool("complete_objects");
+
+    if (last_printer_notes != printer_notes ||  r != old_r || h != old_h || seq != old_seq) {
+        out = std::make_optional(nullptr);
+        if (! seq)
+            return out;
+        try {            
+            std::ifstream in(resources_dir() + "/data/printer_gantries/geometries.txt");
+            boost::property_tree::ptree pt;
+            boost::property_tree::read_json(in, pt);
+            for (const auto& printer : pt.get_child("printers")) {
+                std::string printer_notes_match = printer.second.get<std::string>("printer_notes_regex");
+                boost::regex rgx(printer_notes_match);
+                if (boost::regex_match(printer_notes, rgx)) {
+                    std::string filename = resources_dir() + "/data/printer_gantries/" + printer.second.get<std::string>("gantry_model_filename");
+                    if (boost::filesystem::exists(filename)) {
+                        std::unique_ptr<GLModel> m = std::make_unique<GLModel>();
+                        if (m->init_from_file(filename))
+                            out = std::make_optional(std::move(m));
+                    }
+                    break;
+                }
+            }
+        } catch (...) {
+            // Whatever happened, ignore it. We will return nullptr.
+        }
+        if (*out == nullptr && seq) {
+            // Generic sequential extruder model.
+            double gantry_height = 10;
+            auto mesh = its_make_cylinder(r, h + gantry_height - 0.001);
+            double d = 3 * wxGetApp().plater()->build_volume().bounding_volume2d().size().x();
+            auto mesh2 = its_make_cube(d,2*r, gantry_height);
+            its_translate(mesh2, Vec3f(-d/2, -r, h));
+            its_merge(mesh, mesh2);
+            std::unique_ptr<GLModel> m = std::make_unique<GLModel>();
+            m->init_from(mesh);
+            out = std::make_optional(std::move(m));
+        }
+        last_printer_notes = printer_notes;
+        old_r = r;
+        old_h = h;
+        old_seq = seq;
+    }
+    return out;
 }
 
 #ifdef __WXGTK3__
