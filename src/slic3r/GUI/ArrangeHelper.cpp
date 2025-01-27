@@ -23,7 +23,7 @@ static Sequential::PrinterGeometry get_printer_geometry() {
 
 	};
 
-	// Just hardcode MK4 geometry for now.	
+	// Just hardcode geometry (simplified head model) for the Original Prusa MK4.
 	std::vector<ExtruderSlice> slices;
 	slices.push_back(ExtruderSlice{ 0,        CONVEX, { { {  -5000000,   -5000000 }, {   5000000,   -5000000 }, {   5000000,   5000000 }, {  -5000000,   5000000 } } } });
 	slices.push_back(ExtruderSlice{ 3000000,  CONVEX, { { { -10000000,  -21000000 }, {  37000000,  -21000000 }, {  37000000,  44000000 }, { -10000000,  44000000 } },
@@ -33,7 +33,7 @@ static Sequential::PrinterGeometry get_printer_geometry() {
 							    { {  11000000, -300000000 }, { 300000000, -300000000 }, { 300000000, -84000000 }, {  11000000, -84000000 } } } });
 	
 
-	// Geometry (simplified head model) for the MK3S printer
+	// Geometry (simplified head model) for the Original Prusa MK3S+ printer
 	/*
 	std::vector<ExtruderSlice> slices;
         slices.push_back(ExtruderSlice{ 0,        CONVEX, { { {   -5000000,  -5000000 }, {   5000000,  -5000000 }, {   5000000,    5000000 }, {   -5000000,    5000000 } } ,
@@ -45,6 +45,20 @@ static Sequential::PrinterGeometry get_printer_geometry() {
 							    { {   -8000000, -82000000 }, { 250000000, -82000000 }, { 250000000, -300000000 }, {   -8000000, -300000000 } } } });
 	slices.push_back(ExtruderSlice{17000000,  BOX,    { { { -300000000, -35000000 }, { 300000000, -35000000 }, { 300000000,  -21000000 }, { -300000000,  -21000000 } } } });
 	*/
+
+	// Geometry (simplified head model) for the Original Prusa Mini+ printer
+	/*
+	std::vector<ExtruderSlice> slices;
+	slices.push_back(ExtruderSlice{ 0,        CONVEX, { { {  -5000000,   -5000000 }, {   5000000,   -5000000 }, {   5000000,   5000000 }, {  -5000000,   5000000 } },
+						            { {  24000000,   -3000000 }, {  35000000,   -3000000 }, {  35000000,  10000000 }, {  24000000,  10000000 } },
+						 	    { {  -5000000,    4000000 }, {   5000000,    4000000 }, {   5000000,  18000000 }, {  -5000000,  18000000 } } } });
+	slices.push_back(ExtruderSlice{ 3000000,  CONVEX, { { { -16000000,  -44000000 }, {  37000000,  -44000000 }, {  37000000,  31000000 }, { -16000000,  31000000 } } } });
+	slices.push_back(ExtruderSlice{ 10000000, CONVEX, { { { -10000000,  -88000000 }, {  10000000,  -88000000 }, {  10000000, -38000000 }, { -10000000, -38000000 } },
+							    { { -17000000,  -44000000 }, {  43000000,  -44000000 }, {  43000000,  33000000 }, { -17000000,  33000000 } } } });
+	slices.push_back(ExtruderSlice{ 22000000, BOX,	  { { {-200000000,  -28000000 }, { 200000000,  -28000000 }, { 200000000, -14000000 }, { -200000000, -14000000 } } } });
+	slices.push_back(ExtruderSlice{100000000, BOX,    { { {-200000000, -200000000 }, {  10000000, -200000000 }, {  10000000,  10000000 }, { -200000000,  10000000 } } } });
+	*/
+	
 	Sequential::PrinterGeometry out;
 
 	/*
