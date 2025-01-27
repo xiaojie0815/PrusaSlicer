@@ -36,10 +36,12 @@ struct PrinterGeometry
 {
     coord_t x_size;
     coord_t y_size;
-    
+
+    // at least height 0 (corresponding to nozzle) must be present in convex_height
     std::set<coord_t> convex_heights;
     std::set<coord_t> box_heights;
-    
+
+    // <height, polygons at given height>, at least one polygon must be present for height 0
     std::map<coord_t, std::vector<Slic3r::Polygon> > extruder_slices;
 
     int convert_Geometry2PlateBoundingBoxSize(void) const;
