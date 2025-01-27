@@ -1,8 +1,8 @@
 find_package(Z3 REQUIRED)
 slic3r_remap_configs("z3::libz3" RelWithDebInfo Release)
 
-find_package(Catch2 2.9 REQUIRED)
-include(Catch)
+#find_package(Catch2 2.9 REQUIRED)
+#include(Catch)
 
 add_library(libseqarrange STATIC src/seq_interface.cpp src/seq_preprocess.cpp src/seq_sequential.cpp src/seq_utilities.cpp)
 target_include_directories(libseqarrange PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/include/libseqarrange)

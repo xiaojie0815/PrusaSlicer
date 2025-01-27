@@ -175,11 +175,13 @@ static Sequential::PrinterGeometry get_printer_geometry(const ConfigBase& config
 		}
 		if (slices.empty()) {
 			// Fallback to primitive model using radius and height.
-			coord_t r = scaled(std::max(0.1, config.opt_float("extruder_clearance_radius")));
+			coord_t r = scaled(std::max(0., config.opt_float("extruder_clearance_radius")));
 			coord_t h = scaled(std::max(0.1, config.opt_float("extruder_clearance_height")));
-			slices.push_back(ExtruderSlice{ 0, CONVEX, { { {  -5000000,   -5000000 }, {   5000000,   -5000000 }, {   5000000,   5000000 }, {  -5000000,   5000000 } } } });
-            slices.push_back(ExtruderSlice{ 1000000, BOX, { { {  -r, -r }, { r, -r }, {   r,   r }, {  -r,  r } } } });
-            slices.push_back(ExtruderSlice{ h, BOX, { { { -scaled(bed_x),  -r }, { scaled(bed_x),  -r }, { scaled(bed_x), r }, { -scaled(bed_x), r}}}});
+			if (r > 0.001) {
+				slices.push_back(ExtruderSlice{ 0, CONVEX, { { {  -5000000,   -5000000 }, {   5000000,   -5000000 }, {   5000000,   5000000 }, {  -5000000,   5000000 } } } });
+				slices.push_back(ExtruderSlice{ 1000000, BOX, { { {  -r, -r }, { r, -r }, {   r,   r }, {  -r,  r } } } });
+				slices.push_back(ExtruderSlice{ h, BOX, { { { -scaled(bed_x),  -r }, { scaled(bed_x),  -r }, { scaled(bed_x), r }, { -scaled(bed_x), r}}} });
+			}
 		}
 	}
 
@@ -312,7 +314,12 @@ bool check_seq_printability(const Model& model, const ConfigBase& config)
 	Sequential::SolverConfiguration solver_config = get_solver_config(printer_geometry);
 	std::vector<Sequential::ObjectToPrint> objects = get_objects_to_print(model, printer_geometry);
 
-	// FIXME: This does not consider plates, non-printable objects and instances.
+	if (printer_geometry.extruder_slices.empty()) {
+		// If there are no data for extruder (such as extruder_clearance_radius set to 0),
+		// consider it printable.
+		return true;
+	}
+
 	Sequential::ScheduledPlate plate;
 	for (const ModelObject* mo : model.objects) {
 		int inst_id = -1;
