@@ -44,7 +44,7 @@
 #include "I18N.hpp"
 #include "NotificationManager.hpp"
 #include "format.hpp"
-#include "ArrangeHelper.hpp"
+#include "libslic3r/ArrangeHelper.hpp"
 
 #include "slic3r/GUI/BitmapCache.hpp"
 #include "slic3r/GUI/Gizmos/GLGizmoPainterBase.hpp"
@@ -2142,33 +2142,6 @@ void GLCanvas3D::render()
 #ifdef SHOW_IMGUI_DEMO_WINDOW
     if (show_imgui_demo_window) ImGui::ShowDemoWindow();
 #endif // SHOW_IMGUI_DEMO_WINDOW
-
-
-
-
-    {
-        // This is just temporary pipe to export data to the separate arrange algorithm
-        // and importing the result back. TESTING ONLY !!!
-       static auto time_start = std::chrono::high_resolution_clock::now();
-       auto time_now = std::chrono::high_resolution_clock::now();
-       int time_limit_s = 1;
-       static bool last_res = 0;
-       bool valid = std::chrono::duration_cast<std::chrono::seconds>(time_now - time_start).count() < time_limit_s;
-
-       ImGui::Begin("TESTING ONLY (arrange)");
-       if (ImGui::Button("Test seq printability:")) {
-           last_res = check_seq_printability(wxGetApp().plater()->model(), *m_config);
-           time_start = std::chrono::high_resolution_clock::now();
-       }
-       ImGui::SameLine();
-       ImGui::TextColored((valid && last_res ? ImVec4(0.,1.,0.,1.) : (valid ? ImVec4(1.,0.,0.,1.) : ImVec4(0.5,.5,0.5,1.))) , "\u25a0");
-       ImGui::Text("(So far, multiple beds are not accounted for.)");
-       ImGui::End();
-    }
-
-
-
-
 
     const bool is_looking_downward = camera.is_looking_downward();
 

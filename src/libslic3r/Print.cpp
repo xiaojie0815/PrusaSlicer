@@ -37,6 +37,7 @@
 #include "Utils.hpp"
 #include "BuildVolume.hpp"
 #include "format.hpp"
+#include "ArrangeHelper.hpp"
 
 #include <float.h>
 
@@ -462,7 +463,7 @@ std::string Print::validate(std::vector<std::string>* warnings) const
         return _u8L("The supplied settings will cause an empty print.");
 
     if (m_config.complete_objects) {
-        if (false) // LUKAS: To be fixed in the next commit.
+        if (! check_seq_printability(m_model, m_config))
             return _u8L("Some objects are too close; your extruder will collide with them.");
     }
 

@@ -1,6 +1,7 @@
 #include "SeqArrangeJob.hpp"
 
-#include "slic3r/GUI/ArrangeHelper.hpp"
+#include "libslic3r/ArrangeHelper.hpp"
+
 #include "slic3r/GUI/GLCanvas3D.hpp"
 #include "slic3r/GUI/GUI_App.hpp"
 #include "slic3r/GUI/GUI_ObjectList.hpp"

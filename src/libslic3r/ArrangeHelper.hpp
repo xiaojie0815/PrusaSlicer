@@ -1,5 +1,5 @@
-#ifndef slic3r_Arrange_Helper_hpp
-#define slic3r_Arrange_Helper_hpp
+#ifndef libslic3r_Arrange_Helper_hpp
+#define libslic3r_Arrange_Helper_hpp
 
 #include "libseqarrange/seq_interface.hpp"
 
@@ -8,10 +8,10 @@
 namespace Slic3r {
 
 	class Model;
-	class DynamicPrintConfig;
+	class ConfigBase;
 
-	void arrange_model_sequential(Model& model, const DynamicPrintConfig& config);
-	bool check_seq_printability(const Model& model, const DynamicPrintConfig& config);
+	void arrange_model_sequential(Model& model, const ConfigBase& config);
+	bool check_seq_printability(const Model& model, const ConfigBase& config);
 
 
 	// This is just a helper class to collect data for seq. arrangement, running the arrangement
@@ -19,7 +19,7 @@ namespace Slic3r {
 	// into a separate thread without copying the Model or sharing it with UI thread.
 	class SeqArrange {
 	public:
-		explicit SeqArrange(const Model& model, const DynamicPrintConfig& config);
+		explicit SeqArrange(const Model& model, const ConfigBase& config);
 		void process_seq_arrange(std::function<void(int)> progress_fn);
 		void apply_seq_arrange(Model& model) const;
 

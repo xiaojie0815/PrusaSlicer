@@ -8,13 +8,15 @@
 #include <string>
 
 #include "boost/regex.hpp"
+#include "boost/property_tree/json_parser.hpp"
+#include "boost/algorithm/string/replace.hpp""
 
 
 
 namespace Slic3r {
 
 
-static Sequential::PrinterGeometry get_printer_geometry(const DynamicPrintConfig& config)
+static Sequential::PrinterGeometry get_printer_geometry(const ConfigBase& config)
 {
 	enum ShapeType {
 		BOX,
@@ -228,7 +230,7 @@ static std::vector<Sequential::ObjectToPrint> get_objects_to_print(const Model& 
 
 
 
-void arrange_model_sequential(Model& model, const DynamicPrintConfig& config)
+void arrange_model_sequential(Model& model, const ConfigBase& config)
 {
 	SeqArrange seq_arrange(model, config);
 	seq_arrange.process_seq_arrange([](int) {});
@@ -237,7 +239,7 @@ void arrange_model_sequential(Model& model, const DynamicPrintConfig& config)
 
 
 
-SeqArrange::SeqArrange(const Model& model, const DynamicPrintConfig& config)
+SeqArrange::SeqArrange(const Model& model, const ConfigBase& config)
 {
     m_printer_geometry = get_printer_geometry(config);
 	m_solver_configuration = get_solver_config(m_printer_geometry);
@@ -304,7 +306,7 @@ void SeqArrange::apply_seq_arrange(Model& model) const
 
 
 
-bool check_seq_printability(const Model& model, const DynamicPrintConfig& config)
+bool check_seq_printability(const Model& model, const ConfigBase& config)
 {
 	Sequential::PrinterGeometry printer_geometry = get_printer_geometry(config);
 	Sequential::SolverConfiguration solver_config = get_solver_config(printer_geometry);

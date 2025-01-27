@@ -17,8 +17,6 @@ set(SLIC3R_GUI_SOURCES
     pchheader.hpp
     GUI/AboutDialog.cpp
     GUI/AboutDialog.hpp
-    GUI/ArrangeHelper.cpp
-    GUI/ArrangeHelper.hpp
     GUI/ArrangeSettingsDialogImgui.hpp
     GUI/ArrangeSettingsDialogImgui.cpp
     GUI/UserAccountCommunication.cpp
@@ -457,7 +455,6 @@ target_link_libraries(
     stb_dxt
     fastfloat
     boost_headeronly
-    libseqarrange
 )
 
 if (MSVC)
