@@ -124,8 +124,6 @@ void GLCanvas3D::select_bed(int i, bool triggered_by_user)
         }
     }
     wxGetApp().plater()->canvas3D()->m_process->stop();
-    m_sequential_print_clearance.m_evaluating = true;
-    reset_sequential_print_clearance();
 
     post_event(Event<bool>(EVT_GLCANVAS_ENABLE_ACTION_BUTTONS, is_sliceable(s_print_statuses[i])));
 
@@ -985,141 +983,6 @@ void GLCanvas3D::Tooltip::render(const Vec2d& mouse_position, GLCanvas3D& canvas
 
     ImGuiPureWrap::end();
     ImGui::PopStyleVar(2);
-}
-
-void GLCanvas3D::SequentialPrintClearance::set_contours(const ContoursList& contours, bool generate_fill)
-{
-    m_contours.clear();
-    m_instances.clear();
-    m_fill.reset();
-
-    if (contours.empty())
-        return;
-
-    const Vec3d bed_offset = generate_fill ? s_multiple_beds.get_bed_translation(s_multiple_beds.get_active_bed()) : Vec3d::Zero();
-
-    if (generate_fill) {
-        GLModel::Geometry fill_data;
-        fill_data.format = { GLModel::Geometry::EPrimitiveType::Triangles, GLModel::Geometry::EVertexLayout::P3 };
-        fill_data.color = { 0.3333f, 0.0f, 0.0f, 0.5f };
-
-        // vertices + indices
-        const ExPolygons polygons_union = union_ex(contours.contours);
-        unsigned int vertices_counter = 0;
-        for (const ExPolygon& poly : polygons_union) {
-            const std::vector<Vec3d> triangulation = triangulate_expolygon_3d(poly);
-            fill_data.reserve_vertices(fill_data.vertices_count() + triangulation.size());
-            fill_data.reserve_indices(fill_data.indices_count() + triangulation.size());
-            for (const Vec3d& v : triangulation) {
-                fill_data.add_vertex((Vec3f)((bed_offset + v).cast<float>() + 0.0125f * Vec3f::UnitZ())); // add a small positive z to avoid z-fighting
-                ++vertices_counter;
-                if (vertices_counter % 3 == 0)
-                    fill_data.add_triangle(vertices_counter - 3, vertices_counter - 2, vertices_counter - 1);
-            }
-        }
-        m_fill.init_from(std::move(fill_data));
-    }
-
-    const Transform3d bed_transform = Geometry::translation_transform(bed_offset);
-
-    for (size_t i = 0; i < contours.contours.size(); ++i) {
-        GLModel& model = m_contours.emplace_back(GLModel());
-        model.init_from(contours.contours[i], 0.025f); // add a small positive z to avoid z-fighting
-    }
-
-    if (contours.trafos.has_value()) {
-        // create the requested instances
-        for (const auto& instance : *contours.trafos) {
-            m_instances.emplace_back(instance.first, bed_transform * instance.second);
-        }
-    }
-    else {
-        // no instances have been specified
-        // create one instance for every polygon
-        for (size_t i = 0; i < contours.contours.size(); ++i) {
-            m_instances.emplace_back(i, bed_transform);
-        }
-    }
-}
-
-void GLCanvas3D::SequentialPrintClearance::update_instances_trafos(const std::vector<Transform3d>& trafos)
-{
-    if (trafos.size() == m_instances.size()) {
-        for (size_t i = 0; i < trafos.size(); ++i) {
-            m_instances[i].second = trafos[i];
-        }
-    }
-    else
-      assert(false);
-}
-
-void GLCanvas3D::SequentialPrintClearance::render()
-{
-    static const ColorRGBA FILL_COLOR               = { 1.0f, 0.0f, 0.0f, 0.5f };
-    static const ColorRGBA NO_FILL_COLOR            = { 1.0f, 1.0f, 1.0f, 0.75f };
-    static const ColorRGBA NO_FILL_EVALUATING_COLOR = { 1.0f, 1.0f, 0.0f, 1.0f };
-
-    if (m_contours.empty() || m_instances.empty())
-        return;
-
-    GLShaderProgram* shader = wxGetApp().get_shader("flat");
-    if (shader == nullptr)
-        return;
-
-    shader->start_using();
-
-    const Camera& camera = wxGetApp().plater()->get_camera();
-    shader->set_uniform("view_model_matrix", camera.get_view_matrix());
-    shader->set_uniform("projection_matrix", camera.get_projection_matrix());
-
-    glsafe(::glEnable(GL_DEPTH_TEST));
-    glsafe(::glDisable(GL_CULL_FACE));
-    glsafe(::glEnable(GL_BLEND));
-    glsafe(::glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA));
-
-    if (!m_evaluating && !m_dragging)
-        m_fill.render();
-
-#if !SLIC3R_OPENGL_ES
-    if (OpenGLManager::get_gl_info().is_core_profile()) {
-#endif // !SLIC3R_OPENGL_ES
-        shader->stop_using();
-
-#if SLIC3R_OPENGL_ES
-        shader = wxGetApp().get_shader("dashed_lines");
-#else
-        shader = wxGetApp().get_shader("dashed_thick_lines");
-#endif // SLIC3R_OPENGL_ES
-        if (shader == nullptr)
-            return;
-
-        shader->start_using();
-        shader->set_uniform("projection_matrix", camera.get_projection_matrix());
-        const std::array<int, 4>& viewport = camera.get_viewport();
-        shader->set_uniform("viewport_size", Vec2d(double(viewport[2]), double(viewport[3])));
-        shader->set_uniform("width", 1.0f);
-        shader->set_uniform("gap_size", 0.0f);
-#if !SLIC3R_OPENGL_ES
-    }
-    else
-        glsafe(::glLineWidth(2.0f));
-#endif // !SLIC3R_OPENGL_ES
-
-    const ColorRGBA color = (!m_evaluating && !m_dragging && m_fill.is_initialized()) ? FILL_COLOR :
-        m_evaluating ? NO_FILL_EVALUATING_COLOR : NO_FILL_COLOR;
-
-    for (const auto& [id, trafo] : m_instances) {
-        shader->set_uniform("view_model_matrix", camera.get_view_matrix() * trafo);
-        assert(id < m_contours.size());
-        m_contours[id].set_color(color);
-        m_contours[id].render();
-    }
-
-    glsafe(::glDisable(GL_BLEND));
-    glsafe(::glEnable(GL_CULL_FACE));
-    glsafe(::glDisable(GL_DEPTH_TEST));
-
-    shader->stop_using();
 }
 
 wxDEFINE_EVENT(EVT_GLCANVAS_SCHEDULE_BACKGROUND_PROCESS, SimpleEvent);
@@ -2324,7 +2187,6 @@ void GLCanvas3D::render()
             _render_gcode();
         _render_objects(GLVolumeCollection::ERenderType::Transparent);
 
-        _render_sequential_clearance();
     #if ENABLE_RENDER_SELECTION_CENTER
         _render_selection_center();
     #endif // ENABLE_RENDER_SELECTION_CENTER
@@ -3975,8 +3837,6 @@ void GLCanvas3D::on_mouse(wxMouseEvent& evt)
                 c == GLGizmosManager::EType::Scale ||
                 c == GLGizmosManager::EType::Rotate) {
                 show_sinking_contours();
-                if (_is_sequential_print_enabled())
-                    update_sequential_clearance(true);
             }
         }
         else if (evt.LeftUp() &&
@@ -4135,10 +3995,6 @@ void GLCanvas3D::on_mouse(wxMouseEvent& evt)
                         m_selection.setup_cache();
                         if (!evt.CmdDown())
                             m_mouse.drag.start_position_3D = m_mouse.scene_position;
-                        m_sequential_print_clearance.m_first_displacement = true;
-                        if (_is_sequential_print_enabled())
-                            update_sequential_clearance(true);
-                        m_sequential_print_clearance.start_dragging();
                     }
                 }
             }
@@ -4187,8 +4043,6 @@ void GLCanvas3D::on_mouse(wxMouseEvent& evt)
             TransformationType trafo_type;
             trafo_type.set_relative();
             m_selection.translate(cur_pos - m_mouse.drag.start_position_3D, trafo_type);
-            if (_is_sequential_print_enabled())
-                update_sequential_clearance(false);
             wxGetApp().obj_manipul()->set_dirty();
             m_dirty = true;
             
@@ -4266,8 +4120,6 @@ void GLCanvas3D::on_mouse(wxMouseEvent& evt)
     else if (evt.LeftUp() || evt.MiddleUp() || evt.RightUp()) {
         m_mouse.position = pos.cast<double>();
 
-        if (evt.LeftUp() && m_sequential_print_clearance.is_dragging())
-            m_sequential_print_clearance.stop_dragging();
         if (evt.RightUp() && m_mouse.is_start_position_2D_defined()) {
             // forces camera target to be on the plane z = 0
             Camera& camera = wxGetApp().plater()->get_camera();
@@ -4547,11 +4399,6 @@ void GLCanvas3D::do_move(const std::string& snapshot_type)
         post_event(SimpleEvent(EVT_GLCANVAS_WIPETOWER_TOUCHED));
     }
 
-    if (_is_sequential_print_enabled()) {
-        update_sequential_clearance(true);
-        m_sequential_print_clearance.m_evaluating = true;
-    }
-
     m_dirty = true;
 }
 
@@ -4645,11 +4492,6 @@ void GLCanvas3D::do_rotate(const std::string& snapshot_type)
     if (!done.empty())
         post_event(SimpleEvent(EVT_GLCANVAS_INSTANCE_ROTATED));
 
-    if (_is_sequential_print_enabled()) {
-        update_sequential_clearance(true);
-        m_sequential_print_clearance.m_evaluating = true;
-    }
-
     m_dirty = true;
 }
 
@@ -4721,11 +4563,6 @@ void GLCanvas3D::do_scale(const std::string& snapshot_type)
 
     if (!done.empty())
         post_event(SimpleEvent(EVT_GLCANVAS_INSTANCE_SCALED));
-
-    if (_is_sequential_print_enabled()) {
-        update_sequential_clearance(true);
-        m_sequential_print_clearance.m_evaluating = true;
-    }
 
     m_dirty = true;
 }
@@ -4978,137 +4815,6 @@ void GLCanvas3D::mouse_up_cleanup()
 
     if (m_canvas->HasCapture())
         m_canvas->ReleaseMouse();
-}
-
-void GLCanvas3D::update_sequential_clearance(bool force_contours_generation)
-{
-    if (!_is_sequential_print_enabled())
-        return;
-
-    if (m_layers_editing.is_enabled())
-        return;
-
-    auto instance_transform_from_volumes = [this](int object_idx, int instance_idx) {
-        for (const GLVolume* v : m_volumes.volumes) {
-            if (v->object_idx() == object_idx && v->instance_idx() == instance_idx)
-                return v->get_instance_transformation();
-        }
-        assert(false);
-        return Geometry::Transformation();
-    };
-
-    auto is_object_outside_printbed = [this](int object_idx) {
-        for (const GLVolume* v : m_volumes.volumes) {
-            if (v->object_idx() == object_idx && v->is_outside)
-                return true;
-        }
-        return false;
-    };
-
-    // collects instance transformations from volumes
-    // first: define temporary cache
-    unsigned int instances_count = 0;
-    std::vector<std::vector<std::optional<Geometry::Transformation>>> instance_transforms;
-    for (size_t obj = 0; obj < m_model->objects.size(); ++obj) {
-        instance_transforms.emplace_back(std::vector<std::optional<Geometry::Transformation>>());
-        const ModelObject* model_object = m_model->objects[obj];
-        for (size_t i = 0; i < model_object->instances.size(); ++i) {
-            instance_transforms[obj].emplace_back(std::optional<Geometry::Transformation>());
-            ++instances_count;
-        }
-    }
-
-    if (instances_count == 1)
-        return;
-
-    // second: fill temporary cache with data from volumes
-    for (const GLVolume* v : m_volumes.volumes) {
-        if (v->is_wipe_tower())
-            continue;
-
-        const int object_idx = v->object_idx();
-        const int instance_idx = v->instance_idx();
-        auto& transform = instance_transforms[object_idx][instance_idx];
-        if (!transform.has_value())
-            transform = instance_transform_from_volumes(object_idx, instance_idx);
-    }
-
-    // helper function to calculate the transformation to be applied to the sequential print clearance contours
-    auto instance_trafo = [](const Transform3d& hull_trafo, const Geometry::Transformation& inst_trafo) {
-        Vec3d offset = inst_trafo.get_offset() - hull_trafo.translation();
-        offset.z() = 0.0;
-        return Geometry::translation_transform(offset) *
-            Geometry::rotation_transform(Geometry::rotation_diff_z(hull_trafo, inst_trafo.get_matrix()) * Vec3d::UnitZ());
-    };
-
-    // calculates objects 2d hulls (see also: Print::sequential_print_horizontal_clearance_valid())
-    // this is done only the first time this method is called while moving the mouse,
-    // the results are then cached for following displacements
-    if (force_contours_generation || m_sequential_print_clearance.m_first_displacement) {
-        m_sequential_print_clearance.m_evaluating = false;
-        m_sequential_print_clearance.m_hulls_2d_cache.clear();
-        const float shrink_factor = static_cast<float>(scale_(0.5 * fff_print()->config().extruder_clearance_radius.value - EPSILON));
-        const double mitter_limit = scale_(0.1);
-        m_sequential_print_clearance.m_hulls_2d_cache.reserve(m_model->objects.size());
-        for (size_t i = 0; i < m_model->objects.size(); ++i) {
-            ModelObject* model_object = m_model->objects[i];
-            Geometry::Transformation trafo = instance_transform_from_volumes((int)i, 0);
-            trafo.set_offset({ 0.0, 0.0, trafo.get_offset().z() });
-            Pointf3s& new_hull_2d = m_sequential_print_clearance.m_hulls_2d_cache.emplace_back(std::make_pair(Pointf3s(), trafo.get_matrix())).first;
-            if (is_object_outside_printbed((int)i))
-                continue;
-
-            Polygon hull_2d = model_object->convex_hull_2d(trafo.get_matrix());
-            if (!hull_2d.empty()) {
-                // Shrink the extruder_clearance_radius a tiny bit, so that if the object arrangement algorithm placed the objects
-                // exactly by satisfying the extruder_clearance_radius, this test will not trigger collision.
-                const Polygons offset_res = offset(hull_2d, shrink_factor, jtRound, mitter_limit);
-                if (!offset_res.empty())
-                    hull_2d = offset_res.front();
-            }
-
-            new_hull_2d.reserve(hull_2d.points.size());
-            for (const Point& p : hull_2d.points) {
-                new_hull_2d.emplace_back(Vec3d(unscale<double>(p.x()), unscale<double>(p.y()), 0.0));
-            }
-        }
-
-        ContoursList contours;
-        contours.contours.reserve(instance_transforms.size());
-        contours.trafos = std::vector<std::pair<size_t, Transform3d>>();
-        (*contours.trafos).reserve(instances_count);
-        for (size_t i = 0; i < instance_transforms.size(); ++i) {
-            const auto& [hull, hull_trafo] = m_sequential_print_clearance.m_hulls_2d_cache[i];
-            Points hull_pts;
-            hull_pts.reserve(hull.size());
-            for (size_t j = 0; j < hull.size(); ++j) {
-                hull_pts.emplace_back(scaled<double>(hull[j].x()), scaled<double>(hull[j].y()));
-            }
-            contours.contours.emplace_back(Geometry::convex_hull(std::move(hull_pts)));
-
-            const auto& instances = instance_transforms[i];
-            for (const auto& instance : instances) {
-                (*contours.trafos).emplace_back(i, instance_trafo(hull_trafo, *instance));
-            }
-        }
-
-        set_sequential_print_clearance_contours(contours, false);
-        m_sequential_print_clearance.m_first_displacement = false;
-    }
-    else {
-        if (!m_sequential_print_clearance.empty()) {
-            std::vector<Transform3d> trafos;
-            trafos.reserve(instances_count);
-            for (size_t i = 0; i < instance_transforms.size(); ++i) {
-                const auto& [hull, hull_trafo] = m_sequential_print_clearance.m_hulls_2d_cache[i];
-                const auto& instances = instance_transforms[i];
-                for (const auto& instance : instances) {
-                    trafos.emplace_back(instance_trafo(hull_trafo, *instance));
-                }
-            }
-            m_sequential_print_clearance.update_instances_trafos(trafos);
-        }
-    }
 }
 
 bool GLCanvas3D::is_object_sinking(int object_idx) const
@@ -6591,32 +6297,6 @@ void GLCanvas3D::_render_selection()
     m_selection.render_debug_window();
 #endif // ENABLE_MATRICES_DEBUG
 }
-
-void GLCanvas3D::_render_sequential_clearance()
-{
-    if (!_is_sequential_print_enabled())
-        return;
-
-    if (m_layers_editing.is_enabled())
-        return;
-
-    switch (m_gizmos.get_current_type())
-    {
-    case GLGizmosManager::EType::Flatten:
-    case GLGizmosManager::EType::Cut:
-    case GLGizmosManager::EType::MmSegmentation:
-    case GLGizmosManager::EType::Measure:
-    case GLGizmosManager::EType::Emboss:
-    case GLGizmosManager::EType::Simplify:
-    case GLGizmosManager::EType::FdmSupports:
-    case GLGizmosManager::EType::Seam:
-    case GLGizmosManager::EType::FuzzySkin: { return; }
-    default: { break; }
-    }
- 
-    m_sequential_print_clearance.render();
-}
-
 
 bool GLCanvas3D::check_toolbar_icon_size(float init_scale, float& new_scale_to_save, bool is_custom, int counter/* = 3*/)
 {

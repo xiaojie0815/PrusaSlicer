@@ -1967,7 +1967,6 @@ void Plater::priv::delete_all_objects_from_model()
     reset_gcode_toolpaths();
     std::for_each(gcode_results.begin(), gcode_results.end(), [](auto& g) { g.reset(); });
 
-    view3D->get_canvas3d()->reset_sequential_print_clearance();
     view3D->get_canvas3d()->reset_all_gizmos();
 
     m_worker.cancel_all();
@@ -2000,8 +1999,6 @@ void Plater::priv::reset()
 
     reset_gcode_toolpaths();
     std::for_each(gcode_results.begin(), gcode_results.end(), [](auto& g) { g.reset(); });
-
-    view3D->get_canvas3d()->reset_sequential_print_clearance();
 
     m_worker.cancel_all();
 
@@ -2357,9 +2354,6 @@ unsigned int Plater::priv::update_background_process(bool force_validation, bool
     if (view3D->is_layers_editing_enabled())
         view3D->get_wxglcanvas()->Refresh();
 
-    if (invalidated == Print::APPLY_STATUS_CHANGED || background_process.empty())
-        view3D->get_canvas3d()->reset_sequential_print_clearance();
-
     if (invalidated == Print::APPLY_STATUS_INVALIDATED) {
         // Some previously calculated data on the Print was invalidated.
         // Hide the slicing results, as the current slicing status is no more valid.
@@ -2397,7 +2391,6 @@ unsigned int Plater::priv::update_background_process(bool force_validation, bool
             process_validation_warning(warnings);
             if (printer_technology == ptFFF) {
                 GLCanvas3D* canvas = view3D->get_canvas3d();
-                canvas->reset_sequential_print_clearance();
                 canvas->set_as_dirty();
                 canvas->request_extra_frame();
             }
@@ -2407,41 +2400,14 @@ unsigned int Plater::priv::update_background_process(bool force_validation, bool
             // Show error as notification.
             notification_manager->push_validate_error_notification(err);
             return_state |= UPDATE_BACKGROUND_PROCESS_INVALID;
-            if (printer_technology == ptFFF) {
-                GLCanvas3D* canvas = view3D->get_canvas3d();
-                if (canvas->is_sequential_print_clearance_empty() || canvas->is_sequential_print_clearance_evaluating()) {
-                    GLCanvas3D::ContoursList contours;
-                    contours.contours = background_process.fff_print()->get_sequential_print_clearance_contours();
-                    canvas->set_sequential_print_clearance_contours(contours, true);
-                }
-            }
         }
     }
     else {
         if (invalidated == Print::APPLY_STATUS_UNCHANGED && !background_process.empty()) {
-            if (printer_technology == ptFFF) {
-                // Object manipulation with gizmos may end up in a null transformation.
-                // In this case, we need to trigger the completion of the sequential print clearance contours evaluation 
-                GLCanvas3D* canvas = view3D->get_canvas3d();
-                if (canvas->is_sequential_print_clearance_evaluating()) {
-                    GLCanvas3D::ContoursList contours;
-                    contours.contours = background_process.fff_print()->get_sequential_print_clearance_contours();
-                    canvas->set_sequential_print_clearance_contours(contours, true);
-                }
-            }
             std::vector<std::string> warnings;
             std::string err = background_process.validate(&warnings);
-            if (!err.empty()) {
-                if (s_multiple_beds.get_number_of_beds() > 1 && printer_technology == ptFFF) {
-                    // user changed bed seletion, 
-                    // sequential print clearance contours were changed too
-                    GLCanvas3D* canvas = view3D->get_canvas3d();
-                    GLCanvas3D::ContoursList contours;
-                    contours.contours = background_process.fff_print()->get_sequential_print_clearance_contours();
-                    canvas->set_sequential_print_clearance_contours(contours, true);
-                }
+            if (!err.empty())
                 return return_state;
-            }
         }
 
         if (! this->delayed_error_message.empty())
@@ -6899,7 +6865,6 @@ void Plater::on_config_change(const DynamicPrintConfig &config)
             this->set_printer_technology(printer_technology);
             p->sidebar->show_sliced_info_sizer(false);
             p->reset_gcode_toolpaths();
-            p->view3D->get_canvas3d()->reset_sequential_print_clearance();
             p->view3D->get_canvas3d()->set_sla_view_type(GLCanvas3D::ESLAViewType::Original);
             p->preview->get_canvas3d()->reset_volumes();
         }
