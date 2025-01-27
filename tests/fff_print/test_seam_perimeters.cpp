@@ -196,3 +196,57 @@ TEST_CASE_METHOD(Test::SeamsFixture, "Create perimeters", "[Seams][SeamPerimeter
         serialize_shells(csv, shells);
     }
 }
+
+using Dir = Seams::Geometry::Direction1D;
+
+Perimeters::Perimeter get_perimeter(){
+    Perimeters::Perimeter perimeter;
+    perimeter.positions = {
+        Vec2d{0.0, 0.0},
+        Vec2d{1.0, 0.0},
+        Vec2d{1.0, 1.0},
+        Vec2d{0.0, 1.0}
+    };
+    return perimeter;
+}
+
+TEST_CASE("Offset along perimeter forward", "[Seams][SeamPerimeters]") {
+    const std::optional<Perimeters::PointOnPerimeter> result{Perimeters::offset_along_perimeter(
+        {0, 1, {0.5, 0.0}}, get_perimeter(), 3.9, Dir::forward,
+        [](const Perimeters::Perimeter &, const std::size_t) { return false; }
+    )};
+    REQUIRE(result);
+    const auto &[previous_index, next_index, point] = *result;
+    CHECK((scaled(point) - Point::new_scale(0.4, 0.0)).norm() < scaled(EPSILON));
+    CHECK(previous_index == 0);
+    CHECK(next_index == 1);
+}
+
+TEST_CASE("Offset along perimeter backward", "[Seams][SeamPerimeters]") {
+    const std::optional<Perimeters::PointOnPerimeter> result{Perimeters::offset_along_perimeter(
+        {1, 2, {1.0, 0.5}}, get_perimeter(), 1.8, Dir::backward,
+        [](const Perimeters::Perimeter &, const std::size_t) { return false; }
+    )};
+    REQUIRE(result);
+    const auto &[previous_index, next_index, point] = *result;
+    CHECK((scaled(point) - Point::new_scale(0.0, 0.3)).norm() < scaled(EPSILON));
+    CHECK(previous_index == 3);
+    CHECK(next_index == 0);
+}
+
+TEST_CASE("Offset along perimeter forward respects stop condition", "[Seams][SeamPerimeters]") {
+    Perimeters::Perimeter perimeter{get_perimeter()};
+    perimeter.point_types = std::vector<Perimeters::PointType>(perimeter.positions.size(), Perimeters::PointType::common);
+    perimeter.point_types[2] = Perimeters::PointType::blocker;
+    const std::optional<Perimeters::PointOnPerimeter> result{Perimeters::offset_along_perimeter(
+        {0, 1, {0.5, 0.0}}, perimeter, 3.9, Dir::forward,
+        [](const Perimeters::Perimeter &perimeter, const std::size_t index) {
+            return perimeter.point_types[index] == Perimeters::PointType::blocker;
+        }
+    )};
+    REQUIRE(result);
+    const auto &[previous_index, next_index, point] = *result;
+    CHECK((scaled(point) - Point::new_scale(1.0, 0.0)).norm() < scaled(EPSILON));
+    CHECK(previous_index == 1);
+    CHECK(next_index == 1);
+}

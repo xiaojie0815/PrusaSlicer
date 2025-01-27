@@ -33,6 +33,17 @@ enum class PointClassification { overhang, embedded, common };
 struct Perimeter;
 struct PerimeterParams;
 
+/**
+ * When previous_index == next_index, the point is at the point.
+ * Otherwise the point is at the edge.
+ */
+struct PointOnPerimeter
+{
+    std::size_t previous_index{};
+    std::size_t next_index{};
+    Vec2d position{Vec2d::Zero()};
+};
+
 struct LayerInfo
 {
     static LayerInfo create(
@@ -208,6 +219,19 @@ inline std::vector<Vec2d> extract_points(
     }
     return result;
 }
+
+
+using Seams::Geometry::PointOnLine;
+
+std::optional<PointOnPerimeter> offset_along_perimeter(
+    const PointOnPerimeter &point,
+    const Perimeter& perimeter,
+    const double offset,
+    const Seams::Geometry::Direction1D direction,
+    const std::function<bool(const Perimeter&, const std::size_t)> &early_stop_condition
+);
+
+unsigned get_point_value(const PointType point_type, const PointClassification point_classification);
 
 } // namespace Slic3r::Seams::Perimeters
 

@@ -576,4 +576,100 @@ LayerPerimeters create_perimeters(
     return result;
 }
 
+std::optional<PointOnPerimeter> offset_along_perimeter(
+    const PointOnPerimeter &point,
+    const Perimeter& perimeter,
+    const double offset,
+    const Seams::Geometry::Direction1D direction,
+    const std::function<bool(const Perimeter&, const std::size_t)> &early_stop_condition
+) {
+    using Dir = Seams::Geometry::Direction1D;
+
+    const Linef initial_line{
+        perimeter.positions[point.previous_index], perimeter.positions[point.next_index]};
+    double distance{
+        direction == Dir::forward ?
+            (initial_line.b - point.position).norm() :
+            (point.position - initial_line.a).norm()};
+
+    if (distance >= offset) {
+        const Vec2d edge_direction{(initial_line.b - initial_line.a).normalized()};
+        const Vec2d offset_point{direction == Dir::forward ? Vec2d{point.position + offset * edge_direction} : Vec2d{point.position - offset * edge_direction}};
+        return {{point.previous_index, point.next_index, offset_point}};
+    }
+
+    std::optional<PointOnPerimeter> offset_point;
+
+    bool skip_first{direction == Dir::forward};
+    const auto visitor{[&](std::size_t index) {
+        if (skip_first) {
+            skip_first = false;
+            return false;
+        }
+
+        const std::size_t previous_index{
+            direction == Dir::forward ?
+                (index == 0 ? perimeter.positions.size() - 1 : index - 1) :
+                (index == perimeter.positions.size() - 1 ? 0 : index + 1)};
+
+        const Vec2d previous_point{perimeter.positions[previous_index]};
+        const Vec2d next_point{perimeter.positions[index]};
+        const Vec2d edge{next_point - previous_point};
+
+        if (early_stop_condition(perimeter, index)) {
+            offset_point = PointOnPerimeter{previous_index, previous_index, perimeter.positions[previous_index]};
+            return true;
+        }
+
+        if (distance + edge.norm() > offset) {
+            const double remaining_distance{offset - distance};
+            const Vec2d result{previous_point + remaining_distance * edge.normalized()};
+
+            if (direction == Dir::forward) {
+                offset_point = PointOnPerimeter{previous_index, index, result};
+            } else {
+                offset_point = PointOnPerimeter{index, previous_index, result};
+            }
+            return true;
+        }
+
+        distance += edge.norm();
+
+        return false;
+    }};
+
+    if (direction == Dir::forward) {
+        Geometry::visit_forward(point.next_index, perimeter.positions.size(), visitor);
+    } else {
+        Geometry::visit_backward(point.previous_index, perimeter.positions.size(), visitor);
+    }
+
+    return offset_point;
+}
+
+unsigned get_point_value(const PointType point_type, const PointClassification point_classification) {
+    // Better be explicit than smart.
+    switch (point_type) {
+    case PointType::enforcer:
+        switch (point_classification) {
+        case PointClassification::embedded: return 9;
+        case PointClassification::common: return 8;
+        case PointClassification::overhang: return 7;
+        }
+    case PointType::common:
+        switch (point_classification) {
+        case PointClassification::embedded: return 6;
+        case PointClassification::common: return 5;
+        case PointClassification::overhang: return 4;
+        }
+    case PointType::blocker:
+        switch (point_classification) {
+        case PointClassification::embedded: return 3;
+        case PointClassification::common: return 2;
+        case PointClassification::overhang: return 1;
+        }
+    }
+    return 0;
+}
+
 } // namespace Slic3r::Seams::Perimeter
