@@ -31,7 +31,6 @@ static Sequential::PrinterGeometry get_printer_geometry() {
 	slices.push_back(ExtruderSlice{ 11000000, BOX,    { { {-350000000,  -23000000 }, { 350000000,  -23000000 }, { 350000000, -35000000 }, {-350000000, -35000000 } } } });
 	slices.push_back(ExtruderSlice{ 13000000, BOX,    { { { -13000000,  -84000000 }, {  11000000,  -84000000 }, {  11000000, -38000000 }, { -13000000, -38000000 } },
 							    { {  11000000, -300000000 }, { 300000000, -300000000 }, { 300000000, -84000000 }, {  11000000, -84000000 } } } });
-	
 
 	// Geometry (simplified head model) for the Original Prusa MK3S+ printer
 	/*
@@ -57,6 +56,20 @@ static Sequential::PrinterGeometry get_printer_geometry() {
 							    { { -17000000,  -44000000 }, {  43000000,  -44000000 }, {  43000000,  33000000 }, { -17000000,  33000000 } } } });
 	slices.push_back(ExtruderSlice{ 22000000, BOX,	  { { {-200000000,  -28000000 }, { 200000000,  -28000000 }, { 200000000, -14000000 }, { -200000000, -14000000 } } } });
 	slices.push_back(ExtruderSlice{100000000, BOX,    { { {-200000000, -200000000 }, {  10000000, -200000000 }, {  10000000,  10000000 }, { -200000000,  10000000 } } } });
+	*/
+
+	// Geometry (simplified head model) for the Original Prusa XL printer
+	/*
+	std::vector<ExtruderSlice> slices;
+	slices.push_back(ExtruderSlice{0,  	  CONVEX, { { {   -5000000,   -5000000 }, {   5000000,   -5000000 }, {   5000000,   5000000 }, {   -5000000,    5000000 } } } });
+	slices.push_back(ExtruderSlice{2000000,   CONVEX, { { {  -10000000,  -47000000 }, {  34000000,  -47000000 }, {  34000000,  16000000 }, {  -10000000,   16000000 } },
+						 	    { {  -34000000,   13000000 }, {  32000000,   13000000 }, {  32000000,  67000000 }, {  -34000000,   67000000 } } } });
+	slices.push_back(ExtruderSlice{23000000,  CONVEX, { { {  -42000000,   11000000 }, {  32000000,   11000000 }, {  32000000,  66000000 }, {  -42000000,   66000000 } },
+						 	    { {  -33000000,  -37000000 }, {  43000000,  -37000000 }, {  43000000,  18000000 }, {  -33000000,   18000000 } },
+							    { {  -13000000,  -68000000 }, {  47000000,  -68000000 }, {  47000000, -30000000 }, {  -13000000,  -30000000 } } } });
+        slices.push_back(ExtruderSlice{19000000,  BOX,	  { { { -400000000,   24000000 }, { 400000000,   24000000 }, { 400000000,  50000000 }, { -400000000,   50000000 } } } });
+        slices.push_back(ExtruderSlice{180000000, BOX,	  { { { -400000000, -400000000 }, { 400000000, -400000000 }, { 400000000,  10000000 }, { -400000000,   10000000 } } } });
+        slices.push_back(ExtruderSlice{220000000, BOX,	  { { { -400000000, -400000000 }, { 400000000, -400000000 }, { 400000000, 400000000 }, { -400000000,  400000000 } } } });
 	*/
 	
 	Sequential::PrinterGeometry out;
@@ -100,7 +113,7 @@ static std::vector<Sequential::ObjectToPrint> get_objects_to_print(const Model& 
 			for (double height : heights) {
 			        // It seems that zero level in the object instance is mi->get_offset().z(), however need to have bed as zero level,
 			        // hence substracting mi->get_offset().z() from height seems to be an easy hack
-				Polygon pgn = its_convex_hull_2d_above(raw_mesh.its, mi->get_matrix_no_offset().cast<float>(), height - mi->get_offset().z());
+ 			        Polygon pgn = its_convex_hull_2d_above(raw_mesh.its, mi->get_matrix_no_offset().cast<float>(), height - mi->get_offset().z());
 				objects.back().pgns_at_height.emplace_back(std::make_pair(scaled(height), pgn));
 			}
 			++inst_id;
