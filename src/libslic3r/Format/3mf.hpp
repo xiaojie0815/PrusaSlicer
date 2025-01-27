@@ -47,7 +47,7 @@ namespace Slic3r {
     struct ThumbnailData;
 
     // Returns true if the 3mf file with the given filename is a PrusaSlicer project file (i.e. if it contains a config).
-    extern bool is_project_3mf(const std::string& filename);
+    extern std::pair<bool, std::optional<Semver>> is_project_3mf(const std::string&);
 
     // Load the content of a 3mf file into the given model and preset bundle.
     extern bool load_3mf(

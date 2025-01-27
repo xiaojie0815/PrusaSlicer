@@ -3940,34 +3940,52 @@ static void handle_legacy_project_loaded(
     }
 }
 
-bool is_project_3mf(const std::string& filename)
+// Project = either it contains our config OR it is stamped as being produced
+// by PrusaSlicer (in which case the version is passed out).
+std::pair<bool, std::optional<Semver>> is_project_3mf(const std::string& filename)
 {
+    std::pair<bool, std::optional<Semver>> out = std::make_pair(false, std::nullopt);
+
     mz_zip_archive archive;
     mz_zip_zero_struct(&archive);
 
     if (!open_zip_reader(&archive, filename))
-        return false;
+        return out;
+    ScopeGuard guard([&archive]() {close_zip_reader(&archive); });
 
     mz_uint num_entries = mz_zip_reader_get_num_files(&archive);
 
     // loop the entries to search for config
     mz_zip_archive_file_stat stat;
-    bool config_found = false;
     for (mz_uint i = 0; i < num_entries; ++i) {
         if (mz_zip_reader_file_stat(&archive, i, &stat)) {
+            if (mz_zip_reader_is_file_a_directory(&archive, i))
+                continue;
             std::string name(stat.m_filename);
             std::replace(name.begin(), name.end(), '\\', '/');
-
-            if (boost::algorithm::iequals(name, PRINT_CONFIG_FILE)) {
-                config_found = true;
-                break;
+            if (boost::algorithm::iequals(name, PRINT_CONFIG_FILE))
+                out.first = true;
+            if (boost::algorithm::iequals(name, MODEL_FILE)) {
+                if (auto* iter = mz_zip_reader_extract_iter_new(&archive, i, 0)) {
+                    ScopeGuard g([&iter]() { mz_zip_reader_extract_iter_free(iter); });
+                    char buffer[1024];
+                    memset(buffer, 0, sizeof(buffer));
+                    if (size_t bytes_read = mz_zip_reader_extract_iter_read(iter, buffer, sizeof(buffer)); bytes_read > 0) {
+                        std::string header(buffer);
+                        boost::regex pattern(R"(^\s*<metadata name="Application".*?PrusaSlicer-(.*?)</metadata>$)");
+                        boost::sregex_iterator it(header.begin(), header.end(), pattern);
+                        boost::sregex_iterator end;
+                        if (it != end) {
+                            Semver semver;
+                            semver.parse((*it)[1].str());
+                            out.second = semver;
+                        }
+                    }
+                }
             }
         }
     }
-
-    close_zip_reader(&archive);
-
-    return config_found;
+    return out;
 }
 
 bool load_3mf(
