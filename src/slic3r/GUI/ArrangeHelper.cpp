@@ -46,8 +46,15 @@ static Sequential::PrinterGeometry get_printer_geometry() {
 	slices.push_back(ExtruderSlice{17000000,  BOX,    { { { -300000000, -35000000 }, { 300000000, -35000000 }, { 300000000,  -21000000 }, { -300000000,  -21000000 } } } });
 	*/
 	Sequential::PrinterGeometry out;
+
+	/*
 	out.x_size = scaled(s_multiple_beds.get_bed_size().x());
 	out.y_size = scaled(s_multiple_beds.get_bed_size().y());
+	*/
+	coord_t plate_x_size = scaled(s_multiple_beds.get_bed_size().x());
+	coord_t plate_y_size = scaled(s_multiple_beds.get_bed_size().y());
+	out.plate = { { 0, 0 }, { plate_x_size, 0}, { plate_x_size, plate_y_size }, { 0, plate_y_size } };
+	
 	for (const ExtruderSlice& slice : slices) {
 		(slice.shape_type == CONVEX ? out.convex_heights : out.box_heights).emplace(slice.height);
 		out.extruder_slices.insert(std::make_pair(slice.height, slice.polygons));

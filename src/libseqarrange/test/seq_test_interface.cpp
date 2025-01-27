@@ -634,12 +634,8 @@ TEST_CASE("Interface test 3", "[Sequential Arrangement Interface]")
 	printf("Printer geometry load error.\n");
 	return;
     }
-
-    printf("x_size: %d\n", printer_geometry.x_size);
-    printf("y_size: %d\n", printer_geometry.y_size);
     
-    REQUIRE(printer_geometry.x_size > 0);
-    REQUIRE(printer_geometry.y_size > 0);
+    REQUIRE(printer_geometry.plate.points.size() == 4);
 
     for (const auto& convex_height: printer_geometry.convex_heights)
     {
@@ -723,10 +719,13 @@ TEST_CASE("Interface test 4", "[Sequential Arrangement Interface]")
 	for (const auto& scheduled_object: scheduled_plates[plate].scheduled_objects)
 	{
 	    cout << "    ID: " << scheduled_object.id << "  X: " << scheduled_object.x << "  Y: " << scheduled_object.y << endl;
-	    REQUIRE(scheduled_object.x >= 0);
-	    REQUIRE(scheduled_object.x <= printer_geometry.x_size);
-	    REQUIRE(scheduled_object.y >= 0);
-	    REQUIRE(scheduled_object.y <= printer_geometry.y_size);
+
+	    BoundingBox plate_box = get_extents(printer_geometry.plate);
+	    
+	    REQUIRE(scheduled_object.x >= plate_box.min.x());
+	    REQUIRE(scheduled_object.x <= plate_box.max.x());
+	    REQUIRE(scheduled_object.y >= plate_box.min.y());
+	    REQUIRE(scheduled_object.y <= plate_box.max.y());		
 	}
     }
     
@@ -790,10 +789,13 @@ TEST_CASE("Interface test 5", "[Sequential Arrangement Interface]")
 	for (const auto& scheduled_object: scheduled_plates[plate].scheduled_objects)
 	{
 	    cout << "    ID: " << scheduled_object.id << "  X: " << scheduled_object.x << "  Y: " << scheduled_object.y << endl;
-	    REQUIRE(scheduled_object.x >= 0);
-	    REQUIRE(scheduled_object.x <= printer_geometry.x_size);
-	    REQUIRE(scheduled_object.y >= 0);
-	    REQUIRE(scheduled_object.y <= printer_geometry.y_size);	    
+
+	    BoundingBox plate_box = get_extents(printer_geometry.plate);
+	    
+	    REQUIRE(scheduled_object.x >= plate_box.min.x());
+	    REQUIRE(scheduled_object.x <= plate_box.max.x());
+	    REQUIRE(scheduled_object.y >= plate_box.min.y());
+	    REQUIRE(scheduled_object.y <= plate_box.max.y());		
 	}
     }
     
@@ -878,10 +880,13 @@ TEST_CASE("Interface test 6", "[Sequential Arrangement Interface]")
 	for (const auto& scheduled_object: scheduled_plates[plate].scheduled_objects)
 	{
 	    cout << "    ID: " << scheduled_object.id << "  X: " << scheduled_object.x << "  Y: " << scheduled_object.y << endl;
-	    REQUIRE(scheduled_object.x >= 0);
-	    REQUIRE(scheduled_object.x <= printer_geometry.x_size);
-	    REQUIRE(scheduled_object.y >= 0);
-	    REQUIRE(scheduled_object.y <= printer_geometry.y_size);		
+		
+	    BoundingBox plate_box = get_extents(printer_geometry.plate);
+	    
+	    REQUIRE(scheduled_object.x >= plate_box.min.x());
+	    REQUIRE(scheduled_object.x <= plate_box.max.x());
+	    REQUIRE(scheduled_object.y >= plate_box.min.y());
+	    REQUIRE(scheduled_object.y <= plate_box.max.y());		
 	}
     }
     

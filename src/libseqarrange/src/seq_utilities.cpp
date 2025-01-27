@@ -132,7 +132,10 @@ int load_printer_geometry_from_text(const std::string &geometry_text, PrinterGeo
 int load_printer_geometry_from_stream(std::istream &geometry_stream, PrinterGeometry &printer_geometry)
 {
     Polygon *current_polygon = NULL;
-    std::string line;    
+    std::string line;
+
+    coord_t x_size = -1;
+    coord_t y_size = -1;    
     
     while (geometry_stream)
     {        
@@ -193,20 +196,20 @@ int load_printer_geometry_from_stream(std::istream &geometry_stream, PrinterGeom
             std::stringstream ss(line);
             std::string val;
             ss >> val;
-            coord_t x_size = std::stoi(val);
-	    
-	    printer_geometry.x_size = x_size;
+            x_size = std::stoi(val);	   
 	}
 	else if (find_and_remove(line, "Y_SIZE"))
 	{
             std::stringstream ss(line);
             std::string val;
             ss >> val;
-            coord_t y_size = std::stoi(val);
-	    
-	    printer_geometry.y_size = y_size;
+            y_size = std::stoi(val);	    
 	}			
     }
+    assert(x_size > 0 && y_size > 0);
+    
+    printer_geometry.plate = { {0, 0}, {x_size, 0}, {x_size, y_size}, {0, y_size} };
+    
     return 0;        
 }
 

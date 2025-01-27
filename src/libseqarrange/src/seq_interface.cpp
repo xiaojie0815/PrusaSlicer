@@ -75,16 +75,33 @@ const coord_t SEQ_PRUSA_XL_GANTRY_LEVEL   = 26000000;
 
 /*----------------------------------------------------------------*/
     
-int PrinterGeometry::convert_Geometry2PlateBoundingBoxSize(void) const
+bool PrinterGeometry::convert_Geometry2PlateBounds(int &x_plate_bounding_box_size, int &y_plate_bounding_box_size, Slic3r::Polygon &plate_bounding_polygon) const
 {
-    return MAX(x_size / SEQ_SLICER_SCALE_FACTOR, y_size / SEQ_SLICER_SCALE_FACTOR);
-}
+    coord_t x_size, y_size;
 
+    BoundingBox plate_box = get_extents(plate);
+
+    x_size = plate_box.max.x() - plate_box.min.x();
+    y_size = plate_box.max.y() - plate_box.min.y();
     
-void PrinterGeometry::convert_Geometry2PlateBoundingBoxSize(int &x_plate_bounding_box_size, int &y_plate_bounding_box_size) const
-{       
     x_plate_bounding_box_size = x_size / SEQ_SLICER_SCALE_FACTOR;
     y_plate_bounding_box_size = y_size / SEQ_SLICER_SCALE_FACTOR;
+
+    coord_t plate_box_area = x_size * y_size;
+    
+    if (plate.area() != plate_box_area)
+    {
+	for (unsigned int i = 0; i < plate.points.size(); ++i)
+	{
+	    plate_bounding_polygon.points.insert(plate_bounding_polygon.points.begin() + i, Point(plate.points[i].x() / SEQ_SLICER_SCALE_FACTOR,
+												  plate.points[i].y() / SEQ_SLICER_SCALE_FACTOR));
+	}	
+	// non-rectangular plate is currently not supported	
+	assert(false);
+	
+	return false;
+    }
+    return true;
 }
     
     
@@ -150,7 +167,7 @@ double SolverConfiguration::convert_DecimationPrecision2Tolerance(DecimationPrec
        
 void SolverConfiguration::setup(const PrinterGeometry &printer_geometry)
 {
-    printer_geometry.convert_Geometry2PlateBoundingBoxSize(x_plate_bounding_box_size, y_plate_bounding_box_size);
+    printer_geometry.convert_Geometry2PlateBounds(x_plate_bounding_box_size, y_plate_bounding_box_size, plate_bounding_polygon);
 }
 
     

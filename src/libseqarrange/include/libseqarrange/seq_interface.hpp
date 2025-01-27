@@ -34,8 +34,7 @@ namespace Sequential
     
 struct PrinterGeometry
 {
-    coord_t x_size;
-    coord_t y_size;
+    Slic3r::Polygon plate;
 
     // at least height 0 (corresponding to nozzle) must be present in convex_height
     std::set<coord_t> convex_heights;
@@ -44,8 +43,7 @@ struct PrinterGeometry
     // <height, polygons at given height>, at least one polygon must be present for height 0
     std::map<coord_t, std::vector<Slic3r::Polygon> > extruder_slices;
 
-    int convert_Geometry2PlateBoundingBoxSize(void) const;
-    void convert_Geometry2PlateBoundingBoxSize(int &X_bounding_box_size, int &Y_bounding_box_size) const;
+    bool convert_Geometry2PlateBounds(int &x_bounding_box_size, int &y_bounding_box_size, Slic3r::Polygon &plate_bounding_polygon) const;
 };
 
     
@@ -75,8 +73,12 @@ struct SolverConfiguration
 
     int bounding_box_size_optimization_step;
     int minimum_bounding_box_size;
+    
     int x_plate_bounding_box_size;
     int y_plate_bounding_box_size;
+
+    Slic3r::Polygon plate_bounding_polygon;
+    
     int max_refines;
     
     int object_group_size;
