@@ -9,7 +9,7 @@
 
 #include "boost/regex.hpp"
 #include "boost/property_tree/json_parser.hpp"
-#include "boost/algorithm/string/replace.hpp""
+#include "boost/algorithm/string/replace.hpp"
 
 
 
@@ -26,109 +26,13 @@ static Sequential::PrinterGeometry get_printer_geometry(const ConfigBase& config
 		coord_t height;
 		ShapeType shape_type;
 		std::vector<Polygon> polygons;
-
 	};
 
-	std::vector<std::vector<ExtruderSlice>> printers_geometries;
-	std::vector<std::array<std::string, 2>> printers_regexps;
-	std::vector<ExtruderSlice> slices;
-	
-	// Just hardcode geometry (simplified head model) for the Original Prusa MK4.
-	slices.push_back(ExtruderSlice{ 0,        CONVEX, { { {  -5000000,   -5000000 }, {   5000000,   -5000000 }, {   5000000,   5000000 }, {  -5000000,   5000000 } } } });
-	slices.push_back(ExtruderSlice{ 3000000,  CONVEX, { { { -10000000,  -21000000 }, {  37000000,  -21000000 }, {  37000000,  44000000 }, { -10000000,  44000000 } },
-							    { { -40000000,  -45000000 }, {  38000000,  -45000000 }, {  38000000,  20000000 }, { -40000000,  20000000 } } } });
-	slices.push_back(ExtruderSlice{ 11000000, BOX,    { { {-350000000,  -23000000 }, { 350000000,  -23000000 }, { 350000000, -35000000 }, {-350000000, -35000000 } } } });
-	slices.push_back(ExtruderSlice{ 13000000, BOX,    { { { -13000000,  -84000000 }, {  11000000,  -84000000 }, {  11000000, -38000000 }, { -13000000, -38000000 } },
-							    { {  11000000, -300000000 }, { 300000000, -300000000 }, { 300000000, -84000000 }, {  11000000, -84000000 } } } });
-	printers_geometries.emplace_back(slices);
-	printers_regexps.push_back({ ".*PRINTER_MODEL_MK4.*", "prusa3d_mk4_gantry.stl" });
-	slices = {};
-	
-	// Geometry (simplified head model) for the Original Prusa MK3S+ printer
-    slices.push_back(ExtruderSlice{ 0,        CONVEX, { { {   -5000000,  -5000000 }, {   5000000,  -5000000 }, {   5000000,    5000000 }, {   -5000000,    5000000 } } ,
-                                                        { {  -30000000, -12000000 }, { -14000000, -12000000 }, { -14000000,    2000000 }, {  -30000000,    2000000 } } } });
-    slices.push_back(ExtruderSlice{ 2000000,  CONVEX, { { {  -20000000, -38000000 }, {  44000000, -38000000 }, {  44000000,   18000000 }, {  -20000000,   18000000 } } } });
-    slices.push_back(ExtruderSlice{ 6000000,  CONVEX, { { {  -34000000, -43000000 }, {  37000000, -43000000 }, {  37000000,   16000000 }, {  -34000000,   16000000 } },
-							    { {  -45000000,   9000000 }, {  37000000,   9000000 }, {  37000000,   69000000 }, {  -45000000,   69000000 } } } });
-	slices.push_back(ExtruderSlice{11000000,  BOX,    { { {   -8000000, -82000000 }, {   8000000, -82000000 }, {   8000000,  -36000000 }, {   -8000000,  -36000000 } },
-							    { {   -8000000, -82000000 }, { 250000000, -82000000 }, { 250000000, -300000000 }, {   -8000000, -300000000 } } } });
-	slices.push_back(ExtruderSlice{17000000,  BOX,    { { { -300000000, -35000000 }, { 300000000, -35000000 }, { 300000000,  -21000000 }, { -300000000,  -21000000 } } } });
-	printers_geometries.emplace_back(slices);
-	printers_regexps.push_back({ ".*PRINTER_MODEL_MK3.*", "prusa3d_mk3s_gantry.stl" });
-	slices = {};
-
-	// Geometry (simplified head model) for the Original Prusa Mini+ printer
-	slices.push_back(ExtruderSlice{ 0,        CONVEX, { { {  -5000000,   -5000000 }, {   5000000,   -5000000 }, {   5000000,   5000000 }, {  -5000000,   5000000 } },
-						            { {  24000000,   -3000000 }, {  35000000,   -3000000 }, {  35000000,  10000000 }, {  24000000,  10000000 } },
-						 	    { {  -5000000,    4000000 }, {   5000000,    4000000 }, {   5000000,  18000000 }, {  -5000000,  18000000 } } } });
-	slices.push_back(ExtruderSlice{ 3000000,  CONVEX, { { { -16000000,  -44000000 }, {  37000000,  -44000000 }, {  37000000,  31000000 }, { -16000000,  31000000 } } } });
-	slices.push_back(ExtruderSlice{ 10000000, CONVEX, { { { -10000000,  -88000000 }, {  10000000,  -88000000 }, {  10000000, -38000000 }, { -10000000, -38000000 } },
-							    { { -17000000,  -44000000 }, {  43000000,  -44000000 }, {  43000000,  33000000 }, { -17000000,  33000000 } } } });
-	slices.push_back(ExtruderSlice{ 22000000, BOX,	  { { {-200000000,  -28000000 }, { 200000000,  -28000000 }, { 200000000, -14000000 }, { -200000000, -14000000 } } } });
-	slices.push_back(ExtruderSlice{100000000, BOX,    { { {-200000000, -200000000 }, {  10000000, -200000000 }, {  10000000,  10000000 }, { -200000000,  10000000 } } } });
-	printers_geometries.emplace_back(slices);
-	printers_regexps.push_back({ ".*PRINTER_MODEL_MINI.*", "prusa3d_mini_gantry.stl" });
-	slices = {};
-
-
-	// Geometry (simplified head model) for the Original Prusa XL printer
-	slices.push_back(ExtruderSlice{0,  	  CONVEX, { { {   -5000000,   -5000000 }, {   5000000,   -5000000 }, {   5000000,   5000000 }, {   -5000000,    5000000 } } } });
-	slices.push_back(ExtruderSlice{2000000,   CONVEX, { { {  -10000000,  -47000000 }, {  34000000,  -47000000 }, {  34000000,  16000000 }, {  -10000000,   16000000 } },
-						 	    { {  -34000000,   13000000 }, {  32000000,   13000000 }, {  32000000,  67000000 }, {  -34000000,   67000000 } } } });
-	slices.push_back(ExtruderSlice{23000000,  CONVEX, { { {  -42000000,   11000000 }, {  32000000,   11000000 }, {  32000000,  66000000 }, {  -42000000,   66000000 } },
-						 	    { {  -33000000,  -37000000 }, {  43000000,  -37000000 }, {  43000000,  18000000 }, {  -33000000,   18000000 } },
-							    { {  -13000000,  -68000000 }, {  47000000,  -68000000 }, {  47000000, -30000000 }, {  -13000000,  -30000000 } } } });
-    slices.push_back(ExtruderSlice{19000000,  BOX,	  { { { -400000000,   24000000 }, { 400000000,   24000000 }, { 400000000,  50000000 }, { -400000000,   50000000 } } } });
-    slices.push_back(ExtruderSlice{180000000, BOX,	  { { { -400000000, -400000000 }, { 400000000, -400000000 }, { 400000000,  10000000 }, { -400000000,   10000000 } } } });
-    slices.push_back(ExtruderSlice{220000000, BOX,	  { { { -400000000, -400000000 }, { 400000000, -400000000 }, { 400000000, 400000000 }, { -400000000,  400000000 } } } });
-	printers_geometries.emplace_back(slices);
-	printers_regexps.push_back({ ".*PRINTER_MODEL_XL.*", "prusa3d_xl_gantry.stl" });
-	slices = {};
-	
 
 	double bed_x = s_multiple_beds.get_bed_size().x();
 	double bed_y = s_multiple_beds.get_bed_size().y();
+	std::vector<ExtruderSlice> slices;
 
-
-	{
-		// JUST FOR DEBUGGING: Dump slices into JSON.
-		int printer_id = 0;
-		boost::property_tree::ptree pt;
-		boost::property_tree::ptree printers_array;
-		for (const auto& printer : printers_geometries) {
-			boost::property_tree::ptree printer_node;
-			printer_node.put("printer_notes_regex", printers_regexps[printer_id][0]);
-			printer_node.put("gantry_model_filename", printers_regexps[printer_id++][1]);
-			boost::property_tree::ptree slices_array;
-			for (const auto& slice : printer) {
-				boost::property_tree::ptree slice_node;
-				slice_node.put("height", unscaled(slice.height));
-				slice_node.put("type", slice.shape_type == BOX ? "box" : "convex");
-
-				boost::property_tree::ptree polygons_array;
-				for (const auto& polygon : slice.polygons) {
-					boost::property_tree::ptree polygon_node;
-					std::string s;
-					for (auto& pt : polygon.points)
-						s += std::to_string(int(unscaled(pt.x()))) + "," + std::to_string(int(unscaled(pt.y()))) + ";";
-					s.pop_back();
-					polygon_node.put("", s); // "" for array elements
-					polygons_array.push_back(std::make_pair("", polygon_node));
-				}
-				slice_node.add_child("polygons", polygons_array);
-				slices_array.push_back(std::make_pair("", slice_node));
-			}
-			printer_node.add_child("slices", slices_array);
-			printers_array.push_back(std::make_pair("", printer_node));
-		}
-		pt.add_child("printers", printers_array);
-		boost::property_tree::write_json("out.txt", pt);
-	}
-
-
-
-
-	slices = {};
 	const std::string printer_notes = config.opt_string("printer_notes");
 	{
 		if (! printer_notes.empty()) {
