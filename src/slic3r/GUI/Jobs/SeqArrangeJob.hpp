@@ -9,9 +9,10 @@ class Model;
 
 
 class SeqArrange;
-
+class DynamicPrintConfig;
+    
 namespace GUI {
-
+    
 
 class SeqArrangeJob : public Job
 {

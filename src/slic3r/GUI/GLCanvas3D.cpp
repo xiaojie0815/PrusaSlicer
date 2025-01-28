@@ -11,6 +11,12 @@
 #include "libslic3r/libslic3r.h"
 #include "GLCanvas3D.hpp"
 
+#include <iostream>
+#include <fstream>
+
+#include <boost/property_tree/ptree.hpp>
+#include <boost/property_tree/json_parser.hpp>
+
 #include <igl/unproject.h> // IWYU pragma: keep
 #include <LocalesUtils.hpp>
 #include <nanosvgrast.h>
