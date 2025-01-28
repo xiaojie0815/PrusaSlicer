@@ -2969,26 +2969,28 @@ std::string GCodeGenerator::change_layer(
         && this->m_config.travel_slope.get_at(extruder_id) > 0
         && this->m_config.travel_slope.get_at(extruder_id) < 90
     );
-    if (do_ramping_layer_change) {
-        Vec3d from{to_3d(this->point_to_gcode(*this->last_position), previous_layer_z)};
-        const Vec3d to{to_3d(unscaled(first_point), print_z)};
-        const double travel_length{(to - from).norm()};
 
-        if (this->m_config.retract_before_travel.get_at(extruder_id) < travel_length) {
+    const Vec3d to{to_3d(unscaled(first_point), print_z)};
+    if (this->last_position && print_z > previous_layer_z && !EXTRUDER_CONFIG(retract_layer_change)) {
+        const Vec3d from{to_3d(this->point_to_gcode(*this->last_position), previous_layer_z)};
+        const Polyline xy_path{this->get_layer_change_xy_path(from, to)};
+
+        if (this->needs_retraction(xy_path, ExtrusionRole::Mixed)) {
             gcode += this->retract_and_wipe();
         }
+    } else {
+        gcode += this->retract_and_wipe();
+    }
 
-        // Update from after wipe.
-        from = to_3d(this->point_to_gcode(*this->last_position), previous_layer_z);
+    if (do_ramping_layer_change) {
+        // Must be determined again after possible wipe.
+        const Vec3d from{to_3d(this->point_to_gcode(*this->last_position), previous_layer_z)};
 
         gcode += this->get_ramping_layer_change_gcode(from, to, extruder_id);
 
         this->writer().update_position(to);
         this->last_position = this->gcode_to_point(unscaled(first_point));
     } else {
-        if (EXTRUDER_CONFIG(retract_layer_change)) {
-            gcode += this->retract_and_wipe();
-        }
         if (!first_layer) {
             // travel_to_z is not used as it may not generate the travel if the writter z == print_z.
             gcode += this->writer().get_travel_to_z_gcode(print_z, "simple layer change");
