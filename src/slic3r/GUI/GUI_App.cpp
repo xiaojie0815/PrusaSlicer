@@ -4119,7 +4119,7 @@ void GUI_App::select_filament_from_connect(const std::string& msg)
     }
     // test if currently selected is same type
     size_t extruder_count = preset_bundle->extruders_filaments.size();
-    if (extruder_count != materials.size()) {
+    if (extruder_count < materials.size()) {
         BOOST_LOG_TRIVIAL(error) << format("Failed to select filament from Connect. Selected printer has %1% extruders while data from Connect contains %2% materials.", extruder_count, materials.size());
         plater()->get_notification_manager()->close_notification_of_type(NotificationType::SelectFilamentFromConnect);
         // TRN: Notification text.
@@ -4127,7 +4127,7 @@ void GUI_App::select_filament_from_connect(const std::string& msg)
         return;
     }
     std::string notification_text;
-    for (size_t i = 0; i < extruder_count; i++) {
+    for (size_t i = 0; i < materials.size(); i++) {
         search_and_select_filaments(materials[i], avoid_abrasive.size() > i ? avoid_abrasive[i] : false, i, notification_text);
     }
 
