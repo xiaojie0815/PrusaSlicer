@@ -11,7 +11,7 @@
 #include "libslic3r/libslic3r.h"
 #include "GLCanvas3D.hpp"
 
-#include <boost/nowide/cstdio.hpp>
+#include <boost/nowide/fstream.hpp>
 
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
