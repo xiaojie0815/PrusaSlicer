@@ -307,10 +307,6 @@ void GLGizmoSlaSupports::render_points(const Selection& selection)
                 render_color = hovered_color;
             else if (m_editing_cache[i].selected)
                 render_color = selected_color;
-            else if (m_lock_unique_islands) {
-                render_color = support_point.type == sla::SupportPointType::island?
-                    island_color : inactive_color;
-            }
         }
 
         m_cone.model.set_color(render_color);
