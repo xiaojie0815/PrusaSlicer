@@ -38,6 +38,9 @@
 
 #include "CLI.hpp"
 
+#define STB_IMAGE_RESIZE_IMPLEMENTATION
+#include "stb_image_resize2.h"
+
 namespace Slic3r::CLI {
 
 static bool has_profile_sharing_action(const Data& cli)
@@ -167,11 +170,10 @@ static bool export_models(std::vector<Model>& models, IO::ExportFormat format, c
     return true;
 }
 
-static std::function<ThumbnailsList(const ThumbnailsParams&)> get_thumbnail_generator_cli(Print& fff_print)
+static std::function<ThumbnailsList(const ThumbnailsParams&)> get_thumbnail_generator_cli(const std::string& filename)
 {
-    if (!fff_print.model().objects.empty() && boost::iends_with(fff_print.model().objects.front()->input_file, ".3mf")) {
-        std::string filename = fff_print.model().objects.front()->input_file;
-        return [filename](const ThumbnailsParams&) {
+    if (boost::iends_with(filename, ".3mf")) {
+        return [filename](const ThumbnailsParams& params) {
             ThumbnailsList list_out;
 
             mz_zip_archive archive;
@@ -210,12 +212,19 @@ static std::function<ThumbnailsList(const ThumbnailsParams&)> get_thumbnail_gene
                 }
             }
 
-            ThumbnailData th;
-            th.set(width, height);
-            th.pixels = data;
-            list_out.push_back(th);
+            for (const Vec2d& size : params.sizes) {
+                ThumbnailData th;
+                Point isize(size);
+                th.set(isize.x(), isize.y());
+                std::vector<unsigned char> resized_rgba(th.width * th.height * 4);
+                stbir_resize_uint8_linear(data.data(), width, height, 4 * width,
+                                          resized_rgba.data(), th.width, th.height, 4 * th.width,
+                                          STBIR_RGBA);
+                th.pixels = resized_rgba;
+                list_out.push_back(th);
+            }
             return list_out;
-            };
+        };
     }
 
     return [](const ThumbnailsParams&) ->ThumbnailsList { return {}; };
@@ -333,7 +342,8 @@ bool process_actions(Data& cli, const DynamicPrintConfig& print_config, std::vec
                 print->process();
                 if (printer_technology == ptFFF) {
                     // The outfile is processed by a PlaceholderParser.
-                    outfile = fff_print.export_gcode(outfile, nullptr, get_thumbnail_generator_cli(fff_print));
+                    const std::string input_file = fff_print.model().objects.empty() ? "" : fff_print.model().objects.front()->input_file;
+                    outfile = fff_print.export_gcode(outfile, nullptr, get_thumbnail_generator_cli(input_file));
                     outfile_final = fff_print.print_statistics().finalize_output_path(outfile);
                 }
                 else {
