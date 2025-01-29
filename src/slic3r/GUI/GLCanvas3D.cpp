@@ -11,8 +11,7 @@
 #include "libslic3r/libslic3r.h"
 #include "GLCanvas3D.hpp"
 
-#include <iostream>
-#include <fstream>
+#include <boost/nowide/cstdio.hpp>
 
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
@@ -182,7 +181,7 @@ std::optional<std::unique_ptr<GLModel>> GLCanvas3D::get_current_marker_model() c
         if (! seq)
             return out;
         try {            
-            std::ifstream in(resources_dir() + "/data/printer_gantries/geometries.txt");
+            boost::nowide::ifstream in(resources_dir() + "/data/printer_gantries/geometries.txt");
             boost::property_tree::ptree pt;
             boost::property_tree::read_json(in, pt);
             for (const auto& printer : pt.get_child("printers")) {
