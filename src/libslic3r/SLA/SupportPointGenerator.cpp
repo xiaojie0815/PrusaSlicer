@@ -408,7 +408,7 @@ Points sample_overhangs(const LayerPart& part, double dist2) {
     // Collect previous expolygons by links collected in loop before    
     ExPolygons prev_shapes = get_shapes(part.prev_parts);
     assert(!prev_shapes.empty());
-    ExPolygons overhangs = diff_ex(shape, prev_shapes);
+    ExPolygons overhangs = diff_ex(shape, prev_shapes, ApplySafetyOffset::Yes);
     if (overhangs.empty()) // above part is smaller in whole contour
         return {};
     
