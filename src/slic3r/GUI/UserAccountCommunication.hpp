@@ -73,7 +73,7 @@ public:
 
     void on_activate_app(bool active);
 
-    void set_username(const std::string& username);
+    void set_username(const std::string& username, bool store);
     void set_remember_session(bool b);
     bool get_remember_session() const {return m_remember_session; }
 
@@ -90,7 +90,7 @@ public:
     void on_polling_timer(wxTimerEvent& evt);
     void set_tokens(const StoreData store_data);
 
-    void on_race_lost(); // T5
+    void on_race_lost(); // T4
     void on_store_read_request();
 private:
     std::unique_ptr<UserAccountSession>     m_session;
@@ -118,7 +118,6 @@ private:
     std::string client_id() const { return Utils::ServiceConfig::instance().account_client_id(); }
 
     // master / slave logic
-    bool m_behave_as_master {false};
     wxTimer* m_slave_read_timer; // T2 timer
     wxTimer* m_after_race_lost_timer; // T5 timer
     int m_last_token_duration_seconds {0};

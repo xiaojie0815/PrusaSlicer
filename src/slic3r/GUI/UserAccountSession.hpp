@@ -21,6 +21,7 @@ using UserAccountTimeEvent = Event<int>;
 wxDECLARE_EVENT(EVT_OPEN_PRUSAAUTH, OpenPrusaAuthEvent);
 wxDECLARE_EVENT(EVT_UA_LOGGEDOUT, UserAccountSuccessEvent);
 wxDECLARE_EVENT(EVT_UA_ID_USER_SUCCESS, UserAccountSuccessEvent);
+wxDECLARE_EVENT(EVT_UA_ID_USER_SUCCESS_AFTER_TOKEN_SUCCESS, UserAccountSuccessEvent);
 wxDECLARE_EVENT(EVT_UA_SUCCESS, UserAccountSuccessEvent);
 wxDECLARE_EVENT(EVT_UA_PRUSACONNECT_STATUS_SUCCESS, UserAccountSuccessEvent);
 wxDECLARE_EVENT(EVT_UA_PRUSACONNECT_PRINTER_MODELS_SUCCESS, UserAccountSuccessEvent);
@@ -45,6 +46,7 @@ enum class UserAccountActionID {
     USER_ACCOUNT_ACTION_REFRESH_TOKEN,
     USER_ACCOUNT_ACTION_CODE_FOR_TOKEN,
     USER_ACCOUNT_ACTION_USER_ID,
+    USER_ACCOUNT_ACTION_USER_ID_AFTER_TOKEN_SUCCESS,
     USER_ACCOUNT_ACTION_TEST_ACCESS_TOKEN,
     USER_ACCOUNT_ACTION_TEST_CONNECTION,
     USER_ACCOUNT_ACTION_CONNECT_STATUS, // status of all printers by UUID
@@ -124,6 +126,7 @@ public:
         m_actions[UserAccountActionID::USER_ACCOUNT_ACTION_REFRESH_TOKEN] = std::make_unique<UserActionPost>("EXCHANGE_TOKENS", sc.account_token_url());
         m_actions[UserAccountActionID::USER_ACCOUNT_ACTION_CODE_FOR_TOKEN] = std::make_unique<UserActionPost>("EXCHANGE_TOKENS", sc.account_token_url());
         m_actions[UserAccountActionID::USER_ACCOUNT_ACTION_USER_ID] = std::make_unique<UserActionGetWithEvent>("USER_ID", sc.account_me_url(), EVT_UA_ID_USER_SUCCESS, EVT_UA_RESET);
+        m_actions[UserAccountActionID::USER_ACCOUNT_ACTION_USER_ID_AFTER_TOKEN_SUCCESS] = std::make_unique<UserActionGetWithEvent>("USER_ID_AFTER_TOKEN_SUCCESS", sc.account_me_url(), EVT_UA_ID_USER_SUCCESS_AFTER_TOKEN_SUCCESS, EVT_UA_RESET);
         m_actions[UserAccountActionID::USER_ACCOUNT_ACTION_TEST_ACCESS_TOKEN] = std::make_unique<UserActionGetWithEvent>("TEST_ACCESS_TOKEN", sc.account_me_url(), EVT_UA_ID_USER_SUCCESS, EVT_UA_FAIL);
         m_actions[UserAccountActionID::USER_ACCOUNT_ACTION_TEST_CONNECTION] = std::make_unique<UserActionGetWithEvent>("TEST_CONNECTION", sc.account_me_url(), wxEVT_NULL, EVT_UA_RESET);
         m_actions[UserAccountActionID::USER_ACCOUNT_ACTION_CONNECT_STATUS] = std::make_unique<UserActionGetWithEvent>("CONNECT_STATUS", sc.connect_status_url(), EVT_UA_PRUSACONNECT_STATUS_SUCCESS, EVT_UA_FAIL);

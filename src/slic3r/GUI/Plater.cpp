@@ -957,7 +957,7 @@ void Plater::priv::init()
             this->show_action_buttons(this->ready_to_slice);
         });
 
-        this->q->Bind(EVT_UA_ID_USER_SUCCESS, [this](UserAccountSuccessEvent& evt) {
+        auto on_id_user_success = [this](UserAccountSuccessEvent& evt, bool after_token_success) {
             if (login_dialog != nullptr) {
                 login_dialog->EndModal(wxID_CANCEL);
             }
@@ -965,7 +965,7 @@ void Plater::priv::init()
             evt.Skip();
             std::string who = user_account->get_username();
             std::string username;
-            if (user_account->on_user_id_success(evt.data, username)) {
+            if (user_account->on_user_id_success(evt.data, username, after_token_success)) {
                 if (who != username) {
                     // show notification only on login (not refresh).
                     std::string text = format(_u8L("Logged to Prusa Account as %1%."), username);
@@ -999,9 +999,16 @@ void Plater::priv::init()
                 this->main_frame->refresh_account_menu(true);
                 // Update sidebar printer status
                 sidebar->update_printer_presets_combobox();
-            }
-        
+            }    
+        };
+
+        this->q->Bind(EVT_UA_ID_USER_SUCCESS, [on_id_user_success](UserAccountSuccessEvent& evt) {
+            on_id_user_success(evt, false);
         });
+        this->q->Bind(EVT_UA_ID_USER_SUCCESS_AFTER_TOKEN_SUCCESS, [on_id_user_success](UserAccountSuccessEvent& evt) {
+            on_id_user_success(evt, true);
+        });
+
         this->q->Bind(EVT_UA_RESET, [this](UserAccountFailEvent& evt) {
             BOOST_LOG_TRIVIAL(error) << "Reseting Prusa Account communication. Error message: " << evt.data;
             user_account->clear();

@@ -21,6 +21,7 @@ namespace GUI {
 wxDEFINE_EVENT(EVT_OPEN_PRUSAAUTH, OpenPrusaAuthEvent);
 wxDEFINE_EVENT(EVT_UA_LOGGEDOUT, UserAccountSuccessEvent);
 wxDEFINE_EVENT(EVT_UA_ID_USER_SUCCESS, UserAccountSuccessEvent);
+wxDEFINE_EVENT(EVT_UA_ID_USER_SUCCESS_AFTER_TOKEN_SUCCESS, UserAccountSuccessEvent);
 wxDEFINE_EVENT(EVT_UA_SUCCESS, UserAccountSuccessEvent);
 wxDEFINE_EVENT(EVT_UA_PRUSACONNECT_STATUS_SUCCESS, UserAccountSuccessEvent);
 wxDEFINE_EVENT(EVT_UA_PRUSACONNECT_PRINTER_MODELS_SUCCESS, UserAccountSuccessEvent);
@@ -252,7 +253,7 @@ void UserAccountSession::token_success_callback(const std::string& body)
         m_shared_session_key = shared_session_key;
         m_next_token_timeout = std::time(nullptr) + expires_in;
     }
-    enqueue_action(UserAccountActionID::USER_ACCOUNT_ACTION_USER_ID, nullptr, nullptr, {});
+    enqueue_action(UserAccountActionID::USER_ACCOUNT_ACTION_USER_ID_AFTER_TOKEN_SUCCESS, nullptr, nullptr, {});
     wxQueueEvent(p_evt_handler, new UserAccountTimeEvent(EVT_UA_REFRESH_TIME, expires_in));
 }
 

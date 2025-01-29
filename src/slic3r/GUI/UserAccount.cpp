@@ -33,10 +33,10 @@ UserAccount::UserAccount(wxEvtHandler* evt_handler, AppConfig* app_config, const
 UserAccount::~UserAccount()
 {}
 
-void UserAccount::set_username(const std::string& username)
+void UserAccount::set_username(const std::string& username, bool store)
 {
     m_username = username;
-    m_communication->set_username(username);
+    m_communication->set_username(username, store);
 }
 
 void UserAccount::clear()
@@ -126,7 +126,7 @@ bool UserAccount::on_login_code_recieved(const std::string& url_message)
     return true;
 }
 
-bool UserAccount::on_user_id_success(const std::string data, std::string& out_username)
+bool UserAccount::on_user_id_success(const std::string data, std::string& out_username, bool after_token_success)
 {
     boost::property_tree::ptree ptree;
     try {
@@ -151,7 +151,7 @@ bool UserAccount::on_user_id_success(const std::string data, std::string& out_us
         return false;
     }
     std::string public_username = m_account_user_data["public_username"];
-    set_username(public_username);
+    set_username(public_username, after_token_success);
     out_username = public_username;
     // enqueue GET with avatar url
 

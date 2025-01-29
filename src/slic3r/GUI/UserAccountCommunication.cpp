@@ -258,8 +258,6 @@ UserAccountCommunication::UserAccountCommunication(wxEvtHandler* evt_handler, Ap
     long long remain_time = next_timeout_long - std::time(nullptr);
     if (remain_time <= 0) {
         stored_data.access_token.clear();
-        // if there is no access token to be used - consider yourself as master (either for case refresh token is going to be used now or future login)
-        m_behave_as_master = true;
     } else {
         set_refresh_time((int)remain_time);
     }
@@ -295,10 +293,10 @@ UserAccountCommunication::~UserAccountCommunication()
     }
 }
 
-void UserAccountCommunication::set_username(const std::string& username)
+void UserAccountCommunication::set_username(const std::string& username, bool store)
 {
     m_username = username;
-    if (!m_behave_as_master && !username.empty()) {
+    if (!store && !username.empty()) {
         return;
     }
     {
@@ -355,7 +353,7 @@ void UserAccountCommunication::set_remember_session(bool b)
     BOOST_LOG_TRIVIAL(debug) << __FUNCTION__;
     m_remember_session = b;
     // tokens needs to be stored or deleted
-    set_username(m_username);
+    set_username(m_username, true);
 }
 
 std::string UserAccountCommunication::get_access_token()
@@ -450,12 +448,11 @@ void UserAccountCommunication::do_clear()
 {
     BOOST_LOG_TRIVIAL(debug) << __FUNCTION__;
     m_session->clear();
-    set_username({});
+    set_username({}, true);
     m_token_timer->Stop();
     m_slave_read_timer->Stop();
     m_after_race_lost_timer->Stop();
     m_next_token_refresh_at = 0;
-    m_behave_as_master = true;
 }
 
 void UserAccountCommunication::on_login_code_recieved(const std::string& url_message)
@@ -544,7 +541,6 @@ void UserAccountCommunication::enqueue_refresh()
         BOOST_LOG_TRIVIAL(debug) << "User Account: Token refresh already enqueued, skipping...";
         return;
     }
-    m_behave_as_master = true;
     m_session->enqueue_refresh({});
     wakeup_session_thread();
 }
@@ -698,14 +694,9 @@ void UserAccountCommunication::on_token_timer(wxTimerEvent& evt)
 
     long long expires_in_second = stored_data.next_timeout.empty() ? 0 : std::stoll(stored_data.next_timeout) - std::time(nullptr);
     if (my_pid == stored_data.master_pid) {
-        // this is master instance - writing to secret store is permited
-        m_behave_as_master = true;
         enqueue_refresh(); 
         return;
     } 
-    // this is not master instance - writing to secret store is not permited until it is clear current master did not renew
-    m_behave_as_master = false;
-
     // token could be either already new -> we want to start using it now
     const auto prior_expiration_secs = std::max(m_last_token_duration_seconds / 24, 10);
     if (expires_in_second >= 0 && expires_in_second > prior_expiration_secs) {
@@ -765,7 +756,6 @@ void UserAccountCommunication::enqueue_refresh_race(const std::string refresh_to
         return;
     }
     // At this point, last master did not renew the tokens, behave like master
-    m_behave_as_master = true;
     m_session->enqueue_refresh_race();
     wakeup_session_thread();
 }
@@ -776,7 +766,6 @@ void UserAccountCommunication::on_race_lost()
     // race from on_slave_read_timer has been lost
     // other instance was faster to renew tokens so refresh token from this app was denied (invalid grant)
     // we should read the other token now.
-    m_behave_as_master = false;
     std::string current_access_token = m_session->get_access_token();
     StoreData stored_data;
     read_stored_data(stored_data);

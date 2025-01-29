@@ -615,6 +615,7 @@ ConnectWebViewPanel::ConnectWebViewPanel(wxWindow* parent)
     auto* plater = wxGetApp().plater();
     plater->Bind(EVT_UA_LOGGEDOUT, &ConnectWebViewPanel::on_user_logged_out, this);
     plater->Bind(EVT_UA_ID_USER_SUCCESS, &ConnectWebViewPanel::on_user_token, this);
+    plater->Bind(EVT_UA_ID_USER_SUCCESS_AFTER_TOKEN_SUCCESS, &ConnectWebViewPanel::on_user_token, this);
 
     m_actions["appQuit"] = std::bind(&WebViewPanel::on_app_quit_event, this, std::placeholders::_1);
     m_actions["appMinimize"] = std::bind(&WebViewPanel::on_app_minimize_event, this, std::placeholders::_1);
