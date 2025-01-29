@@ -333,22 +333,15 @@ void support_peninsulas(const Peninsulas& peninsulas, NearPoints& near_points, f
 }
 
 /// <summary>
-/// Copy parts from link to output
+/// Copy parts shapes from link to output
 /// </summary>
 /// <param name="part_links">Links between part of mesh</param>
-/// <returns>Collected polygons from links</returns>
-Polygons get_polygons(const PartLinks& part_links) {
-    size_t cnt = 0;
+/// <returns>Collected expolygons from links</returns>
+ExPolygons get_shapes(const PartLinks& part_links) {
+    ExPolygons out;
+    out.reserve(part_links.size());
     for (const PartLink &part_link : part_links)
-        cnt += 1 + part_link->shape->holes.size();
-
-    Polygons out;
-    out.reserve(cnt);
-    for (const PartLink &part_link : part_links) {
-        const ExPolygon &shape = *part_link->shape;
-        out.emplace_back(shape.contour);
-        append(out, shape.holes);
-    }
+        out.push_back(*part_link->shape); // copy
     return out;
 }
 
@@ -413,13 +406,13 @@ Points sample_overhangs(const LayerPart& part, double dist2) {
     const ExPolygon &shape = *part.shape;
 
     // Collect previous expolygons by links collected in loop before    
-    Polygons prev_polygons = get_polygons(part.prev_parts);
-    assert(!prev_polygons.empty());
-    ExPolygons overhangs = diff_ex(shape, prev_polygons);    
+    ExPolygons prev_shapes = get_shapes(part.prev_parts);
+    assert(!prev_shapes.empty());
+    ExPolygons overhangs = diff_ex(shape, prev_shapes);
     if (overhangs.empty()) // above part is smaller in whole contour
         return {};
     
-    Points prev_points = to_points(prev_polygons);
+    Points prev_points = to_points(prev_shapes);
     std::sort(prev_points.begin(), prev_points.end());
 
     // TODO: solve case when shape and prev points has same point
@@ -569,14 +562,17 @@ void remove_supports_out_of_part(NearPoints &near_points, const LayerPart &part,
 /// <param name="self_supported_width">supported distance from mainland</param>
 void create_peninsulas(LayerPart &part, const PrepareSupportConfig &config) {
     assert(config.peninsula_min_width > config.peninsula_self_supported_width);
-    const Polygons below_polygons = get_polygons(part.prev_parts);
-    const Polygons below_expanded = expand(below_polygons, config.peninsula_min_width, ClipperLib::jtSquare);
+    const ExPolygons below_shapes = get_shapes(part.prev_parts);
+    const ExPolygons below_expanded = offset_ex(below_shapes, config.peninsula_min_width, ClipperLib::jtSquare);
     const ExPolygon &part_shape = *part.shape;
     ExPolygons over_peninsula = diff_ex(part_shape, below_expanded);
     if (over_peninsula.empty())
         return; // only tiny overhangs
 
-    Polygons below_self_supported = expand(below_polygons, config.peninsula_self_supported_width, ClipperLib::jtSquare);
+    ExPolygons below_self_supported = offset_ex(below_shapes, config.peninsula_self_supported_width, ClipperLib::jtSquare);
+    // exist weird edge case, where expand function return empty result
+    assert(below_self_supported.empty());
+
     // exist layer part over peninsula limit
     ExPolygons peninsulas_shape = diff_ex(part_shape, below_self_supported);
 
@@ -603,6 +599,9 @@ void create_peninsulas(LayerPart &part, const PrepareSupportConfig &config) {
     // False .. line is made by border of current layer part(peninsula coast)
     auto exist_belowe = [&get_angle, &idx, &is_lower, &below_lines, &belowe_line_angle]
     (const Line &l) {
+        // It is edge case of expand
+        if (below_lines.empty())
+            return false;
         // allowed angle epsilon
         const double angle_epsilon = 1e-3; // < 0.06 DEG
         const double paralel_epsilon = scale_(1e-2); // 10 um
@@ -871,8 +870,8 @@ size_t get_index_of_closest_part(const Point &coor, const LayerParts &parts, dou
             // check point lais inside prev or next part shape
             // When assert appear check that part index is really the correct one
             assert(union_ex(
-                get_polygons(parts[part_index].prev_parts),
-                get_polygons(parts[part_index].next_parts))[0].contains(coor));
+                get_shapes(parts[part_index].prev_parts),
+                get_shapes(parts[part_index].next_parts))[0].contains(coor));
             return part_index;
         }
     
@@ -958,8 +957,8 @@ LayerParts::const_iterator get_closest_part(const PartLinks &links, Vec2d &coor)
         // check point lais inside prev or next part shape
         // When assert appear check that part index is really the correct one
         assert(union_ex(
-            get_polygons(links[part_index]->prev_parts),
-            get_polygons(links[part_index]->next_parts))[0].contains(coor.cast<coord_t>()));
+            get_shapes(links[part_index]->prev_parts),
+            get_shapes(links[part_index]->next_parts))[0].contains(coor.cast<coord_t>()));
         coor = hit_point; // update closest point
         return links[part_index];        
     }
