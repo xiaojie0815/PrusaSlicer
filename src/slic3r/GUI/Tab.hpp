@@ -426,6 +426,7 @@ protected:
 	void			update_frequently_changed_parameters();
 	void			fill_icon_descriptions();
 	void			set_tooltips_text();
+    std::string     printer_model() const;
 
     virtual bool    select_preset_by_name(const std::string& name_w_suffix, bool force);
     virtual bool    save_current_preset(const std::string& new_name, bool detach);
@@ -569,9 +570,11 @@ class TabSLAMaterial : public Tab
 	void		update_line_with_near_label_widget(ConfigOptionsGroupShp optgroup, const std::string& opt_key, bool is_checked = true);
 	void		add_material_overrides_page();
 	void		update_material_overrides_page();
+    void        create_line_with_tilt_defaults(ConfigOptionsGroupShp optgroup);
 
 	std::map<std::string, wxWindow*> m_overrides_options;
 	ogStaticText*	m_z_correction_to_mm_description = nullptr;
+    wxSizer*        m_tilt_defaults_sizer { nullptr };
 
 public:
     TabSLAMaterial(wxBookCtrlBase* parent) :

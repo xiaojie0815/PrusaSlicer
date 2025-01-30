@@ -378,6 +378,7 @@ public:
 // This vector containes list of parameters for preview of tilt profiles
 const std::vector<std::string>& tilt_options();
 
+void update_tilts_by_mode(DynamicPrintConfig& config, int tilt_mode, bool is_sl1_model);
 void handle_legacy_sla(DynamicPrintConfig &config);
 
 class StaticPrintConfig : public StaticConfig
