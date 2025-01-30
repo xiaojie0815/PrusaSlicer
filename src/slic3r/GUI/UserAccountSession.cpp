@@ -195,9 +195,36 @@ void UserAccountSession::init_with_code(const std::string& code, const std::stri
     }
 }
 
+void UserAccountSession::remove_from_queue(UserAccountActionID action_id)
+{
+    {
+        std::lock_guard<std::mutex> lock(m_session_mutex);
+
+         auto it = std::find_if(
+            std::begin(m_priority_action_queue), std::end(m_priority_action_queue),
+            [action_id](const ActionQueueData& item) { return item.action_id == action_id; }
+        );
+        while (it != m_priority_action_queue.end())
+        {
+            BOOST_LOG_TRIVIAL(debug) << __FUNCTION__;
+            m_priority_action_queue.erase(it);
+            it = std::find_if(
+                std::begin(m_priority_action_queue), std::end(m_priority_action_queue),
+                [action_id](const ActionQueueData& item) { return item.action_id == action_id; }
+            );
+        }
+    }
+
+}
+
 void UserAccountSession::token_success_callback(const std::string& body)
 {
     // No need to use lock m_session_mutex here
+
+    // This is here to prevent performing refresh again until USER_ACCOUNT_ACTION_USER_ID_AFTER_TOKEN_SUCCESS is performed.
+    // If refresh with stored token was enqueued during performing one we are in its success_callback,
+    // It would fail and prevent USER_ID to write this tokens to store. 
+    remove_from_queue(UserAccountActionID::USER_ACCOUNT_ACTION_REFRESH_TOKEN);
 
     BOOST_LOG_TRIVIAL(debug) << __FUNCTION__ << " Access token refreshed";
     // Data we need

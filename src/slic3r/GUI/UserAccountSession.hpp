@@ -207,6 +207,8 @@ private:
     std::string client_id() const { return Utils::ServiceConfig::instance().account_client_id(); }
     void process_action_queue_inner();
 
+    void remove_from_queue(UserAccountActionID action_id);
+
     // called from m_session_mutex protected code only
     void enqueue_action_inner(UserAccountActionID id, UserActionSuccessFn success_callback, UserActionFailFn fail_callback, const std::string& input);
 

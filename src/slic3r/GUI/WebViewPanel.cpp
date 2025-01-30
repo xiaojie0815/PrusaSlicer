@@ -1413,7 +1413,7 @@ void PrintablesWebViewPanel::sys_color_changed()
 
 void PrintablesWebViewPanel::on_printables_event_access_token_expired(const std::string& message_data)
 {
-    //  { "event": "accessTokenExpired:)
+    //  { "event": "accessTokenExpired")
     // There seems to be a situation where we get accessTokenExpired when there is active token from Slicer POW
     // We need get new token and freeze webview until its not refreshed
     if (m_refreshing_token) {

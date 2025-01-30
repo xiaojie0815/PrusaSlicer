@@ -300,7 +300,11 @@ void UserAccountCommunication::set_username(const std::string& username, bool st
         return;
     }
     {
-        BOOST_LOG_TRIVIAL(debug) << __FUNCTION__  << " empty: " << username.empty();
+        //BOOST_LOG_TRIVIAL(debug) << __FUNCTION__  << " empty: " << username.empty();
+        std::string at = m_session->get_access_token();
+        if (!at.empty())
+            at = at.substr(0,5) + "..." + at.substr(at.size()-5);
+        BOOST_LOG_TRIVIAL(debug) << __FUNCTION__ <<" access_token: " << (username.empty() ? "" : at);
         if (is_secret_store_ok()) {
             std::string tokens = "|||";
             if (m_remember_session && !username.empty()) {
@@ -667,9 +671,12 @@ void UserAccountCommunication::request_refresh()
         return;
     }
 
+    // Here we need to count with situation when token was renewed in m_session but was not yet stored.
+    // Then store token is not valid - it should has erlier expiration
     long long expires_in_second = stored_data.next_timeout.empty() ? 0 : std::stoll(stored_data.next_timeout) - std::time(nullptr);
-    if (stored_data.access_token != current_access_token && expires_in_second > 0) {
-        BOOST_LOG_TRIVIAL(debug) << "Found usable token";
+    BOOST_LOG_TRIVIAL(error) << "Compare " <<  expires_in_second << " vs " << m_next_token_refresh_at - std::time(nullptr) << (stored_data.access_token != current_access_token ? " not same" : " same");
+    if (stored_data.access_token != current_access_token && expires_in_second > 0 && expires_in_second > m_next_token_refresh_at - std::time(nullptr)) {
+        BOOST_LOG_TRIVIAL(debug) << "Found usable token. Expires in " << expires_in_second;
         set_tokens(stored_data);
     } else {
         BOOST_LOG_TRIVIAL(debug) << "No new token";
