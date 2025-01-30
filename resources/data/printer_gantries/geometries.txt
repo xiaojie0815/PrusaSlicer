@@ -36,6 +36,52 @@
                 }
             ]
         },
+
+
+        {
+            "printer_notes_regex": ".*PRINTER_MODEL_MK4S.*",
+            "gantry_model_filename": "prusa3d_mk4s_gantry.stl",
+            "slices": [
+                {
+                    "height": "0",
+                    "type": "convex",
+                    "polygons": [
+                        "-29,-19; 28,-19; 28,37; -29,37"
+			
+                    ]
+                },
+                {
+                    "height": "5",
+                    "type": "convex",
+                    "polygons": [	    
+                        "-37,-40; 34,-40; 34,43; -37,43"
+                    ]
+                },
+                {
+                    "height": "7",
+                    "type": "convex",
+                    "polygons": [	    
+                        "-49,7; 27,7; 27,83; -49,83",			
+			"-42,-46; 40,-46; 40,14; -42,14"			
+                    ]
+                },				
+                {
+                    "height": "11",
+                    "type": "box",
+                    "polygons": [		    
+                        "-300,-38; 300,-38; 300,-22; -300,-22"
+                    ]
+                },
+                {
+                    "height": "12",
+                    "type": "box",
+                    "polygons": [
+                        "-14,-85; 11,-85; 11,-39; -14,-39",
+			"-14,-300; 300,-300; 300,-39; -14,-39"			
+                    ]
+                }
+            ]
+        },
         {
             "printer_notes_regex": ".*PRINTER_MODEL_MK3.*",
             "gantry_model_filename": "prusa3d_mk3s_gantry.stl",
