@@ -232,6 +232,10 @@ void WebViewPanel::on_show(wxShowEvent& evt)
         return;
     }
 
+    if (m_after_show_func_prohibited_once) {
+        m_after_show_func_prohibited_once = false;
+        return;
+    }
     after_on_show(evt);
 }
 
