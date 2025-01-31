@@ -22,26 +22,20 @@ bool init_gui_params(GUI::GUI_InitParams& gui_params, int argc, char** argv, Dat
         start_gui = true;
         gui_params.opengl_aa = true;
     }
-#if SLIC3R_OPENGL_ES
-    // are we starting as gcodeviewer ?
-    if (cli.misc_config.has("gcodeviewer")) {
-        cli.start_gui = true;
-        cli.start_as_gcodeviewer = true;
-    }
-#else
 
-    // search for special keys into command line parameters
-    if (cli.misc_config.has("gcodeviewer")) {
+    // are we starting as gcodeviewer ?
+    if (cli.actions_config.has("gcodeviewer")) {
         start_gui = true;
         gui_params.start_as_gcodeviewer = true;
     }
-    else {
 #ifndef _WIN32
+    else {
         // On Unix systems, the prusa-slicer binary may be symlinked to give the application a different meaning.
         gui_params.start_as_gcodeviewer = boost::algorithm::iends_with(boost::filesystem::path(argv[0]).filename().string(), "gcodeviewer");
-#endif // _WIN32
     }
+#endif // _WIN32
 
+#if !SLIC3R_OPENGL_ES
     if (cli.misc_config.has("opengl-version")) {
         const Semver opengl_minimum = Semver(3, 2, 0);
         const std::string opengl_version_str = cli.misc_config.opt_string("opengl-version");
