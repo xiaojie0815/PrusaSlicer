@@ -1351,6 +1351,68 @@ static uint8_t get_color_of_first_polygon_line(const ColorProjectionLines &color
     }
 }
 
+// Helper function to find the dominant color in a map.
+static std::optional<uint8_t> get_dominant_color_from_map(const std::unordered_map<uint8_t, double> &area_per_color)
+{
+    if (area_per_color.empty())
+        return std::nullopt;
+
+    return std::max_element(area_per_color.begin(), area_per_color.end(),
+                            [](const std::pair<uint8_t, double> &p1, const std::pair<uint8_t, double> &p2) {
+                                return p1.second < p2.second;
+                            })->first;
+}
+
+// Function to find the dominant color over the beginning of the ColorProjectionLine.
+static std::optional<uint8_t> find_dominant_color_from_begin(const ColorProjectionLine &color_line)
+{
+    assert(!color_line.color_changes.empty());
+    const ColorChanges                 &color_changes              = color_line.color_changes;
+    const double                        line_length                = (color_line.b - color_line.a).cast<double>().norm();
+    const double                        max_snap_distance          = std::min(line_length, 10. * MM_SEGMENTATION_MAX_SNAP_DISTANCE_SCALED);
+    bool                                max_snap_distance_exceeded = false;
+    std::unordered_map<uint8_t, double> area_per_color;
+    for (auto curr_it = std::next(color_changes.cbegin()); curr_it != color_changes.cend(); ++curr_it) {
+        auto prev_it = std::prev(curr_it);
+        if (const double endpoint_dist = curr_it->t * line_length; endpoint_dist < max_snap_distance) {
+            area_per_color[prev_it->color_next] += (curr_it->t - prev_it->t) * line_length;
+        } else {
+            area_per_color[prev_it->color_next] += max_snap_distance - prev_it->t * line_length;
+            max_snap_distance_exceeded           = true;
+            break;
+        }
+    }
+
+    if (!max_snap_distance_exceeded) {
+        const ColorChange &last_color_change          = color_changes.back();
+        area_per_color[last_color_change.color_next] += max_snap_distance - last_color_change.t * line_length;
+    }
+
+    return get_dominant_color_from_map(area_per_color);
+}
+
+// Function to find the dominant color over the end of the ColorProjectionLine.
+std::optional<uint8_t> find_dominant_color_from_end(const ColorProjectionLine &color_line)
+{
+    const ColorChanges                 &color_changes     = color_line.color_changes;
+    const double                        line_length       = (color_line.b - color_line.a).cast<double>().norm();
+    const double                        max_snap_distance = std::min(line_length, 10. * MM_SEGMENTATION_MAX_SNAP_DISTANCE_SCALED);
+    double                              prev_t            = 1.;
+    std::unordered_map<uint8_t, double> area_per_color;
+    for (auto curr_it = color_changes.crbegin(); curr_it != color_changes.crend(); ++curr_it) {
+        if (const double endpoint_dist = (1. - curr_it->t) * line_length; endpoint_dist < max_snap_distance) {
+            area_per_color[curr_it->color_next] += (prev_t - curr_it->t) * line_length;
+        } else {
+            area_per_color[curr_it->color_next] += max_snap_distance - (1. - prev_t) * line_length;
+            break;
+        }
+
+        prev_t = curr_it->t;
+    }
+
+    return get_dominant_color_from_map(area_per_color);
+}
+
 static void filter_projected_color_points_on_polygons(std::vector<ColorProjectionLines> &color_polygons_projection_lines) {
     for (ColorProjectionLines &color_polygon_projection_lines : color_polygons_projection_lines) {
         for (ColorProjectionLine &color_line : color_polygon_projection_lines) {
@@ -1373,13 +1435,11 @@ static void filter_projected_color_points_on_polygons(std::vector<ColorProjectio
 
             if (snap_candidates.size() == 1) {
                 snap_candidates.front()->t = 0.;
-            } else if (snap_candidates.size() > 1) {
+            } else if (const std::optional<uint8_t> dominant_color_from_begin = find_dominant_color_from_begin(color_line); snap_candidates.size() > 1 && dominant_color_from_begin.has_value()) {
                 ColorChange &first_candidate = *snap_candidates.front();
-                ColorChange &last_candidate  = *snap_candidates.back();
-
-                first_candidate.t = 0.;
-                for (auto cr_it = std::next(snap_candidates.begin()); cr_it != snap_candidates.end(); ++cr_it) {
-                    (*cr_it)->color_next = last_candidate.color_next;
+                first_candidate.t            = 0.;
+                for (ColorChange *snap_candidate : snap_candidates) {
+                    snap_candidate->color_next = *dominant_color_from_begin;
                 }
             }
 
@@ -1395,14 +1455,13 @@ static void filter_projected_color_points_on_polygons(std::vector<ColorProjectio
                 }
             }
 
-            while (snap_candidates.size() > 1) {
-                snap_candidates.pop_back();
-                color_line.color_changes.pop_back();
-            }
+            if (const std::optional<uint8_t> dominant_color_from_end = find_dominant_color_from_end(color_line); !snap_candidates.empty() && dominant_color_from_end.has_value()) {
+                for (ColorChange *snap_candidate : snap_candidates) {
+                    snap_candidate->color_next = *dominant_color_from_end;
+                }
 
-            if (!snap_candidates.empty()) {
-                assert(snap_candidates.size() == 1);
-                snap_candidates.back()->t = 1.;
+                // Be aware that snap_candidates are sorted in the opposite order to color_line.color_changes.
+                color_line.color_changes.back().t = 1.;
             }
 
             // Remove color ranges that just repeating the same color.
