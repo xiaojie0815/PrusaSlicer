@@ -5507,9 +5507,9 @@ void TabSLAMaterial::build_tilt_group(Slic3r::GUI::PageShp page)
     // TRN: 'Profile' in this context denotes a group of parameters used to configure
     //      layer separation procedure for SLA printers.
     auto optgroup = page->new_optgroup(L("Profile settings"));
-    optgroup->on_change = [this, optgroup](const t_config_option_key& key, boost::any value)
+    optgroup->on_change = [this](const t_config_option_key& key, boost::any value)
     {
-        if (key.find_first_of("use_tilt") == 0)
+        if (key.find("use_tilt") == 0)
             toggle_tilt_options(key == "use_tilt#0");
 
         update_dirty();

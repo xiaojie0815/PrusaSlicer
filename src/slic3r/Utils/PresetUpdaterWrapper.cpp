@@ -27,6 +27,11 @@ PresetUpdaterWrapper::~PresetUpdaterWrapper()
         if (m_ui_status) 
             m_ui_status->set_canceled(true);
 		m_worker_thread.join();
+
+        if (m_ui_status) {
+            delete m_ui_status;
+            m_ui_status = nullptr;
+        }
 	}
 }
 

@@ -225,7 +225,13 @@ UserAccountCommunication::UserAccountCommunication(wxEvtHandler* evt_handler, Ap
 UserAccountCommunication::~UserAccountCommunication() 
 {
     m_token_timer->Stop();
+    delete m_token_timer;
+    m_token_timer = nullptr;
+
     m_polling_timer->Stop();
+    delete m_polling_timer;
+    m_polling_timer = nullptr;
+
     if (m_thread.joinable()) {
         // Stop the worker thread, if running.
         {
