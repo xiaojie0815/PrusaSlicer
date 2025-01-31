@@ -61,6 +61,8 @@ const constexpr double POLYGON_COLOR_FILTER_TOLERANCE_SCALED          = scaled<d
 const constexpr double INPUT_POLYGONS_FILTER_TOLERANCE_SCALED         = scaled<double>(0.001);
 const constexpr double MM_SEGMENTATION_MAX_PROJECTION_DISTANCE_SCALED = scaled<double>(0.4);
 const constexpr double MM_SEGMENTATION_MAX_SNAP_DISTANCE_SCALED       = scaled<double>(0.01);
+const constexpr double MM_SEGMENTATION_SNAP_ANGLE_THRESHOLD           = PI / 12.;
+const constexpr double MM_SEGMENTATION_SNAP_ANGLE_MAX_DISTANCE_SCALED = scaled<double>(0.1);
 
 enum VD_ANNOTATION : Voronoi::VD::cell_type::color_type {
     VERTEX_ON_CONTOUR = 1,
@@ -1429,6 +1431,142 @@ static void filter_projected_color_points_on_polygons(std::vector<ColorProjectio
     }
 }
 
+static double calc_three_color_points_angle(const ColorPoint &prev_pt, const ColorPoint &curr_pt, const ColorPoint &next_pt)
+{
+    assert(prev_pt.p != curr_pt.p);
+    assert(curr_pt.p != next_pt.p);
+
+    const Vec2d ab_vec = (prev_pt.p - curr_pt.p).cast<double>().normalized();
+    const Vec2d cb_vec = (next_pt.p - curr_pt.p).cast<double>().normalized();
+    return PI - std::acos(std::clamp(ab_vec.dot(cb_vec), -1.0, 1.0));
+}
+
+struct SnapAngle
+{
+    enum class Direction { Forward, Backward };
+
+    size_t    pt_index;
+    Direction direction;
+};
+
+static std::optional<SnapAngle> find_nearest_snap_angle(const ColorPoints &color_polygon_points, const size_t begin_idx, const double max_distance, const double angle_threshold)
+{
+    assert(begin_idx < color_polygon_points.size() && color_polygon_points.size() >= 3);
+
+    const auto calc_three_points_angle = [&color_polygon_points](const size_t prev_idx, const size_t curr_idx, const size_t next_idx) -> double {
+        return calc_three_color_points_angle(color_polygon_points[prev_idx], color_polygon_points[curr_idx], color_polygon_points[next_idx]);
+    };
+
+    const auto next_index = [&color_polygon_points](const size_t curr_idx) -> size_t {
+        return curr_idx < (color_polygon_points.size() - 1) ? curr_idx + 1 : 0;
+    };
+
+    const auto prev_index = [&color_polygon_points](const size_t curr_idx) -> size_t {
+        return curr_idx > 0 ? curr_idx - 1 : color_polygon_points.size() - 1;
+    };
+
+    const auto distance_sqr = [&color_polygon_points](const size_t first_idx, const size_t second_idx) -> double {
+        return (color_polygon_points[second_idx].p - color_polygon_points[first_idx].p).cast<double>().squaredNorm();
+    };
+
+    // Try to find a snap angle in the forward direction.
+    const double max_distance_sqr   = Slic3r::sqr(max_distance);
+    size_t       prev_idx           = prev_index(begin_idx);
+    size_t       curr_idx           = begin_idx;
+    size_t       next_idx           = next_index(begin_idx);
+    double       total_distance_sqr = 0.;
+    do {
+        total_distance_sqr += distance_sqr(curr_idx, next_idx);
+        if (total_distance_sqr > max_distance_sqr) {
+            break;
+        }
+
+        prev_idx = curr_idx;
+        curr_idx = next_idx;
+        next_idx = next_index(next_idx);
+
+        if (color_polygon_points[prev_idx].color_next != color_polygon_points[curr_idx].color_next) {
+            break;
+        }
+
+        if (const double angle = calc_three_points_angle(prev_idx, curr_idx, next_idx); angle > angle_threshold) {
+            return SnapAngle{curr_idx, SnapAngle::Direction::Forward};
+        }
+    } while (curr_idx != begin_idx);
+
+    // Try to find a snap angle in the backward direction.
+    prev_idx           = prev_index(begin_idx);
+    curr_idx           = begin_idx;
+    next_idx           = next_index(begin_idx);
+    total_distance_sqr = 0.;
+    do {
+        total_distance_sqr += distance_sqr(prev_idx, curr_idx);
+        if (total_distance_sqr > max_distance_sqr) {
+            break;
+        }
+
+        next_idx = curr_idx;
+        curr_idx = prev_idx;
+        prev_idx = prev_index(prev_idx);
+
+        if (color_polygon_points[prev_idx].color_next != color_polygon_points[curr_idx].color_next) {
+            break;
+        }
+
+        if (const double angle = calc_three_points_angle(prev_idx, curr_idx, next_idx); angle > angle_threshold) {
+            return SnapAngle{curr_idx, SnapAngle::Direction::Backward};
+        }
+    } while (curr_idx != begin_idx);
+
+    return std::nullopt;
+}
+
+static void snap_projected_color_points_to_nearest_angles(std::vector<ColorPoints> &color_polygons_points)
+{
+    for (ColorPoints &color_polygon_points : color_polygons_points) {
+        assert(color_polygon_points.size() >= 3);
+
+        const auto next_index = [&color_polygon_points](const size_t curr_idx) -> size_t {
+            return curr_idx < (color_polygon_points.size() - 1) ? curr_idx + 1 : 0;
+        };
+
+        const auto prev_index = [&color_polygon_points](const size_t curr_idx) -> size_t {
+            return curr_idx > 0 ? curr_idx - 1 : color_polygon_points.size() - 1;
+        };
+
+        for (size_t curr_idx = 0; curr_idx < color_polygon_points.size(); ++curr_idx) {
+            const ColorPoint &prev_pt = color_polygon_points[prev_index(curr_idx)];
+            const ColorPoint &curr_pt = color_polygon_points[curr_idx];
+            const ColorPoint &next_pt = color_polygon_points[next_index(curr_idx)];
+
+            // We care only about places in which color changes with angles below the threshold.
+            if (prev_pt.color_next == curr_pt.color_next || calc_three_color_points_angle(prev_pt, curr_pt, next_pt) > MM_SEGMENTATION_SNAP_ANGLE_THRESHOLD) {
+                continue;
+            }
+
+            const std::optional<SnapAngle> snap_angle = find_nearest_snap_angle(color_polygon_points, curr_idx, MM_SEGMENTATION_SNAP_ANGLE_MAX_DISTANCE_SCALED, MM_SEGMENTATION_SNAP_ANGLE_THRESHOLD);
+            if (!snap_angle.has_value()) {
+                continue;
+            }
+
+            if (snap_angle->direction == SnapAngle::Direction::Forward) {
+                color_polygon_points[snap_angle->pt_index].color_next = curr_pt.color_next;
+
+                for (size_t modify_idx = curr_idx; modify_idx != snap_angle->pt_index; modify_idx = next_index(modify_idx)) {
+                    color_polygon_points[modify_idx].color_next = prev_pt.color_next;
+                }
+            } else {
+                assert(snap_angle->direction == SnapAngle::Direction::Backward);
+                color_polygon_points[prev_index(snap_angle->pt_index)].color_next = prev_pt.color_next;
+
+                for (size_t modify_idx = snap_angle->pt_index; modify_idx != curr_idx; modify_idx = next_index(modify_idx)) {
+                    color_polygon_points[modify_idx].color_next = curr_pt.color_next;
+                }
+            }
+        }
+    }
+}
+
 static std::vector<ColorPoints> convert_color_polygons_projection_lines_to_color_points(const std::vector<ColorProjectionLines> &color_polygons_projection_lines) {
     std::vector<ColorPoints> color_polygons_points;
     color_polygons_points.reserve(color_polygons_projection_lines.size());
@@ -1813,13 +1951,14 @@ std::vector<std::vector<ExPolygons>> segmentation_by_painting(const PrintObject 
             update_color_changes_using_color_projection_ranges(input_polygons_projection_lines);
             filter_projected_color_points_on_polygons(input_polygons_projection_lines);
 
-            const std::vector<ColorPoints>  color_polygons_points = convert_color_polygons_projection_lines_to_color_points(input_polygons_projection_lines);
-            const std::vector<ColoredLines> colored_polygons      = color_points_to_colored_lines(color_polygons_points);
+            std::vector<ColorPoints> color_polygons_points = convert_color_polygons_projection_lines_to_color_points(input_polygons_projection_lines);
+            snap_projected_color_points_to_nearest_angles(color_polygons_points);
 
             if constexpr (MM_SEGMENTATION_DEBUG_COLORIZED_POLYGONS) {
                 export_color_polygons_points_to_svg(debug_out_path("mm-projected-color_polygon-%d.svg", layer_idx), color_polygons_points, input_expolygons[layer_idx]);
             }
 
+            const std::vector<ColoredLines> colored_polygons = color_points_to_colored_lines(color_polygons_points);
             assert(!colored_polygons.empty());
             if (has_layer_only_one_color(colored_polygons)) {
                 // When the whole layer is painted using the same color, it is not needed to construct a Voronoi diagram for the segmentation of this layer.
