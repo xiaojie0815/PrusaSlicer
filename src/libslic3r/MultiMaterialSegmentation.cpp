@@ -415,6 +415,7 @@ static void delete_vertex_deep(const VD::vertex_type &vertex) {
 
     while (!vertices_to_delete.empty()) {
         const VD::vertex_type &vertex_to_delete = *vertices_to_delete.front();
+        assert(vertex_to_delete.color() != VD_ANNOTATION::VERTEX_ON_CONTOUR);
         vertices_to_delete.pop();
         vertex_to_delete.color(VD_ANNOTATION::DELETED);
 
@@ -429,97 +430,163 @@ static void delete_vertex_deep(const VD::vertex_type &vertex) {
     }
 }
 
-static inline Vec2d mk_point_vec2d(const VD::vertex_type *point) {
-    assert(point != nullptr);
-    return {point->x(), point->y()};
-}
-
-static inline Vec2d mk_vector_vec2d(const VD::edge_type *edge) {
-    assert(edge != nullptr);
-    return mk_point_vec2d(edge->vertex1()) - mk_point_vec2d(edge->vertex0());
-}
-
-static inline Vec2d mk_flipped_vector_vec2d(const VD::edge_type *edge) {
-    assert(edge != nullptr);
-    return mk_point_vec2d(edge->vertex0()) - mk_point_vec2d(edge->vertex1());
-}
-
-static double edge_length(const VD::edge_type &edge) {
-    assert(edge.is_finite());
-    return mk_vector_vec2d(&edge).norm();
-}
-
-// Used in remove_multiple_edges_in_vertices()
-// Returns length of edge with is connected to contour. To this length is include other edges with follows it if they are almost straight (with the
-// tolerance of 15) And also if node between two subsequent edges is connected only to these two edges.
-static inline double calc_total_edge_length(const VD::edge_type &starting_edge)
+// Removes all edges except one in a Voronoi vertex that has more than one Voronoi edge (for example,
+// in concave parts of a polygon). The one edge that is kept is selected arbitrarily.
+static void remove_excess_voronoi_edges(const VD::vertex_type &vertex)
 {
-    double               total_edge_length = edge_length(starting_edge);
-    const VD::edge_type *prev              = &starting_edge;
-    do {
-        if (prev->is_finite() && non_deleted_edge_count(*prev->vertex1()) > 2)
-            break;
-
-        bool                 found_next_edge = false;
-        const VD::edge_type *current         = prev->next();
-        do {
-            if (current->color() == VD_ANNOTATION::DELETED)
-                continue;
-
-            Vec2d  first_line_vec_n  = mk_flipped_vector_vec2d(prev).normalized();
-            Vec2d  second_line_vec_n = mk_vector_vec2d(current).normalized();
-            double angle             = ::acos(std::clamp(first_line_vec_n.dot(second_line_vec_n), -1.0, 1.0));
-            if (Slic3r::cross2(first_line_vec_n, second_line_vec_n) < 0.0)
-                angle = 2.0 * (double) PI - angle;
-
-            if (std::abs(angle - PI) >= (PI / 12))
-                continue;
-
-            prev               = current;
-            found_next_edge    = true;
-            total_edge_length += edge_length(*current);
-
-            break;
-        } while (current = current->prev()->twin(), current != prev->next());
-
-        if (!found_next_edge)
-            break;
-
-    } while (prev != &starting_edge);
-
-    return total_edge_length;
-}
-
-// When a Voronoi vertex has more than one Voronoi edge (for example, in concave parts of a polygon),
-// we leave just one Voronoi edge in the Voronoi vertex.
-// This Voronoi edge is selected based on a heuristic.
-static void remove_multiple_edges_in_vertex(const VD::vertex_type &vertex) {
-    if (non_deleted_edge_count(vertex) <= 1)
+    if (non_deleted_edge_count(vertex) <= 1) {
         return;
+    }
 
-    std::vector<std::pair<const VD::edge_type *, double>> edges_to_check;
-    const VD::edge_type *edge = vertex.incident_edge();
+    std::vector<const VD::edge_type *> vertex_edges;
+    const VD::edge_type               *edge = vertex.incident_edge();
     do {
-        if (edge->color() == VD_ANNOTATION::DELETED)
+        if (edge->color() == VD_ANNOTATION::DELETED) {
             continue;
+        }
 
-        edges_to_check.emplace_back(edge, calc_total_edge_length(*edge));
+        vertex_edges.emplace_back(edge);
     } while (edge = edge->prev()->twin(), edge != vertex.incident_edge());
 
-    std::sort(edges_to_check.begin(), edges_to_check.end(), [](const auto &l, const auto &r) -> bool {
-        return l.second > r.second;
-    });
-
-    while (edges_to_check.size() > 1) {
-        const VD::edge_type &edge_to_check = *edges_to_check.back().first;
+    while (vertex_edges.size() > 1) {
+        const VD::edge_type &edge_to_check = *vertex_edges.back();
         edge_to_check.color(VD_ANNOTATION::DELETED);
         edge_to_check.twin()->color(VD_ANNOTATION::DELETED);
 
-        if (const VD::vertex_type &vertex_to_delete = *edge_to_check.vertex1(); can_vertex_be_deleted(vertex_to_delete))
+        if (const VD::vertex_type &vertex_to_delete = *edge_to_check.vertex1(); can_vertex_be_deleted(vertex_to_delete)) {
             delete_vertex_deep(vertex_to_delete);
+        }
 
-        edges_to_check.pop_back();
+        vertex_edges.pop_back();
     }
+}
+
+// Returns first non-deleted edge in clockwise.
+static const VD::edge_type *get_cw_first_non_deleted_edge(const VD::edge_type *edge_begin)
+{
+    const VD::edge_type *edge = edge_begin;
+    do {
+        if (edge->color() == VD_ANNOTATION::DELETED) {
+            continue;
+        } else {
+            assert(edge->color() != VD_ANNOTATION::VERTEX_ON_CONTOUR);
+            return edge;
+        }
+    } while (edge = edge->prev()->twin(), edge != edge_begin);
+
+    return nullptr;
+}
+
+// Return convex Polygon for Voronoi cell (Voronoi cell is always convex).
+// During processing a Voronoi cell, it marks its edges as deleted.
+template<typename CellRange>
+static typename std::enable_if<
+    std::is_same<CellRange, Geometry::SegmentCellRange<Point>>::value || std::is_same<CellRange, Geometry::PointCellRange<Point>>::value,
+    std::optional<Polygon>>::type
+cell_range_to_polygon(const CellRange &cell_range)
+{
+    assert(cell_range.is_valid());
+    assert(cell_range.edge_begin->vertex0()->color() == VD_ANNOTATION::VERTEX_ON_CONTOUR);
+
+    if (!cell_range.is_valid() || cell_range.edge_begin->vertex0()->color() != VD_ANNOTATION::VERTEX_ON_CONTOUR) {
+        return std::nullopt;
+    }
+
+    Polygon cell_polygon;
+    cell_polygon.points.emplace_back(Geometry::VoronoiUtils::to_point(cell_range.edge_begin->vertex0()).template cast<coord_t>());
+
+    // We have ensured that each cell_polygon have to start at edge_begin->vertex0() and end at edge_end->vertex1().
+    const VD::edge_type *edge = cell_range.edge_begin;
+    do {
+        if (edge->color() == VD_ANNOTATION::DELETED) {
+            continue;
+        }
+
+        const VD::vertex_type &next_vertex = *edge->vertex1();
+        cell_polygon.points.emplace_back(Geometry::VoronoiUtils::to_point(next_vertex).cast<coord_t>());
+        edge->color(VD_ANNOTATION::DELETED);
+
+        if (next_vertex.color() == VD_ANNOTATION::VERTEX_ON_CONTOUR || next_vertex.color() == VD_ANNOTATION::DELETED) {
+            break;
+        }
+
+        edge = edge->twin();
+    } while (edge = edge->twin()->next(), edge != cell_range.edge_begin);
+
+    if (edge->vertex1() != cell_range.edge_end->vertex1()) {
+        return std::nullopt;
+    }
+
+    if (cell_range.edge_begin->vertex0() == cell_range.edge_end->vertex1()) {
+        cell_polygon.points.pop_back();
+    }
+
+    return cell_polygon;
+}
+
+static std::optional<Polygon> segment_cell_range_to_polygon(const Geometry::SegmentCellRange<Point> &cell_range)
+{
+    return cell_range_to_polygon(cell_range);
+}
+
+static std::optional<Polygon> point_cell_range_to_polygon(const Geometry::PointCellRange<Point> &cell_range)
+{
+    return cell_range_to_polygon(cell_range);
+}
+
+inline double calc_triangle_area(const Point &a_pt, const Point &b_pt, const Point &c_pt)
+{
+    Vec2d ba = (b_pt - a_pt).cast<double>();
+    Vec2d ca = (c_pt - a_pt).cast<double>();
+    return Slic3r::cross2(ba, ca) / 2.;
+}
+
+static std::pair<Polygon, Polygon> split_convex_polygon_to_two_polygons_with_equal_area(const Polygon &input_polygon)
+{
+    assert(input_polygon.size() >= 3);
+    const double half_area = input_polygon.area() / 2.;
+
+    assert(half_area > 0.);
+    if (half_area <= 0.) {
+        return {};
+    }
+
+    Polygon left_polygon;
+    left_polygon.points.emplace_back(input_polygon.points[0]);
+
+    Polygon right_polygon;
+    right_polygon.points.emplace_back(input_polygon.points[0]);
+    right_polygon.points.emplace_back(input_polygon.points[1]);
+
+    double right_polygon_area = 0.;
+    size_t curr_idx           = 2;
+    for (; curr_idx < input_polygon.size(); ++curr_idx) {
+        const Point &start_pt           = input_polygon.points[0];
+        const Point &prev_pt            = input_polygon.points[curr_idx - 1];
+        const Point &curr_pt            = input_polygon.points[curr_idx];
+        const double curr_triangle_area = calc_triangle_area(start_pt, prev_pt, curr_pt);
+
+        if ((right_polygon_area + curr_triangle_area) <= half_area) {
+            right_polygon_area += curr_triangle_area;
+            right_polygon.points.emplace_back(curr_pt);
+        } else {
+            // Split current triangle.
+            const double remaining_area  = half_area - right_polygon_area;
+            const double split_ratio     = remaining_area / curr_triangle_area;
+            const Point  intersection_pt = prev_pt + (split_ratio * (curr_pt - prev_pt).cast<double>()).cast<coord_t>();
+
+            right_polygon.points.emplace_back(intersection_pt);
+            left_polygon.points.emplace_back(intersection_pt);
+            break;
+        }
+    }
+
+    for (; curr_idx < input_polygon.size(); ++curr_idx) {
+        left_polygon.points.emplace_back(input_polygon.points[curr_idx]);
+    }
+
+    assert(left_polygon.size() >= 3 && right_polygon.size() >= 3);
+    return {left_polygon, right_polygon};
 }
 
 // Returns list of ExPolygons for each extruder + 1 for default unpainted regions.
@@ -575,7 +642,7 @@ static std::vector<ExPolygons> extract_colored_segments(const std::vector<Colore
     }
 
     // Fourth, remove all edges that point outward from the input polygon.
-    for (Voronoi::VD::cell_type cell : vd.cells()) {
+    for (const Voronoi::VD::cell_type &cell : vd.cells()) {
         if (cell.is_degenerate() || !cell.contains_segment())
             continue;
 
@@ -597,10 +664,25 @@ static std::vector<ExPolygons> extract_colored_segments(const std::vector<Colore
         }
     }
 
-    // Fifth, if a Voronoi vertex has more than one Voronoi edge, remove all but one of them based on heuristics.
-    for (const Voronoi::VD::vertex_type &vertex : vd.vertices()) {
-        if (vertex.color() == VD_ANNOTATION::VERTEX_ON_CONTOUR)
-            remove_multiple_edges_in_vertex(vertex);
+    // Fifth, if a Voronoi vertex has more than one Voronoi edge, remove all except one.
+    // Edges are removed only for Voronoi vertices that aren't in the place where color changes.
+    for (const Voronoi::VD::cell_type &cell : vd.cells()) {
+        if (cell.is_degenerate() || !cell.contains_segment()) {
+            continue;
+        }
+
+        const ColoredLine &curr_line = Geometry::VoronoiUtils::get_source_segment(cell, colored_lines.begin(), colored_lines.end());
+        const ColoredLine &next_line = get_next_contour_line(curr_line);
+        if (curr_line.color != next_line.color) {
+            continue;
+        }
+
+        if (const Geometry::SegmentCellRange<Point> cell_range = Geometry::VoronoiUtils::compute_segment_cell_range(cell, colored_lines.begin(), colored_lines.end());
+            cell_range.is_valid()) {
+            const VD::vertex_type &vertex = *cell_range.edge_begin->vertex0();
+            assert(vertex.color() == VD_ANNOTATION::VERTEX_ON_CONTOUR);
+            remove_excess_voronoi_edges(vertex);
+        }
     }
 
     if constexpr (MM_SEGMENTATION_DEBUG_GRAPH) {
@@ -617,38 +699,47 @@ static std::vector<ExPolygons> extract_colored_segments(const std::vector<Colore
             if (cell_range.edge_begin->vertex0()->color() != VD_ANNOTATION::VERTEX_ON_CONTOUR)
                 continue;
 
-            const ColoredLine source_segment = Geometry::VoronoiUtils::get_source_segment(cell, colored_lines.begin(), colored_lines.end());
-
-            Polygon segmented_polygon;
-            segmented_polygon.points.emplace_back(source_segment.line.b);
-
-            // We have ensured that each segmented_polygon have to start at edge_begin->vertex0() and end at edge_end->vertex1().
-            const VD::edge_type *edge = cell_range.edge_begin;
-            do {
-                if (edge->color() == VD_ANNOTATION::DELETED)
-                    continue;
-
-                const VD::vertex_type &next_vertex = *edge->vertex1();
-                segmented_polygon.points.emplace_back(Geometry::VoronoiUtils::to_point(next_vertex).cast<coord_t>());
-                edge->color(VD_ANNOTATION::DELETED);
-
-                if (next_vertex.color() == VD_ANNOTATION::VERTEX_ON_CONTOUR || next_vertex.color() == VD_ANNOTATION::DELETED)
-                    break;
-
-                edge = edge->twin();
-            } while (edge = edge->twin()->next(), edge != cell_range.edge_begin);
-
-            if (edge->vertex1() != cell_range.edge_end->vertex1())
+            const ColoredLine           &curr_line            = Geometry::VoronoiUtils::get_source_segment(cell, colored_lines.begin(), colored_lines.end());
+            const std::optional<Polygon> segment_cell_polygon = segment_cell_range_to_polygon(cell_range);
+            if (!segment_cell_polygon.has_value())
                 continue;
 
+            const Voronoi::VD::vertex_type &cell_begin_vertex = *cell_range.edge_begin->vertex0();
+            // The cell_range.edge_begin was deleted, so if any edge is starting in the cell_range.edge_begin->vertex0(),
+            // then it is an edge from a cell that was generated by a point, and the cell is between two different colors.
+            assert(non_deleted_edge_count(cell_begin_vertex) <= 1);
+            if (non_deleted_edge_count(cell_begin_vertex) == 1) {
+                const VD::edge_type *point_cell_begin_edge = get_cw_first_non_deleted_edge(cell_range.edge_begin);
+                const VD::edge_type *point_cell_end_edge   = cell_range.edge_begin->twin();
+
+                assert(point_cell_begin_edge != nullptr && point_cell_end_edge != nullptr);
+                if (point_cell_begin_edge == nullptr || point_cell_end_edge == nullptr)
+                    continue;
+
+                assert(point_cell_begin_edge->color() != VD_ANNOTATION::DELETED && point_cell_end_edge->color() != VD_ANNOTATION::DELETED);
+                assert(point_cell_begin_edge->vertex0() == point_cell_end_edge->vertex1());
+
+                const Geometry::PointCellRange<Point> point_cell_range(Geometry::VoronoiUtils::to_point(point_cell_begin_edge->vertex0()).cast<coord_t>(), point_cell_begin_edge, point_cell_end_edge);
+                const std::optional<Polygon>          point_cell_polygon = point_cell_range_to_polygon(point_cell_range);
+                if (!point_cell_polygon.has_value())
+                    continue;
+
+                const ColoredLine          &next_line           = get_next_contour_line(curr_line);
+                std::pair<Polygon, Polygon> point_cell_polygons = split_convex_polygon_to_two_polygons_with_equal_area(*point_cell_polygon);
+                segmented_expolygons_per_extruder[curr_line.color].emplace_back(std::move(point_cell_polygons.first));
+                segmented_expolygons_per_extruder[next_line.color].emplace_back(std::move(point_cell_polygons.second));
+            }
+
             cell_range.edge_begin->vertex0()->color(VD_ANNOTATION::DELETED);
-            segmented_expolygons_per_extruder[source_segment.color].emplace_back(std::move(segmented_polygon));
+            segmented_expolygons_per_extruder[curr_line.color].emplace_back(*segment_cell_polygon);
         }
     }
 
     // Merge all polygons together for each extruder
-    for (auto &segmented_expolygons : segmented_expolygons_per_extruder)
+    for (auto &segmented_expolygons : segmented_expolygons_per_extruder) {
         segmented_expolygons = union_ex(segmented_expolygons);
+        segmented_expolygons = Slic3r::closing_ex(segmented_expolygons, static_cast<float>(SCALED_EPSILON));
+    }
 
     return segmented_expolygons_per_extruder;
 }
