@@ -1,7 +1,7 @@
 {
     "printers": [
         {
-            "printer_notes_regex": ".*PRINTER_MODEL_MK4.*",
+            "printer_notes_regex": ".*PRINTER_MODEL_MK4(?!S).*",
             "gantry_model_filename": "prusa3d_mk4_gantry.stl",
             "slices": [
                 {
