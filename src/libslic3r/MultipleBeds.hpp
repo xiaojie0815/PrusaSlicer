@@ -87,7 +87,9 @@ public:
         m_build_volume_bb = build_volume_bb;
     }
 	Vec2d   get_bed_size() const { return m_build_volume_bb.size(); }
-    Vec2d   bed_gap() const;
+        BoundingBox get_bed_box() const { return BoundingBox({m_build_volume_bb.min.x(), m_build_volume_bb.min.y()},
+							     {m_build_volume_bb.max.x(), m_build_volume_bb.max.y()}); }
+        Vec2d   bed_gap() const;
 	Vec2crd get_bed_gap() const;
 	void   ensure_wipe_towers_on_beds(Model& model, const std::vector<std::unique_ptr<Print>>& prints);
 

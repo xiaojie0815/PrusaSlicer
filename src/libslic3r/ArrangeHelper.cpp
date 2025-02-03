@@ -92,7 +92,21 @@ static Sequential::PrinterGeometry get_printer_geometry(const ConfigBase& config
 
 	// Convert the read data so libseqarrange understands them.
 	Sequential::PrinterGeometry out;
-	out.plate = { { 0, 0 }, { scaled(bed_x), 0}, {scaled(bed_x), scaled(bed_y)}, {0, scaled(bed_y)}};
+	//out.plate = { { 0, 0 }, { scaled(bed_x), 0}, {scaled(bed_x), scaled(bed_y)}, {0, scaled(bed_y)}};
+	
+	BoundingBox bed_bounding_box = s_multiple_beds.get_bed_box();
+
+	double min_x = bed_bounding_box.min.x();
+	double min_y = bed_bounding_box.min.y();
+	
+	double max_x = bed_bounding_box.max.x();
+	double max_y = bed_bounding_box.max.y();
+	
+	out.plate = { { scaled(min_x), scaled(min_y)},
+		      { scaled(max_x), scaled(min_y)},
+		      { scaled(max_x), scaled(max_y)},
+		      { scaled(min_x), scaled(max_y)}};	
+	
 	for (const ExtruderSlice& slice : slices) {
 		(slice.shape_type == CONVEX ? out.convex_heights : out.box_heights).emplace(slice.height);
 		out.extruder_slices.insert(std::make_pair(slice.height, slice.polygons));
