@@ -3235,7 +3235,7 @@ std::string GCodeGenerator::travel_to_first_position(const Vec3crd& point, const
     if (!EXTRUDER_CONFIG(travel_ramping_lift) && this->last_position) {
         const Vec3crd from{to_3d(*this->last_position, scaled(from_z))};
         gcode = this->travel_to(
-            from, point, role, "travel to first layer point", insert_gcode
+            from, point, role, "travel to first layer point", insert_gcode, EnforceFirstZ::True
         );
     } else {
         double lift{
@@ -3582,7 +3582,8 @@ std::string GCodeGenerator::_extrude(
 std::string GCodeGenerator::generate_travel_gcode(
     const Points3& travel,
     const std::string& comment,
-    const std::function<std::string()>& insert_gcode
+    const std::function<std::string()>& insert_gcode,
+    const EnforceFirstZ enforce_first_z
 ) {
     std::string gcode;
 
@@ -3606,7 +3607,18 @@ std::string GCodeGenerator::generate_travel_gcode(
             already_inserted = true;
         }
 
-        gcode += this->m_writer.travel_to_xyz(gcode_point, comment);
+        if (enforce_first_z == EnforceFirstZ::True && i == 0) {
+            if (
+                std::abs(gcode_point.x() - m_writer.get_position().x()) < GCodeFormatter::XYZ_EPSILON
+                && std::abs(gcode_point.y() - m_writer.get_position().y()) < GCodeFormatter::XYZ_EPSILON
+            ) {
+                gcode += this->m_writer.travel_to_z_force(gcode_point.z(), comment);
+            } else {
+                gcode += this->m_writer.travel_to_xyz_force(gcode_point, comment);
+            }
+        } else {
+            gcode += this->m_writer.travel_to_xyz(gcode_point, comment);
+        }
         this->last_position = point.head<2>();
     }
 
@@ -3704,7 +3716,8 @@ std::string GCodeGenerator::travel_to(
     const Vec3crd &end_point,
     ExtrusionRole role,
     const std::string &comment,
-    const std::function<std::string()>& insert_gcode
+    const std::function<std::string()>& insert_gcode,
+    const GCodeGenerator::EnforceFirstZ enforce_first_z
 ) {
     const double initial_elevation{unscaled(start_point.z())};
 
@@ -3771,7 +3784,7 @@ std::string GCodeGenerator::travel_to(
     }
     travel.emplace_back(end_point);
 
-    return wipe_retract_gcode + generate_travel_gcode(travel, comment, insert_gcode);
+    return wipe_retract_gcode + generate_travel_gcode(travel, comment, insert_gcode, enforce_first_z);
 }
 
 std::string GCodeGenerator::retract_and_wipe(bool toolchange, bool reset_e)
