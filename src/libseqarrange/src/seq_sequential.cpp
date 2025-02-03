@@ -7258,7 +7258,11 @@ bool optimize_WeakPolygonNonoverlapping(z3::solver                         &Solv
     
     int last_solvable_bounding_box_size = -1;
 
-    int maximum_bounding_box_size = MAX(solver_configuration.x_plate_bounding_box_size, solver_configuration.y_plate_bounding_box_size);
+    // general plate polygons are currently not supported
+    assert(solver_configuration.plate_bounding_polygon.points.size() == 0);
+    
+    int maximum_bounding_box_size = MAX(solver_configuration.plate_bounding_box.max.x() - solver_configuration.plate_bounding_box.min.x(),
+					solver_configuration.plate_bounding_box.max.y() - solver_configuration.plate_bounding_box.min.y());
     
     for (int bounding_box_size = maximum_bounding_box_size; bounding_box_size > solver_configuration.minimum_bounding_box_size;
 	 bounding_box_size -= solver_configuration.bounding_box_size_optimization_step)
@@ -7404,7 +7408,11 @@ bool optimize_WeakPolygonNonoverlapping(z3::solver                         &Solv
     Z3_global_param_set("timeout", solver_configuration.optimization_timeout.c_str());        
     int last_solvable_bounding_box_size = -1;
 
-    int maximum_bounding_box_size = MAX(solver_configuration.x_plate_bounding_box_size, solver_configuration.y_plate_bounding_box_size);
+    // general plate polygons are currently not supported
+    assert(solver_configuration.plate_bounding_polygon.points.size() == 0);
+    
+    int maximum_bounding_box_size = MAX(solver_configuration.plate_bounding_box.max.x() - solver_configuration.plate_bounding_box.min.x(),
+					solver_configuration.plate_bounding_box.max.y() - solver_configuration.plate_bounding_box.min.y());
     
     for (int bounding_box_size = maximum_bounding_box_size; bounding_box_size > solver_configuration.minimum_bounding_box_size;
 	 bounding_box_size -= solver_configuration.bounding_box_size_optimization_step)
@@ -7553,7 +7561,11 @@ bool optimize_WeakPolygonNonoverlapping(z3::solver                         &Solv
     z3::set_param("timeout", solver_configuration.optimization_timeout.c_str());
     int last_solvable_bounding_box_size = -1;
 
-    int maximum_bounding_box_size = MAX(solver_configuration.x_plate_bounding_box_size, solver_configuration.y_plate_bounding_box_size);
+    // general plate polygons are currently not supported
+    assert(solver_configuration.plate_bounding_polygon.points.size() == 0);
+    
+    int maximum_bounding_box_size = MAX(solver_configuration.plate_bounding_box.max.x() - solver_configuration.plate_bounding_box.min.x(),
+					solver_configuration.plate_bounding_box.max.y() - solver_configuration.plate_bounding_box.min.y());
     
     for (int bounding_box_size = maximum_bounding_box_size; bounding_box_size > solver_configuration.minimum_bounding_box_size;
 	 bounding_box_size -= solver_configuration.bounding_box_size_optimization_step)
@@ -7703,7 +7715,11 @@ bool optimize_WeakPolygonNonoverlapping(z3::solver                         &Solv
     z3::set_param("timeout", solver_configuration.optimization_timeout.c_str());        
     int last_solvable_bounding_box_size = -1;
 
-    int maximum_bounding_box_size = MAX(solver_configuration.x_plate_bounding_box_size, solver_configuration.y_plate_bounding_box_size);
+    // general plate polygons are currently not supported
+    assert(solver_configuration.plate_bounding_polygon.points.size() == 0);
+    
+    int maximum_bounding_box_size = MAX(solver_configuration.plate_bounding_box.max.x() - solver_configuration.plate_bounding_box.min.x(),
+					solver_configuration.plate_bounding_box.max.y() - solver_configuration.plate_bounding_box.min.y());
     
     for (int bounding_box_size = maximum_bounding_box_size; bounding_box_size > solver_configuration.minimum_bounding_box_size;
 	 bounding_box_size -= solver_configuration.bounding_box_size_optimization_step)
@@ -7859,7 +7875,11 @@ bool optimize_WeakPolygonNonoverlapping(z3::solver                         &Solv
     std::vector<Rational> local_dec_values_X = dec_values_X;
     std::vector<Rational> local_dec_values_Y = dec_values_Y;
 
-    int maximum_bounding_box_size = MAX(solver_configuration.x_plate_bounding_box_size, solver_configuration.y_plate_bounding_box_size);
+    // general plate polygons are currently not supported
+    assert(solver_configuration.plate_bounding_polygon.points.size() == 0);
+    
+    int maximum_bounding_box_size = MAX(solver_configuration.plate_bounding_box.max.x() - solver_configuration.plate_bounding_box.min.x(),
+					solver_configuration.plate_bounding_box.max.y() - solver_configuration.plate_bounding_box.min.y());    
     
     for (int bounding_box_size = maximum_bounding_box_size; bounding_box_size > solver_configuration.minimum_bounding_box_size;
 	 bounding_box_size -= solver_configuration.bounding_box_size_optimization_step)
@@ -8067,7 +8087,11 @@ bool optimize_SequentialWeakPolygonNonoverlapping(z3::solver                    
     std::vector<Rational> local_dec_values_Y = dec_values_Y;
     std::vector<Rational> local_dec_values_T = dec_values_T;
 
-    int maximum_bounding_box_size = MAX(solver_configuration.x_plate_bounding_box_size, solver_configuration.y_plate_bounding_box_size);
+    // general plate polygons are currently not supported
+    assert(solver_configuration.plate_bounding_polygon.points.size() == 0);
+    
+    int maximum_bounding_box_size = MAX(solver_configuration.plate_bounding_box.max.x() - solver_configuration.plate_bounding_box.min.x(),
+					solver_configuration.plate_bounding_box.max.y() - solver_configuration.plate_bounding_box.min.y());        
     
     for (int bounding_box_size = maximum_bounding_box_size; bounding_box_size > solver_configuration.minimum_bounding_box_size;
 	 bounding_box_size -= solver_configuration.bounding_box_size_optimization_step)
@@ -8307,10 +8331,10 @@ bool optimize_SequentialWeakPolygonNonoverlappingCentered(z3::solver            
     std::vector<Rational> local_dec_values_Y = dec_values_Y;
     std::vector<Rational> local_dec_values_T = dec_values_T;
 
-    int box_min_x = 0;
-    int box_max_x = solver_configuration.x_plate_bounding_box_size;
-    int box_min_y = 0;
-    int box_max_y = solver_configuration.y_plate_bounding_box_size;
+    int box_min_x = solver_configuration.plate_bounding_box.min.x();
+    int box_max_x = solver_configuration.plate_bounding_box.max.x();
+    int box_min_y = solver_configuration.plate_bounding_box.min.y();
+    int box_max_y = solver_configuration.plate_bounding_box.max.y();
     
     while (box_min_x < box_max_x && box_min_y < box_max_y)
     {
@@ -8649,6 +8673,8 @@ bool checkExtens_SequentialWeakPolygonNonoverlapping(coord_t                    
 bool optimize_SequentialWeakPolygonNonoverlappingBinaryCentered(z3::solver                                       &Solver,
 								z3::context                                      &Context,
 								const SolverConfiguration                        &solver_configuration,
+								coord_t                                          &box_half_x_min,
+								coord_t                                          &box_half_y_min,								
 								coord_t                                          &box_half_x_max,
 								coord_t                                          &box_half_y_max,
 								const z3::expr_vector                            &dec_vars_X,
@@ -8671,13 +8697,13 @@ bool optimize_SequentialWeakPolygonNonoverlappingBinaryCentered(z3::solver      
     std::vector<Rational> local_dec_values_Y = dec_values_Y;
     std::vector<Rational> local_dec_values_T = dec_values_T;        
 
-    coord_t half_x_min = 0;
+    coord_t half_x_min = box_half_x_min;
     coord_t half_x_max = box_half_x_max;
 
-    coord_t half_y_min = 0;
+    coord_t half_y_min = box_half_y_min;;
     coord_t half_y_max = box_half_y_max;
 
-    while ((half_x_max - half_x_min) > 1 && (half_y_max - half_y_min) > 1)
+    while (ABS(half_x_max - half_x_min) > 1 && ABS(half_y_max - half_y_min) > 1)
     {
 	#ifdef DEBUG
 	{
@@ -8690,9 +8716,9 @@ bool optimize_SequentialWeakPolygonNonoverlappingBinaryCentered(z3::solver      
 	z3::expr_vector bounding_box_assumptions(Context);
 
 	coord_t box_min_x = (half_x_max + half_x_min) / 2;
-	coord_t box_max_x = solver_configuration.x_plate_bounding_box_size - box_min_x;
+	coord_t box_max_x = solver_configuration.plate_bounding_box.max.x() - box_min_x;
 	coord_t box_min_y = (half_y_max + half_y_min) / 2;
-	coord_t box_max_y = solver_configuration.y_plate_bounding_box_size - box_min_y;
+	coord_t box_max_y = solver_configuration.plate_bounding_box.max.y() - box_min_y;
 
 	#ifdef DEBUG
 	{
@@ -8969,22 +8995,11 @@ bool optimize_SequentialWeakPolygonNonoverlappingBinaryCentered(z3::solver      
 }
 
 
-#ifdef PROFILE
-double init_cumul = 0.0;
-clock_t init_start, init_finish;
-
-double refine_cumul = 0.0;
-clock_t refine_start, refine_finish;
-
-double recheck_SAT_cumul = 0.0;
-double recheck_UNSAT_cumul = 0.0;
-double recheck_INDET_cumul = 0.0;
-clock_t recheck_start, recheck_finish;
-#endif
-
 bool optimize_ConsequentialWeakPolygonNonoverlappingBinaryCentered(z3::solver                                       &Solver,
 								   z3::context                                      &Context,
 								   const SolverConfiguration                        &solver_configuration,
+								   coord_t                                          &box_half_x_min,
+								   coord_t                                          &box_half_y_min,								   
 								   coord_t                                          &box_half_x_max,
 								   coord_t                                          &box_half_y_max,
 								   const z3::expr_vector                            &dec_vars_X,
@@ -9016,17 +9031,17 @@ bool optimize_ConsequentialWeakPolygonNonoverlappingBinaryCentered(z3::solver   
     std::vector<Rational> local_dec_values_Y = dec_values_Y;
     std::vector<Rational> local_dec_values_T = dec_values_T;
 
-    coord_t half_x_min = 0;
+    coord_t half_x_min = box_half_x_min;
     coord_t half_x_max = box_half_x_max;
 
-    coord_t half_y_min = 0;
+    coord_t half_y_min = box_half_y_min;
     coord_t half_y_max = box_half_y_max;
 
-    int progress_total_estimation = MAX(1, std::log2(half_x_max - half_x_min));
+    int progress_total_estimation = MAX(1, std::log2(ABS(half_x_max - half_x_min)));
     int progress = 0;
             
-    while ((half_x_max - half_x_min) > 1 && (half_y_max - half_y_min) > 1)
-    {
+    while (ABS(half_x_max - half_x_min) > 1 && ABS(half_y_max - half_y_min) > 1)
+    {	
 	#ifdef DEBUG
       	{
 	    printf("Halves: %d, %d, %d, %d\n", half_x_min, half_x_max, half_y_min, half_y_max);
@@ -9037,10 +9052,21 @@ bool optimize_ConsequentialWeakPolygonNonoverlappingBinaryCentered(z3::solver   
 	
 	z3::expr_vector bounding_box_assumptions(Context);
 
-	coord_t box_min_x = (half_x_max + half_x_min) / 2;
-	coord_t box_max_x = solver_configuration.x_plate_bounding_box_size - box_min_x;
+	coord_t box_x_size = half_x_max - half_x_min;
+	coord_t box_y_size = half_y_max - half_y_min;
+    
+	coord_t box_min_x = solver_configuration.plate_bounding_box.min.x() + box_x_size / 2;
+	coord_t box_max_x = solver_configuration.plate_bounding_box.max.x() - box_x_size / 2;
+    
+	coord_t box_min_y = solver_configuration.plate_bounding_box.min.y() + box_y_size / 2;
+	coord_t box_max_y = solver_configuration.plate_bounding_box.max.y() - box_y_size / 2;
+
+	/*
+	coord_t box_min_x = (half_x_max + half_x_min) / 2;	
+	coord_t box_max_x = solver_configuration.plate_bounding_box.max.x() - box_min_x;
 	coord_t box_min_y = (half_y_max + half_y_min) / 2;
-	coord_t box_max_y = solver_configuration.y_plate_bounding_box_size - box_min_y;
+	coord_t box_max_y = solver_configuration.plate_bounding_box.max.y() - box_min_y;
+	*/
 
 	#ifdef DEBUG
 	{
@@ -9083,13 +9109,7 @@ bool optimize_ConsequentialWeakPolygonNonoverlappingBinaryCentered(z3::solver   
 							  undecided,	       
 							  polygons,
 							  unreachable_polygons))
-	{
-	    #ifdef PROFILE
-	    {
-		init_start = clock();
-	    }
-	    #endif
-	    
+	{	    
 	    switch (Solver.check(complete_assumptions))
 	    {
 	    case z3::sat:
@@ -9112,13 +9132,6 @@ bool optimize_ConsequentialWeakPolygonNonoverlappingBinaryCentered(z3::solver   
 		break;
 	    }
 	    }
-
-	    #ifdef PROFILE
-	    {
-		init_finish = clock();
-		init_cumul += (init_finish - init_start) / (double)CLOCKS_PER_SEC;
-	    }
-	    #endif
 	}
 	else
 	{
@@ -9144,11 +9157,6 @@ bool optimize_ConsequentialWeakPolygonNonoverlappingBinaryCentered(z3::solver   
 
 	    while (true)
 	    {
-		#ifdef PROFILE
-		{
-		    refine_start = clock();
-		}
-		#endif
 		bool refined = refine_ConsequentialPolygonWeakNonoverlapping(Solver,
 									     Context,
 									     dec_vars_X,
@@ -9161,13 +9169,6 @@ bool optimize_ConsequentialWeakPolygonNonoverlappingBinaryCentered(z3::solver   
 									     undecided,
 									     polygons,
 									     unreachable_polygons);
-		#ifdef PROFILE
-		{
-		    refine_finish = clock();
-		    refine_cumul += (refine_finish - refine_start) / (double)CLOCKS_PER_SEC;
-		}
-		#endif
-
 		if (refined)
 		{
 		    ++total_refines;
@@ -9176,12 +9177,6 @@ bool optimize_ConsequentialWeakPolygonNonoverlappingBinaryCentered(z3::solver   
 
 		    if (total_refines < solver_configuration.max_refines)
 		    {
-		        #ifdef DEBUG
-			{
-			    printf("------> ... Solving 12 ... <------\n");
-			}
-                        #endif
-
 			if (checkArea_SequentialWeakPolygonNonoverlapping(box_min_x,
 									  box_min_y,
 									  box_max_x,
@@ -9190,46 +9185,21 @@ bool optimize_ConsequentialWeakPolygonNonoverlappingBinaryCentered(z3::solver   
 									  undecided,	       
 									  polygons,
 									  unreachable_polygons))
-			{
-			    #ifdef PROFILE
-			    {
-				recheck_start = clock();
-			    }
-			    #endif
-			    
+			{			    
 			    switch (Solver.check(complete_assumptions))
 			    {
 			    case z3::sat:
 			    {
-			        #ifdef PROFILE
-				{
-				    recheck_finish = clock();
-				    recheck_SAT_cumul += (recheck_finish - recheck_start) / (double)CLOCKS_PER_SEC;
-				}
-			        #endif
-			    
 				refined_sat = true;	    
 				break;
 			    }
 			    case z3::unsat:	
 			    {
-			        #ifdef PROFILE
-				{			    
-				    recheck_finish = clock();
-				    recheck_UNSAT_cumul += (recheck_finish - recheck_start) / (double)CLOCKS_PER_SEC;
-				}
-			        #endif
 				refined_sat = false;	    
 				break;
 			    }
 			    case z3::unknown:
 			    {
-                                #ifdef PROFILE
-				{
-				    recheck_finish = clock();
-				    recheck_INDET_cumul += (recheck_finish - recheck_start) / (double)CLOCKS_PER_SEC;
-				}
-			        #endif			    
 				refined_sat = false;
 				break;
 			    }
@@ -9364,22 +9334,11 @@ bool optimize_ConsequentialWeakPolygonNonoverlappingBinaryCentered(z3::solver   
 	progress_callback(progress_range.progress_min + (progress_range.progress_max - progress_range.progress_min) * progress / progress_total_estimation);
     }
     progress_callback(progress_range.progress_max);    
-   
+    
     if (last_solvable_bounding_box_size > 0)
-    {	
+    {
 	box_half_x_max = half_x_max;
 	box_half_y_max = half_y_max;
-
-	#ifdef PROFILE
-	{
-	    printf("Init  : %.3f\n", init_cumul);
-	    printf("Refine: %.3f\n", refine_cumul);
-	
-	    printf("Recheck SAT  : %.3f\n", recheck_SAT_cumul);
-	    printf("Recheck UNSAT: %.3f\n", recheck_UNSAT_cumul);
-	    printf("Recheck INDET: %.3f\n", recheck_INDET_cumul);
-	}
-	#endif
 	
 	return true;
     }
@@ -10124,8 +10083,14 @@ bool optimize_SubglobalSequentialPolygonNonoverlappingBinaryCentered(const Solve
     dec_values_Y.resize(polygons.size());
     dec_values_T.resize(polygons.size());
 
-    coord_t box_half_x_max = solver_configuration.x_plate_bounding_box_size / 2;
-    coord_t box_half_y_max = solver_configuration.y_plate_bounding_box_size / 2;	    
+    coord_t box_x_size = solver_configuration.plate_bounding_box.max.x() - solver_configuration.plate_bounding_box.min.x();
+    coord_t box_y_size = solver_configuration.plate_bounding_box.max.y() - solver_configuration.plate_bounding_box.min.y();
+    
+    coord_t box_half_x_min = solver_configuration.plate_bounding_box.min.x() + box_x_size / 4;
+    coord_t box_half_x_max = solver_configuration.plate_bounding_box.max.x() - box_x_size / 4;
+    
+    coord_t box_half_y_min = solver_configuration.plate_bounding_box.min.y() + box_y_size / 4;
+    coord_t box_half_y_max = solver_configuration.plate_bounding_box.max.y() - box_y_size / 4;
     
     for (unsigned int curr_polygon = 0; curr_polygon < polygons.size(); /* nothing */)
     {
@@ -10244,6 +10209,8 @@ bool optimize_SubglobalSequentialPolygonNonoverlappingBinaryCentered(const Solve
 	    optimized = optimize_SequentialWeakPolygonNonoverlappingBinaryCentered(z_solver,
 										   z_context,
 										   solver_configuration,
+										   box_half_x_min,
+										   box_half_y_min,
 										   box_half_x_max,
 										   box_half_y_max,
 										   local_dec_vars_X,
@@ -10357,11 +10324,6 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 }
 
 
-#ifdef PROFILE
-double build_cumul = 0.0;
-clock_t build_start, build_finish;
-#endif
-
 bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const SolverConfiguration                        &solver_configuration,
 									std::vector<Rational>                            &dec_values_X,
 									std::vector<Rational>                            &dec_values_Y,
@@ -10385,8 +10347,14 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
     dec_values_Y.resize(polygons.size());
     dec_values_T.resize(polygons.size());
 
-    int box_half_x_max = solver_configuration.x_plate_bounding_box_size / 2;
-    int box_half_y_max = solver_configuration.y_plate_bounding_box_size / 2;
+    coord_t box_x_size = solver_configuration.plate_bounding_box.max.x() - solver_configuration.plate_bounding_box.min.x();
+    coord_t box_y_size = solver_configuration.plate_bounding_box.max.y() - solver_configuration.plate_bounding_box.min.y();
+    
+    coord_t box_half_x_min = solver_configuration.plate_bounding_box.min.x() + box_x_size / 4;
+    coord_t box_half_x_max = solver_configuration.plate_bounding_box.max.x() - box_x_size / 4;
+    
+    coord_t box_half_y_min = solver_configuration.plate_bounding_box.min.y() + box_y_size / 4;
+    coord_t box_half_y_max = solver_configuration.plate_bounding_box.max.y() - box_y_size / 4;
     
     for (unsigned int curr_polygon = 0; curr_polygon < polygons.size(); /* nothing */)
     {
@@ -10434,11 +10402,6 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 	    undecided.push_back(curr_polygon + i);
 	}
 
-	#ifdef PROFILE
-	{
-	    build_start = clock();
-	}
-	#endif
 	build_ConsequentialWeakPolygonNonoverlapping(solver_configuration,
 						     z_solver,
 						     z_context,
@@ -10473,13 +10436,6 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 							 polygons,
 							 lepox_to_next);
 	
-	#ifdef PROFILE
-	{
-	    build_finish = clock();
-	    build_cumul += (build_finish - build_start) / (double)CLOCKS_PER_SEC;
-	}
-	#endif
-
 	std::vector<int> missing;
 	std::vector<int> remaining_local;	
     
@@ -10534,8 +10490,10 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 	    optimized = optimize_ConsequentialWeakPolygonNonoverlappingBinaryCentered(z_solver,
 										      z_context,
 										      solver_configuration,
+										      box_half_x_min,
+										      box_half_y_min,
 										      box_half_x_max,
-										      box_half_y_max,
+										      box_half_y_max,										      
 										      local_dec_vars_X,
 										      local_dec_vars_Y,
 										      local_dec_vars_T,
@@ -10606,12 +10564,6 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 
 	std::reverse(remaining_local.begin(), remaining_local.end());
 	remaining_polygons.insert(remaining_polygons.end(), remaining_local.begin(), remaining_local.end());
-
-	#ifdef PROFILE
-	{
-	    printf("Build: %.3f\n", build_cumul);
-	}
-	#endif
 	
 	if (!optimized)
 	{
@@ -10661,9 +10613,12 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
     dec_values_Y.resize(solvable_objects.size());
     dec_values_T.resize(solvable_objects.size());
 
-    int box_half_x_max = solver_configuration.x_plate_bounding_box_size / 2;
-    int box_half_y_max = solver_configuration.y_plate_bounding_box_size / 2;
-
+    coord_t box_half_x_min = solver_configuration.plate_bounding_box.min.x();
+    coord_t box_half_x_max = (solver_configuration.plate_bounding_box.max.x() - solver_configuration.plate_bounding_box.min.x()) / 2;
+    
+    coord_t box_half_y_min = solver_configuration.plate_bounding_box.min.y();
+    coord_t box_half_y_max = (solver_configuration.plate_bounding_box.max.y() - solver_configuration.plate_bounding_box.min.y()) / 2;
+    
     std::vector<Slic3r::Polygon> polygons;
     std::vector<std::vector<Slic3r::Polygon> > unreachable_polygons;
     std::vector<bool> lepox_to_next;
@@ -10720,12 +10675,6 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 	{
 	    undecided.push_back(curr_polygon + i);
 	}
-
-	#ifdef PROFILE
-	{
-	    build_start = clock();
-	}
-	#endif
 	
 	build_ConsequentialWeakPolygonNonoverlapping(solver_configuration,
 						     z_solver,
@@ -10761,13 +10710,6 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 							 polygons,
 							 lepox_to_next);
 	
-	#ifdef PROFILE
-	{
-	    build_finish = clock();
-	    build_cumul += (build_finish - build_start) / (double)CLOCKS_PER_SEC;
-	}
-	#endif
-
 	std::vector<int> missing;
 	std::vector<int> remaining_local;	
     
@@ -10822,6 +10764,8 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 	    optimized = optimize_ConsequentialWeakPolygonNonoverlappingBinaryCentered(z_solver,
 										      z_context,
 										      solver_configuration,
+										      box_half_x_min,
+										      box_half_y_min,
 										      box_half_x_max,
 										      box_half_y_max,
 										      local_dec_vars_X,
@@ -10893,13 +10837,6 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 
 	std::reverse(remaining_local.begin(), remaining_local.end());
 	remaining_polygons.insert(remaining_polygons.end(), remaining_local.begin(), remaining_local.end());
-
-	#ifdef PROFILE
-	{
-	    printf("Build: %.3f\n", build_cumul);
-	}
-	#endif
-
 	
 	if (!optimized)
 	{
