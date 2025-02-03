@@ -1041,7 +1041,7 @@ struct ExposureProfile {
         tilt_down_delay_ms          = int(1000 * config.tilt_down_delay.get_at(opt_id));
         tilt_up_offset_delay_ms     = int(1000 * config.tilt_up_offset_delay.get_at(opt_id));
         tilt_up_delay_ms            = int(1000 * config.tilt_up_delay.get_at(opt_id));
-        tower_hop_height_nm         = config.tower_hop_height.get_at(opt_id) * 1000000;
+        tower_hop_height_nm         = int(config.tower_hop_height.get_at(opt_id) * 1000000);
         tilt_down_offset_steps      = config.tilt_down_offset_steps.get_at(opt_id);
         tilt_down_cycles            = config.tilt_down_cycles.get_at(opt_id);
         tilt_up_offset_steps        = config.tilt_up_offset_steps.get_at(opt_id);

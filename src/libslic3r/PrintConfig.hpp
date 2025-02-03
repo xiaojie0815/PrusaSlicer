@@ -1248,7 +1248,7 @@ PRINT_CONFIG_CLASS_DEFINE(
     //tilt params
     ((ConfigOptionFloats,                      delay_before_exposure))
     ((ConfigOptionFloats,                      delay_after_exposure))
-    ((ConfigOptionInts,                        tower_hop_height))
+    ((ConfigOptionFloats,                      tower_hop_height))
     ((ConfigOptionEnums<TowerSpeeds>,          tower_speed))
     ((ConfigOptionBools,                       use_tilt))
     ((ConfigOptionEnums<TiltSpeeds>,           tilt_down_initial_speed))

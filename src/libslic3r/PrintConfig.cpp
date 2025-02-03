@@ -4758,14 +4758,14 @@ void PrintConfigDef::init_sla_tilt_params()
     def->mode = comAdvanced;
     def->set_default_value(new ConfigOptionFloats({ 0., 0.}));
 
-    def = this->add("tower_hop_height", coInts);
+    def = this->add("tower_hop_height", coFloats);
     def->full_label = L("Tower hop height");
     def->tooltip = L("The height of the tower raise.");
     def->sidetext = L("mm");
     def->min = 0;
     def->max = 100;
     def->mode = comExpert;
-    def->set_default_value(new ConfigOptionInts({ 0, 0}));
+    def->set_default_value(new ConfigOptionFloats({ 0., 0.}));
 
     def = this->add("tower_speed", coEnums); 
     def->full_label = L("Tower speed");
@@ -5202,11 +5202,11 @@ const std::map<std::string, ConfigOptionFloats> tilt_options_floats_defs =
     {"tilt_down_delay",          ConfigOptionFloats({ 0., 0., 0., 0.5, 0., 0., 0., 0. }) } ,
     {"tilt_up_offset_delay",     ConfigOptionFloats({ 0., 0., 0., 0., 0., 0., 0., 0. }) } ,
     {"tilt_up_delay",            ConfigOptionFloats({ 0., 0., 0., 0., 0., 0., 0., 0. }) } ,
+    {"tower_hop_height",         ConfigOptionFloats({ 0., 0., 0., 0., 5., 5., 0., 0. }) } ,
 };
 
 const std::map<std::string, ConfigOptionInts> tilt_options_ints_defs =
 {
-    {"tower_hop_height",         ConfigOptionInts({ 0, 0, 0, 0, 5, 5, 0, 0 }) } ,
     {"tilt_down_offset_steps",   ConfigOptionInts({ 0, 0, 0, 0, 2200, 2200, 0, 0 }) } ,
     {"tilt_down_cycles",         ConfigOptionInts({ 1, 1, 1, 1, 1, 1, 0, 0 }) } ,
     {"tilt_up_offset_steps",     ConfigOptionInts({ 1200, 1200, 600, 600, 2200, 2200, 0, 0 }) } ,
@@ -5242,11 +5242,11 @@ const std::map<std::string, ConfigOptionFloats> tilt_options_floats_sl1_defs =
     {"tilt_down_delay",          ConfigOptionFloats({ 0., 0., 0., 0., 0., 0., 0., 0. }) } ,
     {"tilt_up_offset_delay",     ConfigOptionFloats({ 0., 0., 0., 0., 1., 1., 0., 0. }) } ,
     {"tilt_up_delay",            ConfigOptionFloats({ 0., 0., 0., 0., 0., 0., 0., 0. }) } ,
+    {"tower_hop_height",         ConfigOptionFloats({ 0., 0., 0., 0., 5., 5., 0., 0. }) } ,
 };
 
 const std::map<std::string, ConfigOptionInts> tilt_options_ints_sl1_defs =
 {
-    {"tower_hop_height",         ConfigOptionInts({ 0, 0, 0, 0, 5, 5, 0, 0 }) } ,
     {"tilt_down_offset_steps",   ConfigOptionInts({ 650, 650, 0, 0, 2200, 2200, 0, 0 }) } ,
     {"tilt_down_cycles",         ConfigOptionInts({ 1, 1, 1, 1, 1, 1, 0, 0 }) } ,
     {"tilt_up_offset_steps",     ConfigOptionInts({ 400, 400, 400, 400, 2200, 2200, 0, 0 }) } ,
