@@ -244,8 +244,8 @@ int decimate_Polygons(const CommandParameters &command_parameters)
 	    transformed_polygon = transform_UpsideDown(solver_configuration,
 						       scaleUp_PolygonForSlicer(1,
 										shift_polygon,
-										rand() % (solver_configuration.x_plate_bounding_box_size * SEQ_SLICER_SCALE_FACTOR),
-										rand() % (solver_configuration.y_plate_bounding_box_size * SEQ_SLICER_SCALE_FACTOR)));
+										(solver_configuration.plate_bounding_box.min.x() + rand() % (solver_configuration.plate_bounding_box.max.x() - solver_configuration.plate_bounding_box.min.x())) * SEQ_SLICER_SCALE_FACTOR,
+										(solver_configuration.plate_bounding_box.min.y() + rand() % (solver_configuration.plate_bounding_box.max.y() - solver_configuration.plate_bounding_box.min.y()) * SEQ_SLICER_SCALE_FACTOR)));
 	}
 	else
 	{
@@ -351,10 +351,14 @@ int decimate_Polygons(const CommandParameters &command_parameters)
 	preview_svg.draw(display_polygon, color);
     }
 
-    Polygon bed_polygon({ { 0, 0},
-			  { solver_configuration.x_plate_bounding_box_size, 0 },
-			  { solver_configuration.x_plate_bounding_box_size, solver_configuration.y_plate_bounding_box_size},
-			  { 0, solver_configuration.y_plate_bounding_box_size} });		
+    // general plate polygons are currently not supported
+    assert(solver_configuration.plate_bounding_polygon.points.size() == 0);
+    
+    Polygon bed_polygon({ { solver_configuration.plate_bounding_box.min.x(), solver_configuration.plate_bounding_box.min.y() },
+			  { solver_configuration.plate_bounding_box.max.x(), solver_configuration.plate_bounding_box.min.y() },
+			  { solver_configuration.plate_bounding_box.max.x(), solver_configuration.plate_bounding_box.max.y() },
+			  { solver_configuration.plate_bounding_box.min.x(), solver_configuration.plate_bounding_box.max.y() } });
+    
     Polygon display_bed_polygon = scaleUp_PolygonForSlicer(SEQ_SVG_SCALE_FACTOR,
 							   bed_polygon,
 							   0,

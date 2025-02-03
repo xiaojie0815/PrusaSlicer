@@ -43,7 +43,7 @@ struct PrinterGeometry
     // <height, polygons at given height>, at least one polygon must be present for height 0
     std::map<coord_t, std::vector<Slic3r::Polygon> > extruder_slices;
 
-    bool convert_Geometry2PlateBounds(int &x_bounding_box_size, int &y_bounding_box_size, Slic3r::Polygon &plate_bounding_polygon) const;
+    bool convert_Geometry2PlateBounds(Slic3r::BoundingBox &plate_bounding_box, Slic3r::Polygon &plate_bounding_polygon) const;
 };
 
     
@@ -74,9 +74,7 @@ struct SolverConfiguration
     int bounding_box_size_optimization_step;
     int minimum_bounding_box_size;
     
-    int x_plate_bounding_box_size;
-    int y_plate_bounding_box_size;
-
+    Slic3r::BoundingBox plate_bounding_box;
     Slic3r::Polygon plate_bounding_polygon;
     
     int max_refines;

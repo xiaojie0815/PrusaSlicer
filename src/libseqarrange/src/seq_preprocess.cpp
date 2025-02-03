@@ -523,7 +523,7 @@ Polygon transform_UpsideDown(const SolverConfiguration &solver_configuration, co
     for (unsigned int i = 0; i < poly.points.size(); ++i)
     {	
 	poly.points[i] = Point(poly.points[i].x(),
-			       (coord_t)(solver_configuration.y_plate_bounding_box_size * scale_factor - poly.points[i].y()));
+			       (coord_t)((solver_configuration.plate_bounding_box.max.y() - solver_configuration.plate_bounding_box.min.y())  * scale_factor - poly.points[i].y()));
     }
 
     return poly;    
@@ -539,7 +539,7 @@ void transform_UpsideDown(const SolverConfiguration &solver_configuration, const
 void transform_UpsideDown(const SolverConfiguration &solver_configuration, coord_t scale_factor, const coord_t &scaled_x_pos, const coord_t &scaled_y_pos, coord_t &transformed_x_pos, coord_t &transformed_y_pos)
 {
     transformed_x_pos = scaled_x_pos;
-    transformed_y_pos = solver_configuration.y_plate_bounding_box_size * scale_factor - scaled_y_pos;
+    transformed_y_pos = (solver_configuration.plate_bounding_box.max.y() - solver_configuration.plate_bounding_box.min.y()) * scale_factor - scaled_y_pos;
 }
 
 
@@ -868,14 +868,17 @@ bool check_PolygonSizeFitToPlate(const SolverConfiguration &solver_configuration
 {
     BoundingBox polygon_box = get_extents(polygon);
 
+    // general plate polygons are currently not supported
+    assert(solver_configuration.plate_bounding_polygon.points.size() == 0);    
+    
     coord_t x_size = polygon_box.max.x() - polygon_box.min.x();
-    if (x_size > solver_configuration.x_plate_bounding_box_size)
+    if (x_size > (solver_configuration.plate_bounding_box.max.x() - solver_configuration.plate_bounding_box.min.x()))
     {
 	return false;
     }
     
     coord_t y_size = polygon_box.max.y() - polygon_box.min.y();
-    if (y_size > solver_configuration.y_plate_bounding_box_size)
+    if (y_size > (solver_configuration.plate_bounding_box.max.y() - solver_configuration.plate_bounding_box.min.y()))
     {
 	return false;
     }    
@@ -887,11 +890,14 @@ bool check_PolygonPositionWithinPlate(const SolverConfiguration &solver_configur
 {
     BoundingBox polygon_box = get_extents(polygon);
 
-    if (x + polygon_box.min.x() < 0 || x + polygon_box.max.x() > solver_configuration.x_plate_bounding_box_size)
+    // general plate polygons are currently not supported
+    assert(solver_configuration.plate_bounding_polygon.points.size() == 0);
+    
+    if (x + polygon_box.min.x() < solver_configuration.plate_bounding_box.min.x() || x + polygon_box.max.x() > solver_configuration.plate_bounding_box.max.x())
     {
 	return false;
     }
-    if (y + polygon_box.min.y() < 0 || y + polygon_box.max.y() > solver_configuration.y_plate_bounding_box_size)    
+    if (y + polygon_box.min.y() < solver_configuration.plate_bounding_box.min.y() || y + polygon_box.max.y() > solver_configuration.plate_bounding_box.max.y())    
     {
 	return false;
     }    
@@ -903,14 +909,17 @@ bool check_PolygonSizeFitToPlate(const SolverConfiguration &solver_configuration
 {
     BoundingBox polygon_box = get_extents(polygon);
 
+    // general plate polygons are currently not supported
+    assert(solver_configuration.plate_bounding_polygon.points.size() == 0);    
+    
     coord_t x_size = polygon_box.max.x() - polygon_box.min.x();
-    if (x_size > solver_configuration.x_plate_bounding_box_size * scale_factor)
+    if (x_size > (solver_configuration.plate_bounding_box.max.x() - solver_configuration.plate_bounding_box.min.x()) * scale_factor)
     {
 	return false;
     }
     
     coord_t y_size = polygon_box.max.y() - polygon_box.min.y();
-    if (y_size > solver_configuration.y_plate_bounding_box_size * scale_factor)
+    if (y_size > (solver_configuration.plate_bounding_box.max.x() - solver_configuration.plate_bounding_box.min.x()) * scale_factor)
     {
 	return false;
     }    
@@ -923,6 +932,9 @@ bool check_PolygonPositionWithinPlate(const SolverConfiguration &solver_configur
 {
     BoundingBox polygon_box = get_extents(polygon);
 
+    // general plate polygons are currently not supported
+    assert(solver_configuration.plate_bounding_polygon.points.size() == 0);    
+
     #ifdef DEBUG
     {
 	printf("x: %d,%d\n", polygon_box.min.x() + x, polygon_box.max.x() + x);
@@ -932,11 +944,11 @@ bool check_PolygonPositionWithinPlate(const SolverConfiguration &solver_configur
     }
     #endif
 	
-    if (x + polygon_box.min.x() < 0 || x + polygon_box.max.x() > solver_configuration.x_plate_bounding_box_size * scale_factor)
+    if (x + polygon_box.min.x() < solver_configuration.plate_bounding_box.min.x() * scale_factor || x + polygon_box.max.x() > solver_configuration.plate_bounding_box.max.x() * scale_factor)
     {
 	return false;
     }
-    if (y + polygon_box.min.y() < 0 || y + polygon_box.max.y() > solver_configuration.y_plate_bounding_box_size * scale_factor)
+    if (y + polygon_box.min.y() < solver_configuration.plate_bounding_box.min.y() * scale_factor || y + polygon_box.max.y() > solver_configuration.plate_bounding_box.max.y() * scale_factor)
     {
 	return false;
     }    

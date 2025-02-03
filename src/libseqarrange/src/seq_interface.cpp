@@ -75,33 +75,29 @@ const coord_t SEQ_PRUSA_XL_GANTRY_LEVEL   = 26000000;
 
 /*----------------------------------------------------------------*/
     
-bool PrinterGeometry::convert_Geometry2PlateBounds(int &x_plate_bounding_box_size, int &y_plate_bounding_box_size, Slic3r::Polygon &plate_bounding_polygon) const
+bool PrinterGeometry::convert_Geometry2PlateBounds(Slic3r::BoundingBox &plate_bounding_box, Slic3r::Polygon &plate_bounding_polygon) const
 {
-    coord_t x_size, y_size;
-
     BoundingBox plate_box = get_extents(plate);
-
-    x_size = plate_box.max.x() - plate_box.min.x();
-    y_size = plate_box.max.y() - plate_box.min.y();
     
-    x_plate_bounding_box_size = x_size / SEQ_SLICER_SCALE_FACTOR;
-    y_plate_bounding_box_size = y_size / SEQ_SLICER_SCALE_FACTOR;
-
-    coord_t plate_box_area = x_size * y_size;
-    
-    if (plate.area() != plate_box_area)
+    if (fabs(plate.area() - plate_box.polygon().area()) > EPSILON)
     {
 	for (unsigned int i = 0; i < plate.points.size(); ++i)
 	{
 	    plate_bounding_polygon.points.insert(plate_bounding_polygon.points.begin() + i, Point(plate.points[i].x() / SEQ_SLICER_SCALE_FACTOR,
 												  plate.points[i].y() / SEQ_SLICER_SCALE_FACTOR));
-	}	
+	}	    	
 	// non-rectangular plate is currently not supported	
 	assert(false);
 	
 	return false;
     }
-    return true;
+    else
+    {	
+	plate_bounding_box = BoundingBox({ plate_box.min.x() / SEQ_SLICER_SCALE_FACTOR, plate_box.min.y() / SEQ_SLICER_SCALE_FACTOR },
+					 { plate_box.max.x() / SEQ_SLICER_SCALE_FACTOR, plate_box.max.y() / SEQ_SLICER_SCALE_FACTOR });
+
+	return true;	
+    }
 }
     
     
@@ -110,8 +106,6 @@ bool PrinterGeometry::convert_Geometry2PlateBounds(int &x_plate_bounding_box_siz
 SolverConfiguration::SolverConfiguration()
     : bounding_box_size_optimization_step(SEQ_BOUNDING_BOX_SIZE_OPTIMIZATION_STEP)
     , minimum_bounding_box_size(SEQ_MINIMUM_BOUNDING_BOX_SIZE)
-    , x_plate_bounding_box_size(SEQ_PRUSA_MK3S_X_SIZE)
-    , y_plate_bounding_box_size(SEQ_PRUSA_MK3S_Y_SIZE)
     , max_refines(SEQ_MAX_REFINES)
     , object_group_size(SEQ_OBJECT_GROUP_SIZE)
     , fixed_object_grouping_limit(SEQ_FIXED_OBJECT_GROUPING_LIMIT)
@@ -167,7 +161,7 @@ double SolverConfiguration::convert_DecimationPrecision2Tolerance(DecimationPrec
        
 void SolverConfiguration::setup(const PrinterGeometry &printer_geometry)
 {
-    printer_geometry.convert_Geometry2PlateBounds(x_plate_bounding_box_size, y_plate_bounding_box_size, plate_bounding_polygon);
+    printer_geometry.convert_Geometry2PlateBounds(plate_bounding_box, plate_bounding_polygon);
 }
 
     

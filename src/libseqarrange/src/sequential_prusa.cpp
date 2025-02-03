@@ -692,10 +692,11 @@ int solve_SequentialPrint(const CommandParameters &command_parameters)
 		
 		preview_svg.draw_text(Point(x, y), ("ID:" + std::to_string(original_index_map[decided_polygons[i]]) + " T:" + std::to_string(times_T[decided_polygons[i]].as_int64())).c_str(), text_color.c_str());
 	    }
-	    Polygon plate_polygon({ { 0, 0},
-				  { solver_configuration.x_plate_bounding_box_size, 0 },
-				  { solver_configuration.x_plate_bounding_box_size, solver_configuration.y_plate_bounding_box_size},
-				  { 0, solver_configuration.y_plate_bounding_box_size} });		
+	    Polygon plate_polygon({ { solver_configuration.plate_bounding_box.min.x(), solver_configuration.plate_bounding_box.min.y() },
+				    { solver_configuration.plate_bounding_box.max.x(), solver_configuration.plate_bounding_box.min.y() },
+				    { solver_configuration.plate_bounding_box.max.x(), solver_configuration.plate_bounding_box.max.y() },
+				    { solver_configuration.plate_bounding_box.min.x(), solver_configuration.plate_bounding_box.max.y() } });
+
 	    Polygon display_plate_polygon = scaleUp_PolygonForSlicer(SEQ_SVG_SCALE_FACTOR,
 								     plate_polygon,
 								     0,
