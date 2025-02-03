@@ -2923,6 +2923,7 @@ void GLCanvas3D::load_gcode_preview(const GCodeProcessorResult& gcode_result, co
     if (wxGetApp().is_editor()) {
         _set_warning_notification_if_needed(EWarning::ToolpathOutside);
         _set_warning_notification_if_needed(EWarning::GCodeConflict);
+        _set_warning_notification_if_needed(EWarning::SequentialCollision);
     }
 
     set_as_dirty();
@@ -7365,6 +7366,8 @@ void GLCanvas3D::_set_warning_notification_if_needed(EWarning warning)
                     show = m_gcode_viewer.has_data() && !m_gcode_viewer.is_contained_in_bed();
                 else if (warning == EWarning::GCodeConflict)
                     show = m_gcode_viewer.has_data() && m_gcode_viewer.is_contained_in_bed() && m_gcode_viewer.get_conflict_result().has_value();
+                else if (warning == EWarning::SequentialCollision)
+                    show = m_gcode_viewer.has_data() && m_gcode_viewer.get_sequential_collision_detected();
             }
         }
     }
@@ -7401,6 +7404,11 @@ void GLCanvas3D::_set_warning_notification(EWarning warning, bool state)
         // TRN %3% is name of Object1, %4% is name of Object2
         text = format(_u8L("Conflicts in G-code paths have been detected at layer %1%, z=%2$.2f mm. Please reposition the conflicting objects (%3% <-> %4%) further apart."), 
                       layer, height, objName1, objName2);
+        error = ErrorType::SLICING_ERROR;
+        break;
+    }
+    case EWarning::SequentialCollision: {
+        text = _u8L("Collision between an object and extruder gantry detected.");
         error = ErrorType::SLICING_ERROR;
         break;
     }

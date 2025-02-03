@@ -749,6 +749,7 @@ private:
     friend class PrintObject;
 
     ConflictResultOpt m_conflict_result;
+    bool m_sequential_collision_detected;
 };
 
 } /* slic3r_Print_hpp_ */

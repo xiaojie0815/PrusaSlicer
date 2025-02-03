@@ -163,6 +163,7 @@ namespace Slic3r {
         bool spiral_vase_mode;
 
         ConflictResultOpt conflict_result;
+        bool sequential_collision_detected;
 
         void reset();
     };

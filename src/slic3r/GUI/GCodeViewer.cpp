@@ -1112,6 +1112,8 @@ void GCodeViewer::load_as_gcode(const GCodeProcessorResult& gcode_result, const 
     m_conflict_result = gcode_result.conflict_result;
     if (m_conflict_result.has_value())
         m_conflict_result->layer = m_viewer.get_layer_id_at(static_cast<float>(m_conflict_result->_height));
+
+    m_sequential_collision_detected = gcode_result.sequential_collision_detected;
 }
 
 void GCodeViewer::load_as_preview(libvgcode::GCodeInputData&& data)

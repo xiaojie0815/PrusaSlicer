@@ -462,11 +462,6 @@ std::string Print::validate(std::vector<std::string>* warnings) const
     if (extruders.empty())
         return _u8L("The supplied settings will cause an empty print.");
 
-    if (m_config.complete_objects) {
-        if (! check_seq_printability(m_model, m_config))
-            return _u8L("Some objects are too close; your extruder will collide with them.");
-    }
-
     if (m_config.avoid_crossing_perimeters && m_config.avoid_crossing_curled_overhangs) {
         return _u8L("Avoid crossing perimeters option and avoid crossing curled overhangs option cannot be both enabled together.");
     }    
@@ -975,6 +970,8 @@ void Print::process()
     if (conflictRes.has_value())
         BOOST_LOG_TRIVIAL(error) << boost::format("gcode path conflicts found between %1% and %2%") % conflictRes->_objName1 % conflictRes->_objName2;
 
+    m_sequential_collision_detected = config().complete_objects && ! check_seq_printability(model(), config());
+
     BOOST_LOG_TRIVIAL(info) << "Slicing process finished." << log_memory_info();
 }
 
@@ -1003,6 +1000,8 @@ std::string Print::export_gcode(const std::string& path_template, GCodeProcessor
 
     if (m_conflict_result.has_value())
         result->conflict_result = *m_conflict_result;
+
+    result->sequential_collision_detected = m_sequential_collision_detected;
 
     return path.c_str();
 }
