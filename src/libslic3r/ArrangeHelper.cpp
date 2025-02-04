@@ -10,6 +10,7 @@
 #include "boost/regex.hpp"
 #include "boost/property_tree/json_parser.hpp"
 #include "boost/algorithm/string/replace.hpp"
+#include <boost/nowide/fstream.hpp>
 
 
 
@@ -37,7 +38,7 @@ static Sequential::PrinterGeometry get_printer_geometry(const ConfigBase& config
 	{
 		if (! printer_notes.empty()) {
 			try {
-				std::ifstream in(resources_dir() + "/data/printer_gantries/geometries.txt");
+				boost::nowide::ifstream in(resources_dir() + "/data/printer_gantries/geometries.txt");
 				boost::property_tree::ptree pt;
 				boost::property_tree::read_json(in, pt);
 				for (const auto& printer : pt.get_child("printers")) {
