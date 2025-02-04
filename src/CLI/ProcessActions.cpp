@@ -35,6 +35,7 @@
 #include "libslic3r/miniz_extension.hpp"
 #include "libslic3r/PNGReadWrite.hpp"
 #include "libslic3r/MultipleBeds.hpp"
+#include "libslic3r/BuildVolume.hpp"
 
 #include "CLI.hpp"
 
@@ -230,6 +231,14 @@ static std::function<ThumbnailsList(const ThumbnailsParams&)> get_thumbnail_gene
     return [](const ThumbnailsParams&) ->ThumbnailsList { return {}; };
 }
 
+static void update_instances_outside_state(Model& model, const DynamicPrintConfig& config)
+{
+    Pointfs bed_shape = dynamic_cast<const ConfigOptionPoints*>(config.option("bed_shape"))->values;
+    BuildVolume build_volume(bed_shape, config.opt_float("max_print_height"));
+    s_multiple_beds.update_build_volume(BoundingBoxf(bed_shape));
+    model.update_print_volume_state(build_volume);
+}
+
 bool process_actions(Data& cli, const DynamicPrintConfig& print_config, std::vector<Model>& models)
 {
     DynamicPrintConfig& actions     = cli.actions_config;
@@ -325,7 +334,13 @@ bool process_actions(Data& cli, const DynamicPrintConfig& print_config, std::vec
                 for (auto* mo : model.objects)
                     fff_print.auto_assign_extruders(mo);
             }
-            print->apply(model, print_config);
+
+            update_instances_outside_state(model, print_config);
+            MultipleBedsUtils::with_single_bed_model_fff(model, 0, [&print, &model, &print_config]()
+            {
+                print->apply(model, print_config);
+            });
+
             std::string err = print->validate();
             if (!err.empty()) {
                 boost::nowide::cerr << err << std::endl;
