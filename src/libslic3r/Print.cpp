@@ -1001,7 +1001,8 @@ std::string Print::export_gcode(const std::string& path_template, GCodeProcessor
     if (m_conflict_result.has_value())
         result->conflict_result = *m_conflict_result;
 
-    result->sequential_collision_detected = m_sequential_collision_detected;
+    if (result)
+        result->sequential_collision_detected = m_sequential_collision_detected;
 
     return path.c_str();
 }
