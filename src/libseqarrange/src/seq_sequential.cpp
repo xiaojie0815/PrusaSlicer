@@ -9067,7 +9067,7 @@ bool optimize_ConsequentialWeakPolygonNonoverlappingBinaryCentered(z3::solver   
 	coord_t box_min_y = (half_y_max + half_y_min) / 2;
 	coord_t box_max_y = solver_configuration.plate_bounding_box.max.y() - box_min_y;
 	*/
-
+	
 	#ifdef DEBUG
 	{
 	    printf("BBX: %d, %d, %d, %d\n", box_min_x, box_max_x, box_min_y, box_max_y);
