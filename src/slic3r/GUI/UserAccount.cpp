@@ -289,7 +289,6 @@ bool UserAccount::on_connect_uiid_map_success(const std::string& data, AppConfig
             const PresetWithVendorProfile& printer_with_vendor = wxGetApp().preset_bundle->printers.get_preset_with_vendor_profile(*printer_preset);
             trimmed_name = printer_preset->trim_vendor_repo_prefix(trimmed_name, printer_with_vendor.vendor);
             m_printer_uuid_map[*printer_uuid] = trimmed_name;
-            BOOST_LOG_TRIVIAL(error) <<  trimmed_name << " " << *printer_uuid;
         } else {
             BOOST_LOG_TRIVIAL(error) << "Failed to find preset for printer model: " << *printer_model;
         }
