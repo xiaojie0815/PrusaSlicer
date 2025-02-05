@@ -1,4 +1,6 @@
-#include <catch2/catch.hpp>
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/catch_template_test_macros.hpp>
+#include <catch2/catch_approx.hpp>
 
 #include "libslic3r/BoundingBox.hpp"
 #include "libslic3r/AStar.hpp"
@@ -6,6 +8,7 @@
 #include "libslic3r/PointGrid.hpp"
 
 using namespace Slic3r;
+using namespace Catch;
 
 TEST_CASE("Testing basic invariants of AStar", "[AStar]") {
     struct DummyTracer {

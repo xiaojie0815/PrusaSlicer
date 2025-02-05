@@ -2,7 +2,8 @@
  * Mostly ported from t/gcode.t
  */
 
-#include <catch2/catch.hpp>
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/catch_approx.hpp>
 
 #include <memory>
 #include <regex>
@@ -14,6 +15,7 @@
 
 using namespace Slic3r;
 using namespace Test;
+using namespace Catch;
 
 constexpr bool debug_files = false;
 
@@ -65,7 +67,7 @@ TEST_CASE("Wiping speeds", "[GCode]") {
         INFO("Wipe moves don\'t retract faster than configured speed");
         CHECK(retract_speed < expected_retract_speed);
     }
-    INFO("No wiping after layer change")
+    INFO("No wiping after layer change");
     CHECK(!wiping_on_new_layer);
 }
 
