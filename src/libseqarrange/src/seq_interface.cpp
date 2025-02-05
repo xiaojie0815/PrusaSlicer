@@ -85,10 +85,7 @@ bool PrinterGeometry::convert_Geometry2PlateBounds(Slic3r::BoundingBox &plate_bo
 	{
 	    plate_bounding_polygon.points.insert(plate_bounding_polygon.points.begin() + i, Point(plate.points[i].x() / SEQ_SLICER_SCALE_FACTOR,
 												  plate.points[i].y() / SEQ_SLICER_SCALE_FACTOR));
-	}	    	
-	// non-rectangular plate is currently not supported	
-	assert(false);
-	
+	}
 	return false;
     }
     else
@@ -442,7 +439,7 @@ void schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver
 	#endif
 	
 	if (optimized)
-	{
+	{	
 	    #ifdef DEBUG
 	    {	    
 		printf("Polygon positions:\n");

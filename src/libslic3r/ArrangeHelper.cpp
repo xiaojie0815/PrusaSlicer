@@ -105,6 +105,7 @@ static Sequential::PrinterGeometry get_printer_geometry(const ConfigBase& config
 	
 	out.plate = { { scaled(min_x), scaled(min_y)},
 		      { scaled(max_x), scaled(min_y)},
+		      // { 2 * scaled(max_x), (scaled(min_y) + scaled(max_y)) / 2}, /* for testing convex non-rectangular beds
 		      { scaled(max_x), scaled(max_y)},
 		      { scaled(min_x), scaled(max_y)}};	
 	

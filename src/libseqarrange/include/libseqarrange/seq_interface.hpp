@@ -34,9 +34,10 @@ namespace Sequential
     
 struct PrinterGeometry
 {
+    // must be convex; for best performance a rectangle is recommended
     Slic3r::Polygon plate;
 
-    // at least height 0 (corresponding to nozzle) must be present in convex_height
+    // at least height 0 (corresponding to nozzle) must be present in convex_heights
     std::set<coord_t> convex_heights;
     std::set<coord_t> box_heights;
 

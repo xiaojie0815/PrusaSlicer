@@ -232,7 +232,6 @@ void assume_DecisionBox(const z3::expr  &dec_var_X,
 			int              box_size_y,
 			z3::expr_vector &box_constraints);
 
-
 void introduce_BedBoundingBox(z3::solver            &Solver,
 			      const z3::expr        &dec_var_X,
 			      const z3::expr        &dec_var_Y,			      
@@ -254,8 +253,7 @@ void introduce_BedBoundingBox(z3::solver            &Solver,
 			      int                    box_min_x,
 			      int                    box_min_y,
 			      int                    box_max_x,
-			      int                    box_max_y);
-			      
+			      int                    box_max_y);	      
 
 void assume_BedBoundingBox(const z3::expr        &dec_var_X,
 			   const z3::expr        &dec_var_Y,			      
@@ -265,6 +263,13 @@ void assume_BedBoundingBox(const z3::expr        &dec_var_X,
 			   int                    box_max_x,
 			   int                    box_max_y,			   
 			   z3::expr_vector       &bounding_constraints);
+
+void assume_BedBoundingPolygon(z3::context           &Context,
+			       const z3::expr        &dec_var_X,
+			       const z3::expr        &dec_var_Y,			      
+			       const Slic3r::Polygon &polygon,
+			       const Slic3r::Polygon &bed_bounding_polygon,
+			       z3::expr_vector       &bounding_constraints);
 
 void introduce_BedBoundingBox(z3::solver                         &Solver,
 			      const z3::expr_vector              &dec_vars_X,
@@ -589,6 +594,12 @@ void introduce_PointInsidePolygon(z3::solver            &Solver,
 				  const z3::expr        &dec_var_X2,
 				  const z3::expr        &dec_var_Y2,
 				  const Slic3r::Polygon &polygon);
+
+void assume_PointInsidePolygon(z3::context           &Context,
+			       const z3::expr        &dec_var_X,
+			       const z3::expr        &dec_var_Y,
+			       const Slic3r::Polygon &polygon,
+			       z3::expr_vector       &constraints);
 
 void introduce_PointOutsidePolygon(z3::solver            &Solver,
 				   z3::context           &Context,			      
@@ -1454,6 +1465,12 @@ bool checkArea_SequentialWeakPolygonNonoverlapping(coord_t                      
 						   const std::vector<Slic3r::Polygon>               &polygons,
 						   const std::vector<std::vector<Slic3r::Polygon> > &unreachable_polygons);
 
+bool checkArea_SequentialWeakPolygonNonoverlapping(const Slic3r::Polygon                            &bounding_polygon,
+						   const std::vector<int>                           &fixed,
+						   const std::vector<int>                           &undecided,
+						   const std::vector<Slic3r::Polygon>               &polygons,
+						   const std::vector<std::vector<Slic3r::Polygon> > &unreachable_polygons);
+
 bool checkExtens_SequentialWeakPolygonNonoverlapping(coord_t                                           box_min_x,
 						     coord_t                                           box_min_y,
 						     coord_t                                           box_max_x,
@@ -1468,10 +1485,10 @@ bool checkExtens_SequentialWeakPolygonNonoverlapping(coord_t                    
 bool optimize_SequentialWeakPolygonNonoverlappingBinaryCentered(z3::solver                                       &Solver,
 								z3::context                                      &Context,
 								const SolverConfiguration                        &solver_configuration,
-								int                                              &box_half_x_min,
-								int                                              &box_half_y_min,								
-								int                                              &box_half_x_max,
-								int                                              &box_half_y_max,
+								coord_t                                          &box_half_x_min,
+							        coord_t                                          &box_half_y_min,
+							        coord_t                                          &box_half_x_max,
+								coord_t                                          &box_half_y_max,
 								const z3::expr_vector                            &dec_vars_X,
 								const z3::expr_vector                            &dec_vars_Y,
 								const z3::expr_vector                            &dec_vars_T,
@@ -1484,14 +1501,49 @@ bool optimize_SequentialWeakPolygonNonoverlappingBinaryCentered(z3::solver      
 								const std::vector<Slic3r::Polygon>               &polygons,
 								const std::vector<std::vector<Slic3r::Polygon> > &unreachable_polygons);
 
+bool optimize_ConsequentialWeakPolygonNonoverlappingBinaryCentered(z3::solver                                       &Solver,
+								   z3::context                                      &Context,
+								   const SolverConfiguration                        &solver_configuration,
+								   coord_t                                          &box_half_x_min,
+								   coord_t                                          &box_half_y_min,
+								   coord_t                                          &box_half_x_max,
+								   coord_t                                          &box_half_y_max,
+								   const z3::expr_vector                            &dec_vars_X,
+								   const z3::expr_vector                            &dec_vars_Y,
+								   const z3::expr_vector                            &dec_vars_T,
+								   std::vector<Rational>                            &dec_values_X,
+								   std::vector<Rational>                            &dec_values_Y,
+								   std::vector<Rational>                            &dec_values_T,
+								   const std::vector<int>                           &fixed,
+								   const std::vector<int>                           &undecided,
+								   const string_map                                 &dec_var_names_map,
+								   const std::vector<Slic3r::Polygon>               &polygons,
+								   const std::vector<std::vector<Slic3r::Polygon> > &unreachable_polygons,
+								   const ProgressRange                              &progress_range,
+								   std::function<void(int)>                          progress_callback);
 
 bool optimize_ConsequentialWeakPolygonNonoverlappingBinaryCentered(z3::solver                                       &Solver,
 								   z3::context                                      &Context,
 								   const SolverConfiguration                        &solver_configuration,
-								   int                                              &box_half_x_min,
-								   int                                              &box_half_y_min,								   
-								   int                                              &box_half_x_max,
-								   int                                              &box_half_y_max,
+								   BoundingBox                                      &inner_half_box,
+								   const z3::expr_vector                            &dec_vars_X,
+								   const z3::expr_vector                            &dec_vars_Y,
+								   const z3::expr_vector                            &dec_vars_T,
+								   std::vector<Rational>                            &dec_values_X,
+								   std::vector<Rational>                            &dec_values_Y,
+								   std::vector<Rational>                            &dec_values_T,
+								   const std::vector<int>                           &fixed,
+								   const std::vector<int>                           &undecided,
+								   const string_map                                 &dec_var_names_map,
+								   const std::vector<Slic3r::Polygon>               &polygons,
+								   const std::vector<std::vector<Slic3r::Polygon> > &unreachable_polygons,
+								   const ProgressRange                              &progress_range,
+								   std::function<void(int)>                          progress_callback);
+
+bool optimize_ConsequentialWeakPolygonNonoverlappingBinaryCentered(z3::solver                                       &Solver,
+								   z3::context                                      &Context,
+								   const SolverConfiguration                        &solver_configuration,
+								   Polygon                                          &inner_half_polygon,
 								   const z3::expr_vector                            &dec_vars_X,
 								   const z3::expr_vector                            &dec_vars_Y,
 								   const z3::expr_vector                            &dec_vars_T,
