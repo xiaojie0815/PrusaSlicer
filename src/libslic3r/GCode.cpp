@@ -704,7 +704,8 @@ namespace DoExport {
 	                if (region.config().get_abs_value("infill_speed") == 0 ||
 	                    region.config().get_abs_value("solid_infill_speed") == 0 ||
 	                    region.config().get_abs_value("top_solid_infill_speed") == 0 ||
-                        region.config().get_abs_value("bridge_speed") == 0)
+                        region.config().get_abs_value("bridge_speed") == 0 ||
+                        region.config().get_abs_value("over_bridge_speed") == 0)
                     {
                         // Minimal volumetric flow should not be calculated over ironing extrusions.
                         // Use following lambda instead of the built-it method.
@@ -3387,6 +3388,14 @@ std::string GCodeGenerator::_extrude(
             speed = m_config.get_abs_value("infill_speed");
         } else if (path_attr.role == ExtrusionRole::SolidInfill) {
             speed = m_config.get_abs_value("solid_infill_speed");
+        } else if (path_attr.role == ExtrusionRole::InfillOverBridge) {
+            const double solid_infill_speed = m_config.get_abs_value("solid_infill_speed");
+            const double over_bridge_speed{m_config.get_abs_value("over_bridge_speed", solid_infill_speed)};
+            if (over_bridge_speed > 0) {
+                speed = over_bridge_speed;
+            } else {
+                speed = solid_infill_speed;
+            }
         } else if (path_attr.role == ExtrusionRole::TopSolidInfill) {
             speed = m_config.get_abs_value("top_solid_infill_speed");
         } else if (path_attr.role == ExtrusionRole::Ironing) {
