@@ -44,6 +44,7 @@ void SeqArrangeJob::finalize(bool canceled, std::exception_ptr&)
     // If the task was cancelled, the stopping exception was already caught
     // in 'process' function. Let any other exception propagate further.
     if (! canceled) {
+        Plater::TakeSnapshot snapshot(wxGetApp().plater(), _u8L("Arrange for sequential print"));
         m_seq_arrange->apply_seq_arrange(wxGetApp().model());
         wxGetApp().plater()->canvas3D()->reload_scene(true, true);
         wxGetApp().obj_list()->update_after_undo_redo();

@@ -4,6 +4,7 @@
 #include "libslic3r/TriangleMesh.hpp"
 #include "libslic3r/MultipleBeds.hpp"
 #include "libslic3r/PresetBundle.hpp"
+#include "libslic3r/BuildVolume.hpp"
 
 #include <string>
 
@@ -29,11 +30,20 @@ static Sequential::PrinterGeometry get_printer_geometry(const ConfigBase& config
 		std::vector<Polygon> polygons;
 	};
 
+	BuildVolume bv(config.opt<ConfigOptionPoints>("bed_shape")->values, 10.);
+	const BoundingBox& bb = bv.bounding_box();
+	Polygon bed_polygon;
+	if (bv.type() == BuildVolume::Type::Circle) {
+		// Generate an inscribed octagon.
+		double r = bv.bounding_volume2d().size().x() / 2.;
+		for (double a = 2*M_PI; a > 0.1; a -= M_PI/4.)
+			bed_polygon.points.emplace_back(Point::new_scale(r * std::sin(a), r * std::cos(a)));
+	} else {
+		// Rectangle of Custom. Just use the bounding box.
+		bed_polygon = bb.polygon();
+	}
 
-	double bed_x = s_multiple_beds.get_bed_size().x();
-	double bed_y = s_multiple_beds.get_bed_size().y();
 	std::vector<ExtruderSlice> slices;
-
 	const std::string printer_notes = config.opt_string("printer_notes");
 	{
 		if (! printer_notes.empty()) {
@@ -80,35 +90,19 @@ static Sequential::PrinterGeometry get_printer_geometry(const ConfigBase& config
 		}
 		if (slices.empty()) {
 			// Fallback to primitive model using radius and height.
-			coord_t r = scaled(std::max(0., config.opt_float("extruder_clearance_radius")));
+			coord_t r = scaled(std::max(0.1, config.opt_float("extruder_clearance_radius")));
 			coord_t h = scaled(std::max(0.1, config.opt_float("extruder_clearance_height")));
-			if (r > 0.001) {
-				slices.push_back(ExtruderSlice{ 0, CONVEX, { { {  -5000000,   -5000000 }, {   5000000,   -5000000 }, {   5000000,   5000000 }, {  -5000000,   5000000 } } } });
-				slices.push_back(ExtruderSlice{ 1000000, BOX, { { {  -r, -r }, { r, -r }, {   r,   r }, {  -r,  r } } } });
-				slices.push_back(ExtruderSlice{ h, BOX, { { { -scaled(bed_x),  -r }, { scaled(bed_x),  -r }, { scaled(bed_x), r }, { -scaled(bed_x), r}}} });
-			}
+			double bed_x = bv.bounding_volume2d().size().x();
+			double bed_y = bv.bounding_volume2d().size().y();
+			slices.push_back(ExtruderSlice{ 0, CONVEX, { { {  -5000000,   -5000000 }, {   5000000,   -5000000 }, {   5000000,   5000000 }, {  -5000000,   5000000 } } } });
+			slices.push_back(ExtruderSlice{ 1000000, BOX, { { {  -r, -r }, { r, -r }, {   r,   r }, {  -r,  r } } } });
+			slices.push_back(ExtruderSlice{ h, BOX, { { { -scaled(bed_x),  -r }, { scaled(bed_x),  -r }, { scaled(bed_x), r }, { -scaled(bed_x), r}}} });
 		}
 	}
 
-
 	// Convert the read data so libseqarrange understands them.
 	Sequential::PrinterGeometry out;
-	//out.plate = { { 0, 0 }, { scaled(bed_x), 0}, {scaled(bed_x), scaled(bed_y)}, {0, scaled(bed_y)}};
-	
-	BoundingBox bed_bounding_box = s_multiple_beds.get_bed_box();
-
-	double min_x = bed_bounding_box.min.x();
-	double min_y = bed_bounding_box.min.y();
-	
-	double max_x = bed_bounding_box.max.x();
-	double max_y = bed_bounding_box.max.y();
-	
-	out.plate = { { scaled(min_x), scaled(min_y)},
-		      { scaled(max_x), scaled(min_y)},
-		      // { 2 * scaled(max_x), (scaled(min_y) + scaled(max_y)) / 2}, /* for testing convex non-rectangular beds
-		      { scaled(max_x), scaled(max_y)},
-		      { scaled(min_x), scaled(max_y)}};	
-	
+	out.plate = bed_polygon;
 	for (const ExtruderSlice& slice : slices) {
 		(slice.shape_type == CONVEX ? out.convex_heights : out.box_heights).emplace(slice.height);
 		out.extruder_slices.insert(std::make_pair(slice.height, slice.polygons));
