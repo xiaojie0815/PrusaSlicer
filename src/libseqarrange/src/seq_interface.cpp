@@ -237,7 +237,7 @@ bool check_ScheduledObjectsForSequentialPrintability(const SolverConfiguration  
 	    const auto& flat_index = flat_index_map.find(scheduled_object.id)->second;
 
 	    assert(!objects_to_print[flat_index].pgns_at_height.empty());
-	    
+
 	    if (!check_PolygonPositionWithinPlate(solver_configuration,
 						  SEQ_SLICER_SCALE_FACTOR,
 						  scheduled_object.x,
@@ -286,6 +286,7 @@ bool check_ScheduledObjectsForSequentialPrintability(const SolverConfiguration  
 	    printf("Line check ...\n");
 	}
 	#endif
+	
 	if (!check_PolygonLineIntersections(dec_values_X,
 					    dec_values_Y,
 					    dec_values_T,

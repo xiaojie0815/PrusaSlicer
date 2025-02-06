@@ -984,16 +984,18 @@ bool check_PolygonPositionWithinPlate(const SolverConfiguration &solver_configur
 	printf("Y: %d\n", solver_configuration.y_plate_bounding_box_size * scale_factor);
     }
     #endif
-	
-    if (x + polygon_box.min.x() < solver_configuration.plate_bounding_box.min.x() * scale_factor || x + polygon_box.max.x() > solver_configuration.plate_bounding_box.max.x() * scale_factor)
-    {
-	return false;
-    }
-    if (y + polygon_box.min.y() < solver_configuration.plate_bounding_box.min.y() * scale_factor || y + polygon_box.max.y() > solver_configuration.plate_bounding_box.max.y() * scale_factor)
-    {
-	return false;
-    }
 
+    if (solver_configuration.plate_bounding_polygon.points.size() == 0)
+    {
+	if (x + polygon_box.min.x() < solver_configuration.plate_bounding_box.min.x() * scale_factor || x + polygon_box.max.x() > solver_configuration.plate_bounding_box.max.x() * scale_factor)
+	{
+	    return false;
+	}
+	if (y + polygon_box.min.y() < solver_configuration.plate_bounding_box.min.y() * scale_factor || y + polygon_box.max.y() > solver_configuration.plate_bounding_box.max.y() * scale_factor)
+	{
+	    return false;
+	}
+    }
     else
     {
 	Polygon plate_polygon = solver_configuration.plate_bounding_polygon;
