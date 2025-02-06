@@ -2,6 +2,8 @@
 #include <catch2/catch_template_test_macros.hpp>
 #include <catch2/catch_approx.hpp>
 
+#include <algorithm>
+
 #include "libslic3r/BoundingBox.hpp"
 #include "libslic3r/AStar.hpp"
 #include "libslic3r/Execution/ExecutionSeq.hpp"

@@ -2,6 +2,7 @@
 
 #include <queue>
 #include <random>
+#include <algorithm>
 
 #include "libslic3r/MutablePriorityQueue.hpp"
 

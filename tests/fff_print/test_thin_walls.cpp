@@ -2,6 +2,7 @@
 
 #include <numeric>
 #include <sstream>
+#include <algorithm>
 
 #include "test_data.hpp" // get access to init_print, etc
 

@@ -3,6 +3,7 @@
 #include <test_utils.hpp>
 
 #include <random>
+#include <algorithm>
 
 #include <libslic3r/ExtrusionEntity.hpp>
 #include <libslic3r/GCode/ExtrusionOrder.hpp>
