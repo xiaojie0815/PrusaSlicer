@@ -5086,8 +5086,6 @@ void PrintConfigDef::handle_legacy_composite(DynamicPrintConfig &config)
         }
         config.set_key_value("wiping_volumes_use_custom_matrix", new ConfigOptionBool(custom));
     }
-
-    handle_legacy_sla(config);
 }
 
 const PrintConfigDef print_config_def;
