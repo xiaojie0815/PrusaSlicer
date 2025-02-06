@@ -177,8 +177,8 @@ UserAccountCommunication::UserAccountCommunication(wxEvtHandler* evt_handler, Ap
     : wxEvtHandler()
     , m_evt_handler(evt_handler)
     , m_app_config(app_config)
-    , m_polling_timer(new wxTimer(this))
-    , m_token_timer(new wxTimer(this))
+    , m_polling_timer(std::make_unique<wxTimer>(this))
+    , m_token_timer(std::make_unique<wxTimer>(this))
 {
     Bind(wxEVT_TIMER, &UserAccountCommunication::on_token_timer, this, m_token_timer->GetId());
     Bind(wxEVT_TIMER, &UserAccountCommunication::on_polling_timer, this, m_polling_timer->GetId());
@@ -226,6 +226,7 @@ UserAccountCommunication::~UserAccountCommunication()
 {
     m_token_timer->Stop();
     m_polling_timer->Stop();
+
     if (m_thread.joinable()) {
         // Stop the worker thread, if running.
         {

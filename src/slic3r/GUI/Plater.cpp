@@ -694,11 +694,11 @@ void Plater::priv::init()
     hsizer->Add(sidebar, 0, wxEXPAND | wxLEFT | wxRIGHT, 0);
     q->SetSizer(hsizer);
 
-    menus.init(q);
-
-    // Events:
-
     if (wxGetApp().is_editor()) {
+        menus.init(q);
+
+        // Events:
+
         // Preset change event
         this->q->Bind(EVT_OBJ_LIST_OBJECT_SELECT,       [this](wxEvent&)     { priv::selection_changed(); });
         this->q->Bind(EVT_SCHEDULE_BACKGROUND_PROCESS,  [this](SimpleEvent&) { this->schedule_background_process(); });
