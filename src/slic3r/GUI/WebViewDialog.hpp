@@ -95,7 +95,7 @@ protected:
 class PrinterPickWebViewDialog : public WebViewDialog, public ConnectRequestHandler
 {
 public:
-    PrinterPickWebViewDialog(wxWindow* parent, std::string& ret_val);
+    PrinterPickWebViewDialog(wxWindow* parent, std::string& ret_val, bool multiple_beds);
     void on_show(wxShowEvent& evt) override;
     void on_script_message(wxWebViewEvent& evt) override;
 protected:
@@ -110,6 +110,7 @@ protected:
     void on_connect_action_close_dialog(const std::string& message_data) override {assert(false);}
 private:
     std::string& m_ret_val;
+    bool m_multiple_beds;
 };
 
 class PrintablesConnectUploadDialog : public WebViewDialog, public ConnectRequestHandler

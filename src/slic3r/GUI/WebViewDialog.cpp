@@ -452,13 +452,14 @@ void WebViewDialog::EndModal(int retCode)
     wxDialog::EndModal(retCode);
 }
 
-PrinterPickWebViewDialog::PrinterPickWebViewDialog(wxWindow* parent, std::string& ret_val)
+PrinterPickWebViewDialog::PrinterPickWebViewDialog(wxWindow* parent, std::string& ret_val, bool multiple_beds)
     : WebViewDialog(parent
         , GUI::from_u8(Utils::ServiceConfig::instance().connect_select_printer_url())
         , _L("Choose a printer")
         , wxSize(parent->GetClientSize().x / 4 * 3, parent->GetClientSize().y/ 4 * 3)
         ,{"_prusaSlicer"}
         , "connect_loading")
+        , m_multiple_beds(multiple_beds)
     , m_ret_val(ret_val)
 {
     
@@ -580,7 +581,9 @@ void PrinterPickWebViewDialog::request_compatible_printers_FFF() {
 
     const std::string uuid = wxGetApp().plater()->get_user_account()->get_current_printer_uuid_from_connect(printer_model_serialized);
     const std::string filename = wxGetApp().plater()->get_upload_filename();
-    //filament_abrasive
+
+    const std::string multiple_beds_value = m_multiple_beds ? "true" : "false";
+
     std::string request = GUI::format(
         "{"
         "\"printerUuid\": \"%4%\", "
@@ -589,9 +592,10 @@ void PrinterPickWebViewDialog::request_compatible_printers_FFF() {
         "\"material\": %1%, "
         "\"filename\": \"%5%\", "
         "\"filament_abrasive\": %6%,"
-        "\"high_flow\": %7%"
+        "\"high_flow\": %7%,"
+        "\"multiple_beds\": %8%"
         "}"
-        , filament_type_serialized, nozzle_diameter_serialized, printer_model_serialized, uuid, filename, filament_abrasive_serialized, nozzle_high_flow_serialized);
+        , filament_type_serialized, nozzle_diameter_serialized, printer_model_serialized, uuid, filename, filament_abrasive_serialized, nozzle_high_flow_serialized, multiple_beds_value);
 
     wxString script = GUI::format_wxstr("window._prusaConnect_v2.requestCompatiblePrinter(%1%)", request);
     run_script(script);
@@ -609,13 +613,15 @@ void PrinterPickWebViewDialog::request_compatible_printers_SLA()
     const std::string material_type_serialized = selected_material.config.option("material_type")->serialize();
     const std::string uuid = wxGetApp().plater()->get_user_account()->get_current_printer_uuid_from_connect(printer_model_serialized);
     const std::string filename = wxGetApp().plater()->get_upload_filename();
+    const std::string multiple_beds_value = m_multiple_beds ? "true" : "false";
     const std::string request = GUI::format(
         "{"
         "\"printerUuid\": \"%3%\", "
         "\"material\": \"%1%\", "
         "\"printerModel\": \"%2%\", "
-        "\"filename\": \"%4%\" "
-        "}", material_type_serialized, printer_model_serialized, uuid, filename);
+        "\"filename\": \"%4%\", "
+        "\"multiple_beds\": \"%5%\" "
+        "}", material_type_serialized, printer_model_serialized, uuid, filename, multiple_beds_value);
 
     wxString script = GUI::format_wxstr("window._prusaConnect_v2.requestCompatiblePrinter(%1%)", request);
     run_script(script);
