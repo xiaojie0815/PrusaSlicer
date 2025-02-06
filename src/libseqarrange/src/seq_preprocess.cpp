@@ -976,9 +976,6 @@ bool check_PolygonPositionWithinPlate(const SolverConfiguration &solver_configur
 {
     BoundingBox polygon_box = get_extents(polygon);
 
-    // general plate polygons are currently not supported
-    assert(solver_configuration.plate_bounding_polygon.points.size() == 0);    
-
     #ifdef DEBUG
     {
 	printf("x: %d,%d\n", polygon_box.min.x() + x, polygon_box.max.x() + x);
