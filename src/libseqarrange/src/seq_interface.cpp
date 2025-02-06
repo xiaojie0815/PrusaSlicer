@@ -238,6 +238,7 @@ bool check_ScheduledObjectsForSequentialPrintability(const SolverConfiguration  
 
 	    assert(!objects_to_print[flat_index].pgns_at_height.empty());
 
+	    /*
 	    if (!check_PolygonPositionWithinPlate(solver_configuration,
 						  SEQ_SLICER_SCALE_FACTOR,
 						  scheduled_object.x,
@@ -251,6 +252,7 @@ bool check_ScheduledObjectsForSequentialPrintability(const SolverConfiguration  
 	        #endif
 		return false;
 	    }
+	    */
 
 	    plate_polygons.push_back(polygons[flat_index]);
 	    plate_unreachable_polygons.push_back(unreachable_polygons[flat_index]);
