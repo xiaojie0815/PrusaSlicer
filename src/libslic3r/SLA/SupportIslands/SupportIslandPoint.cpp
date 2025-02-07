@@ -159,7 +159,7 @@ void SupportOutlineIslandPoint::update_result(MoveResult & result,
 /////////////////////// 
 
 SupportIslandInnerPoint::SupportIslandInnerPoint(
-    Point point, std::shared_ptr<ExPolygon> inner, Type type)
+    Point point, std::shared_ptr<ExPolygons> inner, Type type)
     : SupportIslandPoint(point, type), inner(std::move(inner))
 {}
 
@@ -167,9 +167,9 @@ coord_t SupportIslandInnerPoint::move(const Point &destination) {
 
     // IMPROVE: Do not move over island hole if there is no connected island. 
     // Can cause bad supported area in very special case.
-
-    if (inner->contains(destination))
-        return SupportIslandPoint::move(destination);
+    for (const ExPolygon& inner_expolygon: *inner)
+        if (inner_expolygon.contains(destination))
+            return SupportIslandPoint::move(destination);
 
     // find closest line cross area border
     Vec2d v1 = (destination-point).cast<double>();

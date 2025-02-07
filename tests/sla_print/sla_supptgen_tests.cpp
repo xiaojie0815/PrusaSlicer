@@ -18,7 +18,7 @@
 using namespace Slic3r;
 using namespace Slic3r::sla;
 
-//#define STORE_SAMPLE_INTO_SVG_FILES
+//#define STORE_SAMPLE_INTO_SVG_FILES "C:/data/temp/test_islands/sample_"
 
 TEST_CASE("Overhanging point should be supported", "[SupGen]") {
 
@@ -528,7 +528,7 @@ namespace {
 void store_sample(const SupportIslandPoints &samples, const ExPolygon &island) { 
     static int counter = 0;
     BoundingBox bb(island.contour.points);
-    SVG svg(("sample_"+std::to_string(counter++)+".svg").c_str(), bb); 
+    SVG svg((STORE_SAMPLE_INTO_SVG_FILES + std::to_string(counter++) + ".svg").c_str(), bb); 
 
     double mm = scale_(1);
     svg.draw(island, "lightgray");
