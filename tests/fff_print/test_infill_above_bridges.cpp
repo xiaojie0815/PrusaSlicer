@@ -1,7 +1,9 @@
-#include <catch2/catch.hpp>
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/catch_approx.hpp>
 #include <libslic3r/InfillAboveBridges.hpp>
 
 using namespace Slic3r;
+using Catch::Approx;
 
 const ExPolygon square{
     Point::new_scale(0, 0),
