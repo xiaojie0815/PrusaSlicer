@@ -305,6 +305,7 @@ void PresetUpdaterUIStatus::reset(PresetUpdaterUIStatus::PresetUpdaterRetryPolic
     m_evt_handler = nullptr;
     m_error_msg.clear();
     m_target.clear();
+    m_failed_archives.clear();
 }
 
 bool PresetUpdaterUIStatus::on_attempt(int attempt, unsigned delay)
