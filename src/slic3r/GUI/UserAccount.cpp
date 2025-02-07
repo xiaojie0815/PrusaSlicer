@@ -98,9 +98,13 @@ void UserAccount::enqueue_connect_status_action()
 {
     m_communication->enqueue_connect_status_action();
 }
-void UserAccount::enqueue_avatar_action()
+void UserAccount::enqueue_avatar_old_action()
 {
-    m_communication->enqueue_avatar_action(m_account_user_data["avatar"]);
+    m_communication->enqueue_avatar_old_action(m_account_user_data["avatar"]);
+}
+void UserAccount::enqueue_avatar_new_action(const std::string& url)
+{
+    m_communication->enqueue_avatar_new_action(url);
 }
 void UserAccount::enqueue_printer_data_action(const std::string& uuid)
 {
@@ -145,10 +149,19 @@ bool UserAccount::on_user_id_success(const std::string data, std::string& out_us
     set_username(public_username);
     out_username = public_username;
     // enqueue GET with avatar url
-    if (m_account_user_data.find("avatar") != m_account_user_data.end()) {
+
+    if (m_account_user_data.find("avatar_small") != m_account_user_data.end()) {
+        const boost::filesystem::path server_file(m_account_user_data["avatar_small"]);
+        m_avatar_extension = server_file.extension().string();
+        enqueue_avatar_new_action(m_account_user_data["avatar_small"]);
+    } else if (m_account_user_data.find("avatar_large") != m_account_user_data.end()) {
+        const boost::filesystem::path server_file(m_account_user_data["avatar_large"]);
+        m_avatar_extension = server_file.extension().string();
+        enqueue_avatar_new_action(m_account_user_data["avatar_large"]);
+    } else if (m_account_user_data.find("avatar") != m_account_user_data.end()) {
         const boost::filesystem::path server_file(m_account_user_data["avatar"]);
         m_avatar_extension = server_file.extension().string();
-        enqueue_avatar_action();
+        enqueue_avatar_old_action();
     }
     else {
         BOOST_LOG_TRIVIAL(error) << "User ID message from PrusaAuth did not contain avatar.";

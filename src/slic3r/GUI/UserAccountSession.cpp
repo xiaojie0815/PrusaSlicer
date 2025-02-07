@@ -131,7 +131,8 @@ void UserAccountSession::process_action_queue_inner()
         }
     }
     if (call_priority || call_standard) {
-        m_actions[selected_data.action_id]->perform(p_evt_handler, get_access_token(), selected_data.success_callback, selected_data.fail_callback, selected_data.input);
+        bool use_token = m_actions[selected_data.action_id]->get_requires_auth_token();
+        m_actions[selected_data.action_id]->perform(p_evt_handler, use_token ? get_access_token() : std::string(), selected_data.success_callback, selected_data.fail_callback, selected_data.input);
         process_action_queue_inner();
     }        
 }

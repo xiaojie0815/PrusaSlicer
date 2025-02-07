@@ -45,28 +45,30 @@ enum class UserAccountActionID {
     USER_ACCOUNT_ACTION_TEST_CONNECTION,
     USER_ACCOUNT_ACTION_CONNECT_STATUS, // status of all printers by UUID
     USER_ACCOUNT_ACTION_CONNECT_PRINTER_MODELS, // status of all printers by UUID with printer_model. Should be called once to save printer models.
-    USER_ACCOUNT_ACTION_AVATAR,
+    USER_ACCOUNT_ACTION_AVATAR_OLD,
+    USER_ACCOUNT_ACTION_AVATAR_NEW,
     USER_ACCOUNT_ACTION_CONNECT_DATA_FROM_UUID,
 };
 class UserAction
 {
 public:
-    UserAction(const std::string name, const std::string url) : m_action_name(name), m_url(url){}
+    UserAction(const std::string name, const std::string url, bool requires_auth_token) : m_action_name(name), m_url(url), m_requires_auth_token(requires_auth_token){}
     virtual ~UserAction() = default;
     virtual void perform(wxEvtHandler* evt_handler, const std::string& access_token, UserActionSuccessFn success_callback, UserActionFailFn fail_callback, const std::string& input) const = 0;
-
+    bool get_requires_auth_token() { return m_requires_auth_token; }
 protected:
     std::string m_action_name;
     std::string m_url;
+    bool        m_requires_auth_token;
 };
 
 class UserActionGetWithEvent : public UserAction
 {
 public:
-    UserActionGetWithEvent(const std::string name, const std::string url, wxEventType succ_event_type, wxEventType fail_event_type)
+    UserActionGetWithEvent(const std::string name, const std::string url, wxEventType succ_event_type, wxEventType fail_event_type, bool requires_auth_token = true)
         : m_succ_evt_type(succ_event_type)
         , m_fail_evt_type(fail_event_type)
-        , UserAction(name, url)
+        , UserAction(name, url, requires_auth_token)
     {}
     ~UserActionGetWithEvent() {}
     void perform(wxEvtHandler* evt_handler, const std::string& access_token, UserActionSuccessFn success_callback, UserActionFailFn fail_callback, const std::string& input) const override;
@@ -78,7 +80,7 @@ private:
 class UserActionPost : public UserAction
 {
 public:
-    UserActionPost(const std::string name, const std::string url) : UserAction(name, url) {}
+    UserActionPost(const std::string name, const std::string url, bool requires_auth_token = true) : UserAction(name, url, requires_auth_token) {}
     ~UserActionPost() {}
     void perform(wxEvtHandler* evt_handler, const std::string& access_token, UserActionSuccessFn success_callback, UserActionFailFn fail_callback, const std::string& input) const override;
 };
@@ -86,7 +88,7 @@ public:
 class DummyUserAction : public UserAction
 {
 public:
-    DummyUserAction() : UserAction("Dummy", {}) {}
+    DummyUserAction() : UserAction("Dummy", {}, false) {}
     ~DummyUserAction() {}
     void perform(wxEvtHandler* evt_handler, const std::string& access_token, UserActionSuccessFn success_callback, UserActionFailFn fail_callback, const std::string& input) const override { }
 };
@@ -121,7 +123,8 @@ public:
         m_actions[UserAccountActionID::USER_ACCOUNT_ACTION_TEST_CONNECTION] = std::make_unique<UserActionGetWithEvent>("TEST_CONNECTION", sc.account_me_url(), wxEVT_NULL, EVT_UA_RESET);
         m_actions[UserAccountActionID::USER_ACCOUNT_ACTION_CONNECT_STATUS] = std::make_unique<UserActionGetWithEvent>("CONNECT_STATUS", sc.connect_status_url(), EVT_UA_PRUSACONNECT_STATUS_SUCCESS, EVT_UA_FAIL);
         m_actions[UserAccountActionID::USER_ACCOUNT_ACTION_CONNECT_PRINTER_MODELS] = std::make_unique<UserActionGetWithEvent>("CONNECT_PRINTER_MODELS", sc.connect_printer_list_url(), EVT_UA_PRUSACONNECT_PRINTER_MODELS_SUCCESS, EVT_UA_FAIL);
-        m_actions[UserAccountActionID::USER_ACCOUNT_ACTION_AVATAR] = std::make_unique<UserActionGetWithEvent>("AVATAR", sc.media_url(), EVT_UA_AVATAR_SUCCESS, EVT_UA_FAIL);
+        m_actions[UserAccountActionID::USER_ACCOUNT_ACTION_AVATAR_OLD] = std::make_unique<UserActionGetWithEvent>("AVATAR", sc.media_url(), EVT_UA_AVATAR_SUCCESS, EVT_UA_FAIL, false);
+        m_actions[UserAccountActionID::USER_ACCOUNT_ACTION_AVATAR_NEW] = std::make_unique<UserActionGetWithEvent>("AVATAR", std::string(), EVT_UA_AVATAR_SUCCESS, EVT_UA_FAIL, false);
         m_actions[UserAccountActionID::USER_ACCOUNT_ACTION_CONNECT_DATA_FROM_UUID] = std::make_unique<UserActionGetWithEvent>("USER_ACCOUNT_ACTION_CONNECT_DATA_FROM_UUID", sc.connect_printers_url(), EVT_UA_PRUSACONNECT_PRINTER_DATA_SUCCESS, EVT_UA_PRUSACONNECT_PRINTER_DATA_FAIL);
     }
     ~UserAccountSession()
@@ -133,7 +136,8 @@ public:
         m_actions[UserAccountActionID::USER_ACCOUNT_ACTION_TEST_ACCESS_TOKEN].reset(nullptr);
         m_actions[UserAccountActionID::USER_ACCOUNT_ACTION_TEST_CONNECTION].reset(nullptr);
         m_actions[UserAccountActionID::USER_ACCOUNT_ACTION_CONNECT_STATUS].reset(nullptr);
-        m_actions[UserAccountActionID::USER_ACCOUNT_ACTION_AVATAR].reset(nullptr);
+        m_actions[UserAccountActionID::USER_ACCOUNT_ACTION_AVATAR_OLD].reset(nullptr);
+        m_actions[UserAccountActionID::USER_ACCOUNT_ACTION_AVATAR_NEW].reset(nullptr);
         m_actions[UserAccountActionID::USER_ACCOUNT_ACTION_CONNECT_DATA_FROM_UUID].reset(nullptr);
     }
     void clear() {

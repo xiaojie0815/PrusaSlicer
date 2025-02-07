@@ -49,7 +49,8 @@ public:
     // Trigger function starts various remote operations
     void enqueue_connect_status_action();
     void enqueue_connect_printer_models_action();
-    void enqueue_avatar_action(const std::string& url);
+    void enqueue_avatar_old_action(const std::string& url);
+    void enqueue_avatar_new_action(const std::string& url);
     void enqueue_test_connection();
     void enqueue_printer_data_action(const std::string& uuid);
     void enqueue_refresh();
