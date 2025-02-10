@@ -87,6 +87,7 @@ public:
         m_build_volume_bb = build_volume_bb;
     }
 	Vec2d   get_bed_size() const { return m_build_volume_bb.size(); }
+	BoundingBoxf get_build_volume_box() const { return m_build_volume_bb; }
         BoundingBox get_bed_box() const { return BoundingBox({m_build_volume_bb.min.x(), m_build_volume_bb.min.y()},
 							     {m_build_volume_bb.max.x(), m_build_volume_bb.max.y()}); }
         Vec2d   bed_gap() const;

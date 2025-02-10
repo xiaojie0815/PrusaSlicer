@@ -133,7 +133,7 @@ public:
 #endif // ENABLE_ACTUAL_SPEED_DEBUG
 
         public:
-            void init(std::optional<std::unique_ptr<GLModel>>& model_opt);
+            bool init(std::optional<std::unique_ptr<GLModel>>& model_opt);
 
             const BoundingBoxf3& get_bounding_box() const { return m_model.get_bounding_box(); }
 
