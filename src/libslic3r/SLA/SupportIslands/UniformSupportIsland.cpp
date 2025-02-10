@@ -2048,13 +2048,13 @@ coord_t get_longest_distance(const IslandPartChanges& changes, Position* center 
         return farest_from_change;
 
     const NodeDistance *prev_node_distance = farest_distnace;
-    const NodeDistance *node_distance = nullptr; 
+    const NodeDistance *node_distance = prev_node_distance; 
     // iterate over longest path to find center(half distance)
-    while (prev_node_distance->shortest_distances[change_index].distance > half_distance) {
+    while (prev_node_distance->shortest_distances[change_index].distance >= half_distance) {
         node_distance = prev_node_distance;
         size_t prev_index = node_distance->shortest_distances[change_index].prev_node_distance_index;
         // case with center on change neighbor is already handled, so prev_index should be valid
-        assert(prev_index != no_index);
+        assert(prev_index != no_index && prev_index<node_distances.size());
         prev_node_distance = &node_distances[prev_index];   
     }
 
@@ -2144,7 +2144,7 @@ std::pair<size_t, std::vector<size_t>> merge_negihbor(IslandParts &island_parts,
             }
         }
 
-    return std::make_pair(index, remove_indices);
+    return std::make_pair(modified_index, remove_indices);
 }
 
 /// <summary>

@@ -389,6 +389,7 @@ ExPolygons createTestIslands(double size)
         ExPolygon(PolygonUtils::create_equilateral_triangle(scale_(18.6))),
         create_cylinder_bottom_slice(),
         load_svg(dir + "lm_issue.svg"), // change from thick to thin and vice versa on circle
+        load_svg(dir + "SPE-2674.svg"), // center of longest path lay inside of the VD node
 
         // still problem
         // three support points
