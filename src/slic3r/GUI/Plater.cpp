@@ -838,7 +838,8 @@ void Plater::priv::init()
 	    });
 
         this->q->Bind(EVT_REMOVABLE_DRIVE_ADDED, [this](wxCommandEvent& evt) {
-            if (!fs::exists(fs::path(evt.GetString().utf8_string()) / "prusa_printer_settings.ini"))
+            boost::system::error_code ec;
+            if (!fs::exists(fs::path(evt.GetString().utf8_string()) / "prusa_printer_settings.ini", ec) || ec)
                 return;
             if (evt.GetInt() == 0) { // not at startup, show dialog
                     wxGetApp().open_wifi_config_dialog(false, evt.GetString());
@@ -852,7 +853,6 @@ void Plater::priv::init()
                         wxGetApp().open_wifi_config_dialog(true, evt.GetString());
                         return true;});
             }
-            
         });
 
         // Start the background thread and register this window as a target for update events.
