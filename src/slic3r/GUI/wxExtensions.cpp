@@ -12,6 +12,7 @@
 #include <wx/accel.h>
 
 #include <boost/algorithm/string/replace.hpp>
+#include <boost/log/trivial.hpp>
 
 #include "BitmapCache.hpp"
 #include "GUI.hpp"
