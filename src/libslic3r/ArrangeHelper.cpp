@@ -115,7 +115,7 @@ static Sequential::SolverConfiguration get_solver_config(const Sequential::Print
 	return Sequential::SolverConfiguration(printer_geometry);
 }
 
-static std::vector<Sequential::ObjectToPrint> get_objects_to_print(const Model& model, const Sequential::PrinterGeometry& printer_geometry)
+static std::vector<Sequential::ObjectToPrint> get_objects_to_print(const Model& model, const Sequential::PrinterGeometry& printer_geometry, int selected_bed)
 {
 	// First extract the heights of interest.
 	std::vector<double> heights;
@@ -126,9 +126,16 @@ static std::vector<Sequential::ObjectToPrint> get_objects_to_print(const Model& 
 	// Now collect all objects and projections of convex hull above respective heights.
 	std::vector<std::pair<Sequential::ObjectToPrint, std::vector<Sequential::ObjectToPrint>>> objects; // first = object id, the vector = ids of its instances
 	for (const ModelObject* mo : model.objects) {
-		size_t inst_id = 0;
 		const TriangleMesh& raw_mesh = mo->raw_mesh();
+		int inst_id = -1;
+
 		for (const ModelInstance* mi : mo->instances) {
+			++inst_id;
+			if (selected_bed != -1) {
+				auto it = s_multiple_beds.get_inst_map().find(mi->id());
+				if (it == s_multiple_beds.get_inst_map().end() || it->second != selected_bed)
+					continue;
+			}
 			coord_t height = scaled(mo->instance_bounding_box(inst_id).size().z());
 			Sequential::ObjectToPrint* new_object =
 				(inst_id == 0 ? &objects.emplace_back(std::make_pair(Sequential::ObjectToPrint{int(mo->id().id), inst_id + 1 < mo->instances.size(), height, {}}, std::vector<Sequential::ObjectToPrint>())).first
@@ -140,7 +147,6 @@ static std::vector<Sequential::ObjectToPrint> get_objects_to_print(const Model& 
                 Polygon pgn = its_convex_hull_2d_above(raw_mesh.its, mi->get_matrix_no_offset().cast<float>(), height - mi->get_offset().z());
 				new_object->pgns_at_height.emplace_back(std::make_pair(scaled(height), pgn));
 			}
-			++inst_id;
 		}
 	}
 
@@ -161,21 +167,21 @@ static std::vector<Sequential::ObjectToPrint> get_objects_to_print(const Model& 
 
 
 
-void arrange_model_sequential(Model& model, const ConfigBase& config)
+void arrange_model_sequential(Model& model, const ConfigBase& config, bool current_bed_only)
 {
-	SeqArrange seq_arrange(model, config);
+	SeqArrange seq_arrange(model, config, current_bed_only);
 	seq_arrange.process_seq_arrange([](int) {});
 	seq_arrange.apply_seq_arrange(model);
 }
 
 
 
-SeqArrange::SeqArrange(const Model& model, const ConfigBase& config)
+SeqArrange::SeqArrange(const Model& model, const ConfigBase& config, bool current_bed_only)
 {
+	m_selected_bed = current_bed_only ? s_multiple_beds.get_active_bed() : -1;
     m_printer_geometry = get_printer_geometry(config);
 	m_solver_configuration = get_solver_config(m_printer_geometry);
-	m_objects = get_objects_to_print(model, m_printer_geometry);
-
+	m_objects = get_objects_to_print(model, m_printer_geometry, m_selected_bed);
 }
 
 
@@ -206,8 +212,16 @@ void SeqArrange::apply_seq_arrange(Model& model) const
 	// Save the move data from this file to move_data_all.
 	size_t bed_idx = 0;
 	for (const Sequential::ScheduledPlate& plate : m_plates) {
-		Vec3d bed_offset = s_multiple_beds.get_bed_translation(bed_idx);
-		// Iterate the same way as when exporting.
+		int real_bed = bed_idx;
+		
+		if (m_selected_bed != -1) {
+			if (bed_idx == 0)
+				real_bed = m_selected_bed;
+			else
+				real_bed += s_multiple_beds.get_number_of_beds() - 1;
+		}
+
+		Vec3d bed_offset = s_multiple_beds.get_bed_translation(real_bed);
 		for (ModelObject* mo : model.objects) {
 			for (ModelInstance* mi : mo->instances) {
 				const ObjectID& oid = (mi == mo->instances.front() ? mo->id() : mi->id());
@@ -218,9 +232,11 @@ void SeqArrange::apply_seq_arrange(Model& model) const
 			}
 		}
 		for (const Sequential::ScheduledObject& object : plate.scheduled_objects)
-			move_data_all.push_back({ object, bed_idx });
+			move_data_all.push_back({ object, size_t(real_bed) });
 		++bed_idx;
 	}
+
+	
 
 	// Now reorder the objects in the model so they are in the same order as requested.
 	auto comp = [&move_data_all](ModelObject* mo1, ModelObject* mo2) {
@@ -241,7 +257,7 @@ bool check_seq_printability(const Model& model, const ConfigBase& config)
 {
 	Sequential::PrinterGeometry printer_geometry = get_printer_geometry(config);
 	Sequential::SolverConfiguration solver_config = get_solver_config(printer_geometry);
-	std::vector<Sequential::ObjectToPrint> objects = get_objects_to_print(model, printer_geometry);
+	std::vector<Sequential::ObjectToPrint> objects = get_objects_to_print(model, printer_geometry, -1);
 
 	if (printer_geometry.extruder_slices.empty()) {
 		// If there are no data for extruder (such as extruder_clearance_radius set to 0),

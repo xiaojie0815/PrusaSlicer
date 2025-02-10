@@ -1342,10 +1342,10 @@ GLCanvas3D::GLCanvas3D(wxGLCanvas *canvas, Bed3D &bed)
         return this->is_arrange_alignment_enabled();
     });
     m_arrange_settings_dialog.on_arrange_btn([]{
-        wxGetApp().plater()->arrange();
+        wxGetApp().plater()->arrange(false);
     });
     m_arrange_settings_dialog.on_arrange_bed_btn([]{
-        wxGetApp().plater()->arrange_current_bed();
+        wxGetApp().plater()->arrange(true);
     });
 }
 

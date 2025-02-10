@@ -14,9 +14,9 @@
 namespace Slic3r { namespace GUI {
 
 
-SeqArrangeJob::SeqArrangeJob(const Model& model, const DynamicPrintConfig& config)
+SeqArrangeJob::SeqArrangeJob(const Model& model, const DynamicPrintConfig& config, bool current_bed_only)
 {
-    m_seq_arrange.reset(new SeqArrange(model, config));
+    m_seq_arrange.reset(new SeqArrange(model, config, current_bed_only));
 }
 
 

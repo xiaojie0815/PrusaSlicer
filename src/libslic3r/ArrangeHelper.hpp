@@ -19,7 +19,7 @@ namespace Slic3r {
 	// into a separate thread without copying the Model or sharing it with UI thread.
 	class SeqArrange {
 	public:
-		explicit SeqArrange(const Model& model, const ConfigBase& config);
+		explicit SeqArrange(const Model& model, const ConfigBase& config, bool current_bed_only);
 		void process_seq_arrange(std::function<void(int)> progress_fn);
 		void apply_seq_arrange(Model& model) const;
 
@@ -28,6 +28,7 @@ namespace Slic3r {
 		Sequential::PrinterGeometry m_printer_geometry;
 		Sequential::SolverConfiguration m_solver_configuration;
 		std::vector<Sequential::ObjectToPrint> m_objects;
+		int m_selected_bed = -1;
 
 		// This is the output, filled in by process_seq_arrange.
 		std::vector<Sequential::ScheduledPlate> m_plates;
