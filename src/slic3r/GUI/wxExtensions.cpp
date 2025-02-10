@@ -487,8 +487,11 @@ ScalableBitmap::ScalableBitmap(wxWindow* parent, boost::filesystem::path& icon_p
     const std::string ext = icon_path.extension().string();
 
     if (ext == ".png" || ext == ".jpg") {
-        bitmap.LoadFile(path, ext == ".png" ? wxBITMAP_TYPE_PNG : wxBITMAP_TYPE_JPEG);
-
+        if (!bitmap.LoadFile(path, ext == ".png" ? wxBITMAP_TYPE_PNG : wxBITMAP_TYPE_JPEG)) {
+            BOOST_LOG_TRIVIAL(error) << "Failed to load bitmap " << path;
+            return;
+        }
+        
         // check if the bitmap has a square shape
 
         if (wxSize sz = bitmap.GetSize(); sz.x != sz.y) {
