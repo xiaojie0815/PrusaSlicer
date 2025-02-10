@@ -512,7 +512,8 @@ void SLAPrint::Steps::slice_model(SLAPrintObject &po)
 
     if(slindex_it == po.m_slice_index.end())
         //TRN To be shown at the status bar on SLA slicing error.
-        throw Slic3r::RuntimeError(format("Model named: %s can not be sliced. Please check if the model is sane.", po.model_object()->name));
+        throw Slic3r::RuntimeError(format("Model named: %s can not be sliced. This can be caused by the model mesh being broken. "
+                                          "Repairing it might fix the problem.", po.model_object()->name));
 
     po.m_model_height_levels.clear();
     po.m_model_height_levels.reserve(po.m_slice_index.size());
