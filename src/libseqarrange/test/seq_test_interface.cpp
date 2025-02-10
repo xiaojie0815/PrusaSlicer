@@ -40,6 +40,12 @@ using namespace Sequential;
 
 /*----------------------------------------------------------------*/
 
+const int SEQ_PRUSA_MK3S_X_SIZE = 2500;
+const int SEQ_PRUSA_MK3S_Y_SIZE = 2100;    
+
+
+/*----------------------------------------------------------------*/
+
 const std::string arrange_data_export_text = "OBJECT_ID131\n\
 TOTAL_HEIGHT62265434\n\
 POLYGON_AT_HEIGHT0\n\
@@ -505,6 +511,8 @@ TEST_CASE("Interface test 1", "[Sequential Arrangement Interface]")
 
     SolverConfiguration solver_configuration;
     solver_configuration.decimation_precision = SEQ_DECIMATION_PRECISION_HIGH;
+    solver_configuration.plate_bounding_box = BoundingBox({0,0}, {SEQ_PRUSA_MK3S_X_SIZE, SEQ_PRUSA_MK3S_Y_SIZE});
+
 
     printf("Loading objects ...\n");
     std::vector<ObjectToPrint> objects_to_print = load_exported_data_from_text(arrange_data_export_text);
@@ -563,6 +571,7 @@ TEST_CASE("Interface test 2", "[Sequential Arrangement Interface]")
 
     SolverConfiguration solver_configuration;
     solver_configuration.decimation_precision = SEQ_DECIMATION_PRECISION_HIGH;
+    solver_configuration.plate_bounding_box = BoundingBox({0,0}, {SEQ_PRUSA_MK3S_X_SIZE, SEQ_PRUSA_MK3S_Y_SIZE});    
 
     printf("Loading objects ...\n");    
     std::vector<ObjectToPrint> objects_to_print = load_exported_data_from_text(arrange_data_export_text);
@@ -680,6 +689,7 @@ TEST_CASE("Interface test 4", "[Sequential Arrangement Interface]")
     SolverConfiguration solver_configuration;
     solver_configuration.decimation_precision = SEQ_DECIMATION_PRECISION_HIGH;
     solver_configuration.object_group_size = 4;
+    solver_configuration.plate_bounding_box = BoundingBox({0,0}, {SEQ_PRUSA_MK3S_X_SIZE, SEQ_PRUSA_MK3S_Y_SIZE});    
 
     printf("Loading objects ...\n");    
     std::vector<ObjectToPrint> objects_to_print = load_exported_data_from_text(arrange_data_export_text);
@@ -746,7 +756,8 @@ TEST_CASE("Interface test 5", "[Sequential Arrangement Interface]")
 
     SolverConfiguration solver_configuration;
     solver_configuration.decimation_precision = SEQ_DECIMATION_PRECISION_LOW;
-    solver_configuration.object_group_size = 4;    
+    solver_configuration.object_group_size = 4;
+    solver_configuration.plate_bounding_box = BoundingBox({0,0}, {SEQ_PRUSA_MK3S_X_SIZE, SEQ_PRUSA_MK3S_Y_SIZE});    
 
     printf("Loading objects ...\n");    
     std::vector<ObjectToPrint> objects_to_print = load_exported_data_from_text(arrange_data_export_text);
@@ -832,7 +843,8 @@ TEST_CASE("Interface test 6", "[Sequential Arrangement Interface]")
 
     SolverConfiguration solver_configuration;
     solver_configuration.decimation_precision = SEQ_DECIMATION_PRECISION_LOW;
-    solver_configuration.object_group_size = 4;    
+    solver_configuration.object_group_size = 4;
+    solver_configuration.plate_bounding_box = BoundingBox({0,0}, {SEQ_PRUSA_MK3S_X_SIZE, SEQ_PRUSA_MK3S_Y_SIZE});    
 
     printf("Loading objects ...\n");    
     std::vector<ObjectToPrint> objects_to_print = load_exported_data_from_text(arrange_data_export_text);

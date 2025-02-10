@@ -48,6 +48,13 @@ using namespace Sequential;
 
 #define SCALE_FACTOR                  50000.0
 
+
+/*----------------------------------------------------------------*/
+
+const int SEQ_PRUSA_MK3S_X_SIZE = 2500;
+const int SEQ_PRUSA_MK3S_Y_SIZE = 2100;    
+
+
 /*----------------------------------------------------------------*/
 
 
@@ -86,7 +93,8 @@ TEST_CASE("Preprocessing test 1", "[Sequential Arrangement Preprocessing]")
     
     printf("Testing preprocessing 1 ...\n");
 
-    SolverConfiguration solver_configuration;    
+    SolverConfiguration solver_configuration;
+    solver_configuration.plate_bounding_box = BoundingBox({0,0}, {SEQ_PRUSA_MK3S_X_SIZE, SEQ_PRUSA_MK3S_Y_SIZE});    
 
     start = clock();
     for (unsigned int i = 0; i < PRUSA_PART_POLYGONS.size(); ++i)
@@ -120,6 +128,7 @@ TEST_CASE("Preprocessing test 2", "[Sequential Arrangement Preprocessing]")
     start = clock();
 
     SolverConfiguration solver_configuration;
+    solver_configuration.plate_bounding_box = BoundingBox({0,0}, {SEQ_PRUSA_MK3S_X_SIZE, SEQ_PRUSA_MK3S_Y_SIZE});    
 
     vector<Polygon> polygons;
     vector<Polygon> unreachable_polygons;
@@ -339,7 +348,9 @@ TEST_CASE("Preprocessing test 3", "[Sequential Arrangement Preprocessing]")
 {
     clock_t start, finish;
 
-    SolverConfiguration solver_configuration;    
+    SolverConfiguration solver_configuration;
+    solver_configuration.plate_bounding_box = BoundingBox({0,0}, {SEQ_PRUSA_MK3S_X_SIZE, SEQ_PRUSA_MK3S_Y_SIZE});
+    
     printf("Testing preprocessing 3 ...\n");
 
     start = clock();
@@ -593,6 +604,7 @@ TEST_CASE("Preprocessing test 4", "[Sequential Arrangement Preprocessing]")
     start = clock();
 
     SolverConfiguration solver_configuration;
+    solver_configuration.plate_bounding_box = BoundingBox({0,0}, {SEQ_PRUSA_MK3S_X_SIZE, SEQ_PRUSA_MK3S_Y_SIZE});    
 
     std::vector<Slic3r::Polygon> polygons;
     std::vector<std::vector<Slic3r::Polygon> > unreachable_polygons;
@@ -827,6 +839,7 @@ TEST_CASE("Preprocessing test 5", "[Sequential Arrangement Preprocessing]")
     start = clock();
 
     SolverConfiguration solver_configuration;
+    solver_configuration.plate_bounding_box = BoundingBox({0,0}, {SEQ_PRUSA_MK3S_X_SIZE, SEQ_PRUSA_MK3S_Y_SIZE});    
 
     std::vector<Slic3r::Polygon> polygons;
     std::vector<std::vector<Slic3r::Polygon> > unreachable_polygons;
@@ -882,6 +895,7 @@ TEST_CASE("Preprocessing test 6", "[Sequential Arrangement Preprocessing]")
     start = clock();
 
     SolverConfiguration solver_configuration;
+    solver_configuration.plate_bounding_box = BoundingBox({0,0}, {SEQ_PRUSA_MK3S_X_SIZE, SEQ_PRUSA_MK3S_Y_SIZE});    
 
     std::vector<Slic3r::Polygon> polygons;
     std::vector<std::vector<Slic3r::Polygon> > unreachable_polygons;

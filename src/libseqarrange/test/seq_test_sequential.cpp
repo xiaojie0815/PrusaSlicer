@@ -43,6 +43,13 @@ using namespace Sequential;
 
 #define SCALE_FACTOR                  100000.0
 
+
+/*----------------------------------------------------------------*/
+
+const int SEQ_PRUSA_MK3S_X_SIZE = 2500;
+const int SEQ_PRUSA_MK3S_Y_SIZE = 2100;    
+
+
 /*----------------------------------------------------------------*/
 
 
@@ -1694,6 +1701,7 @@ TEST_CASE("Sequential test 6", "[Sequential Arrangement Core]")
     start = clock();
 
     SolverConfiguration solver_configuration;
+    solver_configuration.plate_bounding_box = BoundingBox({0,0}, {SEQ_PRUSA_MK3S_X_SIZE, SEQ_PRUSA_MK3S_Y_SIZE});    
 
     vector<Polygon> polygons;
     vector<Polygon> unreachable_polygons;
@@ -1953,6 +1961,7 @@ TEST_CASE("Sequential test 7", "[Sequential Arrangement Core]")
     start = clock();
 
     SolverConfiguration solver_configuration;
+    solver_configuration.plate_bounding_box = BoundingBox({0,0}, {SEQ_PRUSA_MK3S_X_SIZE, SEQ_PRUSA_MK3S_Y_SIZE});    
 
     vector<Polygon> polygons;
     vector<vector<Polygon> > unreachable_polygons;

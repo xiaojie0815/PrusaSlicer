@@ -1,6 +1,6 @@
 /*================================================================*/
 /*
- * Author:  Pavel Surynek, 2023 - 2024
+ * Author:  Pavel Surynek, 2023 - 2025
  * Company: Prusa Research
  *
  * File:    sequential_decimator.cpp
@@ -20,6 +20,7 @@
 
 #include "seq_version.hpp"
 #include "seq_utilities.hpp"
+#include "seq_interface.hpp"
 
 #include "sequential_decimator.hpp"
 
@@ -42,6 +43,9 @@ using namespace Sequential;
 //const Point polygon_offset_3(0,-24000000);          // gantry
 //const Point polygon_offset_4(0,0);                  // nozzle
 
+const int SEQ_PRUSA_MK3S_X_SIZE = 2500;
+const int SEQ_PRUSA_MK3S_Y_SIZE = 2100;    
+
 
 /*----------------------------------------------------------------*/
 
@@ -49,7 +53,7 @@ using namespace Sequential;
 void print_IntroductoryMessage(void)
 {
     printf("----------------------------------------------------------------\n");
-    printf("Polygon decimation utility - build %s\n", SEQ_SEQUENTIAL_BUILD);
+    printf("Polygon decimation utility\n");
     printf("(C) 2024 Prusa Research \n");
     printf("================================================================\n");	
 }
@@ -230,8 +234,10 @@ int decimate_Polygons(const CommandParameters &command_parameters)
     }
     
     string svg_filename = "sequential_decimator.svg";
-    SVG preview_svg(svg_filename);    
+    SVG preview_svg(svg_filename);
+    solver_configuration.plate_bounding_box = BoundingBox({0,0}, {SEQ_PRUSA_MK3S_X_SIZE, SEQ_PRUSA_MK3S_Y_SIZE});
 
+    printf("  Generating output SVG ...\n");
     for (unsigned int i = 0; i < decimated_polygons.size(); ++i)
     {
 	Polygon transformed_polygon;
@@ -366,7 +372,7 @@ int decimate_Polygons(const CommandParameters &command_parameters)
     preview_svg.draw_outline(display_bed_polygon, "black");    
 	    
     preview_svg.Close();
-    printf("  Displaying ... finised\n");
+    printf("  Generating output SVG ... finised\n");    
 	
     finish = clock();
 

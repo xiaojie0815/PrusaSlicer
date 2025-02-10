@@ -48,6 +48,12 @@ using namespace Sequential;
 
 /*----------------------------------------------------------------*/
 
+const int SEQ_PRUSA_MK3S_X_SIZE = 2500;
+const int SEQ_PRUSA_MK3S_Y_SIZE = 2100;    
+
+
+/*----------------------------------------------------------------*/
+
 TEST_CASE("Polygon test 1", "[Polygon]")
 {
     printf("Testing polygon 1 ...\n");
@@ -2204,6 +2210,7 @@ TEST_CASE("Polygon test 12", "[Polygon]")
     start = clock();
 
     SolverConfiguration solver_configuration;
+    solver_configuration.plate_bounding_box = BoundingBox({0,0}, {SEQ_PRUSA_MK3S_X_SIZE, SEQ_PRUSA_MK3S_Y_SIZE});    
 
     z3::context z_context;    
     z3::expr_vector X_positions(z_context);
@@ -2315,6 +2322,7 @@ TEST_CASE("Polygon test 13", "[Polygon]")
     start = clock();
 
     SolverConfiguration solver_configuration;
+    solver_configuration.plate_bounding_box = BoundingBox({0,0}, {SEQ_PRUSA_MK3S_X_SIZE, SEQ_PRUSA_MK3S_Y_SIZE});    
 
     z3::context z_context;    
     z3::expr_vector X_positions(z_context);
@@ -2468,6 +2476,7 @@ TEST_CASE("Polygon test 14", "[Polygon]")
     start = clock();
 
     SolverConfiguration solver_configuration;
+    solver_configuration.plate_bounding_box = BoundingBox({0,0}, {SEQ_PRUSA_MK3S_X_SIZE, SEQ_PRUSA_MK3S_Y_SIZE});    
 
     vector<Polygon> polygons;
     polygons.push_back(polygon_1);
@@ -2720,6 +2729,7 @@ TEST_CASE("Polygon test 15", "[Polygon]")
     start = clock();
 
     SolverConfiguration solver_configuration;
+    solver_configuration.plate_bounding_box = BoundingBox({0,0}, {SEQ_PRUSA_MK3S_X_SIZE, SEQ_PRUSA_MK3S_Y_SIZE});
 
     vector<Polygon> polygons;
     vector<int> remaining_polygons;
@@ -2907,6 +2917,7 @@ TEST_CASE("Polygon test 16", "[Polygon]")
     start = clock();
 
     SolverConfiguration solver_configuration;
+    solver_configuration.plate_bounding_box = BoundingBox({0,0}, {SEQ_PRUSA_MK3S_X_SIZE, SEQ_PRUSA_MK3S_Y_SIZE});    
 
     vector<Polygon> polygons;
     

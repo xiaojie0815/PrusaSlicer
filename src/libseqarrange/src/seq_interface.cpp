@@ -1,6 +1,6 @@
 /*================================================================*/
 /*
- * Author:  Pavel Surynek, 2023 - 2024
+ * Author:  Pavel Surynek, 2023 - 2025
  * Company: Prusa Research
  *
  * File:    seq_interface.cpp
@@ -185,7 +185,7 @@ bool check_ScheduledObjectsForSequentialPrintability(const SolverConfiguration  
     std::vector<std::vector<Slic3r::Polygon> > unreachable_polygons;
 
     std::map<int, int> flat_index_map;
-   
+
     for (unsigned int i = 0; i < objects_to_print.size(); ++i)
     {
 	std::vector<Slic3r::Polygon> convex_level_polygons;	    
@@ -219,7 +219,7 @@ bool check_ScheduledObjectsForSequentialPrintability(const SolverConfiguration  
 	
 	unreachable_polygons.push_back(scale_down_unreachable_polygons);
 	polygons.push_back(scale_down_object_polygon);       
-    }    
+    }
     
     for (const auto& scheduled_plate: scheduled_plates)
     {
@@ -269,6 +269,7 @@ bool check_ScheduledObjectsForSequentialPrintability(const SolverConfiguration  
 	    printf("Point check ...\n");
 	}
 	#endif
+
 	if (!check_PointsOutsidePolygons(dec_values_X,
 					 dec_values_Y,
 					 dec_values_T,
@@ -288,7 +289,7 @@ bool check_ScheduledObjectsForSequentialPrintability(const SolverConfiguration  
 	    printf("Line check ...\n");
 	}
 	#endif
-	
+
 	if (!check_PolygonLineIntersections(dec_values_X,
 					    dec_values_Y,
 					    dec_values_T,

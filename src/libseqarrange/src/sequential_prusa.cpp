@@ -1,6 +1,6 @@
 /*================================================================*/
 /*
- * Author:  Pavel Surynek, 2023 - 2024
+ * Author:  Pavel Surynek, 2023 - 2025
  * Company: Prusa Research
  *
  * File:    sequential_prusa.cpp
@@ -24,6 +24,12 @@
 
 using namespace Slic3r;
 using namespace Sequential;
+
+
+/*----------------------------------------------------------------*/
+
+const int SEQ_PRUSA_MK3S_X_SIZE = 2500;
+const int SEQ_PRUSA_MK3S_Y_SIZE = 2100;    
 
 
 /*----------------------------------------------------------------*/
@@ -692,6 +698,8 @@ int solve_SequentialPrint(const CommandParameters &command_parameters)
 		
 		preview_svg.draw_text(Point(x, y), ("ID:" + std::to_string(original_index_map[decided_polygons[i]]) + " T:" + std::to_string(times_T[decided_polygons[i]].as_int64())).c_str(), text_color.c_str());
 	    }
+	    solver_configuration.plate_bounding_box = BoundingBox({0,0}, {SEQ_PRUSA_MK3S_X_SIZE, SEQ_PRUSA_MK3S_Y_SIZE});
+    
 	    Polygon plate_polygon({ { solver_configuration.plate_bounding_box.min.x(), solver_configuration.plate_bounding_box.min.y() },
 				    { solver_configuration.plate_bounding_box.max.x(), solver_configuration.plate_bounding_box.min.y() },
 				    { solver_configuration.plate_bounding_box.max.x(), solver_configuration.plate_bounding_box.max.y() },
