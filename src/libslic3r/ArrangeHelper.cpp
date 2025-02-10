@@ -124,23 +124,38 @@ static std::vector<Sequential::ObjectToPrint> get_objects_to_print(const Model& 
 	Slic3r::sort_remove_duplicates(heights);
 
 	// Now collect all objects and projections of convex hull above respective heights.
-	std::vector<Sequential::ObjectToPrint> objects;
+	std::vector<std::pair<Sequential::ObjectToPrint, std::vector<Sequential::ObjectToPrint>>> objects; // first = object id, the vector = ids of its instances
 	for (const ModelObject* mo : model.objects) {
 		size_t inst_id = 0;
 		const TriangleMesh& raw_mesh = mo->raw_mesh();
 		for (const ModelInstance* mi : mo->instances) {
-			objects.emplace_back(Sequential::ObjectToPrint{int(inst_id == 0 ? mo->id().id  : mi->id().id), inst_id + 1 < mo->instances.size(),
-				scaled(mo->instance_bounding_box(inst_id).size().z()), {}});
+			coord_t height = scaled(mo->instance_bounding_box(inst_id).size().z());
+			Sequential::ObjectToPrint* new_object =
+				(inst_id == 0 ? &objects.emplace_back(std::make_pair(Sequential::ObjectToPrint{int(mo->id().id), inst_id + 1 < mo->instances.size(), height, {}}, std::vector<Sequential::ObjectToPrint>())).first
+				              : &objects.back().second.emplace_back(Sequential::ObjectToPrint{int(mi->id().id), inst_id + 1 < mo->instances.size(), height, {}}));
+
 			for (double height : heights) {
-			        // It seems that zero level in the object instance is mi->get_offset().z(), however need to have bed as zero level,
-			        // hence substracting mi->get_offset().z() from height seems to be an easy hack
- 			        Polygon pgn = its_convex_hull_2d_above(raw_mesh.its, mi->get_matrix_no_offset().cast<float>(), height - mi->get_offset().z());
-				objects.back().pgns_at_height.emplace_back(std::make_pair(scaled(height), pgn));
+			    // It seems that zero level in the object instance is mi->get_offset().z(), however need to have bed as zero level,
+			    // hence substracting mi->get_offset().z() from height seems to be an easy hack
+                Polygon pgn = its_convex_hull_2d_above(raw_mesh.its, mi->get_matrix_no_offset().cast<float>(), height - mi->get_offset().z());
+				new_object->pgns_at_height.emplace_back(std::make_pair(scaled(height), pgn));
 			}
 			++inst_id;
 		}
 	}
-	return objects;
+
+	// Now order the objects so that the are always passed in the order of increasing id.
+	// That way, the algorithm will give the same result when called repeatedly.
+	// However, there is an exception: instances cannot be separated from their objects.
+	std::sort(objects.begin(), objects.end(), [](const auto& a, const auto& b) { return a.first.id < b.first.id; });
+	std::vector<Sequential::ObjectToPrint> objects_out;
+	for (const auto& o : objects) {
+		objects_out.emplace_back(o.first);
+		for (const auto& i : o.second)
+			objects_out.emplace_back(i);
+	}
+
+	return objects_out;
 }
 
 
