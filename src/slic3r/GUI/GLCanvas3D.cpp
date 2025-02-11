@@ -6382,7 +6382,11 @@ void GLCanvas3D::_render_overlays()
     if (_is_sequential_print_enabled()) {
         for (ModelObject* model_object : m_model->objects)
             for (ModelInstance* model_instance : model_object->instances) {
-                sorted_instances.emplace_back(model_instance);
+                if (auto it = s_multiple_beds.get_inst_map().find(model_instance->id());
+                    it != s_multiple_beds.get_inst_map().end()
+                    && it->second == s_multiple_beds.get_active_bed()
+                )
+                    sorted_instances.emplace_back(model_instance);
             }
     }
     m_labels.render(sorted_instances);
