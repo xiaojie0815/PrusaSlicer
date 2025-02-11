@@ -210,6 +210,7 @@ protected:
     void define_css() override;
 private:
      void handle_message(const std::string& message);
+     void on_printables_event_dummy(const std::string& message_data) {}
      void on_printables_event_access_token_expired(const std::string& message_data);
      void on_reload_event(const std::string& message_data);
      void on_printables_event_print_gcode(const std::string& message_data);

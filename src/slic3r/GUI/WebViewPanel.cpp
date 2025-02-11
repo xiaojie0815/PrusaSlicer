@@ -595,9 +595,10 @@ void WebViewPanel::sys_color_changed()
 void WebViewPanel::on_app_quit_event(const std::string& message_data)
 {
     // MacOS only suplement for cmd+Q
-    wxGetApp().Exit();
+    if (wxGetApp().mainframe) {
+         wxGetApp().mainframe->Close();
+    }
 }
-
 void WebViewPanel::on_app_minimize_event(const std::string& message_data)
 {
     // MacOS only suplement for cmd+M
@@ -1150,6 +1151,7 @@ PrintablesWebViewPanel::PrintablesWebViewPanel(wxWindow* parent)
     m_events["reloadHomePage"] = std::bind(&PrintablesWebViewPanel::on_reload_event, this, std::placeholders::_1);
     m_events["appQuit"] = std::bind(&WebViewPanel::on_app_quit_event, this, std::placeholders::_1);
     m_events["appMinimize"] = std::bind(&WebViewPanel::on_app_minimize_event, this, std::placeholders::_1);
+    m_events["ready"] = std::bind(&PrintablesWebViewPanel::on_printables_event_dummy, this, std::placeholders::_1);
 }
 
 void PrintablesWebViewPanel::handle_message(const std::string& message)
