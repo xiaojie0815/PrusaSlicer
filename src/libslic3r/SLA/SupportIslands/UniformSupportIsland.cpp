@@ -985,10 +985,22 @@ Field create_field(const Slic3r::ExPolygon &island, float offset_delta, const st
         };
 
         bool is_prev_outline = true;
-        int32_t prev_polygon = border_indices.cvt(inner_2_island[first_yes + inner_offset]).polygon_index; 
+        int32_t first_polygon = border_indices.cvt(inner_2_island[first_yes + inner_offset]).polygon_index;
+        int32_t prev_polygon = first_polygon; 
         size_t start_unknown = polygon_size; // invalid value, current index is not Outline::unknown
         size_t i = first_yes;
         loop_increment(i); // one after first_yes
+
+        // resolve sequence of unknown outline from start_unknown to end_unknown(polygon indices)
+        // 
+        auto resolve_unknown = [&start_unknown, &is_prev_outline, &prev_polygon, &set_to]
+        (size_t end_unknown, bool is_current_outline, int32_t border_polygon_index) {            
+            Outline value = (is_current_outline && // is current(after unknown) outline
+                                is_prev_outline && // was (before unknown) outline
+                            border_polygon_index == prev_polygon // is same border polygon
+                            )? Outline::yes : Outline::no;
+            set_to(start_unknown, end_unknown, value); // change sequence of unknown to value
+        };
         for (; i != first_yes; loop_increment(i)) {
             size_t inner_index = i + inner_offset;
             Outline outline = inner_outline[inner_index];
@@ -1000,17 +1012,16 @@ Field create_field(const Slic3r::ExPolygon &island, float offset_delta, const st
             size_t border_line_index = inner_2_island[inner_index];
             int32_t border_polygon_index = (border_line_index == invalid_conversion) ? -1 :
                 border_indices.cvt(static_cast<int32_t>(border_line_index)).polygon_index;
+            bool is_current_outline = outline == Outline::yes;
             if (start_unknown != polygon_size) {
-                Outline value = (outline == Outline::yes && // is current(after unknown) outline
-                                 is_prev_outline &&         // was (before unknown) outline
-                                border_polygon_index == prev_polygon // is same border polygon
-                                )? Outline::yes : Outline::no;
-                set_to(start_unknown, i, value); // change sequence of unknown to value
+                resolve_unknown(i, is_current_outline, border_polygon_index); 
                 start_unknown = polygon_size;
             }
             prev_polygon = border_polygon_index;
-            is_prev_outline = outline == Outline::yes;            
+            is_prev_outline = is_current_outline;
         }
+        if (start_unknown != polygon_size) // last unknown sequence
+            resolve_unknown(i, true, first_polygon);
     };
     for (const ExPolygon &inner_expoly: inner) {
         remove_unknown(inner_expoly.contour.size());
