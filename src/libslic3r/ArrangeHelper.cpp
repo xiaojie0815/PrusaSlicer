@@ -127,26 +127,34 @@ static std::vector<Sequential::ObjectToPrint> get_objects_to_print(const Model& 
 	std::vector<std::pair<Sequential::ObjectToPrint, std::vector<Sequential::ObjectToPrint>>> objects; // first = object id, the vector = ids of its instances
 	for (const ModelObject* mo : model.objects) {
 		const TriangleMesh& raw_mesh = mo->raw_mesh();
-		int inst_id = -1;
-
+		coord_t height = scaled(mo->instance_bounding_box(0).size().z());
+		std::vector<Sequential::ObjectToPrint> instances;
 		for (const ModelInstance* mi : mo->instances) {
-			++inst_id;
 			if (selected_bed != -1) {
 				auto it = s_multiple_beds.get_inst_map().find(mi->id());
 				if (it == s_multiple_beds.get_inst_map().end() || it->second != selected_bed)
 					continue;
 			}
-			coord_t height = scaled(mo->instance_bounding_box(inst_id).size().z());
-			Sequential::ObjectToPrint* new_object =
-				(inst_id == 0 ? &objects.emplace_back(std::make_pair(Sequential::ObjectToPrint{int(mo->id().id), inst_id + 1 < mo->instances.size(), height, {}}, std::vector<Sequential::ObjectToPrint>())).first
-				              : &objects.back().second.emplace_back(Sequential::ObjectToPrint{int(mi->id().id), inst_id + 1 < mo->instances.size(), height, {}}));
+			if (mi->printable) {
+				instances.emplace_back(Sequential::ObjectToPrint{int(mi->id().id), true, height, {}});
 
-			for (double height : heights) {
-			    // It seems that zero level in the object instance is mi->get_offset().z(), however need to have bed as zero level,
-			    // hence substracting mi->get_offset().z() from height seems to be an easy hack
-                Polygon pgn = its_convex_hull_2d_above(raw_mesh.its, mi->get_matrix_no_offset().cast<float>(), height - mi->get_offset().z());
-				new_object->pgns_at_height.emplace_back(std::make_pair(scaled(height), pgn));
+				for (double height : heights) {
+					// It seems that zero level in the object instance is mi->get_offset().z(), however need to have bed as zero level,
+					// hence substracting mi->get_offset().z() from height seems to be an easy hack
+					Polygon pgn = its_convex_hull_2d_above(raw_mesh.its, mi->get_matrix_no_offset().cast<float>(), height - mi->get_offset().z());
+					instances.back().pgns_at_height.emplace_back(std::make_pair(scaled(height), pgn));
+				}
 			}
+		}
+		
+		// Collect all instances of this object to be arranged, unglue it from the next object.
+		if (! instances.empty()) {
+			objects.emplace_back(instances.front(), instances);
+			objects.back().second.erase(objects.back().second.begin()); // pop_front
+			if (! objects.back().second.empty())
+				objects.back().second.back().glued_to_next = false;
+			else
+				objects.back().first.glued_to_next = false;
 		}
 	}
 
@@ -196,55 +204,90 @@ void SeqArrange::process_seq_arrange(std::function<void(int)> progress_fn)
 }
 
 
-
+// Extract the result and move the objects in Model accordingly.
 void SeqArrange::apply_seq_arrange(Model& model) const
-{
-	// Extract the result and move the objects in Model accordingly.
+{	
 	struct MoveData {
 		Sequential::ScheduledObject scheduled_object;
 		size_t bed_idx;
+		ModelObject* mo;
 	};
 
-	// A vector to collect move data for all the objects.
-	std::vector<MoveData> move_data_all;
-
-	// Now iterate through all the files, read the data and move the objects accordingly.
-	// Save the move data from this file to move_data_all.
-	size_t bed_idx = 0;
+	// Iterate over the result and move the instances.
+	std::vector<MoveData> move_data_all; // Needed for the ordering.
+	size_t plate_idx = 0;
+	size_t new_number_of_beds = s_multiple_beds.get_number_of_beds();
+	std::vector<int> touched_beds;
 	for (const Sequential::ScheduledPlate& plate : m_plates) {
-		int real_bed = bed_idx;
-		
+		int real_bed = plate_idx;
 		if (m_selected_bed != -1) {
-			if (bed_idx == 0)
-				real_bed = m_selected_bed;
-			else
-				real_bed += s_multiple_beds.get_number_of_beds() - 1;
+			// Only a single bed was arranged. Move "first" bed to its position
+			// and everything else to newly created beds.
+			real_bed += (plate_idx == 0 ? m_selected_bed : s_multiple_beds.get_number_of_beds() - 1);
 		}
+		touched_beds.emplace_back(real_bed);
+		new_number_of_beds = std::max(new_number_of_beds, size_t(real_bed + 1));
+		const Vec3d bed_offset = s_multiple_beds.get_bed_translation(real_bed);
 
-		Vec3d bed_offset = s_multiple_beds.get_bed_translation(real_bed);
-		for (ModelObject* mo : model.objects) {
-			for (ModelInstance* mi : mo->instances) {
-				const ObjectID& oid = (mi == mo->instances.front() ? mo->id() : mi->id());
-				auto it = std::find_if(plate.scheduled_objects.begin(), plate.scheduled_objects.end(), [&oid](const auto& md) { return md.id == oid.id; });
-				if (it != plate.scheduled_objects.end()) {
-					mi->set_offset(Vec3d(unscaled(it->x) + bed_offset.x(), unscaled(it->y) + bed_offset.y(), mi->get_offset().z()));
-				}
-			}
-		}
 		for (const Sequential::ScheduledObject& object : plate.scheduled_objects)
-			move_data_all.push_back({ object, size_t(real_bed) });
-		++bed_idx;
+			for (ModelObject* mo : model.objects)
+				for (ModelInstance* mi : mo->instances)
+					if (mi->id().id == object.id) {
+						move_data_all.push_back({ object, size_t(real_bed), mo });
+						mi->set_offset(Vec3d(unscaled(object.x) + bed_offset.x(), unscaled(object.y) + bed_offset.y(), mi->get_offset().z()));
+					}
+		++plate_idx;
 	}
 
-	
+	// Create a copy of ModelObject pointers, zero ones present in move_data_all.
+	// The point is to only reorder ModelObject which had actually been passed to the arrange algorithm.
+	std::vector<ModelObject*> objects_reordered = model.objects;
+	for (size_t i = 0; i < objects_reordered.size(); ++i) {
+		ModelObject* mo = objects_reordered[i];
+		if (std::any_of(move_data_all.begin(), move_data_all.end(), [&mo](const MoveData& md) { return md.mo == mo; }))
+			objects_reordered[i] = nullptr;
+	}
+	// Fill the gaps with the arranged objects in the correct order.
+	for (size_t i = 0; i < objects_reordered.size(); ++i) {
+		if (! objects_reordered[i]) {
+			objects_reordered[i] = move_data_all[0].mo;
+			while (! move_data_all.empty() && move_data_all.front().mo == objects_reordered[i])
+				move_data_all.erase(move_data_all.begin());
+		}
+	}
 
-	// Now reorder the objects in the model so they are in the same order as requested.
-	auto comp = [&move_data_all](ModelObject* mo1, ModelObject* mo2) {
-		auto it1 = std::find_if(move_data_all.begin(), move_data_all.end(), [&mo1](const auto& md) { return md.scheduled_object.id == mo1->id().id; });
-		auto it2 = std::find_if(move_data_all.begin(), move_data_all.end(), [&mo2](const auto& md) { return md.scheduled_object.id == mo2->id().id; });
-		return it1->bed_idx == it2->bed_idx ? it1 < it2 : it1->bed_idx < it2->bed_idx;
-	};
-	std::sort(model.objects.begin(), model.objects.end(), comp);
+	// Check that the old and new vectors only differ in order of elements.
+	auto a = model.objects;
+	auto b = objects_reordered;
+	std::sort(a.begin(), a.end());
+	std::sort(b.begin(), b.end());
+	if (a != b)
+		std::terminate(); // A bug in the code above. Better crash now than later.
+
+	// Update objects order in the model.
+	std::swap(model.objects, objects_reordered);
+
+	// One last thing. Move unprintable instances to new beds. It would be nicer to
+	// arrange them (non-sequentially) on just one bed - maybe one day.
+	std::map<int, std::vector<ModelInstance*>> instances_to_move; // bed to move from and list of instances
+	for (ModelObject* mo : model.objects)
+		for (ModelInstance* mi : mo->instances)
+			if (!mi->printable) {
+				auto it = s_multiple_beds.get_inst_map().find(mi->id());
+				if (it == s_multiple_beds.get_inst_map().end() || (m_selected_bed != -1 && it->second != m_selected_bed))
+					continue;
+				// Was something placed on this bed during arrange? If not, we should not move anything.
+				if (std::find(touched_beds.begin(), touched_beds.end(), it->second) != touched_beds.end())
+					instances_to_move[it->second].emplace_back(mi);
+			}
+	// Now actually move them.
+	for (auto& [bed_idx, instances] : instances_to_move) {
+		Vec3d old_bed_offset = s_multiple_beds.get_bed_translation(bed_idx);
+		Vec3d new_bed_offset = s_multiple_beds.get_bed_translation(new_number_of_beds);
+		for (ModelInstance* mi : instances)
+			mi->set_offset(mi->get_offset() - old_bed_offset + new_bed_offset);
+		++new_number_of_beds;
+	}
 }
 
 
@@ -275,8 +318,13 @@ bool check_seq_printability(const Model& model, const ConfigBase& config)
 			if (it == s_multiple_beds.get_inst_map().end() || it->second != s_multiple_beds.get_active_bed())
 				continue;
 
+			// Is this instance in objects to print? It may be unprintable or something.
+			auto it2 = std::find_if(objects.begin(), objects.end(), [&mi](const Sequential::ObjectToPrint& otp) { return otp.id == mi->id().id; });
+			if (it2 == objects.end())
+				continue;
+
 			Vec3d offset = s_multiple_beds.get_bed_translation(s_multiple_beds.get_active_bed());
-			plate.scheduled_objects.emplace_back(inst_id == 0 ? mo->id().id : mi->id().id, scaled(mi->get_offset().x() - offset.x()), scaled(mi->get_offset().y() - offset.y()));
+			plate.scheduled_objects.emplace_back(mi->id().id, scaled(mi->get_offset().x() - offset.x()), scaled(mi->get_offset().y() - offset.y()));
 		}
 	}
 
