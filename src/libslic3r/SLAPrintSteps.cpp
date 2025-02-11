@@ -169,7 +169,7 @@ void prepare_permanent_support_points(
     }
 
     permanent_supports.erase(std::remove_if(permanent_supports.begin(), permanent_supports.end(), 
-        [&tree](const SupportPoint &p) { return p.head_front_radius < 0.f; }),permanent_supports.end());
+        [](const SupportPoint &p) { return p.head_front_radius < 0.f; }),permanent_supports.end());
 
     std::sort(permanent_supports.begin(), permanent_supports.end(), 
         [](const SupportPoint& p1,const SupportPoint& p2){ return p1.pos.z() < p2.pos.z(); });

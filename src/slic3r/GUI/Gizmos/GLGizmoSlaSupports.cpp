@@ -85,9 +85,6 @@ const IconManager::Icon &get_icon(const IconManager::Icons &icons, IconType type
 bool draw_view_mode(bool &show_support_structure, const IconManager::Icons &icons) {
     ImGui::PushStyleVar(ImGuiStyleVar_ChildBorderSize, 8.);
     ScopeGuard sg([] { ImGui::PopStyleVar(); });
-
-    ImVec4 tint(1, 1, 1, 1);
-    ImVec4 border = ImGuiPureWrap::COL_ORANGE_DARK;
     if (show_support_structure) {        
         draw(get_icon(icons, IconType::show_support_structure_selected));
         if(ImGui::IsItemHovered())
@@ -787,7 +784,7 @@ RENDER_AGAIN:
                 (int) supports.size(), count_user_edited, count_island);
         }
         ImVec4 light_gray{0.4f, 0.4f, 0.4f, 1.0f};
-        ImGui::TextColored(light_gray, stats.c_str());
+        ImGui::TextColored(light_gray, "%s", stats.c_str());
 
         //ImGui::Separator(); // START temporary debug
         //ImGui::Text("Between delimiters is temporary GUI");

@@ -17,11 +17,13 @@ using namespace Slic3r;
 using namespace Slic3r::sla;
 
 namespace {
+#ifndef NDEBUG
 bool exist_point_in_distance(const Vec3f &p, float distance, const LayerSupportPoints &pts) {
     float distance_sq = sqr(distance);
     return std::any_of(pts.begin(), pts.end(), [&p, distance_sq](const LayerSupportPoint &sp) {
         return (sp.pos - p).squaredNorm() < distance_sq; });
 }
+#endif // NDEBUG
 
 /// <summary>
 /// Struct to store support points in KD tree to fast search for nearest ones.
@@ -597,7 +599,7 @@ void create_peninsulas(LayerPart &part, const PrepareSupportConfig &config) {
     // Check, wheather line exist in set of belowe lines
     // True .. line exist in previous layer (or partialy overlap previous line), connection to land
     // False .. line is made by border of current layer part(peninsula coast)
-    auto exist_belowe = [&get_angle, &idx, &is_lower, &below_lines, &belowe_line_angle]
+    auto exist_belowe = [&get_angle, &idx, &below_lines, &belowe_line_angle]
     (const Line &l) {
         // It is edge case of expand
         if (below_lines.empty())
@@ -720,12 +722,9 @@ SupportPointGeneratorData Slic3r::sla::prepare_generator_data(
         }        
     }, 4 /*gransize*/);
 
-    double sample_distance_in_um = scale_(config.discretize_overhang_step);
-    double sample_distance_in_um2 = sample_distance_in_um * sample_distance_in_um;
-
     // Link parts by intersections
     execution::for_each(ex_tbb, size_t(1), result.slices.size(),
-    [&result, sample_distance_in_um2, throw_on_cancel](size_t layer_id) {
+    [&result, throw_on_cancel](size_t layer_id) {
         if ((layer_id % 16) == 0)
             throw_on_cancel();
 
@@ -754,6 +753,8 @@ SupportPointGeneratorData Slic3r::sla::prepare_generator_data(
     }, 8 /* gransize */);
 
     // Sample overhangs part of island
+    double sample_distance_in_um = scale_(config.discretize_overhang_step);
+    double sample_distance_in_um2 = sample_distance_in_um * sample_distance_in_um;
     execution::for_each(ex_tbb, size_t(1), result.slices.size(),
     [&result, sample_distance_in_um2, throw_on_cancel](size_t layer_id) {
         if ((layer_id % 32) == 0)
