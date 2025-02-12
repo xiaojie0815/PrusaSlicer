@@ -390,6 +390,7 @@ ExPolygons createTestIslands(double size)
         create_cylinder_bottom_slice(),
         load_svg(dir + "lm_issue.svg"), // change from thick to thin and vice versa on circle
         load_svg(dir + "SPE-2674.svg"), // center of longest path lay inside of the VD node
+        load_svg(dir + "SPE-2674_2.svg"), // missing Voronoi vertex even after the rotation of input.
 
         // still problem
         // three support points

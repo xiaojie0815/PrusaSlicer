@@ -26,6 +26,8 @@ public:
         thick_part_outline,   // keep position align with island outline 
         thick_part_inner,     // point inside wide part, without restriction on move
 
+        bad_shape_for_vd,     // can't make a Voronoi diagram on the shape
+
         permanent,            // permanent support point with static position
         undefined
     };

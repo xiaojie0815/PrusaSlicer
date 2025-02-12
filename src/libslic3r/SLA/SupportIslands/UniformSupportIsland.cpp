@@ -18,6 +18,7 @@
 #include <libslic3r/SVG.hpp>
 #include <libslic3r/SLA/SupportPointGenerator.hpp>
 #include <libslic3r/ExPolygonsIndex.hpp>
+#include <libslic3r/IntersectionPoints.hpp>
 
 #include "VoronoiGraph.hpp"
 #include "Parabola.hpp"
@@ -2059,7 +2060,7 @@ coord_t get_longest_distance(const IslandPartChanges& changes, Position* center 
         return farest_from_change;
 
     const NodeDistance *prev_node_distance = farest_distnace;
-    const NodeDistance *node_distance = prev_node_distance; 
+    const NodeDistance *node_distance = nullptr; 
     // iterate over longest path to find center(half distance)
     while (prev_node_distance->shortest_distances[change_index].distance >= half_distance) {
         node_distance = prev_node_distance;
@@ -2402,16 +2403,33 @@ SupportIslandPoints uniform_support_island(
 #ifdef OPTION_TO_STORE_ISLAND
         if (!path.empty()){ // add center support point into image
             SVG svg = draw_island(path, island, simplified_island);
+            svg.draw_text(Point{0, 0}, "one center support point", "black");
             draw(svg, supports, config.head_radius);
         }
 #endif // OPTION_TO_STORE_ISLAND
         return supports;
     }
 
-    Slic3r::Geometry::VoronoiDiagram vd;
+    Geometry::VoronoiDiagram vd;
     Lines lines = to_lines(simplified_island);
     vd.construct_voronoi(lines.begin(), lines.end());
-    Slic3r::Voronoi::annotate_inside_outside(vd, lines);
+    assert(vd.get_issue_type() == Geometry::VoronoiDiagram::IssueType::NO_ISSUE_DETECTED);
+    if (vd.get_issue_type() != Geometry::VoronoiDiagram::IssueType::NO_ISSUE_DETECTED) {
+        // error state suppport island by one point
+        Point center = BoundingBox{island.contour.points}.center();
+        SupportIslandPoints supports;
+        supports.push_back(std::make_unique<SupportIslandNoMovePoint>(
+            center, SupportIslandInnerPoint::Type::bad_shape_for_vd));
+#ifdef OPTION_TO_STORE_ISLAND
+        if (!path.empty()) { // add center support point into image
+            SVG svg = draw_island(path, island, simplified_island);
+            svg.draw_text(Point{0, 0}, "Can't create Voronoi Diagram for the shape", "red");
+            draw(svg, supports, config.head_radius);
+        }
+#endif // OPTION_TO_STORE_ISLAND
+        return supports;
+    }
+    Voronoi::annotate_inside_outside(vd, lines);
     VoronoiGraph skeleton = VoronoiGraphUtils::create_skeleton(vd, lines);
     VoronoiGraph::ExPath longest_path;
 
