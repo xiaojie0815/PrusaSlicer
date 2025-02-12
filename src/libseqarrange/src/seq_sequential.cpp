@@ -558,7 +558,7 @@ void introduce_ConsequentialTemporalLepoxAgainstFixed(z3::solver                
 		for (unsigned int j = 0; j < undecided.size(); ++j)
 		{
 		    Solver.add(   Context.real_val(dec_values_T[fixed[i]].numerator, dec_values_T[fixed[i]].denominator) > dec_vars_T[undecided[j]] + temporal_spread
-			       || Context.real_val(dec_values_T[next_i].numerator, dec_values_T[next_i].denominator) < dec_vars_T[undecided[j]] + temporal_spread);
+			       || Context.real_val(dec_values_T[next_i].numerator, dec_values_T[next_i].denominator) + temporal_spread < dec_vars_T[undecided[j]]);
 		}	    
 	    }
 	}
