@@ -2138,7 +2138,7 @@ void Plater::priv::process_validation_warning(const std::vector<std::string>& wa
             multiline = true;
             notification_type = NotificationType::BedTemperaturesDiffer;
             action_fn = [](wxEvtHandler*) {
-                GUI::wxGetApp().jump_to_option("bed_temperature_extruder", Preset::Type::TYPE_PRINT, boost::nowide::widen("Multiple Extruders"));
+                GUI::wxGetApp().get_tab(Preset::Type::TYPE_PRINT)->activate_option("bed_temperature_extruder", boost::nowide::widen("Multiple Extruders"), { "wipe_tower_extruder" });
                 return true;
             };
         } else if (text == "_FILAMENT_SHRINKAGE_DIFFER") {
