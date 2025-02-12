@@ -18,10 +18,11 @@ if (SLIC3R_ENABLE_FORMAT_STEP)
     add_subdirectory(occt_wrapper)
 endif ()
 
+add_subdirectory(slic3r-arrange)
+add_subdirectory(slic3r-arrange-wrapper)
+
 if (SLIC3R_GUI)
     add_subdirectory(libvgcode)
-    add_subdirectory(slic3r-arrange)
-    add_subdirectory(slic3r-arrange-wrapper)
 
     if(WIN32)
         message(STATUS "WXWIN environment set to: $ENV{WXWIN}")
