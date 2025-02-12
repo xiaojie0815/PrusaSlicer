@@ -4758,14 +4758,14 @@ void PrintConfigDef::init_sla_tilt_params()
     def->mode = comAdvanced;
     def->set_default_value(new ConfigOptionFloats({ 0., 0.}));
 
-    def = this->add("tower_hop_height", coInts);
+    def = this->add("tower_hop_height", coFloats);
     def->full_label = L("Tower hop height");
     def->tooltip = L("The height of the tower raise.");
     def->sidetext = L("mm");
     def->min = 0;
     def->max = 100;
     def->mode = comExpert;
-    def->set_default_value(new ConfigOptionInts({ 0, 0}));
+    def->set_default_value(new ConfigOptionFloats({ 0., 0.}));
 
     def = this->add("tower_speed", coEnums); 
     def->full_label = L("Tower speed");
@@ -5086,8 +5086,6 @@ void PrintConfigDef::handle_legacy_composite(DynamicPrintConfig &config)
         }
         config.set_key_value("wiping_volumes_use_custom_matrix", new ConfigOptionBool(custom));
     }
-
-    handle_legacy_sla(config);
 }
 
 const PrintConfigDef print_config_def;
@@ -5199,14 +5197,14 @@ const std::map<std::string, ConfigOptionFloats> tilt_options_floats_defs =
     {"delay_before_exposure",    ConfigOptionFloats({ 3., 3., 0., 1., 3.5, 3.5, 0., 0. }) } ,
     {"delay_after_exposure",     ConfigOptionFloats({ 0., 0., 0., 0., 0., 0., 0., 0. }) } ,
     {"tilt_down_offset_delay",   ConfigOptionFloats({ 0., 0., 0., 0., 0., 0., 0., 0. }) } ,
-    {"tilt_down_delay",          ConfigOptionFloats({ 0., 0., 0., 0.5, 0., 0., 0., 0. }) } ,
+    {"tilt_down_delay",          ConfigOptionFloats({ 0., 0., 0., 0., 0., 0., 0., 0. }) } ,
     {"tilt_up_offset_delay",     ConfigOptionFloats({ 0., 0., 0., 0., 0., 0., 0., 0. }) } ,
     {"tilt_up_delay",            ConfigOptionFloats({ 0., 0., 0., 0., 0., 0., 0., 0. }) } ,
+    {"tower_hop_height",         ConfigOptionFloats({ 0., 0., 0., 0., 5., 5., 0., 0. }) } ,
 };
 
 const std::map<std::string, ConfigOptionInts> tilt_options_ints_defs =
 {
-    {"tower_hop_height",         ConfigOptionInts({ 0, 0, 0, 0, 5, 5, 0, 0 }) } ,
     {"tilt_down_offset_steps",   ConfigOptionInts({ 0, 0, 0, 0, 2200, 2200, 0, 0 }) } ,
     {"tilt_down_cycles",         ConfigOptionInts({ 1, 1, 1, 1, 1, 1, 0, 0 }) } ,
     {"tilt_up_offset_steps",     ConfigOptionInts({ 1200, 1200, 600, 600, 2200, 2200, 0, 0 }) } ,
@@ -5242,11 +5240,11 @@ const std::map<std::string, ConfigOptionFloats> tilt_options_floats_sl1_defs =
     {"tilt_down_delay",          ConfigOptionFloats({ 0., 0., 0., 0., 0., 0., 0., 0. }) } ,
     {"tilt_up_offset_delay",     ConfigOptionFloats({ 0., 0., 0., 0., 1., 1., 0., 0. }) } ,
     {"tilt_up_delay",            ConfigOptionFloats({ 0., 0., 0., 0., 0., 0., 0., 0. }) } ,
+    {"tower_hop_height",         ConfigOptionFloats({ 0., 0., 0., 0., 5., 5., 0., 0. }) } ,
 };
 
 const std::map<std::string, ConfigOptionInts> tilt_options_ints_sl1_defs =
 {
-    {"tower_hop_height",         ConfigOptionInts({ 0, 0, 0, 0, 5, 5, 0, 0 }) } ,
     {"tilt_down_offset_steps",   ConfigOptionInts({ 650, 650, 0, 0, 2200, 2200, 0, 0 }) } ,
     {"tilt_down_cycles",         ConfigOptionInts({ 1, 1, 1, 1, 1, 1, 0, 0 }) } ,
     {"tilt_up_offset_steps",     ConfigOptionInts({ 400, 400, 400, 400, 2200, 2200, 0, 0 }) } ,
@@ -5299,57 +5297,60 @@ void  handle_legacy_sla(DynamicPrintConfig &config)
         !config.has("tilt_down_offset_delay") // Config from old PS doesn't contain any of tilt options, so check it
         ) {
         int tilt_mode = config.option("material_print_speed")->getInt();
-
         const bool is_sl1_model = config.opt_string("printer_model") == "SL1";
+        update_tilts_by_mode(config, tilt_mode, is_sl1_model);
+    }
+}
 
-        const std::map<std::string, ConfigOptionFloats> floats_defs = is_sl1_model ? tilt_options_floats_sl1_defs : tilt_options_floats_defs;
-        const std::map<std::string, ConfigOptionInts>   ints_defs   = is_sl1_model ? tilt_options_ints_sl1_defs : tilt_options_ints_defs;
-        const std::map<std::string, ConfigOptionBools>  bools_defs  = is_sl1_model ? tilt_options_bools_sl1_defs : tilt_options_bools_defs;
-        const std::map<std::string, ConfigOptionEnums<TowerSpeeds>>   tower_enums_defs = is_sl1_model ? tower_tilt_options_enums_sl1_defs : tower_tilt_options_enums_defs;
-        const std::map<std::string, ConfigOptionEnums<TiltSpeeds>>    tilt_enums_defs  = is_sl1_model ? tilt_options_enums_sl1_defs : tilt_options_enums_defs;
+void update_tilts_by_mode(DynamicPrintConfig& config, int tilt_mode, bool is_sl1_model)
+{
+    const std::map<std::string, ConfigOptionFloats> floats_defs = is_sl1_model ? tilt_options_floats_sl1_defs : tilt_options_floats_defs;
+    const std::map<std::string, ConfigOptionInts>   ints_defs   = is_sl1_model ? tilt_options_ints_sl1_defs : tilt_options_ints_defs;
+    const std::map<std::string, ConfigOptionBools>  bools_defs  = is_sl1_model ? tilt_options_bools_sl1_defs : tilt_options_bools_defs;
+    const std::map<std::string, ConfigOptionEnums<TowerSpeeds>>   tower_enums_defs = is_sl1_model ? tower_tilt_options_enums_sl1_defs : tower_tilt_options_enums_defs;
+    const std::map<std::string, ConfigOptionEnums<TiltSpeeds>>    tilt_enums_defs  = is_sl1_model ? tilt_options_enums_sl1_defs : tilt_options_enums_defs;
 
-        for (const std::string& opt_key : tilt_options()) {
-            switch (config.def()->get(opt_key)->type) {
-            case coFloats: {
-                ConfigOptionFloats values = floats_defs.at(opt_key);
-                double val1 = values.get_at(2 * tilt_mode);
-                double val2 = values.get_at(2 * tilt_mode + 1);
-                config.set_key_value(opt_key, new ConfigOptionFloats({ val1, val2 }));
+    for (const std::string& opt_key : tilt_options()) {
+        switch (config.def()->get(opt_key)->type) {
+        case coFloats: {
+            ConfigOptionFloats values = floats_defs.at(opt_key);
+            double val1 = values.get_at(2 * tilt_mode);
+            double val2 = values.get_at(2 * tilt_mode + 1);
+            config.set_key_value(opt_key, new ConfigOptionFloats({ val1, val2 }));
+        }
+            break;
+        case coInts: {
+            auto values = ints_defs.at(opt_key);
+            int val1 = values.get_at(2 * tilt_mode);
+            int val2 = values.get_at(2 * tilt_mode + 1);
+            config.set_key_value(opt_key, new ConfigOptionInts({ val1, val2 }));
+        }
+            break;
+        case coBools: {
+            auto values = bools_defs.at(opt_key);
+            bool val1 = values.get_at(2 * tilt_mode);
+            bool val2 = values.get_at(2 * tilt_mode + 1);
+            config.set_key_value(opt_key, new ConfigOptionBools({ val1, val2 }));
+        }
+            break;
+        case coEnums: {
+            int val1, val2;
+            if (opt_key == "tower_speed") {
+                auto values = tower_enums_defs.at(opt_key);
+                val1 = values.get_at(2 * tilt_mode);
+                val2 = values.get_at(2 * tilt_mode + 1);
             }
-                break;
-            case coInts: {
-                auto values = ints_defs.at(opt_key);
-                int val1 = values.get_at(2 * tilt_mode);
-                int val2 = values.get_at(2 * tilt_mode + 1);
-                config.set_key_value(opt_key, new ConfigOptionInts({ val1, val2 }));
+            else {
+                auto values = tilt_enums_defs.at(opt_key);
+                val1 = values.get_at(2 * tilt_mode);
+                val2 = values.get_at(2 * tilt_mode + 1);
             }
-                break;
-            case coBools: {
-                auto values = bools_defs.at(opt_key);
-                bool val1 = values.get_at(2 * tilt_mode);
-                bool val2 = values.get_at(2 * tilt_mode + 1);
-                config.set_key_value(opt_key, new ConfigOptionBools({ val1, val2 }));
-            }
-                break;
-            case coEnums: {
-                int val1, val2;
-                if (opt_key == "tower_speed") {
-                    auto values = tower_enums_defs.at(opt_key);
-                    val1 = values.get_at(2 * tilt_mode);
-                    val2 = values.get_at(2 * tilt_mode + 1);
-                }
-                else {
-                    auto values = tilt_enums_defs.at(opt_key);
-                    val1 = values.get_at(2 * tilt_mode);
-                    val2 = values.get_at(2 * tilt_mode + 1);
-                }
-                config.set_key_value(opt_key, new ConfigOptionEnumsGeneric({ val1, val2 }));
-            }
-                break;
-            case coNone:
-            default:
-                break;
-            }
+            config.set_key_value(opt_key, new ConfigOptionEnumsGeneric({ val1, val2 }));
+        }
+            break;
+        case coNone:
+        default:
+            break;
         }
     }
 }

@@ -38,6 +38,7 @@
 #include "Search.hpp"
 #include "OG_CustomCtrl.hpp"
 
+#include <tuple>
 #include <wx/app.h>
 #include <wx/button.h>
 #include <wx/scrolwin.h>
@@ -3674,13 +3675,6 @@ void TabPrinter::update_fff()
     toggle_options();
 }
 
-bool Tab::is_prusa_printer() const
-{
-    const Preset& edited_preset = m_preset_bundle->printers.get_edited_preset();
-    std::string  printer_model = edited_preset.trim_vendor_repo_prefix(edited_preset.config.opt_string("printer_model"));
-    return SLAPrint::is_prusa_print(printer_model);
-}
-
 void TabPrinter::update_sla()
 {
 }
@@ -5493,10 +5487,10 @@ static void append_tilt_options_line(ConfigOptionsGroupShp optgroup, const std::
     optgroup->append_line(line);
 }
 
-void TabSLAMaterial::build_tilt_group(Slic3r::GUI::PageShp page)
+static void create_tilt_legend(ConfigOptionsGroupShp optgroup)
 {
     // Legend
-    std::vector<std::pair<std::string, std::string>> legend_columns = {
+    std::vector<std::pair<std::string, std::string>> columns = {
         // TRN: This is a label of a column of parameters in settings to be used when the area is below certain threshold.
         {L("Below"),
         L("Values in this column are applied when layer area is smaller than area_fill.")},
@@ -5504,8 +5498,27 @@ void TabSLAMaterial::build_tilt_group(Slic3r::GUI::PageShp page)
         {L("Above"),
         L("Values in this column are applied when layer area is larger than area_fill.")},
     };
-    create_legend(page, legend_columns, comExpert/*, true*/);
 
+    auto legend = [columns](wxWindow* parent) {
+        auto legend_sizer = new wxBoxSizer(wxHORIZONTAL);
+        legend_sizer->Add(new wxStaticText(parent, wxID_ANY, "", wxDefaultPosition, wxSize(25*em_unit(parent), -1)));
+        for (auto& [name, tooltip] : columns) {
+            auto legend_item = new wxStaticText(parent, wxID_ANY, _(name), wxDefaultPosition, wxSize(20*em_unit(parent), -1));
+            legend_item->SetToolTip(_(tooltip));
+            legend_sizer->Add(legend_item);
+        }
+
+        return legend_sizer;
+    };
+
+    Line line = Line{ "", "" };
+    line.full_width = 1;
+    line.append_widget(legend);
+    optgroup->append_line(line);
+}
+
+void TabSLAMaterial::build_tilt_group(Slic3r::GUI::PageShp page)
+{
     // TRN: 'Profile' in this context denotes a group of parameters used to configure
     //      layer separation procedure for SLA printers.
     auto optgroup = page->new_optgroup(L("Profile settings"));
@@ -5518,8 +5531,48 @@ void TabSLAMaterial::build_tilt_group(Slic3r::GUI::PageShp page)
         update();
     };
 
+    create_line_with_tilt_defaults(optgroup);
+    create_tilt_legend(optgroup);
+
     for (const std::string& opt_key : tilt_options())
         append_tilt_options_line(optgroup, opt_key);
+}
+
+std::vector<std::tuple<wxString, wxString, int>> default_tilt_buttons = {
+    { _L("Fast"),           _L("Set default values for fast print speed"),           SLAMaterialSpeed::slamsFast },
+    { _L("Slow"),           _L("Set default values for slow print speed"),           SLAMaterialSpeed::slamsSlow },
+    { _L("High viscosity"), _L("Set default values for high viscosity print speed"), SLAMaterialSpeed::slamsHighViscosity }
+};
+
+void TabSLAMaterial::create_line_with_tilt_defaults(ConfigOptionsGroupShp optgroup)
+{
+    auto print_speed_btns = [this](wxWindow* parent) {
+        m_tilt_defaults_sizer = new wxBoxSizer(wxHORIZONTAL);
+
+        auto grid_sizer = new wxGridSizer(3, 0, 0);
+        for (const auto& [label, tooltip, material_speed] : default_tilt_buttons) {
+            ScalableButton* btn;
+            add_scaled_button(parent, &btn, "cog", label + "   ", wxBU_EXACTFIT);
+            btn->SetToolTip(tooltip);
+            btn->SetFont(Slic3r::GUI::wxGetApp().normal_font());
+
+            int tilt_mode = int(material_speed);
+            btn->Bind(wxEVT_BUTTON, [this, tilt_mode](wxCommandEvent&) {
+                DynamicPrintConfig new_conf = *m_config;
+                update_tilts_by_mode(new_conf, tilt_mode, false);
+                load_config(new_conf);
+            });
+            grid_sizer->Add(btn, 1, wxEXPAND | wxRIGHT, 5);
+        }
+
+        m_tilt_defaults_sizer->Add(grid_sizer, 0, wxALIGN_CENTRE_VERTICAL);
+        return m_tilt_defaults_sizer;
+    };
+
+    Line line = Line{ "", "" };
+    line.full_width = 1;
+    line.append_widget(print_speed_btns);
+    optgroup->append_line(line);
 }
 
 std::vector<std::string> disable_tilt_options = {
@@ -5589,14 +5642,28 @@ void TabSLAMaterial::update_description_lines()
     Tab::update_description_lines();
 }
 
+std::string Tab::printer_model() const
+{
+    const Preset& edited_preset = m_preset_bundle->printers.get_edited_preset();
+    return edited_preset.trim_vendor_repo_prefix(edited_preset.config.opt_string("printer_model"));
+}
+
+bool Tab::is_prusa_printer() const
+{
+    return SLAPrint::is_prusa_print(printer_model());
+}
+
 void TabSLAMaterial::update_sla_prusa_specific_visibility()
 {
     if (m_active_page && m_active_page->title() == "Material printing profile") {
         for (auto& title : { "", "Profile settings" }) {
             auto og_it = std::find_if(m_active_page->m_optgroups.begin(), m_active_page->m_optgroups.end(), 
                          [title](const ConfigOptionsGroupShp og) { return og->title == title; });
-            if (og_it != m_active_page->m_optgroups.end())
+            if (og_it != m_active_page->m_optgroups.end()) {
                 og_it->get()->Show(m_mode >= comAdvanced && is_prusa_printer());
+                const std::string pr_model = printer_model();
+                m_tilt_defaults_sizer->Show(pr_model == "SL1S" || pr_model == "M1");
+            }
         }
 
         auto og_it = std::find_if(m_active_page->m_optgroups.begin(), m_active_page->m_optgroups.end(), 
@@ -5616,6 +5683,7 @@ void TabSLAMaterial::clear_pages()
         over_opt.second = nullptr;
 
     m_z_correction_to_mm_description = nullptr;
+    m_tilt_defaults_sizer = nullptr;
 }
 
 void TabSLAMaterial::msw_rescale()
