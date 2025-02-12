@@ -1,0 +1,11 @@
+name: Build without GUI
+
+on:
+  workflow_dispatch:
+
+jobs:
+  static_analysis_dev:
+    uses: Prusa-Development/PrusaSlicer-Actions/.github/workflows/build_nogui.yml@master
+    secrets: inherit
+    with:
+      actions_branch: master
