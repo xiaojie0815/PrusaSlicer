@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  static_analysis_dev:
+  build_nogui:
     uses: Prusa-Development/PrusaSlicer-Actions/.github/workflows/build_nogui.yml@master
     secrets: inherit
     with:
