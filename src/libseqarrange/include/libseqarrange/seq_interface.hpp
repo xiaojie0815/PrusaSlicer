@@ -133,7 +133,7 @@ struct ScheduledPlate {
 bool check_ScheduledObjectsForSequentialPrintability(const SolverConfiguration         &solver_configuration,
 						     const PrinterGeometry             &printer_geometry,
 						     const std::vector<ObjectToPrint>  &objects_to_print,
-						     const std::vector<ScheduledPlate> &scheduled_plates);    
+						     const std::vector<ScheduledPlate> &scheduled_plates);
 
     
 /*----------------------------------------------------------------*/
@@ -147,18 +147,26 @@ bool check_ScheduledObjectsForSequentialPrintability(const SolverConfiguration  
   is unable to scedule even single object on the plate. The latter case
   is detected by timeout and should not normally happen. These failures
   are reported via exceptions.
+
+  The trans_bed_glue parameter should be set to false when scheduling
+  all objects. If only objects on a separate bed are scheduled, then
+  trans_bed_glue should be set to true when there is an object on the
+  previous bed that is temporally glued to the first scheduled object.
+  In such a case, the first object will be scheduled as first temporally.
 */
 
 std::vector<ScheduledPlate> schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver_configuration,
 							       const PrinterGeometry            &printer_geometry,
 							       const std::vector<ObjectToPrint> &objects_to_print,
-							       std::function<void(int)>          progress_callback = [](int progress){});
+							       std::function<void(int)>          progress_callback = [](int progress){},
+							       bool                              trans_bed_glue = false);
     
 void schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver_configuration,
 					const PrinterGeometry            &printer_geometry,
 					const std::vector<ObjectToPrint> &objects_to_print,
 					std::vector<ScheduledPlate>      &scheduled_plates,
-					std::function<void(int)>          progress_callback = [](int progress){});
+					std::function<void(int)>          progress_callback = [](int progress){},
+					bool                              trans_bed_glue = false);
     
     
 /*----------------------------------------------------------------*/
@@ -169,7 +177,8 @@ void schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver
 int schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver_configuration,
 				       const std::vector<ObjectToPrint> &objects_to_print,
 				       std::vector<ScheduledPlate>      &scheduled_plates,
-				       std::function<void(int)>          progress_callback = [](int progress){});
+				       std::function<void(int)>          progress_callback = [](int progress){},
+				       bool                              trans_bed_glue = false);
 
 void setup_ExtruderUnreachableZones(const SolverConfiguration                  &solver_configuration,
 				    std::vector<std::vector<Slic3r::Polygon> > &convex_unreachable_zones,
@@ -180,7 +189,8 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration                
 				       const std::vector<std::vector<Slic3r::Polygon> > &convex_unreachable_zones,
 				       const std::vector<std::vector<Slic3r::Polygon> > &box_unreachable_zones,     
 				       std::vector<ScheduledPlate>                      &scheduled_plates,
-				       std::function<void(int)>                          progress_callback = [](int progress){});
+				       std::function<void(int)>                          progress_callback = [](int progress){},
+				       bool                                              trans_bed_glue = false);
 
     
 /*----------------------------------------------------------------*/

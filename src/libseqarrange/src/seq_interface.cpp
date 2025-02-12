@@ -319,7 +319,8 @@ bool check_ScheduledObjectsForSequentialPrintability(const SolverConfiguration  
 std::vector<ScheduledPlate> schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver_configuration,
 							       const PrinterGeometry            &printer_geometry,
 							       const std::vector<ObjectToPrint> &objects_to_print,
-							       std::function<void(int)>          progress_callback)
+							       std::function<void(int)>          progress_callback,
+							       bool                              trans_bed_glue)
 {
     std::vector<ScheduledPlate> scheduled_plates;
 
@@ -327,7 +328,8 @@ std::vector<ScheduledPlate> schedule_ObjectsForSequentialPrint(const SolverConfi
 				       printer_geometry,
 				       objects_to_print,
 				       scheduled_plates,
-				       progress_callback);
+				       progress_callback,
+				       trans_bed_glue);
     return scheduled_plates;
 }
 
@@ -349,7 +351,8 @@ void schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver
 					const PrinterGeometry            &printer_geometry,
 					const std::vector<ObjectToPrint> &objects_to_print,
 					std::vector<ScheduledPlate>      &scheduled_plates,
-					std::function<void(int)>          progress_callback)
+					std::function<void(int)>          progress_callback,
+					bool                              trans_bed_glue)
 {
     #ifdef PROFILE
     clock_t start, finish;
@@ -421,7 +424,7 @@ void schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver
     int progress_object_phases_done = 0;
     int progress_object_phases_total = SEQ_MAKE_EXTRA_PROGRESS((objects_to_print.size() * SEQ_PROGRESS_PHASES_PER_OBJECT));
 
-    bool trans_bed_lepox = false;
+    bool trans_bed_lepox = trans_bed_glue;
     
     do
     {
@@ -484,6 +487,7 @@ void schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver
 		if (solvable_objects[i].lepox_to_next && !is_scheduled(i + 1, decided_polygons))
 		{
 		    split = true;
+		    break;
 		}
 	    }
 	    if (split)
@@ -587,7 +591,8 @@ void schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver
 int schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver_configuration,
 				       const std::vector<ObjectToPrint> &objects_to_print,
 				       std::vector<ScheduledPlate>      &scheduled_plates,
-				       std::function<void(int)>          progress_callback)
+				       std::function<void(int)>          progress_callback,
+				       bool                              trans_bed_glue)
 {
     #ifdef PROFILE
     clock_t start, finish;
@@ -837,7 +842,7 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver_
     int progress_object_phases_done = 0;
     int progress_object_phases_total = SEQ_MAKE_EXTRA_PROGRESS((objects_to_print.size() * SEQ_PROGRESS_PHASES_PER_OBJECT));
 
-    bool trans_bed_lepox = false;
+    bool trans_bed_lepox = trans_bed_glue;
 
     do
     {
@@ -900,6 +905,7 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver_
 		if (solvable_objects[i].lepox_to_next && !is_scheduled(i + 1, decided_polygons))
 		{
 		    split = true;
+		    break;
 		}
 	    }
 	    if (split)
@@ -1038,7 +1044,8 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration                
 				       const std::vector<std::vector<Slic3r::Polygon> > &convex_unreachable_zones,
 				       const std::vector<std::vector<Slic3r::Polygon> > &box_unreachable_zones,
 				       std::vector<ScheduledPlate>                      &scheduled_plates,
-				       std::function<void(int)>                          progress_callback)
+				       std::function<void(int)>                          progress_callback,
+				       bool                                              trans_bed_glue)
 {
     #ifdef PROFILE
     clock_t start, finish;
@@ -1174,7 +1181,7 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration                
     int progress_object_phases_done = 0;
     int progress_object_phases_total = SEQ_MAKE_EXTRA_PROGRESS((objects_to_print.size() * SEQ_PROGRESS_PHASES_PER_OBJECT));
 
-    bool trans_bed_lepox = false;
+    bool trans_bed_lepox = trans_bed_glue;
     
     do
     {
@@ -1238,6 +1245,7 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration                
 		if (solvable_objects[i].lepox_to_next && !is_scheduled(i + 1, decided_polygons))
 		{
 		    split = true;
+		    break;
 		}
 	    }
 	    if (split)
