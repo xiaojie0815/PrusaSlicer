@@ -344,7 +344,8 @@ void introduce_ConsequentialTemporalLepoxAgainstFixed(z3::solver                
 						      const std::vector<int>             &undecided,
 						      int                                 temporal_spread,
 						      const std::vector<Slic3r::Polygon> &SEQ_UNUSED(polygons),
-						      const std::vector<bool>            &lepox_to_next);
+						      const std::vector<bool>            &lepox_to_next,
+						      bool                                trans_bed_lepox);
 
 /*----------------------------------------------------------------*/
 
@@ -1642,6 +1643,7 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 									const std::vector<Slic3r::Polygon> &polygons,
 									const std::vector<Slic3r::Polygon> &unreachable_polygons,
 									const std::vector<bool>            &lepox_to_next,
+									bool                                trans_bed_lepox,
 									const std::vector<int>             &undecided_polygons,
 									std::vector<int>                   &decided_polygons,
 									std::vector<int>                   &remaining_polygons,
@@ -1656,6 +1658,7 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 									const std::vector<Slic3r::Polygon>               &polygons,
 									const std::vector<std::vector<Slic3r::Polygon> > &unreachable_polygons,
 									const std::vector<bool>                          &lepox_to_next,
+									bool                                              trans_bed_lepox,									
 									const std::vector<int>                           &undecided_polygons,
 									std::vector<int>                                 &decided_polygons,
 									std::vector<int>                                 &remaining_polygons,
@@ -1668,6 +1671,7 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 									std::vector<Rational>                            &dec_values_Y,
 									std::vector<Rational>                            &dec_values_T,
 									const std::vector<SolvableObject>                &solvable_objects,
+									bool                                              trans_bed_lepox,
 									std::vector<int>                                 &decided_polygons,
 									std::vector<int>                                 &remaining_polygons,
 									int                                              &progress_object_phases_done,

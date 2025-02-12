@@ -331,7 +331,20 @@ std::vector<ScheduledPlate> schedule_ObjectsForSequentialPrint(const SolverConfi
     return scheduled_plates;
 }
 
-    
+
+bool is_scheduled(int i, const std::vector<int> &decided_polygons)
+{
+    for (unsigned int j = 0; j < decided_polygons.size(); ++j)
+    {
+	if (decided_polygons[j] == i)
+	{
+	    return true;
+	}
+    }
+    return false;
+}
+
+
 void schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver_configuration,
 					const PrinterGeometry            &printer_geometry,
 					const std::vector<ObjectToPrint> &objects_to_print,
@@ -350,8 +363,6 @@ void schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver
     #endif
 
     std::map<int, int> original_index_map;
-    std::vector<bool> lepox_to_next;
-
     std::vector<SolvableObject> solvable_objects;
 
     #ifdef DEBUG
@@ -410,6 +421,8 @@ void schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver
     int progress_object_phases_done = 0;
     int progress_object_phases_total = SEQ_MAKE_EXTRA_PROGRESS((objects_to_print.size() * SEQ_PROGRESS_PHASES_PER_OBJECT));
 
+    bool trans_bed_lepox = false;
+    
     do
     {
 	ScheduledPlate scheduled_plate;
@@ -430,6 +443,7 @@ void schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver
 										       poly_positions_Y,
 										       times_T,
 										       solvable_objects,
+										       trans_bed_lepox,
 										       decided_polygons,
 										       remaining_polygons,
 										       progress_object_phases_done,
@@ -464,9 +478,30 @@ void schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver
 	    }
 	    #endif
 
-	    std::map<double, int> scheduled_polygons;
+	    bool split = false;
 	    for (unsigned int i = 0; i < decided_polygons.size(); ++i)
 	    {
+		if (solvable_objects[i].lepox_to_next && !is_scheduled(i + 1, decided_polygons))
+		{
+		    split = true;
+		}
+	    }
+	    if (split)
+	    {
+		trans_bed_lepox = true;
+		#ifdef DEBUG
+		{
+		    printf("Lopoxed group split, implies trans-bed lepox\n");
+		}
+		#endif
+	    }
+	    else
+	    {
+		trans_bed_lepox = false;
+	    }
+	    std::map<double, int> scheduled_polygons;
+	    for (unsigned int i = 0; i < decided_polygons.size(); ++i)
+	    {		
 		scheduled_polygons.insert(std::pair<double, int>(times_T[decided_polygons[i]].as_double(), decided_polygons[i]));
 	    }
 
@@ -802,6 +837,8 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver_
     int progress_object_phases_done = 0;
     int progress_object_phases_total = SEQ_MAKE_EXTRA_PROGRESS((objects_to_print.size() * SEQ_PROGRESS_PHASES_PER_OBJECT));
 
+    bool trans_bed_lepox = false;
+
     do
     {
 	ScheduledPlate scheduled_plate;
@@ -822,6 +859,7 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver_
 										       poly_positions_Y,
 										       times_T,
 										       solvable_objects,
+										       trans_bed_lepox,
 										       decided_polygons,
 										       remaining_polygons,
 										       progress_object_phases_done,
@@ -856,6 +894,27 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver_
 	    }
 	    #endif
 
+	    bool split = false;
+	    for (unsigned int i = 0; i < decided_polygons.size(); ++i)
+	    {
+		if (solvable_objects[i].lepox_to_next && !is_scheduled(i + 1, decided_polygons))
+		{
+		    split = true;
+		}
+	    }
+	    if (split)
+	    {
+		trans_bed_lepox = true;
+		#ifdef DEBUG
+		{
+		    printf("Lopoxed group split, implies trans-bed lepox\n");
+		}
+		#endif
+	    }
+	    else
+	    {
+		trans_bed_lepox = false;
+	    }
 	    std::map<double, int> scheduled_polygons;
 	    for (unsigned int i = 0; i < decided_polygons.size(); ++i)
 	    {
@@ -1115,6 +1174,8 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration                
     int progress_object_phases_done = 0;
     int progress_object_phases_total = SEQ_MAKE_EXTRA_PROGRESS((objects_to_print.size() * SEQ_PROGRESS_PHASES_PER_OBJECT));
 
+    bool trans_bed_lepox = false;
+    
     do
     {
 	ScheduledPlate scheduled_plate;
@@ -1135,6 +1196,7 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration                
 										       poly_positions_Y,
 										       times_T,
 										       solvable_objects,
+										       trans_bed_lepox,
 										       decided_polygons,
 										       remaining_polygons,
 										       progress_object_phases_done,
@@ -1170,6 +1232,27 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration                
 	    }
 	    #endif
 
+	    bool split = false;
+	    for (unsigned int i = 0; i < decided_polygons.size(); ++i)
+	    {
+		if (solvable_objects[i].lepox_to_next && !is_scheduled(i + 1, decided_polygons))
+		{
+		    split = true;
+		}
+	    }
+	    if (split)
+	    {
+		trans_bed_lepox = true;
+		#ifdef DEBUG
+		{
+		    printf("Lopoxed group split, implies trans-bed lepox\n");
+		}
+		#endif		
+	    }
+	    else
+	    {
+		trans_bed_lepox = false;
+	    }
 	    std::map<double, int> scheduled_polygons;
 	    for (unsigned int i = 0; i < decided_polygons.size(); ++i)
 	    {

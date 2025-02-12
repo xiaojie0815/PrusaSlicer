@@ -185,6 +185,19 @@ string convert_Index2Suffix(int index)
 }
 
 
+bool is_scheduled(int i, const std::vector<int> &decided_polygons)
+{
+    for (unsigned int j = 0; j < decided_polygons.size(); ++j)
+    {
+	if (decided_polygons[j] == i)
+	{
+	    return true;
+	}
+    }
+    return false;
+}
+
+
 int solve_SequentialPrint(const CommandParameters &command_parameters)
 {
     clock_t start, finish;
@@ -383,7 +396,9 @@ int solve_SequentialPrint(const CommandParameters &command_parameters)
     int plate_index = 0;
 
     int progress_objects_done = 0;
-    int progress_objects_total = objects_to_print.size();            
+    int progress_objects_total = objects_to_print.size();
+
+    bool trans_bed_lepox = false;
     
     do
     {
@@ -402,6 +417,7 @@ int solve_SequentialPrint(const CommandParameters &command_parameters)
 											   polygons,
 											   unreachable_polygons,
 											   lepox_to_next,
+											   trans_bed_lepox,
 											   polygon_index_map,
 											   decided_polygons,
 											   remaining_polygons,
@@ -443,6 +459,23 @@ int solve_SequentialPrint(const CommandParameters &command_parameters)
 		printf("  ID:%d\n", original_index_map[remaining_polygons[i]]);
 	    }
 
+	    bool split = false;
+	    for (unsigned int i = 0; i < decided_polygons.size(); ++i)
+	    {
+		if (lepox_to_next[i] && !is_scheduled(i + 1, decided_polygons))
+		{
+		    split = true;
+		}
+	    }
+	    if (split)
+	    {
+		trans_bed_lepox = true;
+		printf("Lopoxed group split, potential danger!!!\n");
+	    }
+	    else
+	    {
+		trans_bed_lepox = false;
+	    }	    
 	    std::map<double, int> scheduled_polygons;
 	    for (unsigned int i = 0; i < decided_polygons.size(); ++i)
 	    {
