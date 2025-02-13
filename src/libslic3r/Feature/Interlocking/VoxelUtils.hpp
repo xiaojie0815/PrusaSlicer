@@ -48,7 +48,6 @@ struct DilationKernel
         PRISM
     };
     GridPoint3 kernel_size_; //!< Size of the kernel in number of voxel cells
-    Type type_;
     std::vector<GridPoint3> relative_cells_; //!< All offset positions relative to some reference cell which is to be dilated
 
     DilationKernel(GridPoint3 kernel_size, Type type);
@@ -120,21 +119,9 @@ private:
     /*!
      * \warning the \p polys is assumed to be translated by half the cell_size in xy already
      */
-    bool _walkAreas(const ExPolygon& polys, coord_t z, const std::function<bool(GridPoint3)>& process_cell_func) const;
+    bool _walkAreas(const ExPolygon &ex_polygon, coord_t z, const std::function<bool(GridPoint3)> &process_cell_func) const;
 
 public:
-    /*!
-     * Process all voxels inside the area of a polygons object.
-     *
-     * \warning The voxels along the area are not processed. Thin areas might not process any voxels at all.
-     *
-     * \param polys The area to fill
-     * \param z The height at which the polygons occur
-     * \param process_cell_func Function to perform on each voxel cell
-     * \return Whether executing was stopped short as indicated by the \p cell_processing_function
-     */
-    bool walkAreas(const ExPolygon& polys, coord_t z, const std::function<bool(GridPoint3)>& process_cell_func) const;
-
     /*!
      * Process all voxels inside the area of a polygons object.
      * For each voxel inside the polygon we process each of the offset voxels according to the kernel.
@@ -169,6 +156,11 @@ public:
      * \param process_cell_func Function to perform on each voxel cell
      */
     std::function<bool(GridPoint3)> dilate(const DilationKernel& kernel, const std::function<bool(GridPoint3)>& process_cell_func) const;
+
+    GridPoint3 toGridPoint(const Point &point, const Vec3crd &offset) const
+    {
+        return toGridPoint(Vec3crd(point.x(), point.y(), 0) + offset);
+    }
 
     GridPoint3 toGridPoint(const Vec3crd& point) const
     {

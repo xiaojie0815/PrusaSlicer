@@ -1,6 +1,8 @@
 // Copyright (c) 2022 Ultimaker B.V.
 // CuraEngine is released under the terms of the AGPLv3 or higher.
 
+#include <boost/log/trivial.hpp>
+
 #include "VoxelUtils.hpp"
 #include "libslic3r/Geometry.hpp"
 #include "libslic3r/Fill/FillRectilinear.hpp"
@@ -9,9 +11,7 @@
 namespace Slic3r
 {
 
-DilationKernel::DilationKernel(GridPoint3 kernel_size, DilationKernel::Type type)
-    : kernel_size_(kernel_size)
-    , type_(type)
+DilationKernel::DilationKernel(GridPoint3 kernel_size, DilationKernel::Type type) : kernel_size_(kernel_size)
 {
     coord_t mult = kernel_size.x() * kernel_size.y() * kernel_size.z(); // multiplier for division to avoid rounding and to avoid use of floating point numbers
     relative_cells_.reserve(mult);
@@ -129,61 +129,23 @@ bool VoxelUtils::walkDilatedPolygons(const ExPolygon& polys, coord_t z, const Di
     return walkPolygons(translated, z + translation.z(), dilate(kernel, process_cell_func));
 }
 
-bool VoxelUtils::walkAreas(const ExPolygon& polys, coord_t z, const std::function<bool(GridPoint3)>& process_cell_func) const
+bool VoxelUtils::_walkAreas(const ExPolygon &ex_polygon, coord_t z, const std::function<bool(GridPoint3)> &process_cell_func) const
 {
-    ExPolygon translated = polys;
-    const Vec3crd translation = -cell_size_ / 2; // offset half a cell so that the dots of spreadDotsArea are centered on the middle of the cell isntead of the lower corners.
-    if (translation.x() && translation.y())
-    {
-        translated.translate(Point(translation.x(), translation.y()));
-    }
-    return _walkAreas(translated, z, process_cell_func);
-}
-
-static Points spreadDotsArea(const ExPolygon& polygons, Point grid_size)
-{
-    std::unique_ptr<Fill> filler(Fill::new_from_type(ipAlignedRectilinear));
-    filler->angle        = Geometry::deg2rad(90.f);
-    filler->spacing      = unscaled(grid_size.x());
-    filler->bounding_box = get_extents(polygons);
-
-    FillParams params;
-    params.density = 1.f;
-    params.anchor_length_max = 0;
-
-    Surface surface(stInternal, polygons);
-    auto    polylines = filler->fill_surface(&surface, params);
-
-    Points result;
-    for (const Polyline& line : polylines) {
-        assert(line.size() == 2);
-        Point a = line[0];
-        Point b = line[1];
-        assert(a.x() == b.x());
-        if (a.y() > b.y()) {
-            std::swap(a, b);
-        }
-        for (coord_t y = a.y() - (a.y() % grid_size.y()) - grid_size.y(); y < b.y(); y += grid_size.y()) {
-            if (y < a.y())
-                continue;
-            result.emplace_back(a.x(), y);
-        }
+    Points grid_points;
+    try {
+        const BoundingBox ex_polygon_bbox = get_extents(ex_polygon);
+        grid_points                       = sample_grid_pattern(ex_polygon, cell_size_.x(), ex_polygon_bbox);
+    } catch (InfillFailedException &) {
+        BOOST_LOG_TRIVIAL(warning) << "Sampling ExPolygon failed.";
     }
 
-    return result;
-}
-
-bool VoxelUtils::_walkAreas(const ExPolygon& polys, coord_t z, const std::function<bool(GridPoint3)>& process_cell_func) const
-{
-    Points skin_points = spreadDotsArea(polys, Point(cell_size_.x(), cell_size_.y()));
-    for (Point p : skin_points)
-    {
-        bool continue_ = process_cell_func(toGridPoint(Vec3crd(p.x() + cell_size_.x() / 2, p.y() + cell_size_.y() / 2, z)));
-        if (! continue_)
-        {
+    const Vec3crd grid_point_offset(cell_size_.x() / 2, cell_size_.y() / 2, z);
+    for (const Point &grid_point : grid_points) {
+        if (const bool continue_ = process_cell_func(toGridPoint(grid_point, grid_point_offset)); !continue_) {
             return false;
         }
     }
+
     return true;
 }
 
