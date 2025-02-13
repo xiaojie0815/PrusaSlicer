@@ -23,18 +23,20 @@ template<> struct hash<Slic3r::GridPoint3>
 
 namespace Slic3r {
 
-void InterlockingGenerator::generate_interlocking_structure(PrintObject* print_object)
+void InterlockingGenerator::generate_interlocking_structure(PrintObject &print_object)
 {
-    const auto& config = print_object->config();
+    const PrintObjectConfig &config = print_object.config();
     if (!config.interlocking_beam) {
         return;
     }
 
-    const float    rotation           = Geometry::deg2rad(config.interlocking_orientation.value);
-    const coord_t  beam_layer_count   = config.interlocking_beam_layer_count;
-    const int      interface_depth    = config.interlocking_depth;
-    const int      boundary_avoidance = config.interlocking_boundary_avoidance;
-    const coord_t  beam_width         = scaled(config.interlocking_beam_width.value);
+    const std::vector<double> &nozzle_diameters    = print_object.print()->config().nozzle_diameter.values;
+    double                     min_nozzle_diameter = *std::min_element(nozzle_diameters.begin(), nozzle_diameters.end());
+    const float                rotation            = Geometry::deg2rad(config.interlocking_orientation.value);
+    const coord_t              beam_layer_count    = config.interlocking_beam_layer_count;
+    const int                  interface_depth     = config.interlocking_depth;
+    const int                  boundary_avoidance  = config.interlocking_boundary_avoidance;
+    const coord_t              beam_width          = scaled<coord_t>(std::max(min_nozzle_diameter, config.interlocking_beam_width.value));
 
     const DilationKernel interface_dilation(GridPoint3(interface_depth, interface_depth, interface_depth), DilationKernel::Type::PRISM);
 
@@ -44,18 +46,18 @@ void InterlockingGenerator::generate_interlocking_structure(PrintObject* print_o
     const coord_t cell_width = beam_width + beam_width;
     const Vec3crd cell_size(cell_width, cell_width, 2 * beam_layer_count);
 
-    for (size_t region_a_index = 0; region_a_index < print_object->num_printing_regions(); region_a_index++) {
-        const PrintRegion& region_a      = print_object->printing_region(region_a_index);
+    for (size_t region_a_index = 0; region_a_index < print_object.num_printing_regions(); region_a_index++) {
+        const PrintRegion& region_a      = print_object.printing_region(region_a_index);
         const auto         extruder_nr_a = region_a.extruder(FlowRole::frExternalPerimeter);
 
-        for (size_t region_b_index = region_a_index + 1; region_b_index < print_object->num_printing_regions(); region_b_index++) {
-            const PrintRegion& region_b      = print_object->printing_region(region_b_index);
+        for (size_t region_b_index = region_a_index + 1; region_b_index < print_object.num_printing_regions(); region_b_index++) {
+            const PrintRegion& region_b      = print_object.printing_region(region_b_index);
             const auto         extruder_nr_b = region_b.extruder(FlowRole::frExternalPerimeter);
             if (extruder_nr_a == extruder_nr_b) {
                 continue;
             }
 
-            InterlockingGenerator gen(*print_object, region_a_index, region_b_index, beam_width, boundary_avoidance, rotation, cell_size, beam_layer_count,
+            InterlockingGenerator gen(print_object, region_a_index, region_b_index, beam_width, boundary_avoidance, rotation, cell_size, beam_layer_count,
                                       interface_dilation, air_dilation, air_filtering);
             gen.generateInterlockingStructure();
         }

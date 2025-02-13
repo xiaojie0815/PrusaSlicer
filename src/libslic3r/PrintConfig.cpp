@@ -2011,7 +2011,7 @@ void PrintConfigDef::init_fff_params()
     def->label    = L("Interlocking beam width");
     def->tooltip  = L("The width of the interlocking structure beams.");
     def->sidetext = L("mm");
-    def->min      = 0.01;
+    def->min      = 0.1f;
     def->category = L("Advanced");
     def->mode     = comAdvanced;
     def->set_default_value(new ConfigOptionFloat(0.8));

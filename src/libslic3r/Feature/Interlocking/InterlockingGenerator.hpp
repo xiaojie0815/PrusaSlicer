@@ -45,7 +45,7 @@ public:
     /*!
      * Generate an interlocking structure between each two adjacent meshes.
      */
-    static void generate_interlocking_structure(PrintObject* print_object);
+    static void generate_interlocking_structure(PrintObject &print_object);
 
 private:
     /*!

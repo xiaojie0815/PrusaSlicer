@@ -926,7 +926,7 @@ void PrintObject::slice_volumes()
 
     if (m_config.interlocking_beam) {
         BOOST_LOG_TRIVIAL(debug) << "Slicing volumes - Applying multi-material interlocking";
-        InterlockingGenerator::generate_interlocking_structure(this);
+        InterlockingGenerator::generate_interlocking_structure(*this);
         m_print->throw_if_canceled();
     }
 
