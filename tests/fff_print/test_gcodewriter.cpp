@@ -1,3 +1,4 @@
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers.hpp>
 #include <catch2/matchers/catch_matchers_string.hpp>
@@ -8,6 +9,7 @@
 #include "libslic3r/GCodeReader.hpp"
 
 using namespace Slic3r;
+using Catch::Approx;
 
 SCENARIO("set_speed emits values with fixed-point output.", "[GCodeWriter]") {
 
