@@ -177,6 +177,11 @@ std::optional<std::unique_ptr<GLModel>> GLCanvas3D::get_current_marker_model() c
     bool seq = m_config->opt_bool("complete_objects");
 
     if (last_printer_notes != printer_notes ||  r != old_r || h != old_h || seq != old_seq) {
+        last_printer_notes = printer_notes;
+        old_r = r;
+        old_h = h;
+        old_seq = seq;
+
         out = std::make_optional(nullptr);
         if (! seq)
             return out;
@@ -212,10 +217,6 @@ std::optional<std::unique_ptr<GLModel>> GLCanvas3D::get_current_marker_model() c
             m->init_from(mesh);
             out = std::make_optional(std::move(m));
         }
-        last_printer_notes = printer_notes;
-        old_r = r;
-        old_h = h;
-        old_seq = seq;
     }
     return out;
 }

@@ -217,29 +217,21 @@ int GCodeViewer::SequentialView::ActualSpeedImguiWidget::plot(const char* label,
 }
 #endif // ENABLE_ACTUAL_SPEED_DEBUG
 
-bool GCodeViewer::SequentialView::Marker::init(std::optional<std::unique_ptr<GLModel>>& model_opt)
-{
-    if (! model_opt.has_value())
-        return false;
-
-    if (m_generic_marker != (model_opt->get() == nullptr))
-        m_model.reset();
-    
-    m_generic_marker = (model_opt->get() == nullptr);
-    bool ret = false;
-    if (!m_model.is_initialized()) {
-        if (m_generic_marker)
-            m_model.init_from(stilized_arrow(16, 2.0f, 4.0f, 1.0f, 8.0f));
-        else {
-            m_model = **model_opt;
-            model_opt.reset();
-        }
-        ret = true;
-    }
-
-    m_model.set_color({ 1.0f, 1.0f, 1.0f, 0.5f });
-    return ret;
-}
+void GCodeViewer::SequentialView::Marker::init(std::optional<std::unique_ptr<GLModel>>& model_opt)
+ {
+     if (! model_opt.has_value())
+         return;
+ 
+     m_model.reset();
+     
+     m_generic_marker = (model_opt->get() == nullptr);
+     if (m_generic_marker)
+         m_model.init_from(stilized_arrow(16, 2.0f, 4.0f, 1.0f, 8.0f));
+     else
+         m_model = **model_opt;
+ 
+     m_model.set_color({ 1.0f, 1.0f, 1.0f, 0.5f });
+ }
 
 void GCodeViewer::SequentialView::Marker::render()
 {
@@ -1213,7 +1205,8 @@ void GCodeViewer::render()
 
             // Following just makes sure that the shown marker is correct.
             auto marker_model_opt = wxGetApp().plater()->get_current_canvas3D()->get_current_marker_model();
-            if (m_sequential_view.marker.init(marker_model_opt))
+            m_sequential_view.marker.init(marker_model_opt);
+            if (marker_model_opt.has_value())
                 m_max_bounding_box.reset();
 
             m_sequential_view.render(legend_height, &m_viewer, curr_vertex.gcode_id);
