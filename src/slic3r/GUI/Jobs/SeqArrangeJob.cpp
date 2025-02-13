@@ -7,6 +7,7 @@
 #include "slic3r/GUI/GUI_ObjectList.hpp"
 #include "slic3r/GUI/I18N.hpp"
 #include "slic3r/GUI/Plater.hpp"
+#include "slic3r/GUI/MsgDialog.hpp"
 
 
 
@@ -39,11 +40,24 @@ void SeqArrangeJob::process(Ctl& ctl)
 
 
 
-void SeqArrangeJob::finalize(bool canceled, std::exception_ptr&)
+void SeqArrangeJob::finalize(bool canceled, std::exception_ptr& eptr)
 {
     // If the task was cancelled, the stopping exception was already caught
-    // in 'process' function. Let any other exception propagate further.
-    if (! canceled) {
+    // in 'process' function. Any other exception propagates through here.
+    bool error = false; 
+    if (eptr) {
+        try {
+            std::rethrow_exception(eptr);
+        } catch (const ExceptionCannotApplySeqArrange&) {
+            ErrorDialog dlg(wxGetApp().plater(), _L("The result of the single-bed arrange would scatter instances of a single object between several beds, "
+                "possibly affecting order of printing of the non-selected beds. Consider using global arrange across all beds."), false);
+            dlg.ShowModal();
+            error = true;
+            eptr = nullptr; // The exception is handled.
+        }
+    }
+
+    if (! canceled && ! error) {
         Plater::TakeSnapshot snapshot(wxGetApp().plater(), _u8L("Arrange for sequential print"));
         m_seq_arrange->apply_seq_arrange(wxGetApp().model());
         wxGetApp().plater()->canvas3D()->reload_scene(true, true);

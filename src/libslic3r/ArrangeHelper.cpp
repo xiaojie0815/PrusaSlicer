@@ -17,6 +17,29 @@
 
 namespace Slic3r {
 
+	
+static bool can_arrange_selected_bed(const Model& model, int bed_idx)
+{
+	// When arranging a single bed, all instances of each object present must be on the same bed.
+	// Otherwise, the resulting order may not be possible to apply without messing up order
+	// on the other beds.
+	const auto map = s_multiple_beds.get_inst_map();
+	for (const ModelObject* mo : model.objects) {
+		std::map<int, bool> used_beds;
+		bool mo_on_this_bed = false;
+		for (const ModelInstance* mi : mo->instances) {
+			int id = -1;
+			if (auto it = map.find(mi->id()); it != map.end())
+				id = it->second;
+			if (id == bed_idx)
+				mo_on_this_bed = true;
+			used_beds[id] = true;
+		}
+		if (mo_on_this_bed && used_beds.size() != 1)
+			return false;
+	}
+	return true;
+}
 
 static Sequential::PrinterGeometry get_printer_geometry(const ConfigBase& config)
 {
@@ -187,6 +210,9 @@ void arrange_model_sequential(Model& model, const ConfigBase& config, bool curre
 SeqArrange::SeqArrange(const Model& model, const ConfigBase& config, bool current_bed_only)
 {
 	m_selected_bed = current_bed_only ? s_multiple_beds.get_active_bed() : -1;
+	if (m_selected_bed != -1 && ! can_arrange_selected_bed(model, m_selected_bed))
+		throw ExceptionCannotAttemptSeqArrange();
+
     m_printer_geometry = get_printer_geometry(config);
 	m_solver_configuration = get_solver_config(m_printer_geometry);
 	m_objects = get_objects_to_print(model, m_printer_geometry, m_selected_bed);
@@ -201,12 +227,31 @@ void SeqArrange::process_seq_arrange(std::function<void(int)> progress_fn)
 			m_solver_configuration,
 			m_printer_geometry,
 			m_objects, progress_fn);
+
+	// If this was arrangement of a single bed, check that all instances of a single object
+	// ended up on the same bed. Otherwise we cannot apply the result (instances of a single
+	// object always follow one another in the object list and therefore the print).
+	if (m_selected_bed != -1 && s_multiple_beds.get_number_of_beds() > 1) {
+		int expected_plate = -1;
+		for (const Sequential::ObjectToPrint& otp : m_objects) {
+			auto it = std::find_if(m_plates.begin(), m_plates.end(), [&otp](const auto& plate)
+				{ return std::any_of(plate.scheduled_objects.begin(), plate.scheduled_objects.end(),
+					[&otp](const auto& obj) { return otp.id == obj.id;
+				});
+			});
+			assert(it != m_plates.end());
+			size_t plate_id = it - m_plates.begin();
+			if (expected_plate != -1 && expected_plate != plate_id)
+				throw ExceptionCannotApplySeqArrange();
+			expected_plate = otp.glued_to_next ? plate_id : -1;
+		}
+	}
 }
 
 
 // Extract the result and move the objects in Model accordingly.
 void SeqArrange::apply_seq_arrange(Model& model) const
-{	
+{
 	struct MoveData {
 		Sequential::ScheduledObject scheduled_object;
 		size_t bed_idx;

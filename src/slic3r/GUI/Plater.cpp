@@ -7122,8 +7122,14 @@ void Plater::arrange(bool current_bed_only)
     const bool sequential = p->config->has("complete_objects") && p->config->opt_bool("complete_objects");
 
     if (p->can_arrange()) {
-        if (sequential)
-            replace_job(this->get_ui_job_worker(), std::make_unique<SeqArrangeJob>(this->model(), *p->config, current_bed_only));
+        if (sequential) {
+            try {
+                replace_job(this->get_ui_job_worker(), std::make_unique<SeqArrangeJob>(this->model(), *p->config, current_bed_only));
+            } catch (const ExceptionCannotAttemptSeqArrange&) {
+                ErrorDialog dlg(this, _L("Sequential arrange for a single bed is only allowed when all instances of the affected objects are on the same bed."), false);
+                dlg.ShowModal();
+            }
+        }
         else {
             auto& w = get_ui_job_worker();
             arrange(w, mode);
