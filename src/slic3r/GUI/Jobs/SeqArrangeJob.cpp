@@ -8,7 +8,7 @@
 #include "slic3r/GUI/I18N.hpp"
 #include "slic3r/GUI/Plater.hpp"
 #include "slic3r/GUI/MsgDialog.hpp"
-
+#include "slic3r/GUI/format.hpp"
 
 
 
@@ -49,8 +49,19 @@ void SeqArrangeJob::finalize(bool canceled, std::exception_ptr& eptr)
         try {
             std::rethrow_exception(eptr);
         } catch (const ExceptionCannotApplySeqArrange&) {
-            ErrorDialog dlg(wxGetApp().plater(), _L("The result of the single-bed arrange would scatter instances of a single object between several beds, "
-                "possibly affecting order of printing of the non-selected beds. Consider using global arrange across all beds."), false);
+            ErrorDialog dlg(wxGetApp().plater(), _L("The result of the single-bed arrange would scatter "
+                "instances of a single object between several beds, possibly affecting order of printing "
+                "of the non-selected beds. Consider using global arrange across all beds."), false);
+            dlg.ShowModal();
+            error = true;
+            eptr = nullptr; // The exception is handled.
+        } catch (const Sequential::ObjectTooLargeException&) {
+            ErrorDialog dlg(wxGetApp().plater(), _L("One of the objects is too large to fit the bed."), false);
+            dlg.ShowModal();
+            error = true;
+            eptr = nullptr; // The exception is handled.
+        } catch (const Sequential::InternalErrorException& ex) {
+            ErrorDialog dlg(wxGetApp().plater(), GUI::format_wxstr(_L("Internal error: %1%"), ex.what()), false);
             dlg.ShowModal();
             error = true;
             eptr = nullptr; // The exception is handled.

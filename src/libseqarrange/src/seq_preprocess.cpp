@@ -721,7 +721,7 @@ void prepare_ExtruderPolygons(const SolverConfiguration                  &solver
 		    printf("Object too large to fit onto plate.\n");
 		}
 		#endif
-		throw std::runtime_error("OBJECT TOO LARGE");
+		throw ObjectTooLargeException("OBJECT TOO LARGE");
 	    }
 	    
 	    if (printer_geometry.convex_heights.find(height) != printer_geometry.convex_heights.end())
@@ -742,7 +742,7 @@ void prepare_ExtruderPolygons(const SolverConfiguration                  &solver
 	    }
 	    else
 	    {
-		throw std::runtime_error("MISMATCH BETWEEN OBJECT AND PRINTER SLICE HEIGHTS.");
+		throw InternalErrorException("MISMATCH BETWEEN OBJECT AND PRINTER SLICE HEIGHTS.");
 	    }
 	}
     }
