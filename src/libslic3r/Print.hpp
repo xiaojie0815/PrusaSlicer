@@ -749,7 +749,7 @@ private:
     friend class PrintObject;
 
     ConflictResultOpt m_conflict_result;
-    bool m_sequential_collision_detected;
+    std::optional<std::pair<std::string, std::string>> m_sequential_collision_detected; // names of objects (hit first when printing second)
 };
 
 } /* slic3r_Print_hpp_ */

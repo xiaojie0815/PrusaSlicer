@@ -7372,7 +7372,7 @@ void GLCanvas3D::_set_warning_notification_if_needed(EWarning warning)
                 else if (warning == EWarning::GCodeConflict)
                     show = m_gcode_viewer.has_data() && m_gcode_viewer.is_contained_in_bed() && m_gcode_viewer.get_conflict_result().has_value();
                 else if (warning == EWarning::SequentialCollision)
-                    show = m_gcode_viewer.has_data() && m_gcode_viewer.get_sequential_collision_detected();
+                    show = m_gcode_viewer.has_data() && m_gcode_viewer.get_sequential_collision_detected().has_value();
             }
         }
     }
@@ -7413,7 +7413,12 @@ void GLCanvas3D::_set_warning_notification(EWarning warning, bool state)
         break;
     }
     case EWarning::SequentialCollision: {
-        text = _u8L("Collision between an object and extruder gantry detected.");
+        auto conflict = m_gcode_viewer.get_sequential_collision_detected();
+        if (! conflict.has_value())
+            break;
+        // TRN: Placeholders contain names of the colliding objects.
+        text = format(_u8L("Extruder will crash into %1% while printing %2%."),
+                   conflict->first, conflict->second);
         error = ErrorType::SLICING_ERROR;
         break;
     }

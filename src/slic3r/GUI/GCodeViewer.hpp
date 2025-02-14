@@ -261,7 +261,7 @@ private:
     bool m_contained_in_bed{ true };
 
     ConflictResultOpt m_conflict_result;
-    bool m_sequential_collision_detected{ false };
+    std::optional<std::pair<std::string, std::string>> m_sequential_collision_detected;
 
     libvgcode::Viewer m_viewer;
     bool m_loaded_as_preview{ false };
@@ -358,7 +358,7 @@ public:
     void invalidate_legend() { m_legend_resizer.reset(); }
 
     const ConflictResultOpt& get_conflict_result() const { return m_conflict_result; }
-    bool get_sequential_collision_detected() const { return m_sequential_collision_detected; }
+    std::optional<std::pair<std::string, std::string>> get_sequential_collision_detected() const { return m_sequential_collision_detected; }
 
     void load_shells(const Print& print);
 

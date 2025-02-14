@@ -337,18 +337,7 @@ void SeqArrange::apply_seq_arrange(Model& model) const
 
 
 
-
-bool check_seq_printability(const Model& model, const ConfigBase& config)
-{
-    if (auto conflict = check_seq_conflict(model, config))
-    {
-	return false;
-    }
-    return true;
-}
-
-
-std::optional<std::pair<int, int> > check_seq_conflict(const Model& model, const ConfigBase& config)
+std::optional<std::pair<std::string, std::string> > check_seq_conflict(const Model& model, const ConfigBase& config)
 {
 	Sequential::PrinterGeometry printer_geometry = get_printer_geometry(config);
 	Sequential::SolverConfiguration solver_config = get_solver_config(printer_geometry);
@@ -380,8 +369,19 @@ std::optional<std::pair<int, int> > check_seq_conflict(const Model& model, const
 		}
 	}
 
-	//return Sequential::check_ScheduledObjectsForSequentialPrintability(solver_config, printer_geometry, objects, std::vector<Sequential::ScheduledPlate>(1, plate));
-	return Sequential::check_ScheduledObjectsForSequentialConflict(solver_config, printer_geometry, objects, std::vector<Sequential::ScheduledPlate>(1, plate));	
+	std::optional<std::pair<int,int>> conflict = Sequential::check_ScheduledObjectsForSequentialConflict(solver_config, printer_geometry, objects, std::vector<Sequential::ScheduledPlate>(1, plate));
+	if (conflict) {
+		std::pair<std::string, std::string> names;
+		for (const ModelObject* mo : model.objects)
+			for (const ModelInstance* mi : mo->instances) {
+				if (mi->id().id == conflict->first)
+					names.first = mo->name;
+				if (mi->id().id == conflict->second)
+					names.second = mo->name;
+			}
+		return names;
+	}
+	return std::nullopt;
 }
 
 
