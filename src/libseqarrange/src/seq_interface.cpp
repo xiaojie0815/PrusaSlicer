@@ -176,10 +176,27 @@ void SolverConfiguration::set_ObjectGroupSize(int _object_group_size)
     
 /*----------------------------------------------------------------*/
 
+
 bool check_ScheduledObjectsForSequentialPrintability(const SolverConfiguration         &solver_configuration,
 						     const PrinterGeometry             &printer_geometry,
 						     const std::vector<ObjectToPrint>  &objects_to_print,
 						     const std::vector<ScheduledPlate> &scheduled_plates)
+{
+    if (check_ScheduledObjectsForSequentialConflict(solver_configuration,
+						    printer_geometry,
+						    objects_to_print,
+						    scheduled_plates))
+    {
+	return false;
+    }
+    return true;
+}
+    
+
+std::optional<std::pair<int, int> > check_ScheduledObjectsForSequentialConflict(const SolverConfiguration         &solver_configuration,
+										const PrinterGeometry             &printer_geometry,
+										const std::vector<ObjectToPrint>  &objects_to_print,
+										const std::vector<ScheduledPlate> &scheduled_plates)
 {
     std::vector<Slic3r::Polygon> polygons;
     std::vector<std::vector<Slic3r::Polygon> > unreachable_polygons;
@@ -268,15 +285,15 @@ bool check_ScheduledObjectsForSequentialPrintability(const SolverConfiguration  
 	{
 	    printf("Point check ...\n");
 	}
-	#endif
-
-	if (!check_PointsOutsidePolygons(dec_values_X,
-					 dec_values_Y,
-					 dec_values_T,
-					 plate_polygons,
-					 plate_unreachable_polygons))
+	#endif       
+	
+	if (auto conflict = check_PointsOutsidePolygons(dec_values_X,
+							dec_values_Y,
+							dec_values_T,
+							plate_polygons,
+							plate_unreachable_polygons))
 	{
-	    return false;
+	    return std::pair<int, int>(objects_to_print[conflict.value().first].id, objects_to_print[conflict.value().second].id);
 	}
 	#ifdef DEBUG
 	{
@@ -290,13 +307,13 @@ bool check_ScheduledObjectsForSequentialPrintability(const SolverConfiguration  
 	}
 	#endif
 
-	if (!check_PolygonLineIntersections(dec_values_X,
-					    dec_values_Y,
-					    dec_values_T,
-					    plate_polygons,
-					    plate_unreachable_polygons))
+	if (auto conflict = check_PolygonLineIntersections(dec_values_X,
+							    dec_values_Y,
+							    dec_values_T,
+							    plate_polygons,
+							    plate_unreachable_polygons))
 	{
-	    return false;
+	    return std::pair<int, int>(objects_to_print[conflict.value().first].id, objects_to_print[conflict.value().second].id);
 	}
 	#ifdef DEBUG
 	{
@@ -310,17 +327,16 @@ bool check_ScheduledObjectsForSequentialPrintability(const SolverConfiguration  
     }
     #endif
     
-    return true;
+    return {};    
 }
 
-    
+
 /*----------------------------------------------------------------*/
 
 std::vector<ScheduledPlate> schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver_configuration,
 							       const PrinterGeometry            &printer_geometry,
 							       const std::vector<ObjectToPrint> &objects_to_print,
-							       std::function<void(int)>          progress_callback,
-							       bool                              trans_bed_glue)
+							       std::function<void(int)>          progress_callback)
 {
     std::vector<ScheduledPlate> scheduled_plates;
 
@@ -328,8 +344,7 @@ std::vector<ScheduledPlate> schedule_ObjectsForSequentialPrint(const SolverConfi
 				       printer_geometry,
 				       objects_to_print,
 				       scheduled_plates,
-				       progress_callback,
-				       trans_bed_glue);
+				       progress_callback);
     return scheduled_plates;
 }
 
@@ -351,8 +366,7 @@ void schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver
 					const PrinterGeometry            &printer_geometry,
 					const std::vector<ObjectToPrint> &objects_to_print,
 					std::vector<ScheduledPlate>      &scheduled_plates,
-					std::function<void(int)>          progress_callback,
-					bool                              trans_bed_glue)
+					std::function<void(int)>          progress_callback)
 {
     #ifdef PROFILE
     clock_t start, finish;
@@ -424,7 +438,7 @@ void schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver
     int progress_object_phases_done = 0;
     int progress_object_phases_total = SEQ_MAKE_EXTRA_PROGRESS((objects_to_print.size() * SEQ_PROGRESS_PHASES_PER_OBJECT));
 
-    bool trans_bed_lepox = trans_bed_glue;
+    bool trans_bed_lepox = false;
     
     do
     {
@@ -591,8 +605,7 @@ void schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver
 int schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver_configuration,
 				       const std::vector<ObjectToPrint> &objects_to_print,
 				       std::vector<ScheduledPlate>      &scheduled_plates,
-				       std::function<void(int)>          progress_callback,
-				       bool                              trans_bed_glue)
+				       std::function<void(int)>          progress_callback)
 {
     #ifdef PROFILE
     clock_t start, finish;
@@ -842,7 +855,7 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver_
     int progress_object_phases_done = 0;
     int progress_object_phases_total = SEQ_MAKE_EXTRA_PROGRESS((objects_to_print.size() * SEQ_PROGRESS_PHASES_PER_OBJECT));
 
-    bool trans_bed_lepox = trans_bed_glue;
+    bool trans_bed_lepox = false;
 
     do
     {
@@ -1044,8 +1057,7 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration                
 				       const std::vector<std::vector<Slic3r::Polygon> > &convex_unreachable_zones,
 				       const std::vector<std::vector<Slic3r::Polygon> > &box_unreachable_zones,
 				       std::vector<ScheduledPlate>                      &scheduled_plates,
-				       std::function<void(int)>                          progress_callback,
-				       bool                                              trans_bed_glue)
+				       std::function<void(int)>                          progress_callback)
 {
     #ifdef PROFILE
     clock_t start, finish;
@@ -1181,7 +1193,7 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration                
     int progress_object_phases_done = 0;
     int progress_object_phases_total = SEQ_MAKE_EXTRA_PROGRESS((objects_to_print.size() * SEQ_PROGRESS_PHASES_PER_OBJECT));
 
-    bool trans_bed_lepox = trans_bed_glue;
+    bool trans_bed_lepox = false;
     
     do
     {

@@ -6443,11 +6443,11 @@ bool refine_ConsequentialPolygonWeakNonoverlapping(z3::solver                   
 
 /*----------------------------------------------------------------*/
 
-bool check_PointsOutsidePolygons(const std::vector<Rational>                      &dec_values_X,
-				 const std::vector<Rational>                      &dec_values_Y,	
-				 const std::vector<Rational>                      &dec_values_T,
-				 const std::vector<Slic3r::Polygon>               &polygons,
-				 const std::vector<std::vector<Slic3r::Polygon> > &unreachable_polygons)
+std::optional<std::pair<int, int> > check_PointsOutsidePolygons(const std::vector<Rational>                      &dec_values_X,
+								const std::vector<Rational>                      &dec_values_Y,	
+								const std::vector<Rational>                      &dec_values_T,
+								const std::vector<Slic3r::Polygon>               &polygons,
+								const std::vector<std::vector<Slic3r::Polygon> > &unreachable_polygons)
 {
     #ifdef DEBUG
     {
@@ -6653,7 +6653,7 @@ bool check_PointsOutsidePolygons(const std::vector<Rational>                    
 				}
 				if (always_inside_halfplane)
 				{
-				    return false;
+				    return std::pair<int, int>(j, i);
 				}
 			    }
 			}
@@ -6716,7 +6716,7 @@ bool check_PointsOutsidePolygons(const std::vector<Rational>                    
 				}
 				if (always_inside_halfplane)
 				{
-				    return false;
+				    return std::pair<int, int>(i, j);
 				}
 			    }
 			}
@@ -6740,15 +6740,15 @@ bool check_PointsOutsidePolygons(const std::vector<Rational>                    
     }
     #endif
 
-    return true;
+    return {};
 }
 
 
-bool check_PolygonLineIntersections(const std::vector<Rational>                      &dec_values_X,
-				    const std::vector<Rational>                      &dec_values_Y,	
-				    const std::vector<Rational>                      &dec_values_T,
-				    const std::vector<Slic3r::Polygon>               &polygons,
-				    const std::vector<std::vector<Slic3r::Polygon> > &unreachable_polygons)
+std::optional<std::pair<int, int> > check_PolygonLineIntersections(const std::vector<Rational>                      &dec_values_X,
+								   const std::vector<Rational>                      &dec_values_Y,	
+								   const std::vector<Rational>                      &dec_values_T,
+								   const std::vector<Slic3r::Polygon>               &polygons,
+								   const std::vector<std::vector<Slic3r::Polygon> > &unreachable_polygons)
 {
     if (!polygons.empty())
     {
@@ -6814,7 +6814,7 @@ bool check_PolygonLineIntersections(const std::vector<Rational>                 
 				    }
 			            #endif
 
-				    return false;
+				    return std::pair<int, int>(j, i);
 				}
 			    }
 			}
@@ -6878,7 +6878,7 @@ bool check_PolygonLineIntersections(const std::vector<Rational>                 
 					}
 			                #endif
 
-					return false;
+					return std::pair<int, int>(i, j);
 				    }
 				}
 			    }
@@ -6904,7 +6904,7 @@ bool check_PolygonLineIntersections(const std::vector<Rational>                 
     }
     #endif    
     
-    return true;
+    return {};
 }
 
 

@@ -338,10 +338,17 @@ void SeqArrange::apply_seq_arrange(Model& model) const
 
 
 
-
-
-
 bool check_seq_printability(const Model& model, const ConfigBase& config)
+{
+    if (auto conflict = check_seq_conflict(model, config))
+    {
+	return false;
+    }
+    return true;
+}
+
+
+std::optional<std::pair<int, int> > check_seq_conflict(const Model& model, const ConfigBase& config)
 {
 	Sequential::PrinterGeometry printer_geometry = get_printer_geometry(config);
 	Sequential::SolverConfiguration solver_config = get_solver_config(printer_geometry);
@@ -350,7 +357,7 @@ bool check_seq_printability(const Model& model, const ConfigBase& config)
 	if (printer_geometry.extruder_slices.empty()) {
 		// If there are no data for extruder (such as extruder_clearance_radius set to 0),
 		// consider it printable.
-		return true;
+	        return {};
 	}
 
 	Sequential::ScheduledPlate plate;
@@ -373,7 +380,8 @@ bool check_seq_printability(const Model& model, const ConfigBase& config)
 		}
 	}
 
-	return Sequential::check_ScheduledObjectsForSequentialPrintability(solver_config, printer_geometry, objects, std::vector<Sequential::ScheduledPlate>(1, plate));
+	//return Sequential::check_ScheduledObjectsForSequentialPrintability(solver_config, printer_geometry, objects, std::vector<Sequential::ScheduledPlate>(1, plate));
+	return Sequential::check_ScheduledObjectsForSequentialConflict(solver_config, printer_geometry, objects, std::vector<Sequential::ScheduledPlate>(1, plate));	
 }
 
 

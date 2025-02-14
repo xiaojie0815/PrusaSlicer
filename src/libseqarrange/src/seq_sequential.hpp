@@ -1223,17 +1223,17 @@ bool refine_ConsequentialPolygonWeakNonoverlapping(z3::solver                   
 
 /*----------------------------------------------------------------*/
 
-bool check_PointsOutsidePolygons(const std::vector<Rational>                      &dec_values_X,
-				 const std::vector<Rational>                      &dec_values_Y,	
-				 const std::vector<Rational>                      &dec_values_T,
-				 const std::vector<Slic3r::Polygon>               &polygons,
-				 const std::vector<std::vector<Slic3r::Polygon> > &unreachable_polygons);
+std::optional<std::pair<int, int> > check_PointsOutsidePolygons(const std::vector<Rational>                      &dec_values_X,
+								const std::vector<Rational>                      &dec_values_Y,	
+								const std::vector<Rational>                      &dec_values_T,
+								const std::vector<Slic3r::Polygon>               &polygons,
+								const std::vector<std::vector<Slic3r::Polygon> > &unreachable_polygons);
 
-bool check_PolygonLineIntersections(const std::vector<Rational>                      &dec_values_X,
-				    const std::vector<Rational>                      &dec_values_Y,	
-				    const std::vector<Rational>                      &dec_values_T,
-				    const std::vector<Slic3r::Polygon>               &polygons,
-				    const std::vector<std::vector<Slic3r::Polygon> > &unreachable_polygons);    
+std::optional<std::pair<int, int> > check_PolygonLineIntersections(const std::vector<Rational>                      &dec_values_X,
+								   const std::vector<Rational>                      &dec_values_Y,	
+								   const std::vector<Rational>                      &dec_values_T,
+								   const std::vector<Slic3r::Polygon>               &polygons,
+								   const std::vector<std::vector<Slic3r::Polygon> > &unreachable_polygons);
 
 
 /*----------------------------------------------------------------*/

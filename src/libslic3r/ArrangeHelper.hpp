@@ -14,7 +14,9 @@ namespace Slic3r {
 	class ExceptionCannotApplySeqArrange : public std::exception {};
 
 	void arrange_model_sequential(Model& model, const ConfigBase& config);
+    
 	bool check_seq_printability(const Model& model, const ConfigBase& config);
+        std::optional<std::pair<int, int> > check_seq_conflict(const Model& model, const ConfigBase& config);
 
 	// This is just a helper class to collect data for seq. arrangement, running the arrangement
 	// and applying the results to model. It is here so the processing itself can be offloaded

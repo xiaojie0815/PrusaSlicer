@@ -137,6 +137,21 @@ bool check_ScheduledObjectsForSequentialPrintability(const SolverConfiguration  
 						     const std::vector<ObjectToPrint>  &objects_to_print,
 						     const std::vector<ScheduledPlate> &scheduled_plates);
 
+/*
+  This is a variant of the interface for checking sequential printability.
+
+  If not sequentially printable returns a pair of object IDs that are in conflict,
+  that is, when the second object is printed the extruder will collide with the
+  first object. The returned conflict is not necessarily the first collision to
+  occur when printing the object according to the given input schedule.
+
+  Note: The function always succeeds, does not throw any exception.
+ */  
+std::optional<std::pair<int, int> > check_ScheduledObjectsForSequentialConflict(const SolverConfiguration         &solver_configuration,
+										const PrinterGeometry             &printer_geometry,
+										const std::vector<ObjectToPrint>  &objects_to_print,
+										const std::vector<ScheduledPlate> &scheduled_plates);
+
     
 /*----------------------------------------------------------------*/
 /*
@@ -160,15 +175,13 @@ bool check_ScheduledObjectsForSequentialPrintability(const SolverConfiguration  
 std::vector<ScheduledPlate> schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver_configuration,
 							       const PrinterGeometry            &printer_geometry,
 							       const std::vector<ObjectToPrint> &objects_to_print,
-							       std::function<void(int)>          progress_callback = [](int progress){},
-							       bool                              trans_bed_glue = false);
+							       std::function<void(int)>          progress_callback = [](int progress){});
     
 void schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver_configuration,
 					const PrinterGeometry            &printer_geometry,
 					const std::vector<ObjectToPrint> &objects_to_print,
 					std::vector<ScheduledPlate>      &scheduled_plates,
-					std::function<void(int)>          progress_callback = [](int progress){},
-					bool                              trans_bed_glue = false);
+					std::function<void(int)>          progress_callback = [](int progress){});
     
     
 /*----------------------------------------------------------------*/
@@ -179,8 +192,7 @@ void schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver
 int schedule_ObjectsForSequentialPrint(const SolverConfiguration        &solver_configuration,
 				       const std::vector<ObjectToPrint> &objects_to_print,
 				       std::vector<ScheduledPlate>      &scheduled_plates,
-				       std::function<void(int)>          progress_callback = [](int progress){},
-				       bool                              trans_bed_glue = false);
+				       std::function<void(int)>          progress_callback = [](int progress){});
 
 void setup_ExtruderUnreachableZones(const SolverConfiguration                  &solver_configuration,
 				    std::vector<std::vector<Slic3r::Polygon> > &convex_unreachable_zones,
@@ -191,8 +203,7 @@ int schedule_ObjectsForSequentialPrint(const SolverConfiguration                
 				       const std::vector<std::vector<Slic3r::Polygon> > &convex_unreachable_zones,
 				       const std::vector<std::vector<Slic3r::Polygon> > &box_unreachable_zones,     
 				       std::vector<ScheduledPlate>                      &scheduled_plates,
-				       std::function<void(int)>                          progress_callback = [](int progress){},
-				       bool                                              trans_bed_glue = false);
+				       std::function<void(int)>                          progress_callback = [](int progress){});
 
     
 /*----------------------------------------------------------------*/
