@@ -9,6 +9,10 @@
  */
 /*================================================================*/
 
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/catch_approx.hpp>
+#include <catch2/matchers/catch_matchers_vector.hpp>
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
@@ -17,10 +21,6 @@
 #include "libslic3r/ExPolygon.hpp"
 #include "libslic3r/Geometry/ConvexHull.hpp"
 #include "libslic3r/SVG.hpp"
-
-#define CATCH_CONFIG_EXTERNAL_INTERFACES
-#define CATCH_CONFIG_MAIN
-#include "catch2/catch.hpp"
 
 #include <z3++.h>
 
@@ -608,9 +608,10 @@ TEST_CASE("Polygon test 5", "[Polygon]")
     printf("Testing polygon 5 ... finished\n");    
 }
 
-
-Polygon polygon_1 = {{0, 0}, {50, 0}, {50, 50}, {0, 50}};
-//Polygon polygon_1 = {{scale_(0), scale_(0)}, {scale_(50), scale_(0)}, {scale_(50), scale_(50)}, {scale_(0), scale_(50)}};
+namespace {
+	Polygon polygon_1 = { {0, 0}, {50, 0}, {50, 50}, {0, 50} };
+	//Polygon polygon_1 = {{scale_(0), scale_(0)}, {scale_(50), scale_(0)}, {scale_(50), scale_(50)}, {scale_(0), scale_(50)}};
+}
 
 
 TEST_CASE("Polygon test 6", "[Polygon]")

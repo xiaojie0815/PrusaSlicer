@@ -31,7 +31,7 @@
 
 #include "seq_defs.hpp"
 
-#include "seq_interface.hpp"
+#include "libseqarrange/seq_interface.hpp"
 
 
 /*----------------------------------------------------------------*/

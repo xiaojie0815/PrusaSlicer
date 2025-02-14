@@ -9,6 +9,9 @@
  */
 /*================================================================*/
 
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/catch_approx.hpp>
+#include <catch2/matchers/catch_matchers_vector.hpp>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -19,10 +22,6 @@
 #include "libslic3r/ExPolygon.hpp"
 #include "libslic3r/Geometry/ConvexHull.hpp"
 #include "libslic3r/SVG.hpp"
-
-#define CATCH_CONFIG_EXTERNAL_INTERFACES
-#define CATCH_CONFIG_MAIN
-#include "catch2/catch.hpp"
 
 #include <z3++.h>
 
@@ -58,7 +57,7 @@ const int SEQ_PRUSA_MK3S_Y_SIZE = 2100;
 /*----------------------------------------------------------------*/
 
 
-Polygon scale_UP(const Polygon &polygon)
+static Polygon scale_UP(const Polygon &polygon)
 {
     Polygon poly = polygon;
 
@@ -71,7 +70,7 @@ Polygon scale_UP(const Polygon &polygon)
 }
 
 
-Polygon scale_UP(const Polygon &polygon, double x_pos, double y_pos)
+static Polygon scale_UP(const Polygon &polygon, double x_pos, double y_pos)
 {
     Polygon poly = polygon;
 

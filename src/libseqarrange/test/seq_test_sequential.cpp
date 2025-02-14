@@ -9,6 +9,10 @@
  */
 /*================================================================*/
 
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/catch_approx.hpp>
+#include <catch2/matchers/catch_matchers_vector.hpp>
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
@@ -18,10 +22,6 @@
 #include "libslic3r/ExPolygon.hpp"
 #include "libslic3r/Geometry/ConvexHull.hpp"
 #include "libslic3r/SVG.hpp"
-
-#define CATCH_CONFIG_EXTERNAL_INTERFACES
-#define CATCH_CONFIG_MAIN
-#include "catch2/catch.hpp"
 
 #include <z3++.h>
 
@@ -53,7 +53,7 @@ const int SEQ_PRUSA_MK3S_Y_SIZE = 2100;
 /*----------------------------------------------------------------*/
 
 
-Polygon scale_UP(const Polygon &polygon)
+static Polygon scale_UP(const Polygon &polygon)
 {
     Polygon poly = polygon;
 
@@ -66,7 +66,7 @@ Polygon scale_UP(const Polygon &polygon)
 }
 
 
-Polygon scale_UP(const Polygon &polygon, double x_pos, double y_pos)
+static Polygon scale_UP(const Polygon &polygon, double x_pos, double y_pos)
 {
     Polygon poly = polygon;
 
@@ -737,47 +737,48 @@ TEST_CASE("Sequential test 3", "[Sequential Arrangement Core]")
     printf("Testing sequential scheduling 3 ... finished\n");    
 }
 
+namespace {
+	Polygon polygon_1 = { {0, 0}, {50, 0}, {50, 50}, {0, 50} };
+	Polygon polygon_2 = { {0, 0}, {150, 10}, {150, 50}, {75, 120}, {0, 50} };
+	//Polygon polygon_2 = {{0, 0}, {0, 50}, {75, 120}, {150, 50}, {150, 0} };
+	Polygon polygon_3 = { {40, 0}, {80, 40}, {40, 80}, {0, 40} };
+	//Polygon polygon_3 = {{40, 0}, {0, 40},{40, 80}, {80, 40}};
+	Polygon polygon_4 = { {20, 0}, {40, 0}, {60, 30}, {30, 50}, {0, 30} };
+	//Polygon polygon_4 = {{20, 0}, {0, 30}, {30, 50}, {60, 30}, {40, 0} };
 
-Polygon polygon_1 = {{0, 0}, {50, 0}, {50, 50}, {0, 50}};
-Polygon polygon_2 = {{0, 0}, {150, 10}, {150, 50}, {75, 120}, {0, 50} };
-//Polygon polygon_2 = {{0, 0}, {0, 50}, {75, 120}, {150, 50}, {150, 0} };
-Polygon polygon_3 = {{40, 0}, {80, 40}, {40, 80}, {0, 40}};
-//Polygon polygon_3 = {{40, 0}, {0, 40},{40, 80}, {80, 40}};
-Polygon polygon_4 = {{20, 0}, {40, 0}, {60, 30}, {30, 50}, {0, 30}};
-//Polygon polygon_4 = {{20, 0}, {0, 30}, {30, 50}, {60, 30}, {40, 0} };
-
-Polygon unreachable_polygon_1 = {{-5, -5}, {60, -5}, {60, 60}, {-5, 60}};
-Polygon unreachable_polygon_2 = {{-20, -20}, {170, -20}, {170, 86}, {85, 140}, {-20, 60} };
-Polygon unreachable_polygon_3 = {{40, -10}, {90, 40}, {40, 90}, {-10, 40}};
-Polygon unreachable_polygon_4 = {{10, -10}, {40, -10}, {70, 40}, {30, 60}, {-10, 40}};
-//Polygon unreachable_polygon_4 = {{10, -1}, {40, -1}, {70, 40}, {30, 60}, {0, 40}};
-//Polygon unreachable_polygon_4 = {{10, -10}, {-10, 40}, {30, 60}, {70, 40}, {40, -10}};
+	Polygon unreachable_polygon_1 = { {-5, -5}, {60, -5}, {60, 60}, {-5, 60} };
+	Polygon unreachable_polygon_2 = { {-20, -20}, {170, -20}, {170, 86}, {85, 140}, {-20, 60} };
+	Polygon unreachable_polygon_3 = { {40, -10}, {90, 40}, {40, 90}, {-10, 40} };
+	Polygon unreachable_polygon_4 = { {10, -10}, {40, -10}, {70, 40}, {30, 60}, {-10, 40} };
+	//Polygon unreachable_polygon_4 = {{10, -1}, {40, -1}, {70, 40}, {30, 60}, {0, 40}};
+	//Polygon unreachable_polygon_4 = {{10, -10}, {-10, 40}, {30, 60}, {70, 40}, {40, -10}};
 
 
-std::vector<Polygon> unreachable_polygons_1 = {
-    {{-5, -5}, {60, -5}, {60, 60}, {-5, 60}},
-//    {{-20,-20}, {-25,-20}, {-25,-25}, {-20,-25}}
-//    {{-20,20}, {-25,20}, {-25,25}, {-20,25}}
-//    {{-20,20}, {-40,20}, {-40,40}, {-20,40}}
-//    {{-20,20}, {-80,20}, {-80,40}, {-20,40}} /* CW */
-    {{-20,20}, {-20,40}, {-180,40}, {-180,20}}, /* CCW */
-    {{80,20}, {240,20}, {240,40}, {80,40}} /* CCW */         
-//    {{-5,-5}, {-100,-5}, {-100,10}, {-5,10}}
-};
+	std::vector<Polygon> unreachable_polygons_1 = {
+		{{-5, -5}, {60, -5}, {60, 60}, {-5, 60}},
+		//    {{-20,-20}, {-25,-20}, {-25,-25}, {-20,-25}}
+		//    {{-20,20}, {-25,20}, {-25,25}, {-20,25}}
+		//    {{-20,20}, {-40,20}, {-40,40}, {-20,40}}
+		//    {{-20,20}, {-80,20}, {-80,40}, {-20,40}} /* CW */
+			{{-20,20}, {-20,40}, {-180,40}, {-180,20}}, /* CCW */
+			{{80,20}, {240,20}, {240,40}, {80,40}} /* CCW */
+			//    {{-5,-5}, {-100,-5}, {-100,10}, {-5,10}}
+	};
 
-std::vector<Polygon> unreachable_polygons_2 = {
-    {{-20, -20}, {170, -20}, {170, 86}, {85, 140}, {-20, 60} }
-};
+	std::vector<Polygon> unreachable_polygons_2 = {
+		{{-20, -20}, {170, -20}, {170, 86}, {85, 140}, {-20, 60} }
+	};
 
-std::vector<Polygon> unreachable_polygons_3 = {
-    {{40, -10}, {90, 40}, {40, 90}, {-10, 40}},
-    {{-20,20}, {-20,40}, {-180,40}, {-180,20}}, /* CCW */
-    {{80,20}, {240,20}, {240,40}, {80,40}} /* CCW */             
-};
+	std::vector<Polygon> unreachable_polygons_3 = {
+		{{40, -10}, {90, 40}, {40, 90}, {-10, 40}},
+		{{-20,20}, {-20,40}, {-180,40}, {-180,20}}, /* CCW */
+		{{80,20}, {240,20}, {240,40}, {80,40}} /* CCW */
+	};
 
-std::vector<Polygon> unreachable_polygons_4 = {
-    {{10, -10}, {40, -10}, {70, 40}, {30, 60}, {-10, 40}}
-};
+	std::vector<Polygon> unreachable_polygons_4 = {
+		{{10, -10}, {40, -10}, {70, 40}, {30, 60}, {-10, 40}}
+	};
+}
 
 
 TEST_CASE("Sequential test 4", "[Sequential Arrangement Core]")

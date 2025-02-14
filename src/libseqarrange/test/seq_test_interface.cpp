@@ -9,6 +9,10 @@
  */
 /*================================================================*/
 
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/catch_approx.hpp>
+#include <catch2/matchers/catch_matchers_vector.hpp>
+
 #include <sstream>
 #include <iostream>
 #include <fstream>
@@ -19,13 +23,9 @@
 #include "libslic3r/Geometry/ConvexHull.hpp"
 #include "libslic3r/SVG.hpp"
 
-#define CATCH_CONFIG_EXTERNAL_INTERFACES
-#define CATCH_CONFIG_MAIN
-#include "catch2/catch.hpp"
-
 #include <z3++.h>
 
-#include "seq_interface.hpp"
+#include "libseqarrange/seq_interface.hpp"
 #include "seq_utilities.hpp"
 #include "seq_preprocess.hpp"
 

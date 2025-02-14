@@ -16,7 +16,7 @@
 
 #include "seq_sequential.hpp"
 #include "seq_preprocess.hpp"
-#include "seq_interface.hpp"
+#include "libseqarrange/seq_interface.hpp"
 
 
 /*----------------------------------------------------------------*/

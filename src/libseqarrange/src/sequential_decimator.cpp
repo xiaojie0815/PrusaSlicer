@@ -18,9 +18,7 @@
 #include "libslic3r/Geometry/ConvexHull.hpp"
 #include "libslic3r/SVG.hpp"
 
-#include "seq_version.hpp"
 #include "seq_utilities.hpp"
-#include "seq_interface.hpp"
 
 #include "sequential_decimator.hpp"
 
