@@ -3,7 +3,6 @@
 ///|/
 ///|/ PrusaSlicer is released under the terms of the AGPLv3 or higher
 ///|/
-#include <format>
 #include "libslic3r/libslic3r.h"
 #include "GLGizmoSlaSupports.hpp"
 #include "slic3r/GUI/MainFrame.hpp"
