@@ -971,6 +971,7 @@ void Plater::priv::init()
                     std::string text = format(_u8L("Logged to Prusa Account as %1%."), username);
                     // login notification
                     this->notification_manager->close_notification_of_type(NotificationType::UserAccountID);
+                    this->notification_manager->close_notification_of_type(NotificationType::FailedSecretVendorUpdateSync);
                     // show connect tab
                     this->notification_manager->push_notification(NotificationType::UserAccountID, NotificationManager::NotificationLevel::ImportantNotificationLevel, text);
 

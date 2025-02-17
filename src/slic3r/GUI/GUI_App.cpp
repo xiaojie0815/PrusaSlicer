@@ -1538,6 +1538,15 @@ bool GUI_App::on_init_inner()
             this->check_updates(false);
         });
 
+        Bind(EVT_CONFIG_UPDATER_FAILED_ARCHIVE, [this](const wxCommandEvent& evt) {
+            assert(!evt.GetString().empty());
+            // TRN Notification text, 1 is list of vendors.
+            std::string notification_text = format(_u8L("Update Check Failed for the Following Vendors:\n\n%1%\nThis may be due to an account logout or a lost connection. Please verify your account status and internet connection. Then select \"Check for Configuration Updates\" to repeat."), evt.GetString());
+            notification_manager()->push_notification(NotificationType::FailedSecretVendorUpdateSync,
+                NotificationManager::NotificationLevel::WarningNotificationLevel,
+                notification_text);
+        });
+
         Bind(wxEVT_ACTIVATE_APP, [this](const wxActivateEvent &evt) {
             if (plater_) {
                 if (auto user_account = plater_->get_user_account())
