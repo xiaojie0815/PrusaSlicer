@@ -5954,7 +5954,7 @@ void Plater::export_all_gcodes(bool prefer_removable) {
         paths.emplace_back(print_index, output_file);
     }
 
-    BulkExportDialog dialog{paths, _L("Export beds")};
+    BulkExportDialog dialog{paths, _L("Export beds"),  "<>[]:/\\|?*\""};
     if (dialog.ShowModal() != wxID_OK) {
         return;
     }
@@ -6602,7 +6602,7 @@ void Plater::connect_gcode_all() {
         paths.emplace_back(print_index, filename_fixed);
     }
 
-    BulkExportDialog dialog{paths, _L("Send all to Connect")};
+    BulkExportDialog dialog{paths, _L("Send all to Connect"),  connect.get_unusable_symbols()};
     if (dialog.ShowModal() != wxID_OK) {
         return;
     }
