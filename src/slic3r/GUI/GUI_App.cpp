@@ -1641,6 +1641,10 @@ bool GUI_App::on_init_inner()
 
     show_printer_webview_tab();
 
+#ifdef _WIN32
+    mainframe->update_title(); // To ensure taskbar icons is updated.
+#endif
+
 #ifdef __APPLE__
     other_instance_message_handler()->bring_instance_forward();
 #endif //__APPLE__
