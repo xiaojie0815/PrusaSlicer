@@ -421,13 +421,23 @@ void UserAccountCommunication::enqueue_test_connection()
     wakeup_session_thread();
 }
 
-void UserAccountCommunication::enqueue_avatar_action(const std::string& url)
+void UserAccountCommunication::enqueue_avatar_old_action(const std::string& url)
 {
     if (!m_session->is_initialized()) {
         BOOST_LOG_TRIVIAL(error) << "Connect Printers endpoint connection failed - Not Logged in.";
         return;
     }
-    m_session->enqueue_action(UserAccountActionID::USER_ACCOUNT_ACTION_AVATAR, nullptr, nullptr, url);
+    m_session->enqueue_action(UserAccountActionID::USER_ACCOUNT_ACTION_AVATAR_OLD, nullptr, nullptr, url);
+    wakeup_session_thread();
+}
+
+void UserAccountCommunication::enqueue_avatar_new_action(const std::string& url)
+{
+    if (!m_session->is_initialized()) {
+        BOOST_LOG_TRIVIAL(error) << "Connect Printers endpoint connection failed - Not Logged in.";
+        return;
+    }
+    m_session->enqueue_action(UserAccountActionID::USER_ACCOUNT_ACTION_AVATAR_NEW, nullptr, nullptr, url);
     wakeup_session_thread();
 }
 
