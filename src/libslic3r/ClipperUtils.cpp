@@ -1041,8 +1041,7 @@ Polygons union_parallel_reduce(const Polygons &subject)
         });
 }
 
-Polygons simplify_polygons(const Polygons &subject)
-{
+Polygons simplify_polygons(const Polygons &subject) {    
     CLIPPER_UTILS_TIME_LIMIT_MILLIS(CLIPPER_UTILS_TIME_LIMIT_DEFAULT);
 
     ClipperLib::Paths output;
@@ -1052,25 +1051,7 @@ Polygons simplify_polygons(const Polygons &subject)
     c.StrictlySimple(true);
     c.AddPaths(ClipperUtils::PolygonsProvider(subject), ClipperLib::ptSubject, true);
     c.Execute(ClipperLib::ctUnion, output, ClipperLib::pftNonZero, ClipperLib::pftNonZero);
-
-    // convert into Slic3r polygons
     return to_polygons(std::move(output));
-}
-
-ExPolygons simplify_polygons_ex(const Polygons &subject, bool preserve_collinear)
-{
-    CLIPPER_UTILS_TIME_LIMIT_MILLIS(CLIPPER_UTILS_TIME_LIMIT_DEFAULT);
-
-    ClipperLib::PolyTree polytree;
-    ClipperLib::Clipper c;
-//    c.PreserveCollinear(true);
-    //FIXME StrictlySimple is very expensive! Is it needed?
-    c.StrictlySimple(true);
-    c.AddPaths(ClipperUtils::PolygonsProvider(subject), ClipperLib::ptSubject, true);
-    c.Execute(ClipperLib::ctUnion, polytree, ClipperLib::pftNonZero, ClipperLib::pftNonZero);
-    
-    // convert into ExPolygons
-    return PolyTreeToExPolygons(std::move(polytree));
 }
 
 Polygons top_level_islands(const Slic3r::Polygons &polygons)

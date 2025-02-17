@@ -135,8 +135,39 @@ ExPolygon get_simplified(const ExPolygon &island, const SampleConfig &config) {
     //// "Close" operation still create neighbor pixel for sharp triangle tip - cause VD issues
 
     ExPolygons simplified_expolygons = island.simplify(config.simplification_tolerance);
-    return simplified_expolygons.empty() ?
-        island : get_expolygon_with_biggest_contour(simplified_expolygons);
+    if (simplified_expolygons.empty())
+        return island;
+        
+    ExPolygon biggest = get_expolygon_with_biggest_contour(simplified_expolygons);
+
+    // NOTE: Order of polygon is different for Windows and Linux 
+    // to unify behavior one have to sort holes
+    std::sort(biggest.holes.begin(), biggest.holes.end(), 
+        // first sort by size of polygons than by coordinates of points
+        [](const Polygon &polygon1, const Polygon &polygon2) {
+            if (polygon1.size() > polygon2.size())
+                return true;
+            if (polygon1.size() < polygon2.size())
+                return false;
+            // NOTE: polygon1.size() == polygon2.size()
+            for (size_t point_index = 0; point_index < polygon1.size(); ++point_index) {
+                const Point &p1 = polygon1[point_index];
+                const Point &p2 = polygon2[point_index];
+                if (p1.x() > p2.x())
+                    return true;
+                if (p1.x() < p2.x())
+                    return false;
+                // NOTE: p1.x() == p2.x()
+                if (p1.y() > p2.y())
+                    return true;
+                if (p1.y() < p2.y())
+                    return false;
+                // NOTE: p1 == p2 check next point
+            }
+            return true;
+        });
+        
+    return biggest;
 }
 
 /// <summary>

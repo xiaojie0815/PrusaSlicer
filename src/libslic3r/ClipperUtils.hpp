@@ -641,7 +641,6 @@ void traverse_pt(const ClipperLib::PolyNodes &nodes, ExOrJustPolygons *retval)
 
 /* OTHER */
 Slic3r::Polygons simplify_polygons(const Slic3r::Polygons &subject);
-Slic3r::ExPolygons simplify_polygons_ex(const Slic3r::Polygons &subject);
 
 Polygons top_level_islands(const Slic3r::Polygons &polygons);
 
