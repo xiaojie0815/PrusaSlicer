@@ -243,8 +243,8 @@ UserAccountCommunication::UserAccountCommunication(wxEvtHandler* evt_handler, Ap
     , m_app_config(app_config)
     , m_polling_timer(std::make_unique<wxTimer>(this))
     , m_token_timer(std::make_unique<wxTimer>(this))
-    , m_slave_read_timer(new wxTimer(this))
-    , m_after_race_lost_timer(new wxTimer(this))
+    , m_slave_read_timer(std::make_unique<wxTimer>(this))
+    , m_after_race_lost_timer(std::make_unique<wxTimer>(this))
 {
     Bind(wxEVT_TIMER, &UserAccountCommunication::on_token_timer, this, m_token_timer->GetId());
     Bind(wxEVT_TIMER, &UserAccountCommunication::on_polling_timer, this, m_polling_timer->GetId());
