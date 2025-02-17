@@ -5948,7 +5948,7 @@ void Plater::export_all_gcodes(bool prefer_removable) {
         paths.emplace_back(print_index, output_file);
     }
 
-    BulkExportDialog dialog{paths};
+    BulkExportDialog dialog{paths, _L("Export beds")};
     if (dialog.ShowModal() != wxID_OK) {
         return;
     }
@@ -6481,11 +6481,12 @@ void Plater::printables_to_connect_gcode(const std::string& url)
 
 }
 
-std::optional<PrintHostJob> Plater::get_connect_print_host_job() {
+std::optional<PrintHostJob> Plater::get_connect_print_host_job(bool multiple_beds) 
+{
     assert(p->user_account->is_logged());
     std::string  dialog_msg;
     {
-        PrinterPickWebViewDialog dialog(this, dialog_msg);
+        PrinterPickWebViewDialog dialog(this, dialog_msg, multiple_beds);
         if (dialog.ShowModal() != wxID_OK) {
             return std::nullopt;
         }
@@ -6538,13 +6539,13 @@ std::optional<PrintHostJob> Plater::get_connect_print_host_job() {
 
 void Plater::connect_gcode()
 {
-    if (auto upload_job{get_connect_print_host_job()}) {
+    if (auto upload_job{get_connect_print_host_job(false)}) {
         p->export_gcode(fs::path(), false, std::move(*upload_job));
     }
 }
 
 void Plater::connect_gcode_all() {
-    auto optional_upload_job{get_connect_print_host_job()};
+    auto optional_upload_job{get_connect_print_host_job(true)};
     if (!optional_upload_job) {
         return;
     }
@@ -6556,6 +6557,7 @@ void Plater::connect_gcode_all() {
     if (print_host_ptr == nullptr) {
         throw std::runtime_error{"Sending to connect requires PrusaConnectNew host."};
     }
+
     const PrusaConnectNew connect{*print_host_ptr};
 
     std::vector<std::pair< int, std::optional<fs::path> >> paths;
@@ -6566,16 +6568,35 @@ void Plater::connect_gcode_all() {
             paths.emplace_back(print_index, std::nullopt);
             continue;
         }
+        // Prevously, filename from Connect FE was taken and used for each gcode file.
+        // Now naming is same as in gcode export.
+        fs::path default_filename{upload_job_template.upload_data.upload_path};
+        this->with_mocked_fff_background_process(
+            *print,
+            this->p->gcode_results[print_index],
+            print_index,
+            [&](){
+                const auto optional_file{this->get_default_output_file()};
+                if (!optional_file) {
+                    return;
+                }
+                if (print_index !=  s_multiple_beds.get_number_of_beds() - 1 || default_filename.empty()) {
+                    const fs::path &default_file{*optional_file};
+                    default_filename = default_file.filename();
+                }
+            }
+        );
 
-        const fs::path filename{upload_job_template.upload_data.upload_path};
-        paths.emplace_back(print_index, fs::path{
-            filename.stem().string()
-            + "_bed" + std::to_string(print_index + 1)
-            + filename.extension().string()
-        });
+        const fs::path filename_fixed{
+            default_filename.stem().string()
+            + "_bed"
+            + std::to_string(print_index + 1)
+            + default_filename.extension().string()
+        };
+        paths.emplace_back(print_index, filename_fixed);
     }
 
-    BulkExportDialog dialog{paths};
+    BulkExportDialog dialog{paths, _L("Send all to Connect")};
     if (dialog.ShowModal() != wxID_OK) {
         return;
     }

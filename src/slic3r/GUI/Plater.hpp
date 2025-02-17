@@ -249,7 +249,7 @@ public:
     void send_gcode_inner(DynamicPrintConfig* physical_printer_config);
 	void eject_drive();
 
-    std::optional<PrintHostJob> get_connect_print_host_job();
+    std::optional<PrintHostJob> get_connect_print_host_job(bool multiple_beds);
     void connect_gcode();
     void connect_gcode_all();
     void printables_to_connect_gcode(const std::string& url);
