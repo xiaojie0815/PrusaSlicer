@@ -542,10 +542,10 @@ TEST_CASE("Interface test 1", "[Sequential Arrangement Interface]")
 	    for (const auto& scheduled_object: scheduled_plates[plate].scheduled_objects)
 	    {
 		cout << "    ID: " << scheduled_object.id << "  X: " << scheduled_object.x << "  Y: " << scheduled_object.y << endl;
-		REQUIRE(scheduled_object.x >= 0);
-		REQUIRE(scheduled_object.x <= solver_configuration.x_plate_bounding_box_size * SEQ_SLICER_SCALE_FACTOR);
-		REQUIRE(scheduled_object.y >= 0);
-		REQUIRE(scheduled_object.y <= solver_configuration.y_plate_bounding_box_size * SEQ_SLICER_SCALE_FACTOR);
+		REQUIRE(scheduled_object.x >= solver_configuration.plate_bounding_box.min.x() * SEQ_SLICER_SCALE_FACTOR);
+		REQUIRE(scheduled_object.x <= solver_configuration.plate_bounding_box.max.x() * SEQ_SLICER_SCALE_FACTOR);
+		REQUIRE(scheduled_object.y >= solver_configuration.plate_bounding_box.min.y() * SEQ_SLICER_SCALE_FACTOR);
+		REQUIRE(scheduled_object.y <= solver_configuration.plate_bounding_box.max.y() * SEQ_SLICER_SCALE_FACTOR);
 	    }
 	}
     }
@@ -607,10 +607,11 @@ TEST_CASE("Interface test 2", "[Sequential Arrangement Interface]")
 	    for (const auto& scheduled_object: scheduled_plates[plate].scheduled_objects)
 	    {
 		cout << "    ID: " << scheduled_object.id << "  X: " << scheduled_object.x << "  Y: " << scheduled_object.y << endl;
-		REQUIRE(scheduled_object.x >= 0);
-		REQUIRE(scheduled_object.x <= solver_configuration.x_plate_bounding_box_size * SEQ_SLICER_SCALE_FACTOR);
-		REQUIRE(scheduled_object.y >= 0);
-		REQUIRE(scheduled_object.y <= solver_configuration.y_plate_bounding_box_size * SEQ_SLICER_SCALE_FACTOR);		
+
+		REQUIRE(scheduled_object.x >= solver_configuration.plate_bounding_box.min.x() * SEQ_SLICER_SCALE_FACTOR);
+		REQUIRE(scheduled_object.x <= solver_configuration.plate_bounding_box.max.x() * SEQ_SLICER_SCALE_FACTOR);
+		REQUIRE(scheduled_object.y >= solver_configuration.plate_bounding_box.min.y() * SEQ_SLICER_SCALE_FACTOR);
+		REQUIRE(scheduled_object.y <= solver_configuration.plate_bounding_box.max.y() * SEQ_SLICER_SCALE_FACTOR);
 	    }
 	}
     }
