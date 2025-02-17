@@ -586,7 +586,10 @@ WipeTower::WipeTower(const Vec2f& pos, double rotation_deg, const PrintConfig& c
         m_set_extruder_trimpot    = config.high_current_on_filament_swap;
     }
 
-    m_is_mk4mmu3                 = boost::icontains(config.printer_notes.value, "PRINTER_MODEL_MK4") && boost::icontains(config.printer_notes.value, "MMU");
+    m_is_mk4mmu3 = boost::icontains(config.printer_notes.value, "RAMMING_EXTRA")
+                // Before 2.9.1, the condition was tied to different keywords. We need to keep that so we don't break existing projects:
+                || (boost::icontains(config.printer_notes.value, "PRINTER_MODEL_MK4") && boost::icontains(config.printer_notes.value, "MMU"));
+
     m_switch_filament_monitoring = m_is_mk4mmu3 || is_XL_printer(config);
 
     // Calculate where the priming lines should be - very naive test not detecting parallelograms etc.
