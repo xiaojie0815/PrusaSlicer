@@ -21,6 +21,7 @@ using UserAccountTimeEvent = Event<int>;
 wxDECLARE_EVENT(EVT_OPEN_PRUSAAUTH, OpenPrusaAuthEvent);
 wxDECLARE_EVENT(EVT_UA_LOGGEDOUT, UserAccountSuccessEvent);
 wxDECLARE_EVENT(EVT_UA_ID_USER_SUCCESS, UserAccountSuccessEvent);
+wxDECLARE_EVENT(EVT_UA_ID_USER_SUCCESS_AFTER_TOKEN_SUCCESS, UserAccountSuccessEvent);
 wxDECLARE_EVENT(EVT_UA_SUCCESS, UserAccountSuccessEvent);
 wxDECLARE_EVENT(EVT_UA_PRUSACONNECT_STATUS_SUCCESS, UserAccountSuccessEvent);
 wxDECLARE_EVENT(EVT_UA_PRUSACONNECT_PRINTER_MODELS_SUCCESS, UserAccountSuccessEvent);
@@ -28,9 +29,13 @@ wxDECLARE_EVENT(EVT_UA_AVATAR_SUCCESS, UserAccountSuccessEvent);
 wxDECLARE_EVENT(EVT_UA_PRUSACONNECT_PRINTER_DATA_SUCCESS, UserAccountSuccessEvent);
 wxDECLARE_EVENT(EVT_UA_FAIL, UserAccountFailEvent); // Soft fail - clears only after some number of fails
 wxDECLARE_EVENT(EVT_UA_RESET, UserAccountFailEvent); // Hard fail - clears all
+wxDECLARE_EVENT(EVT_UA_RACE_LOST, UserAccountFailEvent); // Hard fail - clears all
 wxDECLARE_EVENT(EVT_UA_PRUSACONNECT_PRINTER_DATA_FAIL, UserAccountFailEvent); // Failed to get data for printer to select, soft fail, action does not repeat
 wxDECLARE_EVENT(EVT_UA_REFRESH_TIME, UserAccountTimeEvent);
 wxDECLARE_EVENT(EVT_UA_ENQUEUED_REFRESH, SimpleEvent);
+wxDECLARE_EVENT(EVT_UA_RETRY_NOTIFY, UserAccountFailEvent); // Not fail yet, just retry attempt. string is message to ui.
+wxDECLARE_EVENT(EVT_UA_CLOSE_RETRY_NOTIFICATION, SimpleEvent);
+
 
 typedef std::function<void(const std::string& body)> UserActionSuccessFn;
 typedef std::function<void(const std::string& body)> UserActionFailFn;
@@ -41,6 +46,7 @@ enum class UserAccountActionID {
     USER_ACCOUNT_ACTION_REFRESH_TOKEN,
     USER_ACCOUNT_ACTION_CODE_FOR_TOKEN,
     USER_ACCOUNT_ACTION_USER_ID,
+    USER_ACCOUNT_ACTION_USER_ID_AFTER_TOKEN_SUCCESS,
     USER_ACCOUNT_ACTION_TEST_ACCESS_TOKEN,
     USER_ACCOUNT_ACTION_TEST_CONNECTION,
     USER_ACCOUNT_ACTION_CONNECT_STATUS, // status of all printers by UUID
@@ -104,11 +110,12 @@ struct ActionQueueData
 class UserAccountSession
 {
 public:
-    UserAccountSession(wxEvtHandler* evt_handler, const std::string& access_token, const std::string& refresh_token, const std::string& shared_session_key, bool polling_enabled)
+    UserAccountSession(wxEvtHandler* evt_handler, const std::string& access_token, const std::string& refresh_token, const std::string& shared_session_key, long long next_token_timeout, bool polling_enabled)
         : p_evt_handler(evt_handler)
         , m_access_token(access_token)
         , m_refresh_token(refresh_token)
         , m_shared_session_key(shared_session_key)
+        , m_next_token_timeout(next_token_timeout)
         , m_polling_action(polling_enabled ? UserAccountActionID::USER_ACCOUNT_ACTION_CONNECT_PRINTER_MODELS : UserAccountActionID::USER_ACCOUNT_ACTION_DUMMY)
        
     {
@@ -119,6 +126,7 @@ public:
         m_actions[UserAccountActionID::USER_ACCOUNT_ACTION_REFRESH_TOKEN] = std::make_unique<UserActionPost>("EXCHANGE_TOKENS", sc.account_token_url());
         m_actions[UserAccountActionID::USER_ACCOUNT_ACTION_CODE_FOR_TOKEN] = std::make_unique<UserActionPost>("EXCHANGE_TOKENS", sc.account_token_url());
         m_actions[UserAccountActionID::USER_ACCOUNT_ACTION_USER_ID] = std::make_unique<UserActionGetWithEvent>("USER_ID", sc.account_me_url(), EVT_UA_ID_USER_SUCCESS, EVT_UA_RESET);
+        m_actions[UserAccountActionID::USER_ACCOUNT_ACTION_USER_ID_AFTER_TOKEN_SUCCESS] = std::make_unique<UserActionGetWithEvent>("USER_ID_AFTER_TOKEN_SUCCESS", sc.account_me_url(), EVT_UA_ID_USER_SUCCESS_AFTER_TOKEN_SUCCESS, EVT_UA_RESET);
         m_actions[UserAccountActionID::USER_ACCOUNT_ACTION_TEST_ACCESS_TOKEN] = std::make_unique<UserActionGetWithEvent>("TEST_ACCESS_TOKEN", sc.account_me_url(), EVT_UA_ID_USER_SUCCESS, EVT_UA_FAIL);
         m_actions[UserAccountActionID::USER_ACCOUNT_ACTION_TEST_CONNECTION] = std::make_unique<UserActionGetWithEvent>("TEST_CONNECTION", sc.account_me_url(), wxEVT_NULL, EVT_UA_RESET);
         m_actions[UserAccountActionID::USER_ACCOUNT_ACTION_CONNECT_STATUS] = std::make_unique<UserActionGetWithEvent>("CONNECT_STATUS", sc.connect_status_url(), EVT_UA_PRUSACONNECT_STATUS_SUCCESS, EVT_UA_FAIL);
@@ -159,6 +167,7 @@ public:
     // Special enques, that sets callbacks.
     void enqueue_test_with_refresh();
     void enqueue_refresh(const std::string& body);
+    void enqueue_refresh_race(const std::string refresh_token_from_store = std::string());
     void process_action_queue();
 
     bool is_initialized() const {
@@ -183,18 +192,22 @@ public:
         return m_next_token_timeout;
     }
 
-    //void set_polling_enabled(bool enabled) {m_polling_action = enabled ? UserAccountActionID::USER_ACCOUNT_ACTION_CONNECT_PRINTER_MODELS : UserAccountActionID::USER_ACCOUNT_ACTION_DUMMY; }
+    void set_tokens(const std::string& access_token, const std::string& refresh_token, const std::string& shared_session_key, long long expires_in);
+
     void set_polling_action(UserAccountActionID action) { 
         std::lock_guard<std::mutex> lock(m_session_mutex);
         m_polling_action = action; 
     }
 private:
     void refresh_fail_callback(const std::string& body);
+    void refresh_fail_soft_callback(const std::string& body);
     void cancel_queue();
     void code_exchange_fail_callback(const std::string& body);
     void token_success_callback(const std::string& body);
     std::string client_id() const { return Utils::ServiceConfig::instance().account_client_id(); }
     void process_action_queue_inner();
+
+    void remove_from_queue(UserAccountActionID action_id);
 
     // called from m_session_mutex protected code only
     void enqueue_action_inner(UserAccountActionID id, UserActionSuccessFn success_callback, UserActionFailFn fail_callback, const std::string& input);

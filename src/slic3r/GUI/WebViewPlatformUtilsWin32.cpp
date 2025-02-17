@@ -238,7 +238,7 @@ void RequestHeadersToLog(ICoreWebView2HttpRequestHeaders* requestHeaders)
         wchar_t* value = nullptr;
 
         iterator->GetCurrentHeader(&name, &value);
-        BOOST_LOG_TRIVIAL(debug) <<"name: " << name << L", value: " << value;
+        BOOST_LOG_TRIVIAL(trace) <<"name: " << name << L", value: " << value;
         if (name) {
             CoTaskMemFree(name);
         }

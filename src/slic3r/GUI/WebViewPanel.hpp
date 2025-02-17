@@ -76,6 +76,7 @@ public:
    
     void on_app_quit_event(const std::string& message_data);
     void on_app_minimize_event(const std::string& message_data);
+    void prohibit_after_show_func_once() {m_after_show_func_prohibited_once = true; }
 protected:
     virtual void late_create();
     virtual void define_css();
@@ -112,6 +113,7 @@ protected:
     wxString m_response_js;
     wxString m_default_url;
     bool m_reached_default_url {false};
+    bool m_after_show_func_prohibited_once {false};
 
     std::string m_loading_html;
     std::string m_error_html;
@@ -148,6 +150,7 @@ protected:
     void on_connect_action_close_dialog(const std::string& message_data) override {assert(false);}
     void on_user_token(UserAccountSuccessEvent& e);
     void define_css() override;
+    void after_on_show(wxShowEvent& evt) override;
 private:
     static wxString get_login_script(bool refresh);
     static wxString get_logout_script();

@@ -896,6 +896,11 @@ void Plater::priv::init()
             BOOST_LOG_TRIVIAL(trace) << "Received login from other instance event.";
             user_account->on_login_code_recieved(evt.data);
         });
+        this->q->Bind(EVT_STORE_READ_REQUEST, [this](SimpleEvent& evt) {
+            BOOST_LOG_TRIVIAL(debug) << "Received store read request from other instance event.";
+            user_account->on_store_read_request();
+        });
+        
         this->q->Bind(EVT_LOGIN_VIA_WIZARD, [this](Event<std::string> &evt) {
             BOOST_LOG_TRIVIAL(trace) << "Received login from wizard.";
             user_account->on_login_code_recieved(evt.data);
@@ -952,7 +957,7 @@ void Plater::priv::init()
             this->show_action_buttons(this->ready_to_slice);
         });
 
-        this->q->Bind(EVT_UA_ID_USER_SUCCESS, [this](UserAccountSuccessEvent& evt) {
+        auto on_id_user_success = [this](UserAccountSuccessEvent& evt, bool after_token_success) {
             if (login_dialog != nullptr) {
                 login_dialog->EndModal(wxID_CANCEL);
             }
@@ -960,7 +965,7 @@ void Plater::priv::init()
             evt.Skip();
             std::string who = user_account->get_username();
             std::string username;
-            if (user_account->on_user_id_success(evt.data, username)) {
+            if (user_account->on_user_id_success(evt.data, username, after_token_success)) {
                 if (who != username) {
                     // show notification only on login (not refresh).
                     std::string text = format(_u8L("Logged to Prusa Account as %1%."), username);
@@ -970,6 +975,9 @@ void Plater::priv::init()
                     this->notification_manager->push_notification(NotificationType::UserAccountID, NotificationManager::NotificationLevel::ImportantNotificationLevel, text);
 
                     this->main_frame->on_account_login(user_account->get_access_token());
+
+                    // notify other instances
+                    Slic3r::GUI::wxGetApp().other_instance_message_handler()->multicast_message("STORE_READ"); 
                 } else {
                     // refresh do different operations than on_account_login
                     this->main_frame->on_account_did_refresh(user_account->get_access_token());
@@ -991,9 +999,16 @@ void Plater::priv::init()
                 this->main_frame->refresh_account_menu(true);
                 // Update sidebar printer status
                 sidebar->update_printer_presets_combobox();
-            }
-        
+            }    
+        };
+
+        this->q->Bind(EVT_UA_ID_USER_SUCCESS, [on_id_user_success](UserAccountSuccessEvent& evt) {
+            on_id_user_success(evt, false);
         });
+        this->q->Bind(EVT_UA_ID_USER_SUCCESS_AFTER_TOKEN_SUCCESS, [on_id_user_success](UserAccountSuccessEvent& evt) {
+            on_id_user_success(evt, true);
+        });
+
         this->q->Bind(EVT_UA_RESET, [this](UserAccountFailEvent& evt) {
             BOOST_LOG_TRIVIAL(error) << "Reseting Prusa Account communication. Error message: " << evt.data;
             user_account->clear();
@@ -1009,6 +1024,11 @@ void Plater::priv::init()
             BOOST_LOG_TRIVIAL(error) << "Failed communication with Prusa Account: " << evt.data;
             user_account->on_communication_fail();
         });
+        this->q->Bind(EVT_UA_RACE_LOST, [this](UserAccountFailEvent& evt) {
+            BOOST_LOG_TRIVIAL(debug) << "Renew token race lost: " << evt.data;
+            user_account->on_race_lost();
+        });
+        
         this->q->Bind(EVT_UA_PRUSACONNECT_STATUS_SUCCESS, [this](UserAccountSuccessEvent& evt) {
             std::string text;
             bool printers_changed = false;
@@ -1072,6 +1092,22 @@ void Plater::priv::init()
                 return;
             }
             this->q->printables_to_connect_gcode(into_u8(evt.GetString()));
+        });
+
+        this->q->Bind(EVT_UA_RETRY_NOTIFY, [this](UserAccountFailEvent& evt) {
+            this->notification_manager->close_notification_of_type(NotificationType::AccountTransientRetry);
+            this->notification_manager->push_notification(NotificationType::AccountTransientRetry
+                , NotificationManager::NotificationLevel::RegularNotificationLevel
+                , evt.data
+                , _u8L("Stop now.")
+                , [this](wxEvtHandler* ) {
+                    this->user_account->do_logout();
+			        return true; 
+		        });
+  
+        });
+        this->q->Bind(EVT_UA_CLOSE_RETRY_NOTIFICATION, [this](SimpleEvent& evt) {
+            this->notification_manager->close_notification_of_type(NotificationType::AccountTransientRetry);
         });
     }
 

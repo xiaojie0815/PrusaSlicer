@@ -14,6 +14,9 @@
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/log/trivial.hpp>
 
+#include "InstanceCheck.hpp"
+#include "GUI_App.hpp"
+
 #include <wx/stdpaths.h>
 
 namespace pt = boost::property_tree;
@@ -30,10 +33,10 @@ UserAccount::UserAccount(wxEvtHandler* evt_handler, AppConfig* app_config, const
 UserAccount::~UserAccount()
 {}
 
-void UserAccount::set_username(const std::string& username)
+void UserAccount::set_username(const std::string& username, bool store)
 {
     m_username = username;
-    m_communication->set_username(username);
+    m_communication->set_username(username, store);
 }
 
 void UserAccount::clear()
@@ -67,7 +70,9 @@ void UserAccount::do_login()
 }
 void UserAccount::do_logout()
 {
+    BOOST_LOG_TRIVIAL(debug) << __FUNCTION__;
     m_communication->do_logout();
+    Slic3r::GUI::wxGetApp().other_instance_message_handler()->multicast_message("STORE_READ"); 
 }
 
 std::string UserAccount::get_access_token()
@@ -121,7 +126,7 @@ bool UserAccount::on_login_code_recieved(const std::string& url_message)
     return true;
 }
 
-bool UserAccount::on_user_id_success(const std::string data, std::string& out_username)
+bool UserAccount::on_user_id_success(const std::string data, std::string& out_username, bool after_token_success)
 {
     boost::property_tree::ptree ptree;
     try {
@@ -136,7 +141,7 @@ bool UserAccount::on_user_id_success(const std::string data, std::string& out_us
     for (const auto& section : ptree) {
         const auto opt = ptree.get_optional<std::string>(section.first);
         if (opt) {
-            BOOST_LOG_TRIVIAL(debug) << static_cast<std::string>(section.first) << "    " << *opt;
+            //BOOST_LOG_TRIVIAL(debug) << static_cast<std::string>(section.first) << "    " << *opt;
             m_account_user_data[section.first] = *opt;
         }
        
@@ -146,7 +151,7 @@ bool UserAccount::on_user_id_success(const std::string data, std::string& out_us
         return false;
     }
     std::string public_username = m_account_user_data["public_username"];
-    set_username(public_username);
+    set_username(public_username, after_token_success);
     out_username = public_username;
     // enqueue GET with avatar url
 
@@ -181,11 +186,14 @@ void UserAccount::on_communication_fail()
     }
 }
 
-
+void UserAccount::on_race_lost()
+{
+    m_communication->on_race_lost();
+}
 
 bool UserAccount::on_connect_printers_success(const std::string& data, AppConfig* app_config, bool& out_printers_changed)
 {
-    BOOST_LOG_TRIVIAL(debug) << "Prusa Connect printers message: " << data;
+    BOOST_LOG_TRIVIAL(trace) << "Prusa Connect printers message: " << data;
     pt::ptree ptree;
     try {
         std::stringstream ss(data);

@@ -56,9 +56,10 @@ public:
     // Functions called from UI where events emmited from UserAccountSession are binded
     // Returns bool if data were correctly proccessed
     bool on_login_code_recieved(const std::string& url_message);
-    bool on_user_id_success(const std::string data, std::string& out_username);
+    bool on_user_id_success(const std::string data, std::string& out_username, bool after_token_success);
     // Called on EVT_UA_FAIL, triggers test after several calls
     void on_communication_fail();
+    void on_race_lost();
     bool on_connect_printers_success(const std::string& data, AppConfig* app_config, bool& out_printers_changed);
     bool on_connect_uiid_map_success(const std::string& data, AppConfig* app_config, bool& out_printers_changed);
 
@@ -78,8 +79,10 @@ public:
     void        set_current_printer_data(const std::string& data) { m_current_printer_data_json_from_connect = data; }
 
     void        set_refresh_time(int seconds) { m_communication->set_refresh_time(seconds); }
+
+    void        on_store_read_request() { m_communication->on_store_read_request(); }
 private:
-    void set_username(const std::string& username);
+    void set_username(const std::string& username, bool store);
    
     std::string m_instance_hash; // used in avatar path
 
@@ -105,7 +108,7 @@ private:
         {"READY"    , ConnectPrinterState::CONNECT_PRINTER_READY},
         {"ATTENTION", ConnectPrinterState::CONNECT_PRINTER_ATTENTION},
         {"BUSY"     , ConnectPrinterState::CONNECT_PRINTER_BUSY},
-        {"ERROR"     , ConnectPrinterState::CONNECT_PRINTER_ERROR},
+        {"ERROR"    , ConnectPrinterState::CONNECT_PRINTER_ERROR},
     };
 };
 }} // namespace slic3r::GUI
