@@ -118,8 +118,8 @@ private:
     std::string client_id() const { return Utils::ServiceConfig::instance().account_client_id(); }
 
     // master / slave logic
-    wxTimer* m_slave_read_timer; // T2 timer
-    wxTimer* m_after_race_lost_timer; // T5 timer
+    std::unique_ptr<wxTimer> m_slave_read_timer; // T2 timer
+    std::unique_ptr<wxTimer> m_after_race_lost_timer; // T5 timer
     int m_last_token_duration_seconds {0};
     
     void on_slave_read_timer(wxTimerEvent& evt); // T2
