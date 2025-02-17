@@ -5663,48 +5663,6 @@ static wxString check_binary_vs_ascii_gcode_extension(PrinterTechnology pt, cons
 
 
 
-// This function should be deleted when binary G-codes become more common. The dialog is there to make the
-// transition period easier for the users, because bgcode files are not recognized by older firmwares
-// without any error message.
-void alert_when_exporting_binary_gcode(const std::string& printer_notes)
-{
-    const bool supports_binary = wxGetApp()
-        .preset_bundle->printers
-        .get_edited_preset()
-        .config.opt_bool("binary_gcode");
-    const bool uses_binary = wxGetApp().app_config->get_bool("use_binary_gcode_when_supported");
-    const bool binary_output{supports_binary && uses_binary};
-
-    if (
-        binary_output
-        && (
-            boost::algorithm::contains(printer_notes, "PRINTER_MODEL_XL")
-            || boost::algorithm::contains(printer_notes, "PRINTER_MODEL_MINI")
-            || boost::algorithm::contains(printer_notes, "PRINTER_MODEL_MK4")
-            || boost::algorithm::contains(printer_notes, "PRINTER_MODEL_MK3.9")
-        )
-    ) {
-        AppConfig* app_config = wxGetApp().app_config;
-        wxWindow* parent = wxGetApp().mainframe;
-        const std::string option_key = "dont_warn_about_firmware_version_when_exporting_binary_gcode";
-
-        if (app_config->get(option_key) != "1") {
-            const wxString url = "https://prusa.io/binary-gcode";
-            HtmlCapableRichMessageDialog dialog(parent,
-                format_wxstr(_L("You are exporting binary G-code for a Prusa printer. "
-                                "Binary G-code enables significantly faster uploads. "
-                                "Ensure that your printer is running firmware version 5.1.0 or newer, as older versions do not support binary G-codes.\n\n"
-                                "To learn more about binary G-code, visit <a href=%1%>%1%</a>."),
-                             url),
-                _L("Warning"), wxOK,
-                [&url](const std::string&) { wxGetApp().open_browser_with_warning_dialog(url); });
-            dialog.ShowCheckBox(_L("Don't show again"));
-            if (dialog.ShowModal() == wxID_OK && dialog.IsCheckBoxChecked())
-                app_config->set(option_key, "1");
-        }
-    }
-}
-
 std::optional<fs::path> Plater::get_default_output_file() {
     try {
         // Update the background processing, so that the placeholder parser will get the correct values for the ouput file template.
@@ -5838,14 +5796,6 @@ void Plater::export_gcode(bool prefer_removable)
     }
     const fs::path &output_path{*optional_output_path};
 
-    if (printer_technology() == ptFFF) {
-        alert_when_exporting_binary_gcode(
-            wxGetApp()
-            .preset_bundle->printers
-            .get_edited_preset()
-            .config.opt_string("printer_notes")
-        );
-    }
     export_gcode_to_path(output_path, [&](const bool path_on_removable_media){
         p->export_gcode(output_path, path_on_removable_media, PrintHostJob());
     });
@@ -6735,13 +6685,6 @@ void Plater::send_gcode_inner(DynamicPrintConfig* physical_printer_config)
                 ErrorDialog(this, error_str, t_kill_focus([](const std::string& key) -> void { wxGetApp().jump_to_option(key); })).ShowModal();
                 return;
             }
-
-            alert_when_exporting_binary_gcode(
-                wxGetApp().
-                preset_bundle->printers.
-                get_edited_preset().
-                config.opt_string("printer_notes")
-            );
         }
 
         upload_job.upload_data.upload_path = dlg.filename();
