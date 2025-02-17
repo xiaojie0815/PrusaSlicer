@@ -798,6 +798,7 @@ PRINT_CONFIG_CLASS_DEFINE(
 
     ((ConfigOptionEnum<ArcFittingType>, arc_fitting))
     ((ConfigOptionBool,                autoemit_temperature_commands))
+    ((ConfigOptionInt,                 bed_temperature_extruder))
     ((ConfigOptionString,              before_layer_gcode))
     ((ConfigOptionString,              between_objects_gcode))
     ((ConfigOptionBool,                binary_gcode))

@@ -1149,7 +1149,7 @@ void Tab::update_wiping_button_visibility() {
     }
 }
 
-void Tab::activate_option(const std::string& opt_key, const wxString& category)
+void Tab::activate_option(const std::string &opt_key, const wxString &category, const std::vector<std::string> &another_blinking_opt_keys)
 {
     wxString page_title = translate_category(category, m_type);
 
@@ -1197,7 +1197,12 @@ void Tab::activate_option(const std::string& opt_key, const wxString& category)
             set_focus(field->getWindow());
     }
 
-    m_highlighter.init(get_custom_ctrl_with_blinking_ptr(opt_key));
+    std::vector<std::pair<OG_CustomCtrl *, bool *>> custom_blinking_ctrls = { get_custom_ctrl_with_blinking_ptr(opt_key) };
+    for (const std::string &another_blinking_opt_key : another_blinking_opt_keys) {
+        custom_blinking_ctrls.emplace_back(get_custom_ctrl_with_blinking_ptr(another_blinking_opt_key));
+    }
+
+    m_highlighter.init(custom_blinking_ctrls);
 }
 
 void Tab::cache_config_diff(const std::vector<std::string>& selected_options, const DynamicPrintConfig* config/* = nullptr*/)
@@ -1635,6 +1640,7 @@ void TabPrint::build()
         optgroup->append_single_option_line("support_material_extruder");
         optgroup->append_single_option_line("support_material_interface_extruder");
         optgroup->append_single_option_line("wipe_tower_extruder");
+        optgroup->append_single_option_line("bed_temperature_extruder");
 
         optgroup = page->new_optgroup(L("Ooze prevention"));
         optgroup->append_single_option_line("ooze_prevention");

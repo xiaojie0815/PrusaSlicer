@@ -618,6 +618,16 @@ void PrintConfigDef::init_fff_params()
     def->mode = comExpert;
     def->set_default_value(new ConfigOptionInts{ 0 });
 
+    def = this->add("bed_temperature_extruder", coInt);
+    def->label = L("Bed temperature by extruder");
+    def->category = L("Extruders");
+    def->tooltip = L("The extruder which determines bed temperatures. "
+                     "Set to 0 to determine temperatures based on the first printing extruder "
+                     "of the first and the second layers.");
+    def->min = 0;
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionInt(0));
+
     def = this->add("before_layer_gcode", coString);
     def->label = L("Before layer change G-code");
     def->tooltip = L("This custom code is inserted at every layer change, right before the Z move. "
@@ -5161,6 +5171,16 @@ void DynamicPrintConfig::normalize_fdm()
 
     if (!this->has("solid_infill_extruder") && this->has("infill_extruder"))
         this->option("solid_infill_extruder", true)->setInt(this->option("infill_extruder")->getInt());
+
+    if (this->has("bed_temperature_extruder")) {
+        const size_t num_extruders = this->opt<ConfigOptionFloats>("nozzle_diameter")->size();
+        const int    extruder      = this->opt<ConfigOptionInt>("bed_temperature_extruder")->value;
+
+        // Replace invalid values with 0.
+        if (extruder < 0 || extruder > num_extruders) {
+            this->option("bed_temperature_extruder")->setInt(0);
+        }
+    }
 
     if (this->has("spiral_vase") && this->opt<ConfigOptionBool>("spiral_vase", true)->value) {
         {
