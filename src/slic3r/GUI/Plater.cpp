@@ -106,6 +106,7 @@
 #include "ConfigWizardWebViewPage.hpp"
 
 #include "Jobs/RotoptimizeJob.hpp"
+#include "Jobs/SeqArrangeJob.hpp"
 #include "Jobs/SLAImportJob.hpp"
 #include "Jobs/SLAImportDialog.hpp"
 #include "Jobs/NotificationProgressIndicator.hpp"
@@ -137,6 +138,8 @@
 #include "ConfigWizardWebViewPage.hpp"
 #include "PresetArchiveDatabase.hpp"
 #include "BulkExportDialog.hpp"
+
+#include "libslic3r/ArrangeHelper.hpp"
 
 #ifdef __APPLE__
 #include "Gizmos/GLGizmosManager.hpp"
@@ -622,7 +625,7 @@ Plater::priv::priv(Plater* q, MainFrame* main_frame)
     : q(q)
     , main_frame(main_frame)
     , config(Slic3r::DynamicPrintConfig::new_from_defaults_keys({
-        "bed_shape", "bed_custom_texture", "bed_custom_model", "complete_objects", "duplicate_distance", "extruder_clearance_radius", "skirts", "skirt_distance",
+        "bed_shape", "bed_custom_texture", "bed_custom_model", "complete_objects", "duplicate_distance", "extruder_clearance_radius", "extruder_clearance_height", "skirts", "skirt_distance",
         "brim_width", "brim_separation", "brim_type", "variable_layer_height", "nozzle_diameter", "single_extruder_multi_material",
         "wipe_tower", "wipe_tower_width", "wipe_tower_brim_width", "wipe_tower_cone_angle", "wipe_tower_extra_spacing", "wipe_tower_extra_flow", "wipe_tower_extruder",
         "extruder_colour", "filament_colour", "material_colour", "max_print_height", "printer_model", "printer_notes", "printer_technology",
@@ -712,8 +715,8 @@ void Plater::priv::init()
         view3D_canvas->Bind(EVT_GLCANVAS_OBJECT_SELECT, &priv::on_object_select, this);
         view3D_canvas->Bind(EVT_GLCANVAS_RIGHT_CLICK, &priv::on_right_click, this);
         view3D_canvas->Bind(EVT_GLCANVAS_REMOVE_OBJECT, [this](SimpleEvent&) { q->remove_selected(); });
-        view3D_canvas->Bind(EVT_GLCANVAS_ARRANGE, [this](SimpleEvent&) { this->q->arrange(); });
-        view3D_canvas->Bind(EVT_GLCANVAS_ARRANGE_CURRENT_BED, [this](SimpleEvent&) { this->q->arrange_current_bed(); });
+        view3D_canvas->Bind(EVT_GLCANVAS_ARRANGE, [this](SimpleEvent&) { this->q->arrange(false); });
+        view3D_canvas->Bind(EVT_GLCANVAS_ARRANGE_CURRENT_BED, [this](SimpleEvent&) { this->q->arrange(true); });
         view3D_canvas->Bind(EVT_GLCANVAS_SELECT_ALL, [this](SimpleEvent&) { this->q->select_all(); });
         view3D_canvas->Bind(EVT_GLCANVAS_QUESTION_MARK, [](SimpleEvent&) { wxGetApp().keyboard_shortcuts(); });
         view3D_canvas->Bind(EVT_GLCANVAS_INCREASE_INSTANCES, [this](Event<int>& evt)
@@ -744,8 +747,8 @@ void Plater::priv::init()
         view3D_canvas->Bind(EVT_GLTOOLBAR_DELETE, [this](SimpleEvent&) { q->remove_selected(); });
         view3D_canvas->Bind(EVT_GLTOOLBAR_DELETE_ALL, [this](SimpleEvent&) { delete_all_objects_from_model(); });
 //        view3D_canvas->Bind(EVT_GLTOOLBAR_DELETE_ALL, [q](SimpleEvent&) { q->reset_with_confirm(); });
-        view3D_canvas->Bind(EVT_GLTOOLBAR_ARRANGE, [this](SimpleEvent&) { this->q->arrange(); });
-        view3D_canvas->Bind(EVT_GLTOOLBAR_ARRANGE_CURRENT_BED, [this](SimpleEvent&) { this->q->arrange_current_bed(); });
+        view3D_canvas->Bind(EVT_GLTOOLBAR_ARRANGE, [this](SimpleEvent&) { this->q->arrange(false); });
+        view3D_canvas->Bind(EVT_GLTOOLBAR_ARRANGE_CURRENT_BED, [this](SimpleEvent&) { this->q->arrange(true); });
         view3D_canvas->Bind(EVT_GLTOOLBAR_COPY, [this](SimpleEvent&) { q->copy_selection_to_clipboard(); });
         view3D_canvas->Bind(EVT_GLTOOLBAR_PASTE, [this](SimpleEvent&) { q->paste_from_clipboard(); });
         view3D_canvas->Bind(EVT_GLTOOLBAR_MORE, [this](SimpleEvent&) { q->increase_instances(); });
@@ -1964,7 +1967,6 @@ void Plater::priv::delete_all_objects_from_model()
     reset_gcode_toolpaths();
     std::for_each(gcode_results.begin(), gcode_results.end(), [](auto& g) { g.reset(); });
 
-    view3D->get_canvas3d()->reset_sequential_print_clearance();
     view3D->get_canvas3d()->reset_all_gizmos();
 
     m_worker.cancel_all();
@@ -1997,8 +1999,6 @@ void Plater::priv::reset()
 
     reset_gcode_toolpaths();
     std::for_each(gcode_results.begin(), gcode_results.end(), [](auto& g) { g.reset(); });
-
-    view3D->get_canvas3d()->reset_sequential_print_clearance();
 
     m_worker.cancel_all();
 
@@ -2354,9 +2354,6 @@ unsigned int Plater::priv::update_background_process(bool force_validation, bool
     if (view3D->is_layers_editing_enabled())
         view3D->get_wxglcanvas()->Refresh();
 
-    if (invalidated == Print::APPLY_STATUS_CHANGED || background_process.empty())
-        view3D->get_canvas3d()->reset_sequential_print_clearance();
-
     if (invalidated == Print::APPLY_STATUS_INVALIDATED) {
         // Some previously calculated data on the Print was invalidated.
         // Hide the slicing results, as the current slicing status is no more valid.
@@ -2394,7 +2391,6 @@ unsigned int Plater::priv::update_background_process(bool force_validation, bool
             process_validation_warning(warnings);
             if (printer_technology == ptFFF) {
                 GLCanvas3D* canvas = view3D->get_canvas3d();
-                canvas->reset_sequential_print_clearance();
                 canvas->set_as_dirty();
                 canvas->request_extra_frame();
             }
@@ -2404,41 +2400,14 @@ unsigned int Plater::priv::update_background_process(bool force_validation, bool
             // Show error as notification.
             notification_manager->push_validate_error_notification(err);
             return_state |= UPDATE_BACKGROUND_PROCESS_INVALID;
-            if (printer_technology == ptFFF) {
-                GLCanvas3D* canvas = view3D->get_canvas3d();
-                if (canvas->is_sequential_print_clearance_empty() || canvas->is_sequential_print_clearance_evaluating()) {
-                    GLCanvas3D::ContoursList contours;
-                    contours.contours = background_process.fff_print()->get_sequential_print_clearance_contours();
-                    canvas->set_sequential_print_clearance_contours(contours, true);
-                }
-            }
         }
     }
     else {
         if (invalidated == Print::APPLY_STATUS_UNCHANGED && !background_process.empty()) {
-            if (printer_technology == ptFFF) {
-                // Object manipulation with gizmos may end up in a null transformation.
-                // In this case, we need to trigger the completion of the sequential print clearance contours evaluation 
-                GLCanvas3D* canvas = view3D->get_canvas3d();
-                if (canvas->is_sequential_print_clearance_evaluating()) {
-                    GLCanvas3D::ContoursList contours;
-                    contours.contours = background_process.fff_print()->get_sequential_print_clearance_contours();
-                    canvas->set_sequential_print_clearance_contours(contours, true);
-                }
-            }
             std::vector<std::string> warnings;
             std::string err = background_process.validate(&warnings);
-            if (!err.empty()) {
-                if (s_multiple_beds.get_number_of_beds() > 1 && printer_technology == ptFFF) {
-                    // user changed bed seletion, 
-                    // sequential print clearance contours were changed too
-                    GLCanvas3D* canvas = view3D->get_canvas3d();
-                    GLCanvas3D::ContoursList contours;
-                    contours.contours = background_process.fff_print()->get_sequential_print_clearance_contours();
-                    canvas->set_sequential_print_clearance_contours(contours, true);
-                }
+            if (!err.empty())
                 return return_state;
-            }
         }
 
         if (! this->delayed_error_message.empty())
@@ -6896,7 +6865,6 @@ void Plater::on_config_change(const DynamicPrintConfig &config)
             this->set_printer_technology(printer_technology);
             p->sidebar->show_sliced_info_sizer(false);
             p->reset_gcode_toolpaths();
-            p->view3D->get_canvas3d()->reset_sequential_print_clearance();
             p->view3D->get_canvas3d()->set_sla_view_type(GLCanvas3D::ESLAViewType::Original);
             p->preview->get_canvas3d()->reset_volumes();
         }
@@ -7143,30 +7111,29 @@ static std::string concat_strings(const std::set<std::string> &strings,
         });
 }
 
-void Plater::arrange()
+void Plater::arrange(bool current_bed_only)
 {
-    const auto mode{
-        wxGetKeyState(WXK_SHIFT) ?
-        ArrangeSelectionMode::SelectionOnly :
-        ArrangeSelectionMode::Full
-    };
+    ArrangeSelectionMode mode;
+    if (current_bed_only)
+        mode = wxGetKeyState(WXK_SHIFT) ? ArrangeSelectionMode::CurrentBedSelectionOnly : ArrangeSelectionMode::CurrentBedFull;
+    else
+        mode = wxGetKeyState(WXK_SHIFT) ? ArrangeSelectionMode::SelectionOnly : ArrangeSelectionMode::Full;
+
+    const bool sequential = p->config->has("complete_objects") && p->config->opt_bool("complete_objects");
 
     if (p->can_arrange()) {
-        auto &w = get_ui_job_worker();
-        arrange(w, mode);
-    }
-}
-
-void Plater::arrange_current_bed()
-{
-    const auto mode{
-        wxGetKeyState(WXK_SHIFT) ?
-        ArrangeSelectionMode::CurrentBedSelectionOnly :
-        ArrangeSelectionMode::CurrentBedFull
-    };
-    if (p->can_arrange()) {
-        auto &w = get_ui_job_worker();
-        arrange(w, mode);
+        if (sequential) {
+            try {
+                replace_job(this->get_ui_job_worker(), std::make_unique<SeqArrangeJob>(this->model(), *p->config, current_bed_only));
+            } catch (const ExceptionCannotAttemptSeqArrange&) {
+                ErrorDialog dlg(this, _L("Sequential arrange for a single bed is only allowed when all instances of the affected objects are on the same bed."), false);
+                dlg.ShowModal();
+            }
+        }
+        else {
+            auto& w = get_ui_job_worker();
+            arrange(w, mode);
+        }
     }
 }
 
@@ -7757,7 +7724,7 @@ PlaterAfterLoadAutoArrange::PlaterAfterLoadAutoArrange()
 PlaterAfterLoadAutoArrange::~PlaterAfterLoadAutoArrange()
 {
     if (m_enabled)
-        wxGetApp().plater()->arrange();
+        wxGetApp().plater()->arrange(false);
 }
 
 }}    // namespace Slic3r::GUI

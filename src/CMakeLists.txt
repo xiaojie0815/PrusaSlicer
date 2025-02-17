@@ -20,6 +20,8 @@ endif ()
 
 add_subdirectory(slic3r-arrange)
 add_subdirectory(slic3r-arrange-wrapper)
+add_subdirectory(libseqarrange)
+
 
 if (SLIC3R_GUI)
     add_subdirectory(libvgcode)
@@ -136,39 +138,39 @@ if (NOT WIN32 AND NOT APPLE)
     set_target_properties(PrusaSlicer PROPERTIES OUTPUT_NAME "prusa-slicer")
 endif ()
 
-target_link_libraries(PrusaSlicer libslic3r libcereal slic3r-arrange-wrapper stb_image)
+
+target_link_libraries(PrusaSlicer PRIVATE libslic3r libcereal slic3r-arrange-wrapper libseqarrange stb_image)
 
 if (APPLE)
 #    add_compile_options(-stdlib=libc++)
 #    add_definitions(-DBOOST_THREAD_DONT_USE_CHRONO -DBOOST_NO_CXX11_RVALUE_REFERENCES -DBOOST_THREAD_USES_MOVE)
     # -liconv: boost links to libiconv by default
-    target_link_libraries(PrusaSlicer "-liconv -framework IOKit" "-framework CoreFoundation" -lc++)
+    target_link_libraries(PrusaSlicer PRIVATE "-liconv -framework IOKit" "-framework CoreFoundation" -lc++)
 elseif (MSVC)
     # Manifest is provided through PrusaSlicer.rc, don't generate your own.
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /MANIFEST:NO")
 else ()
     # Boost on Raspberry-Pi does not link to pthreads explicitely.
-    target_link_libraries(PrusaSlicer ${CMAKE_DL_LIBS} -lstdc++ Threads::Threads)
+    target_link_libraries(PrusaSlicer PRIVATE ${CMAKE_DL_LIBS} -lstdc++ Threads::Threads)
 endif ()
 
 # Add the Slic3r GUI library, libcurl, OpenGL and GLU libraries.
 if (SLIC3R_GUI)
-#    target_link_libraries(PrusaSlicer ws2_32 uxtheme setupapi libslic3r_gui ${wxWidgets_LIBRARIES})
-target_link_libraries(PrusaSlicer libslic3r_gui)
+    target_link_libraries(PrusaSlicer PRIVATE libslic3r_gui)
     if (MSVC)
         # Generate debug symbols even in release mode.
         target_link_options(PrusaSlicer PUBLIC "$<$<CONFIG:RELEASE>:/DEBUG>")
-        target_link_libraries(PrusaSlicer user32.lib Setupapi.lib)
+        target_link_libraries(PrusaSlicer PRIVATE user32.lib Setupapi.lib)
     elseif (MINGW)
-        target_link_libraries(PrusaSlicer ws2_32 uxtheme setupapi)
+        target_link_libraries(PrusaSlicer PRIVATE ws2_32 uxtheme setupapi)
     elseif (APPLE)
-        target_link_libraries(PrusaSlicer "-framework OpenGL")
+        target_link_libraries(PrusaSlicer PRIVATE "-framework OpenGL")
     else ()
-        target_link_libraries(PrusaSlicer -ldl)
+        target_link_libraries(PrusaSlicer PRIVATE -ldl)
     endif ()
     if (WIN32)
         find_library(PSAPI_LIB NAMES Psapi)
-        target_link_libraries(PrusaSlicer ${PSAPI_LIB})
+        target_link_libraries(PrusaSlicer PRIVATE ${PSAPI_LIB})
     endif ()
 endif ()
 

@@ -1117,10 +1117,10 @@ void PrintConfigDef::init_fff_params()
 
     def = this->add("extruder_clearance_height", coFloat);
     def->label = L("Height");
-    def->tooltip = L("Set this to the vertical distance between your nozzle tip and (usually) the X carriage rods. "
-                   "In other words, this is the height of the clearance cylinder around your extruder, "
-                   "and it represents the maximum depth the extruder can peek before colliding with "
-                   "other printed objects.");
+    def->tooltip = L("Only used when 'Print Settings -> Complete individual objects' is active. Set this to the vertical "
+                   "distance between your nozzle tip and (usually) the X carriage rods so slicer can check for collisions "
+                   "with previously printed objects and prevent them when arranging.\n"
+                   "The value is ignored for most Prusa printers, which come with more detailed extruder model.");
     def->sidetext = L("mm");
     def->min = 0;
     def->mode = comExpert;
@@ -1128,10 +1128,9 @@ void PrintConfigDef::init_fff_params()
 
     def = this->add("extruder_clearance_radius", coFloat);
     def->label = L("Radius");
-    def->tooltip = L("Set this to the clearance radius around your extruder. "
-                   "If the extruder is not centered, choose the largest value for safety. "
-                   "This setting is used to check for collisions and to display the graphical preview "
-                   "in the plater.");
+    def->tooltip = L("Only used when 'Print Settings -> Complete individual objects' is active. Set this so slicer can "
+                   "check for collisions with previously printed objects and prevent them when arranging.\n"
+                   "The value is ignored for most Prusa printers, which come with more detailed extruder model.");
     def->sidetext = L("mm");
     def->min = 0;
     def->mode = comExpert;
