@@ -429,7 +429,7 @@ void UserAccountCommunication::login_redirect()
     wxQueueEvent(m_evt_handler,new OpenPrusaAuthEvent(GUI::EVT_OPEN_PRUSAAUTH, {std::move(url1), std::move(url2)}));
 }
 
-bool UserAccountCommunication::is_logged()
+bool UserAccountCommunication::is_logged() const
 {
     return !m_username.empty();
 }
