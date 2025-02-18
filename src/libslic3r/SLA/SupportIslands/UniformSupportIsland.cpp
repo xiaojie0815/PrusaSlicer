@@ -431,10 +431,10 @@ coord_t align_once(
         SupportIslandPointPtr &support = supports[i];
 
 #ifdef SLA_SAMPLE_ISLAND_UTILS_STORE_ALIGN_ONCE_TO_SVG_PATH
-        if (!sample->can_move()) { // draww freezed support points
-            svg.draw(sample->point, color_static_point, config.head_radius);
-            svg.draw_text(sample->point + Point(config.head_radius, 0),
-                SupportIslandPoint::to_string(sample->type).c_str(), color_static_point.c_str());
+        if (!support->can_move()) { // draww freezed support points
+            svg.draw(support->point, color_static_point, config.head_radius);
+            svg.draw_text(support->point + Point(config.head_radius, 0),
+                SupportIslandPoint::to_string(support->type).c_str(), color_static_point.c_str());
         }
 #endif // SLA_SAMPLE_ISLAND_UTILS_STORE_ALIGN_ONCE_TO_SVG_PATH
         if (!support->can_move())
@@ -488,8 +488,8 @@ coord_t align_once(
 #ifdef SLA_SAMPLE_ISLAND_UTILS_STORE_ALIGN_ONCE_TO_SVG_PATH
         svg.draw(cell_polygon, color_point_cell);
         svg.draw(*island_cell, color_island_cell_intersection);
-        svg.draw(Line(sample->point, island_cell_center), color_wanted_point, config.head_radius / 5);
-        svg.draw(sample->point, color_old_point, config.head_radius);
+        svg.draw(Line(support->point, island_cell_center), color_wanted_point, config.head_radius / 5);
+        svg.draw(support->point, color_old_point, config.head_radius);
         svg.draw(island_cell_center, color_wanted_point, config.head_radius); // wanted position
 #endif // SLA_SAMPLE_ISLAND_UTILS_STORE_ALIGN_ONCE_TO_SVG_PATH
 
@@ -499,9 +499,10 @@ coord_t align_once(
             max_move = act_move;  
 
 #ifdef SLA_SAMPLE_ISLAND_UTILS_STORE_ALIGN_ONCE_TO_SVG_PATH
-        svg.draw(sample->point, color_new_point, config.head_radius);
-        svg.draw_text(sample->point + Point(config.head_radius, 0),
-            SupportIslandPoint::to_string(sample->type).c_str(), color_new_point.c_str());
+        svg.draw(support->point, color_new_point, config.head_radius);
+        svg.draw_text(support->point + Point(config.head_radius, 0),
+            SupportIslandPoint::to_string(support->type).c_str(), color_new_point.c_str()
+        );
 #endif // SLA_SAMPLE_ISLAND_UTILS_STORE_ALIGN_ONCE_TO_SVG_PATH
     }
 
@@ -640,7 +641,7 @@ using ThinParts = std::vector<ThinPart>;
 /// </summary>
 struct ThickPart
 {
-    // neighbor from thick part (twin of first end)
+    // neighbor from thick part (twin of end with smallest source line index)
     // edge from thin to thick, start.node is inside of thick part
     const Neighbor* start;
 
@@ -1099,45 +1100,39 @@ void draw(SVG &svg, const Field &field, const ExPolygon& border, bool draw_borde
 }
 #endif // SLA_SAMPLE_ISLAND_UTILS_STORE_FIELD_TO_SVG_PATH || SLA_SAMPLE_ISLAND_UTILS_STORE_PENINSULA_FIELD_TO_SVG_PATH
 
+std::map<size_t, WideTinyChanges> create_wide_tiny_changes(const Positions& part_ends, const Lines &lines) {
+    std::map<size_t, WideTinyChanges> wide_tiny_changes;
+    // part_ends are already oriented
+    for (const Position &position : part_ends) {
+        Point p1, p2;
+        std::tie(p2, p1) = VoronoiGraphUtils::point_on_lines(position, lines);
+        const VD::edge_type *edge = position.neighbor->edge;
+        size_t i1 = edge->twin()->cell()->source_index();
+        size_t i2 = edge->cell()->source_index();
+        
+        // add sorted change from wide to tiny
+        // stored uder line index or line shorten in point b
+        WideTinyChange change(p1, p2, i2);
+        auto item = wide_tiny_changes.find(i1);
+        if (item == wide_tiny_changes.end()) {
+            wide_tiny_changes[i1] = {change};
+        } else {
+            WideTinyChange::SortFromAToB pred(lines[i1]);
+            VectorUtils::insert_sorted(item->second, change, pred);
+        }
+    }
+    return wide_tiny_changes;
+}
+
 // IMPROVE do not use pointers on node but pointers on Neighbor
 Field create_thick_field(const ThickPart& part, const Lines &lines, const SampleConfig &config)
 {    
     // store shortening of outline segments
     //   line index, vector<next line index + 2x shortening points>
-    std::map<size_t, WideTinyChanges> wide_tiny_changes;
-    for (const Position &position : part.ends) {
-        Point p1, p2;
-        std::tie(p1, p2) = VoronoiGraphUtils::point_on_lines(position, lines);
-        const VD::edge_type *edge = position.neighbor->edge;
-        size_t i1 = edge->cell()->source_index();
-        size_t i2 = edge->twin()->cell()->source_index();
-
-        // function to add sorted change from wide to tiny
-        // stored uder line index or line shorten in point b
-        auto add = [&wide_tiny_changes, &lines](const Point &p1, const Point &p2, size_t i1, size_t i2) {
-            WideTinyChange change(p1, p2, i2);
-            auto item = wide_tiny_changes.find(i1);
-            if (item == wide_tiny_changes.end()) {
-                wide_tiny_changes[i1] = {change};
-            } else {
-                WideTinyChange::SortFromAToB pred(lines[i1]);
-                VectorUtils::insert_sorted(item->second, change, pred);
-            }
-        };
-
-        const Line &l1 = lines[i1];
-        if (VoronoiGraphUtils::is_opposit_direction(edge, l1)) {
-            // line1 is shorten on side line1.a --> line2 is shorten on side line2.b
-            add(p2, p1, i2, i1);
-        } else {
-            // line1 is shorten on side line1.b
-            add(p1, p2, i1, i2);
-        }
-    } 
+    std::map<size_t, WideTinyChanges> wide_tiny_changes = create_wide_tiny_changes(part.ends, lines);
     
     // connection of line on island
-    std::map<size_t, size_t> b_connection =
-        LineUtils::create_line_connection_over_b(lines);
+    std::map<size_t, size_t> b_connection = LineUtils::create_line_connection_over_b(lines);
 
     std::vector<size_t> source_indices;
     auto inser_point_b = [&lines, &b_connection, &source_indices]
@@ -2240,6 +2235,27 @@ ThinPart create_only_thin_part(const VoronoiGraph::ExPath &path) {
     return ThinPart{*path_center_opt, /*ends*/ {}};
 }
 
+const VoronoiGraph::Node::Neighbor *get_smallest_source_index(const Positions& positions){ 
+    // do not call with empty positions
+    assert(!positions.empty());
+    if (positions.size() == 1)
+        return positions.front().neighbor;
+
+    const VoronoiGraph::Node::Neighbor *smallest = nullptr;
+    size_t smallest_index = std::numeric_limits<size_t>::max();
+    for (const Position &position : positions) {
+        const VD::edge_type *e = position.neighbor->edge;
+        size_t min_index = std::min(
+            e->cell()->source_index(), 
+            e->twin()->cell()->source_index());
+        if (smallest_index > min_index) {
+            smallest_index = min_index;
+            smallest = position.neighbor;
+        }
+    }
+    return smallest;
+}
+
 std::pair<ThinParts, ThickParts> convert_island_parts_to_thin_thick(
     const IslandParts& island_parts, const VoronoiGraph::ExPath &path)
 {
@@ -2273,8 +2289,9 @@ std::pair<ThinParts, ThickParts> convert_island_parts_to_thin_thick(
             thin_parts.push_back(ThinPart{center, std::move(ends)});
         } else {
             assert(i.type == IslandPartType::thick);
-            //const Neighbor* start = polygon_index.changes.front().position.neighbor;
-            const Neighbor *start = VoronoiGraphUtils::get_twin(*ends.front().neighbor);
+            const Neighbor *start = VoronoiGraphUtils::get_twin(*get_smallest_source_index(ends));
+            // NOTE: VD could contain different order of edges each run.
+            // To unify behavior as a start index is selected edge with smallest index of source line
             thick_parts.push_back(ThickPart {start, std::move(ends)});
         }
     }

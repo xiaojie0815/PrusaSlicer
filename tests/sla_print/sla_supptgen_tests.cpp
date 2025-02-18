@@ -19,6 +19,7 @@ using namespace Slic3r;
 using namespace Slic3r::sla;
 
 //#define STORE_SAMPLE_INTO_SVG_FILES "C:/data/temp/test_islands/sample_"
+//#define STORE_ISLAND_ISSUES "C:/data/temp/issues/"
 
 TEST_CASE("Overhanging point should be supported", "[SupGen]") {
 
@@ -69,9 +70,6 @@ TEST_CASE("Overhanging horizontal surface should be supported", "[SupGen]") {
     mesh.translate(0., 0., 5.); // lift up
     // mesh.WriteOBJFile("Cuboid.obj");
     sla::SupportPoints pts = calc_support_pts(mesh);
-
-    double mm2 = width * depth;
-
     REQUIRE(!pts.empty());
 }
 
@@ -325,7 +323,7 @@ ExPolygon load_svg(const std::string& svg_filepath) {
     auto to_polygon = [](NSVGpath *path) { 
         Polygon r;
         r.points.reserve(path->npts);
-        for (size_t i = 0; i < path->npts; i++)
+        for (int i = 0; i < path->npts; i++)
             r.points.push_back(Point(path->pts[2 * i], path->pts[2 * i + 1]));
         return r;
     };
@@ -455,10 +453,9 @@ SupportIslandPoints test_island_sampling(const ExPolygon &   island,
     auto points = uniform_support_island(island, {}, config);
 
     Points chck_points = rasterize(island, config.head_radius); // TODO: Use resolution of printer
-    bool is_ok = true;
-    double              max_distance = config.thick_inner_max_distance;
-    std::vector<double> point_distances(chck_points.size(),
-                                        {max_distance + 1});
+    bool is_island_supported = true; // Check rasterized island points that exist support point in max_distance
+    double max_distance = config.thick_inner_max_distance;
+    std::vector<double> point_distances(chck_points.size(), {max_distance + 1});
     for (size_t index = 0; index < chck_points.size(); ++index) { 
         const Point &chck_point  = chck_points[index];
         double &min_distance = point_distances[index];
@@ -473,20 +470,26 @@ SupportIslandPoints test_island_sampling(const ExPolygon &   island,
                 if (min_distance > distance) {
                     min_distance = distance;
                     exist_close_support_point = true;
-                };
+                }
             }
         }
-        if (!exist_close_support_point) is_ok = false;
+        if (!exist_close_support_point) is_island_supported = false;
     }
 
-    if (!is_ok) { // visualize
-        static int  counter              = 0;
+    bool is_all_points_inside_island = true;
+    for (const auto &point : points)
+        if (!island.contains(point->point))
+            is_all_points_inside_island = false;
+    
+#ifdef STORE_ISLAND_ISSUES
+    if (!is_island_supported || !is_all_points_inside_island) { // visualize
+        static int  counter = 0;
         BoundingBox bb;
         for (const Point &pt : island.contour.points) bb.merge(pt);
-        SVG svg("Error" + std::to_string(++counter) + ".svg", bb);
+        SVG svg(STORE_ISLAND_ISSUES + std::string("Error") + std::to_string(++counter) + ".svg", bb);
         svg.draw(island, "blue", 0.5f);
         for (auto& p : points)
-            svg.draw(p->point, "lightgreen", config.head_radius);
+            svg.draw(p->point, island.contains(p->point) ? "lightgreen" : "red", config.head_radius);
         for (size_t index = 0; index < chck_points.size(); ++index) {
             const Point &chck_point = chck_points[index];
             double       distance   = point_distances[index];
@@ -495,12 +498,12 @@ SupportIslandPoints test_island_sampling(const ExPolygon &   island,
             svg.draw(chck_point, color, config.head_radius / 4);
         }
     }
-    CHECK(!points.empty());
-    // TODO: solve issue
-    //CHECK(is_ok);
+#endif // STORE_ISLAND_ISSUES
 
-    // all points must be inside of island
-    for (const auto &point : points) { CHECK(island.contains(point->point)); }
+    CHECK(!points.empty());
+    CHECK(is_all_points_inside_island);
+    // CHECK(is_island_supported); // TODO: skip special cases with one point and 2 points
+
     return points;
 }
 
@@ -557,6 +560,7 @@ void store_sample(const SupportIslandPoints &samples, const ExPolygon &island) {
 /// </summary>
 TEST_CASE("Uniform sample test islands", "[SupGen], [VoronoiSkeleton]")
 {
+    //set_logging_level(5);
     float head_diameter = .4f;
     SampleConfig cfg = SampleConfigFactory::create(head_diameter);
     //cfg.path = "C:/data/temp/islands/<<order>>.svg";
@@ -589,6 +593,9 @@ TEST_CASE("Disable visualization", "[hide]")
 #ifdef STORE_SAMPLE_INTO_SVG_FILES
     CHECK(false);
 #endif // STORE_SAMPLE_INTO_SVG_FILES
+#ifdef STORE_ISLAND_ISSUES
+    CHECK(false);
+#endif // STORE_ISLAND_ISSUES
     CHECK(is_uniform_support_island_visualization_disabled());
 }
 

@@ -39,6 +39,8 @@ std::string SupportIslandPoint::to_string(const Type &type)
          {Type::thin_part_loop,     "thin_part_loop"},
          {Type::thick_part_outline, "thick_part_outline"},
          {Type::thick_part_inner,   "thick_part_inner"},
+         {Type::bad_shape_for_vd,   "bad_shape_for_vd"},
+         {Type::permanent,          "permanent"},
          {Type::undefined,          "undefined"}};
     auto it = type_to_string.find(type);
     if (it == type_to_string.end()) 
