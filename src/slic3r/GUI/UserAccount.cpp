@@ -231,7 +231,7 @@ bool UserAccount::on_connect_printers_success(const std::string& data, AppConfig
             continue;
         }
         if (m_printer_uuid_map.find(*printer_uuid) == m_printer_uuid_map.end()) {
-            BOOST_LOG_TRIVIAL(error) << "Missing printer model for printer uuid: " << *printer_uuid;
+            BOOST_LOG_TRIVIAL(trace) << "Missing printer model for printer uuid: " << *printer_uuid;
             continue;
         }
         
@@ -311,7 +311,7 @@ bool UserAccount::on_connect_uiid_map_success(const std::string& data, AppConfig
             trimmed_name = printer_preset->trim_vendor_repo_prefix(trimmed_name, printer_with_vendor.vendor);
             m_printer_uuid_map[*printer_uuid] = trimmed_name;
         } else {
-            BOOST_LOG_TRIVIAL(error) << "Failed to find preset for printer model: " << *printer_model;
+            BOOST_LOG_TRIVIAL(trace) << "Failed to find preset for printer model: " << *printer_model;
         }
     }
     m_communication->on_uuid_map_success();
