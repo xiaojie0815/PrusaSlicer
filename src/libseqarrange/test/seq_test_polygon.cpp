@@ -1,6 +1,6 @@
 /*================================================================*/
 /*
- * Author:  Pavel Surynek, 2023 - 2024
+ * Author:  Pavel Surynek, 2023 - 2025
  * Company: Prusa Research
  *
  * File:    seq_test_polygon.cpp
@@ -878,8 +878,6 @@ void polygon_test_6(void)
 	    z3::expr deco_1 = expr(z_context.real_const("deco_1"));
 	    
 	    z3::expr lino_1 = (valo_1 * deco_1 == 0);
-
-	    printf("value: %.3f\n", value);
 	
 	    cout << float(z_model[i]) << "\n";
 	    
@@ -1139,7 +1137,7 @@ TEST_CASE("Polygon test 7", "[Polygon]")
 	    double value = X_positions[i].as_double();
 	    printf("Orig X: %.3f\n", value);
 
-	    value = Y_positi ons[i].as_double();
+	    value = Y_positions[i].as_double();
 	    printf("Orig Y: %.3f\n", value);	
 	}
     }
@@ -1446,37 +1444,7 @@ void polygon_test_8(void)
 	else
 	{
 	    break;
-	}
-
-	#ifdef DEBUG
-	{
-	    cout << float(z_model[i]) << "\n";
-        
-	    switch (z_model.get_const_interp(z_model[i]).bool_value())
-	    {
-	    case Z3_L_FALSE:
-	    {
-		printf("   value: FALSE\n");
-		break;
-	    }
-	    case Z3_L_TRUE:
-	    {
-		printf("   value: TRUE\n");
-		break;
-	    }
-	    case Z3_L_UNDEF:
-	    {
-		printf("   value: UNDEF\n");
-		break;
-	    }	    
-	    default:
-	    {
-		break;
-	    }
-	    }
-	}
-	#endif
-	
+	}	
     }
     #ifdef DEBUG
     finish = clock();
@@ -1499,7 +1467,8 @@ void polygon_test_8(void)
 	    printf("Orig X: %.3f\n", value);
 
 	    value = Y_positions[i].as_double();
-	    printf("Orig Y: %.3f\n", value);	
+	    printf("Orig Y: %.3f\n", value);
+	}
     }
     #endif
     
@@ -1508,7 +1477,7 @@ void polygon_test_8(void)
     Polygon display_polygon_1 = scale_UP(polygon_1, poly_1_pos_x, poly_1_pos_y);
     Polygon display_polygon_2 = scale_UP(polygon_2, poly_2_pos_x, poly_2_pos_y);
     Polygon display_polygon_3 = scale_UP(polygon_3, poly_3_pos_x, poly_3_pos_y);    
-
+    
     preview_svg.draw(display_polygon_1, "green");
     preview_svg.draw(display_polygon_2, "blue");
     preview_svg.draw(display_polygon_3, "red");    
@@ -1777,35 +1746,6 @@ TEST_CASE("Polygon test 9", "[Polygon]")
 	{
 	    break;
 	}
-
-	#ifdef DEBUG
-	{
-	    cout << float(z_model[i]) << "\n";
-        
-	    switch (z_model.get_const_interp(z_model[i]).bool_value())
-	    {
-	    case Z3_L_FALSE:
-	    {
-		printf("   value: FALSE\n");
-		break;
-	    }
-	    case Z3_L_TRUE:
-	    {
-		printf("   value: TRUE\n");
-		break;
-	    }
-	    case Z3_L_UNDEF:
-	    {
-		printf("   value: UNDEF\n");
-		break;
-	    }	    
-	    default:
-	    {
-		break;
-	    }
-	    }
-	}
-	#endif	
     }
     #ifdef DEBUG    
     finish = clock();
@@ -2088,35 +2028,6 @@ void polygon_test_10(void)
 	{
 	    break;
 	}	
-
-	#ifdef DEBUG
-	{
-	    cout << float(z_model[i]) << "\n";
-        
-	    switch (z_model.get_const_interp(z_model[i]).bool_value())
-	    {
-	    case Z3_L_FALSE:
-	    {
-		printf("   value: FALSE\n");
-		break;
-	    }
-	    case Z3_L_TRUE:
-	    {
-		printf("   value: TRUE\n");
-		break;
-	    }
-	    case Z3_L_UNDEF:
-	    {
-		printf("   value: UNDEF\n");
-		break;
-	    }	    
-	    default:
-	    {
-		break;
-	    }
-	    }
-	}
-	#endif	
     }
     #ifdef DEBUG
     finish = clock();
@@ -2558,35 +2469,6 @@ TEST_CASE("Polygon test 11", "[Polygon]")
 	{
 	    break;
 	}	
-
-	#ifdef DEBUG
-	{
-	    cout << float(z_model[i]) << "\n";
-	    
-	    switch (z_model.get_const_interp(z_model[i]).bool_value())
-	    {
-	    case Z3_L_FALSE:
-	    {
-		printf("   value: FALSE\n");
-		break;
-	    }
-	    case Z3_L_TRUE:
-	    {
-		printf("   value: TRUE\n");
-		break;
-	    }
-	    case Z3_L_UNDEF:
-	    {
-		printf("   value: UNDEF\n");
-		break;
-	    }	    
-	    default:
-	    {
-		break;
-	    }
-	    }
-	}
-	#endif
     }
     #ifdef DEBUG 
     finish = clock();
