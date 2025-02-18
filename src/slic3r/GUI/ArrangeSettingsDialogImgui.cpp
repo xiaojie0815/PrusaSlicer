@@ -49,7 +49,7 @@ void ArrangeSettingsDialogImgui::render(float pos_x, float pos_y, bool current_b
                  ImGuiWindowFlags_NoMove | ImGuiWindowFlags_AlwaysAutoResize |
                      ImGuiWindowFlags_NoCollapse);
 
-    if (! wxGetApp().preset_bundle->prints.get_edited_preset().config.opt_bool("complete_objects")) {
+    if (! wxGetApp().preset_bundle->prints.get_edited_preset().config.opt_bool("complete_objects") || wxGetApp().preset_bundle->prints.get_edited_preset().printer_technology() == ptSLA) {
         Settings settings;
         read_settings(settings, m_db.get());
 

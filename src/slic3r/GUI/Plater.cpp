@@ -7127,7 +7127,7 @@ void Plater::arrange(bool current_bed_only)
     else
         mode = wxGetKeyState(WXK_SHIFT) ? ArrangeSelectionMode::SelectionOnly : ArrangeSelectionMode::Full;
 
-    const bool sequential = p->config->has("complete_objects") && p->config->opt_bool("complete_objects");
+    const bool sequential = p->config->has("complete_objects") && p->config->opt_bool("complete_objects") && p->printer_technology == ptFFF;
 
     if (p->can_arrange()) {
         if (sequential) {
