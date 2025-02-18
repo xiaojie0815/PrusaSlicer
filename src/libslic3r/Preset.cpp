@@ -1604,7 +1604,7 @@ std::vector<std::string> PresetCollection::merge_presets(PresetCollection &&othe
 
 void PresetCollection::update_vendor_ptrs_after_copy(const VendorMap &new_vendors)
 {
-    for (Preset &preset : m_presets)
+    auto update = [&new_vendors](Preset& preset) {
         if (preset.vendor != nullptr) {
             assert(! preset.is_default && ! preset.is_external);
             // Re-assign a pointer to the vendor structure in the new PresetBundle.
@@ -1612,6 +1612,12 @@ void PresetCollection::update_vendor_ptrs_after_copy(const VendorMap &new_vendor
             assert(it != new_vendors.end());
             preset.vendor = &it->second;
         }
+    };
+
+    for (Preset& preset : m_presets)
+        update(preset);
+    // update vendor for edited preset too
+    update(m_edited_preset);
 }
 
 void PresetCollection::update_map_alias_to_profile_name()
