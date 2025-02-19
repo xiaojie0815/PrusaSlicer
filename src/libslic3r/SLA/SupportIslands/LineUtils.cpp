@@ -259,13 +259,9 @@ double LineUtils::perp_distance(const Linef &line, Vec2d p)
 
 bool LineUtils::is_parallel(const Line &first, const Line &second) 
 {
-    Point   dir1 = direction(first);
-    Point   dir2 = direction(second);
-    coord_t cross(
-        static_cast<int64_t>(dir1.x()) * dir2.y() - 
-        static_cast<int64_t>(dir2.x()) * dir1.y()
-    );
-    return (cross == 0);
+    Vec2i64 dir1 = direction(first).cast<int64_t>();
+    Vec2i64 dir2 = direction(second).cast<int64_t>();
+    return Slic3r::cross2(dir1, dir2) == 0;
 }
 
 std::optional<Slic3r::Vec2d> LineUtils::intersection(const Line &ray1, const Line &ray2)
