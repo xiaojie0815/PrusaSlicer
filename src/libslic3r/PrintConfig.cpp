@@ -5792,7 +5792,6 @@ CLIActionsConfigDef::CLIActionsConfigDef()
     def->cli = "slice|s";
     def->set_default_value(new ConfigOptionBool(false));
 
-    /* looks like redundant actions. "slice" is complitely enough
     def = this->add("export_sla", coBool);
     def->label = L("Export SLA");
     def->tooltip = L("Slice the model and export SLA printing layers as PNG.");
@@ -5804,7 +5803,6 @@ CLIActionsConfigDef::CLIActionsConfigDef()
     def->tooltip = L("Slice the model and export toolpaths as G-code.");
     def->cli = "export-gcode|gcode|g";
     def->set_default_value(new ConfigOptionBool(false));
-*/
 }
 
 CLITransformConfigDef::CLITransformConfigDef()

@@ -298,8 +298,16 @@ bool process_actions(Data& cli, const DynamicPrintConfig& print_config, std::vec
             return 1;
     }
 
-    if (actions.has("slice")) {
+    if (actions.has("slice") || actions.has("export_gcode") || actions.has("export_sla")) {
         PrinterTechnology       printer_technology = Preset::printer_technology(print_config);
+        if (actions.has("export_gcode") && printer_technology == ptSLA) {
+            boost::nowide::cerr << "error: cannot export G-code for an FFF configuration" << std::endl;
+            return 1;
+        }
+        else if (actions.has("export_sla") && printer_technology == ptFFF) {
+            boost::nowide::cerr << "error: cannot export SLA slices for a SLA configuration" << std::endl;
+            return 1;
+        }
 
         const Vec2crd           gap{ s_multiple_beds.get_bed_gap() };
         arr2::ArrangeBed        bed = arr2::to_arrange_bed(get_bed_shape(print_config), gap);
