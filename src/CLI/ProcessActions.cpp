@@ -23,7 +23,6 @@
 #include "libslic3r/GCode/PostProcessor.hpp"
 #include "libslic3r/Model.hpp"
 #include "libslic3r/Preset.hpp"
-#include "libslic3r/ProfilesSharingUtils.hpp"
 #include <arrange-wrapper/ModelArrange.hpp>
 #include "libslic3r/Print.hpp"
 #include "libslic3r/SLAPrint.hpp"
@@ -37,7 +36,8 @@
 #include "libslic3r/MultipleBeds.hpp"
 #include "libslic3r/BuildVolume.hpp"
 
-#include "CLI.hpp"
+#include "CLI/CLI.hpp"
+#include "CLI/ProfilesSharingUtils.hpp"
 
 #define STB_IMAGE_RESIZE_IMPLEMENTATION
 #include "stb_image_resize2.h"
