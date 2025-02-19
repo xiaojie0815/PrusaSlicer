@@ -53,37 +53,47 @@ bool SampleConfigFactory::verify(SampleConfig &cfg) {
 }
 
 SampleConfig SampleConfigFactory::create(float support_head_diameter_in_mm)
-{
-    coord_t head_diameter = static_cast<coord_t>(scale_(support_head_diameter_in_mm));
-    coord_t max_distance = head_diameter * 22.5; // 0.4 * 22.5 = 9mm
-        
-    // TODO: find valid params !!!!
+{        
     SampleConfig result;
-    result.thin_max_distance             = max_distance;
-    result.thick_inner_max_distance      = max_distance;
-    result.thick_outline_max_distance    = (max_distance / 4) * 3;
-    result.head_radius                   = head_diameter / 2;
-    result.minimal_distance_from_outline = result.head_radius;
-    result.maximal_distance_from_outline = max_distance/3;
+    result.head_radius = static_cast<coord_t>(scale_(support_head_diameter_in_mm/2));
+    
     assert(result.minimal_distance_from_outline < result.maximal_distance_from_outline);
-    result.max_length_for_one_support_point =
-        max_distance / 3 +
-        2 * result.minimal_distance_from_outline + 
-        head_diameter;
-    result.max_length_for_two_support_points =
-        result.max_length_for_one_support_point + max_distance / 2;
-    result.thin_max_width =
-        2 * head_diameter + 2 * result.minimal_distance_from_outline +
-        max_distance / 2;
-    result.thick_min_width = result.thin_max_width - 2 * head_diameter;
-    result.min_part_length = max_distance;
+
+    // https://cfl.prusa3d.com/display/SLA/Single+Supporty
+    // head 0.4mm cca 1.65 mm
+    // head 0.5mm cca 1.85 mm
+    // This values are used for solvig equation(to find 2.9 and 1.3)
+    double head_area = M_PI * sqr(support_head_diameter_in_mm / 2); // Pi r^2
+    result.max_length_for_one_support_point = static_cast<coord_t>(scale_(head_area * 2.9 + 1.3));
+
+    // https://cfl.prusa3d.com/display/SLA/Double+Supports+-+Rectangles
+    // head 0.4mm cca 6.5 mm
+    // Use linear dependency to max_length_for_one_support_point
+    result.max_length_for_two_support_points = 
+        static_cast<coord_t>(result.max_length_for_one_support_point * 3.9);
+
+    // https://cfl.prusa3d.com/display/SLA/Double+Supports+-+Squares
+    // head 0.4mm cca (4.168 to 4.442) => from 3.6 to 4.2
+    result.thin_max_width = static_cast<coord_t>(result.max_length_for_one_support_point * 2.5); 
+    result.thick_min_width = static_cast<coord_t>(result.max_length_for_one_support_point * 2.15);
+
+    // guessed from max_length_for_two_support_points to value 5.2mm
+    result.thin_max_distance = static_cast<coord_t>(result.max_length_for_two_support_points * 0.8);
+
+    // guess from experiments documented above __(not verified values)__
+    result.thick_inner_max_distance = result.max_length_for_two_support_points; // 6.5mm
+    result.thick_outline_max_distance = static_cast<coord_t>(result.max_length_for_two_support_points * 0.75); // 4.875mm
+
+    result.minimal_distance_from_outline = result.head_radius;           // 0.2mm
+    result.maximal_distance_from_outline = result.thin_max_distance / 3; // 1.73mm
+    result.min_part_length = result.thin_max_distance;                   // 5.2mm
 
     // Align support points
     // TODO: propagate print resolution
     result.minimal_move = scale_(0.1); // 0.1 mm is enough
     // [in nanometers --> 0.01mm ], devide from print resolution to quater pixel is too strict
     result.count_iteration = 30; // speed VS precission
-    result.max_align_distance = max_distance / 2;
+    result.max_align_distance = result.max_length_for_two_support_points / 2;
 
     verify(result);
     return result;
