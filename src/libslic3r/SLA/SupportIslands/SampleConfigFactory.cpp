@@ -52,8 +52,7 @@ bool SampleConfigFactory::verify(SampleConfig &cfg) {
     return res;
 }
 
-SampleConfig SampleConfigFactory::create(float support_head_diameter_in_mm)
-{        
+SampleConfig SampleConfigFactory::create(float support_head_diameter_in_mm) {
     SampleConfig result;
     result.head_radius = static_cast<coord_t>(scale_(support_head_diameter_in_mm/2));
     
@@ -99,6 +98,30 @@ SampleConfig SampleConfigFactory::create(float support_head_diameter_in_mm)
     return result;
 }
 
+SampleConfig SampleConfigFactory::apply_density(const SampleConfig &current, float density) {
+    if (is_approx(density, 1.f))
+        return current;
+    if (density < .1f)
+        density = .1f; // minimal 10%
+
+    SampleConfig result = current;                                                        // copy
+    result.thin_max_distance = static_cast<coord_t>(current.thin_max_distance / density); // linear
+    result.thick_inner_max_distance = static_cast<coord_t>( // controll radius - quadratic
+        std::sqrt(sqr((double) current.thick_inner_max_distance) / density)
+    );
+    result.thick_outline_max_distance = static_cast<coord_t>(
+        current.thick_outline_max_distance / density
+    ); // linear
+    // result.head_radius                       .. no change
+    // result.minimal_distance_from_outline     .. no change
+    // result.maximal_distance_from_outline     .. no change
+    // result.max_length_for_one_support_point  .. no change
+    // result.max_length_for_two_support_points .. no change
+    verify(result);
+    return result;
+}
+
+#ifdef USE_ISLAND_GUI_FOR_SETTINGS
 std::optional<SampleConfig> SampleConfigFactory::gui_sample_config_opt;
 SampleConfig &SampleConfigFactory::get_sample_config() {
     // init config
@@ -109,22 +132,6 @@ SampleConfig &SampleConfigFactory::get_sample_config() {
 }
 
 SampleConfig SampleConfigFactory::get_sample_config(float density) {
-    const SampleConfig &current = get_sample_config();
-    if (is_approx(density, 1.f))
-        return current;
-    if (density < .1f)
-        density = .1f; // minimal 10%
-
-    SampleConfig result = current; // copy
-    result.thin_max_distance = static_cast<coord_t>(current.thin_max_distance / density); // linear
-    result.thick_inner_max_distance = static_cast<coord_t>( // controll radius - quadratic
-        std::sqrt(sqr((double)current.thick_inner_max_distance) / density));
-    result.thick_outline_max_distance = static_cast<coord_t>(current.thick_outline_max_distance / density); // linear
-    // result.head_radius                       .. no change
-    // result.minimal_distance_from_outline     .. no change
-    // result.maximal_distance_from_outline     .. no change
-    // result.max_length_for_one_support_point  .. no change
-    // result.max_length_for_two_support_points .. no change
-    verify(result);
-    return result;
+    return apply_density(get_sample_config(), density);
 }
+#endif // USE_ISLAND_GUI_FOR_SETTINGS

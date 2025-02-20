@@ -596,6 +596,9 @@ TEST_CASE("Disable visualization", "[hide]")
 #ifdef STORE_ISLAND_ISSUES
     CHECK(false);
 #endif // STORE_ISLAND_ISSUES
+#ifdef USE_ISLAND_GUI_FOR_SETTINGS
+    CHECK(false);
+#endif // USE_ISLAND_GUI_FOR_SETTINGS
     CHECK(is_uniform_support_island_visualization_disabled());
 }
 

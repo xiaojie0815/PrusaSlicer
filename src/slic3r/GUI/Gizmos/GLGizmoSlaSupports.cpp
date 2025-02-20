@@ -785,18 +785,20 @@ RENDER_AGAIN:
         ImVec4 light_gray{0.4f, 0.4f, 0.4f, 1.0f};
         ImGui::TextColored(light_gray, "%s", stats.c_str());
 
-        //ImGui::Separator(); // START temporary debug
-        //ImGui::Text("Between delimiters is temporary GUI");
-        //sla::SampleConfig &sample_config = sla::SampleConfigFactory::get_sample_config();
-        //if (float overhang_sample_distance = sample_config.prepare_config.discretize_overhang_step;
-        //    m_imgui->slider_float("overhang discretization", &overhang_sample_distance, 2e-5f, 10.f, "%.2f mm")){
-        //    sample_config.prepare_config.discretize_overhang_step = overhang_sample_distance;
-        //} else if (ImGui::IsItemHovered())
-        //    ImGui::SetTooltip("Smaller will slow down. Step for discretization overhang outline for test of support need");        
-        //
-        //draw_island_config();
-        //ImGui::Text("Distribution depends on './resources/data/sla_support.svg'\ninstruction for edit are in file");
-        //ImGui::Separator();
+#ifdef USE_ISLAND_GUI_FOR_SETTINGS
+        ImGui::Separator();
+        ImGui::Text("Between delimiters is temporary GUI");
+        sla::SampleConfig &sample_config = sla::SampleConfigFactory::get_sample_config();
+        if (float overhang_sample_distance = sample_config.prepare_config.discretize_overhang_step;
+            m_imgui->slider_float("overhang discretization", &overhang_sample_distance, 2e-5f, 10.f, "%.2f mm")){
+            sample_config.prepare_config.discretize_overhang_step = overhang_sample_distance;
+        } else if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Smaller will slow down. Step for discretization overhang outline for test of support need");        
+        
+        draw_island_config();
+        ImGui::Text("Distribution depends on './resources/data/sla_support.svg'\ninstruction for edit are in file");
+        ImGui::Separator();
+#endif // USE_ISLAND_GUI_FOR_SETTINGS
 
         if (ImGuiPureWrap::button(m_desc.at("auto_generate")))
             auto_generate();
@@ -884,6 +886,7 @@ RENDER_AGAIN:
         m_parent.set_as_dirty();
 }
 
+#ifdef USE_ISLAND_GUI_FOR_SETTINGS
 void GLGizmoSlaSupports::draw_island_config() {
     if (!ImGui::TreeNode("Support islands:"))
         return; // no need to draw configuration for islands
@@ -1014,6 +1017,7 @@ void GLGizmoSlaSupports::draw_island_config() {
     // end of tree node
     ImGui::TreePop();
 }
+#endif // USE_ISLAND_GUI_FOR_SETTINGS
 
 bool GLGizmoSlaSupports::on_is_activable() const
 {

@@ -543,7 +543,11 @@ void SLAPrint::Steps::prepare_for_generate_supports(SLAPrintObject &po) {
     using namespace sla;
     std::vector<ExPolygons> slices = po.get_model_slices(); // copy
     const std::vector<float> &heights = po.m_model_height_levels;
-    const PrepareSupportConfig &prepare_cfg = SampleConfigFactory::get_sample_config().prepare_config;
+#ifdef USE_ISLAND_GUI_FOR_SETTINGS
+    const PrepareSupportConfig &prepare_cfg = SampleConfigFactory::get_sample_config(po.config().support_head_front_diameter).prepare_config; // use configuration edited by GUI
+#else // USE_ISLAND_GUI_FOR_SETTINGS
+    const PrepareSupportConfig prepare_cfg; // use Default values of the configuration
+#endif // USE_ISLAND_GUI_FOR_SETTINGS
     ThrowOnCancel cancel = [this]() { throw_if_canceled(); };
 
     // scaling for the sub operations
@@ -750,8 +754,14 @@ void SLAPrint::Steps::support_points(SLAPrintObject &po)
     }
     
     // copy current configuration for sampling islands
+#ifdef USE_ISLAND_GUI_FOR_SETTINGS
+    // use static variable to propagate data from GUI
     config.island_configuration = SampleConfigFactory::get_sample_config(config.density_relative);
-    
+#else // USE_ISLAND_GUI_FOR_SETTINGS
+    config.island_configuration = SampleConfigFactory::apply_density(
+            SampleConfigFactory::create(config.head_diameter), config.density_relative);
+#endif // USE_ISLAND_GUI_FOR_SETTINGS
+
     // scaling for the sub operations
     double d = objectstep_scale * OBJ_STEP_LEVELS[slaposSupportPoints] / 100.0;
     double init = current_status();
