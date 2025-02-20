@@ -11006,12 +11006,12 @@ bool optimize_SubglobalSequentialPolygonNonoverlappingBinaryCentered(const Solve
 	if (!optimized)
 	{
 	    if (curr_polygon <= 0)
-	    {		
+	    {
 		return false;
 	    }
 	    else
 	    {
-		if (curr_polygon + solver_configuration.object_group_size < polygons.size())						
+		if (curr_polygon + solver_configuration.object_group_size < polygons.size())
 		{		    
 		    curr_polygon += solver_configuration.object_group_size;
 
