@@ -171,6 +171,34 @@ static bool export_models(std::vector<Model>& models, IO::ExportFormat format, c
     return true;
 }
 
+
+static ThumbnailData resize_and_crop(const std::vector<unsigned char>& data, int width, int height, int width_new, int height_new) {
+    ThumbnailData th;
+
+    float scale_x = float(width_new) / width;
+    float scale_y = float(height_new) / height;
+    float scale = std::max(scale_x, scale_y);  // Choose the larger scale to fill the box
+    int resized_width = int(width * scale);
+    int resized_height = int(height * scale);
+
+    std::vector<unsigned char> resized_rgba(resized_width * resized_height * 4);
+    stbir_resize_uint8_linear(data.data(), width, height, 4 * width,
+                              resized_rgba.data(), resized_width, resized_height, 4 * resized_width,
+                              STBIR_RGBA);
+
+    th.set(width_new, height_new);
+    int crop_x = (resized_width - width_new) / 2;
+    int crop_y = (resized_height - height_new) / 2;
+
+    for (int y = 0; y < height_new; ++y) {
+        std::memcpy(th.pixels.data() + y * width_new * 4, 
+                    resized_rgba.data() + ((y + crop_y) * resized_width + crop_x) * 4, 
+                    width_new * 4);
+    }
+    return th;
+}
+
+
 static std::function<ThumbnailsList(const ThumbnailsParams&)> get_thumbnail_generator_cli(const std::string& filename)
 {
     if (boost::iends_with(filename, ".3mf")) {
@@ -214,15 +242,8 @@ static std::function<ThumbnailsList(const ThumbnailsParams&)> get_thumbnail_gene
             }
 
             for (const Vec2d& size : params.sizes) {
-                ThumbnailData th;
                 Point isize(size);
-                th.set(isize.x(), isize.y());
-                std::vector<unsigned char> resized_rgba(th.width * th.height * 4);
-                stbir_resize_uint8_linear(data.data(), width, height, 4 * width,
-                                          resized_rgba.data(), th.width, th.height, 4 * th.width,
-                                          STBIR_RGBA);
-                th.pixels = resized_rgba;
-                list_out.push_back(th);
+                list_out.push_back(resize_and_crop(data, width, height, isize.x(), isize.y()));
             }
             return list_out;
         };
