@@ -1100,6 +1100,8 @@ void Plater::priv::init()
             this->notification_manager->push_notification(NotificationType::AccountTransientRetry
                 , NotificationManager::NotificationLevel::RegularNotificationLevel
                 , evt.data
+                // TRN: This is a hyperlink in a notification. It is preceded by a message from PrusaAccount (therefore not in this dictionary)
+                // saying something like "connection not established, I will keep trying".
                 , _u8L("Stop now.")
                 , [this](wxEvtHandler* ) {
                     this->user_account->do_logout();
@@ -2169,8 +2171,12 @@ void Plater::priv::process_validation_warning(const std::vector<std::string>& wa
                 return true;
             };
         } else if (text == "_BED_TEMPS_DIFFER" || text == "_BED_TEMPS_CHANGED") {
+            // TRN: Text of a notification, followed by (single) hyperlink to two of the config options. The sentence had to be split because of the hyperlink, sorry.
+            // The hyperlink part of the sentence reads "'Bed temperature by extruder' and 'Wipe tower extruder'", and it is also to be translated.
             text              = _u8L("Bed temperatures for the used filaments differ significantly.\n"
                                      "For multi-material prints it is recommended to set the ");
+            // TRN: The other part of the sentence starting "Bed temperatures for the used" (also in the dictionary). Sorry for splitting it, technical reasons -
+            // this part of the sentence is a hyperlink.
             hypertext = _u8L("'Bed temperature by extruder' and 'Wipe tower extruder'");
             multiline = true;
             notification_type = NotificationType::BedTemperaturesDiffer;

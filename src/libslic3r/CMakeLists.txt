@@ -500,8 +500,6 @@ set(SLIC3R_SOURCES
     Arachne/WallToolPaths.hpp
     Arachne/WallToolPaths.cpp
     StaticMap.hpp
-    ProfilesSharingUtils.hpp
-    ProfilesSharingUtils.cpp
     Utils/DirectoriesUtils.hpp
     Utils/DirectoriesUtils.cpp
     Utils/JsonUtils.hpp
