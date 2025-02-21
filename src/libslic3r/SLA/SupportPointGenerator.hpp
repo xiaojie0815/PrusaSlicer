@@ -14,9 +14,11 @@
 #include "libslic3r/ExPolygon.hpp"
 #include "libslic3r/SLA/SupportPoint.hpp"
 #include "libslic3r/SLA/SupportIslands/SampleConfig.hpp"
-#include "libslic3r/SLA/SupportIslands/SampleConfigFactory.hpp"
 
 namespace Slic3r::sla {
+
+std::vector<Vec2f> create_default_support_curve();
+SampleConfig create_default_island_configuration(float head_diameter_in_mm);
 
 /// <summary>
 /// Configuration for automatic support placement
@@ -35,22 +37,14 @@ struct SupportPointGeneratorConfig{
     /// </summary>
     float head_diameter = 0.4f; // [in mm]
 
-    // FIXME: calculate actual pixel area from printer config:
-    // const float pixel_area =
-    // pow(wxGetApp().preset_bundle->project_config.option<ConfigOptionFloat>("display_width") /
-    // wxGetApp().preset_bundle->project_config.option<ConfigOptionInt>("display_pixels_x"), 2.f); //
-    // Minimal island Area to print - TODO: Should be modifiable from UI
-    // !! Filter should be out of sampling algorithm !!
-    float minimal_island_area = pow(0.047f, 2.f); // [in mm^2] pixel_area
-
     // maximal distance to nearest support point(define radiuses per layer)
     // x axis .. mean distance on layer(XY)
     // y axis .. mean difference of height(Z)
     // Points of lines [in mm]
-    std::vector<Vec2f> support_curve;
+    std::vector<Vec2f> support_curve = create_default_support_curve();
 
     // Configuration for sampling island
-    SampleConfig island_configuration = SampleConfigFactory::create(head_diameter);
+    SampleConfig island_configuration = create_default_island_configuration(head_diameter);
 
     // maximal allowed distance to layer part for permanent(manual edited) support
     // helps to identify not wanted support points during automatic support generation.

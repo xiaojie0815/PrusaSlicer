@@ -10,8 +10,10 @@
 #include "libslic3r/KDTreeIndirect.hpp"
 #include "libslic3r/ClipperUtils.hpp"
 #include "libslic3r/AABBTreeLines.hpp" // closest point to layer part
+#include "libslic3r/AABBMesh.hpp" // move_on_mesh_surface Should be in another file
 // SupportIslands
 #include "libslic3r/SLA/SupportIslands/UniformSupportIsland.hpp"
+#include "libslic3r/SLA/SupportIslands/SampleConfigFactory.hpp"
 
 using namespace Slic3r;
 using namespace Slic3r::sla;
@@ -798,6 +800,7 @@ SupportPointGeneratorData Slic3r::sla::prepare_generator_data(
     return result;
 }
 
+#ifdef USE_ISLAND_GUI_FOR_SETTINGS
 #include "libslic3r/NSVGUtils.hpp"
 #include "libslic3r/Utils.hpp"
 std::vector<Vec2f> load_curve_from_file() {
@@ -837,6 +840,7 @@ std::vector<Vec2f> load_curve_from_file() {
     assert(false);
     return {};
 }
+#endif // USE_ISLAND_GUI_FOR_SETTINGS
 
 // Processing permanent support points
 // Permanent are manualy edited points by user
@@ -1165,21 +1169,42 @@ Points get_permanents(const PermanentSupports &supports, size_t support_index,
 
 } // namespace
 
-LayerSupportPoints Slic3r::sla::generate_support_points(
+namespace Slic3r::sla {
+using namespace Slic3r;
+
+std::vector<Vec2f> create_default_support_curve(){
+#ifdef USE_ISLAND_GUI_FOR_SETTINGS
+    return {};
+#else  // USE_ISLAND_GUI_FOR_SETTINGS
+    return std::vector<Vec2f>{
+        Vec2f{3.2f, 0.f},
+        Vec2f{4.f, 3.9f},
+        Vec2f{5.f, 15.f},
+        Vec2f{6.f, 40.f},
+    };
+#endif // USE_ISLAND_GUI_FOR_SETTINGS
+}
+
+SampleConfig create_default_island_configuration(float head_diameter_in_mm) {
+    return SampleConfigFactory::create(head_diameter_in_mm);
+}
+
+LayerSupportPoints generate_support_points(
     const SupportPointGeneratorData &data,
     const SupportPointGeneratorConfig &config,
     ThrowOnCancel throw_on_cancel,
     StatusFunction statusfn
-){
+) {
     const Layers &layers = data.layers;
     double increment = 100.0 / static_cast<double>(layers.size());
     double status = 0; // current progress
-    int status_int = 0; 
-
+    int status_int = 0;
+#ifdef USE_ISLAND_GUI_FOR_SETTINGS
     // Hack to set curve for testing
     if (config.support_curve.empty())
         const_cast<SupportPointGeneratorConfig &>(config).support_curve = load_curve_from_file();
-    
+#endif // USE_ISLAND_GUI_FOR_SETTINGS
+
     // Maximal radius of supported area of one support point
     double max_support_radius = config.support_curve.back().x();
     // check distance to nearest support points from grid
@@ -1205,11 +1230,15 @@ LayerSupportPoints Slic3r::sla::generate_support_points(
 
         for (const LayerPart &part : layer.parts) {
             size_t part_id = &part - &layer.parts.front();
-            if (part.prev_parts.empty()) { // Island ?                
+            if (part.prev_parts.empty()) {   // Island ?
                 grids.emplace_back(&result); // only island add new grid
-                Points permanent = get_permanents(permanent_supports, permanent_index, layer_id, part_id);
+                Points permanent =
+                    get_permanents(permanent_supports, permanent_index, layer_id, part_id);
                 support_island(part, grids.back(), layer.print_z, permanent, config);
-                copy_permanent_supports(grids.back(), permanent_supports, permanent_index, layer.print_z, layer_id, part_id, config);
+                copy_permanent_supports(
+                    grids.back(), permanent_supports, permanent_index, layer.print_z, layer_id,
+                    part_id, config
+                );
                 continue;
             }
 
@@ -1220,12 +1249,16 @@ LayerSupportPoints Slic3r::sla::generate_support_points(
             remove_supports_out_of_part(near_points, part, layer.print_z);
             if (!part.peninsulas.empty()) {
                 // only get copy of points do not modify permanent_index
-                Points permanent = get_permanents(permanent_supports, permanent_index, layer_id, part_id);
+                Points permanent =
+                    get_permanents(permanent_supports, permanent_index, layer_id, part_id);
                 support_peninsulas(part.peninsulas, near_points, layer.print_z, permanent, config);
             }
-            copy_permanent_supports(near_points, permanent_supports, permanent_index, layer.print_z, layer_id, part_id, config);
+            copy_permanent_supports(
+                near_points, permanent_supports, permanent_index, layer.print_z, layer_id, part_id,
+                config
+            );
             support_part_overhangs(part, config, near_points, layer.print_z, maximal_radius);
-            grids.push_back(std::move(near_points));            
+            grids.push_back(std::move(near_points));
         }
         prev_grids = std::move(grids);
 
@@ -1239,14 +1272,16 @@ LayerSupportPoints Slic3r::sla::generate_support_points(
     }
     // Remove permanent supports from result
     // To preserve permanent 3d position it is necessary to append points after move_on_mesh_surface
-    result.erase(std::remove_if(result.begin(), result.end(), 
-        [](const LayerSupportPoint &p) { return p.is_permanent; }), result.end());
+    result.erase(
+        std::remove_if(
+            result.begin(), result.end(), [](const LayerSupportPoint &p) { return p.is_permanent; }
+        ),
+        result.end()
+    );
     return result;
 }
 
-// TODO: Should be in another file
-#include "libslic3r/AABBMesh.hpp"
-SupportPoints Slic3r::sla::move_on_mesh_surface(
+SupportPoints move_on_mesh_surface(
     const LayerSupportPoints &points,
     const AABBMesh &mesh,
     double allowed_move,
@@ -1258,38 +1293,47 @@ SupportPoints Slic3r::sla::move_on_mesh_surface(
         pts.push_back(static_cast<SupportPoint>(p));
 
     // The function  makes sure that all the points are really exactly placed on the mesh.
-    execution::for_each(ex_tbb, size_t(0), pts.size(), [&pts, &mesh, &throw_on_cancel, allowed_move](size_t idx)
-    {
-        if ((idx % 16) == 0)
-            // Don't call the following function too often as it flushes CPU write caches due to synchronization primitves.
-            throw_on_cancel();
+    execution::for_each(
+        ex_tbb, size_t(0), pts.size(),
+        [&pts, &mesh, &throw_on_cancel, allowed_move](size_t idx) {
+            if ((idx % 16) == 0)
+                // Don't call the following function too often as it flushes CPU write caches due to
+                // synchronization primitves.
+                throw_on_cancel();
 
-        Vec3f& p = pts[idx].pos;
-        Vec3d p_double = p.cast<double>();
-        const Vec3d up_vec(0., 0., 1.);
-        const Vec3d down_vec(0., 0., -1.);
-        // Project the point upward and downward and choose the closer intersection with the mesh.
-        AABBMesh::hit_result hit_up   = mesh.query_ray_hit(p_double, up_vec);
-        AABBMesh::hit_result hit_down = mesh.query_ray_hit(p_double, down_vec);
+            Vec3f &p = pts[idx].pos;
+            Vec3d p_double = p.cast<double>();
+            const Vec3d up_vec(0., 0., 1.);
+            const Vec3d down_vec(0., 0., -1.);
+            // Project the point upward and downward and choose the closer intersection with the mesh.
+            AABBMesh::hit_result hit_up = mesh.query_ray_hit(p_double, up_vec);
+            AABBMesh::hit_result hit_down = mesh.query_ray_hit(p_double, down_vec);
 
-        bool up   = hit_up.is_hit();
-        bool down = hit_down.is_hit();
-        // no hit means support points lay exactly on triangle surface
-        if (!up && !down) return;
-        
-        AABBMesh::hit_result &hit = (!down || hit_up.distance() < hit_down.distance()) ? hit_up : hit_down;
-        if (hit.distance() <= allowed_move) {
-            p[2] += static_cast<float>(hit.distance() *
-                                        hit.direction()[2]);
-            return;
-        }
-        
-        // big distance means that ray fly over triangle side (space between triangles)
-        int    triangle_index;
-        Vec3d  closest_point;
-        double distance = mesh.squared_distance(p_double, triangle_index, closest_point);
-        if (distance <= std::numeric_limits<float>::epsilon()) return; // correct coordinate
-        p = closest_point.cast<float>();
-    }, 64 /* gransize */);
+            bool up = hit_up.is_hit();
+            bool down = hit_down.is_hit();
+            // no hit means support points lay exactly on triangle surface
+            if (!up && !down)
+                return;
+
+            AABBMesh::hit_result &hit = (!down || hit_up.distance() < hit_down.distance()) ?
+                hit_up :
+                hit_down;
+            if (hit.distance() <= allowed_move) {
+                p[2] += static_cast<float>(hit.distance() * hit.direction()[2]);
+                return;
+            }
+
+            // big distance means that ray fly over triangle side (space between triangles)
+            int triangle_index;
+            Vec3d closest_point;
+            double distance = mesh.squared_distance(p_double, triangle_index, closest_point);
+            if (distance <= std::numeric_limits<float>::epsilon())
+                return; // correct coordinate
+            p = closest_point.cast<float>();
+        },
+        64 /* gransize */
+    );
     return pts;
 }
+
+} // namespace Slic3r::sla
