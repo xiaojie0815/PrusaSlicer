@@ -558,7 +558,6 @@ void SLAPrint::Steps::prepare_for_generate_supports(SLAPrintObject &po) {
         if (std::round(current_status()) < std::round(current))
             report_status(current, OBJ_STEP_LABELS(slaposSupportPoints));
     };
-
     po.m_support_point_generator_data =
         prepare_generator_data(std::move(slices), heights, prepare_cfg, cancel, status);
 }
@@ -637,8 +636,10 @@ void SLAPrint::Steps::slice_model(SLAPrintObject &po)
     // We apply the printer correction offset here.
     apply_printer_corrections(po, soModel);
 
-    // We need to prepare data in previous step to create interactive support point generation
-    prepare_for_generate_supports(po);
+    // Prepare data for the support point generator only when supports are enabled
+    if (po.m_config.supports_enable.getBool())
+        // We need to prepare data in previous step to create interactive support point generation
+        prepare_for_generate_supports(po);
 //    po.m_preview_meshes[slaposObjectSlice] = po.get_mesh_to_print();
 //    report_status(-2, "", SlicingStatus::RELOAD_SLA_PREVIEW);
 }
