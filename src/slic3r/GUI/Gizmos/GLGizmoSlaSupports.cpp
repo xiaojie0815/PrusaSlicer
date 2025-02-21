@@ -738,9 +738,7 @@ RENDER_AGAIN:
         const char *support_points_density = "support_points_density_relative";
         float density = static_cast<const ConfigOptionInt*>(get_config_options({support_points_density})[0])->value; 
         float old_density = density;
-        wxString tooltip = _L("Change amount of the generated support points.\n"
-                              "Smaller value means less points and\n"
-                              "larger value means more points.");
+        wxString tooltip = _L("Change amount of generated support points.");
         if (m_imgui->slider_float("##density", &density, 50.f, 200.f, "%.f %%", 1.f, false, tooltip)){
             if (density < 10.f) // not neccessary, but lower value seems pointless. Zero cause issues inside algorithms.
                 density = 10.f;
