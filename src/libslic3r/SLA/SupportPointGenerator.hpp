@@ -92,8 +92,7 @@ struct LayerPart {
     BoundingBox shape_extent;
 
     // uniformly sampled shape contour
-    Slic3r::Points samples;
-    // IMPROVE: sample only overhangs part of shape
+    Points samples;
 
     // Parts from previous printed layer, which is connected to current part
     PartLinks prev_parts;

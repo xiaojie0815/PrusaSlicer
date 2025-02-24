@@ -29,6 +29,10 @@ struct PrepareSupportConfig
     // Must be greater than surface texture and lower than self supporting area
     // May be use maximal island distance
     float removing_delta = scale_(5.);
+
+    // Define minimal size of separable model part which will be filtered out
+    // Half of support head diameter is impossible to print other than sphere from support head
+    float minimal_bounding_sphere_radius = 0.2f; // [in mm]
 };
 
 /// <summary>

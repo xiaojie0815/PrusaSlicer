@@ -680,9 +680,277 @@ void create_peninsulas(LayerPart &part, const PrepareSupportConfig &config) {
         part.peninsulas.push_back(Peninsula{peninsula, is_outline});
     }
 }
+
+struct LayerPartIndex {
+    size_t layer_index; // index into layers
+    size_t part_index; // index into layer parts
+    bool operator<(const LayerPartIndex &other) const {
+        return layer_index < other.layer_index ||
+            (layer_index == other.layer_index && part_index < other.part_index);
+    }
+    bool operator==(const LayerPartIndex &other) const {
+        return layer_index == other.layer_index && part_index == other.part_index;
+    }
+};
+using SmallPart = std::vector<LayerPartIndex>;
+using SmallParts = std::vector<SmallPart>;
+
+std::optional<SmallPart> create_small_part(
+    const Layers &layers, const LayerPartIndex& island, float radius_in_mm) {
+    // Search for BB with diameter(2*r) distance from part and collect parts
+    const LayerPart &part = layers[island.layer_index].parts[island.part_index];
+    coord_t radius = static_cast<coord_t>(scale_(radius_in_mm));
+    
+    // only island part could be source of small part
+    assert(part.prev_parts.empty()); 
+    // Island bounding box Should be already checked out of function
+    assert(part.shape_extent.size().x() <= 2*radius &&
+           part.shape_extent.size().y() <= 2*radius );
+    
+    Point range{radius, radius};
+    Point center = part.shape_extent.center();
+    BoundingBox range_bb{center - range,center + range};
+    // BoundingBox range_bb{ // check exist sphere with radius to overlap model part
+    //    part.shape_extent.min - range,
+    //    part.shape_extent.max + range};
+
+    /// <summary>
+    /// Check parts in layers if they are in range of bounding box
+    /// Recursive fast check function without storing any already searched data
+    /// NOTE: Small part with holes could slow down checking
+    /// </summary>
+    /// <param name="check_layer_i">Index of layer with part</param>
+    /// <param name="check_part_i">Index of part in layer.parts</param>
+    /// <param name="allowed_depth">Recursion protection</param>
+    std::function<bool(const LayerPartIndex &, size_t)> check_parts;
+    check_parts = [&range_bb, &check_parts, &layers, &island, radius_in_mm]
+    (const LayerPartIndex& check, size_t allowed_depth) -> bool {
+        const Layer &check_layer = layers[check.layer_index];
+        const LayerPart &check_part = check_layer.parts[check.part_index];
+        for (const PartLink &link : check_part.next_parts)
+            // part bound is far than diameter from source part
+            if (!range_bb.contains(link->shape_extent.min) ||
+                !range_bb.contains(link->shape_extent.max))
+                return false; // part is too large
+
+        --allowed_depth;
+        if (allowed_depth == 0)
+            return true; // break recursion
+
+        // recursively check next layers
+        size_t next_layer_i = check.layer_index + 1;
+        for (const PartLink& link : check_part.next_parts) {
+            size_t next_part_i = link - layers[next_layer_i].parts.cbegin();
+            if (!check_parts({next_layer_i, next_part_i}, allowed_depth))
+                return false;
+        }
+
+        if (check.layer_index == island.layer_index) {
+            if (!check_part.prev_parts.empty())
+                return false; // prev layers are already checked
+
+            // When model part start from multi islands on the same layer, 
+            // Investigate only the first island(lower index into parts).
+            if (check.part_index < island.part_index)
+                return false; // part is already checked
+        }
+
+        
+        if (float max_z = radius_in_mm + layers[island.layer_index].print_z;
+            check_layer.print_z > max_z)
+            return false; // too far in Z
+
+        // NOTE: multiple investigation same part seems more relevant 
+        // instead of store and search for already checked parts
+
+        // check previous parts
+        for (const PartLink &link : check_part.prev_parts) {
+            // part bound is far than diameter from source part
+            if (!range_bb.contains(link->shape_extent.min) ||
+                !range_bb.contains(link->shape_extent.max))
+                return false; // part is too large
+        }
+
+        for (const PartLink &link : check_part.prev_parts) {
+            size_t prev_layer_i = check.layer_index - 1; // exist only when exist prev parts - cant be negative
+            size_t prev_part_i = link - layers[prev_layer_i].parts.cbegin();
+            // Improve: check only parts which are not already checked
+            if (!check_parts({prev_layer_i, prev_part_i}, allowed_depth))
+                return false;
+        }
+        return true;
+    };
+
+    float layer_height = layers[1].print_z - layers[0].print_z;
+    assert(layer_height > 0.f);
+    float safe_multiplicator = 1.3f; // 30% more layers than radius for zigzag(up & down layer) search
+    size_t allowed_depth = static_cast<size_t>(std::ceil(radius_in_mm / layer_height * safe_multiplicator));
+    // Check Bounding boxes and do not create any data - FAST CHECK
+    // NOTE: it could check model parts multiple times those there is allowed_depth
+    if (!check_parts(island, allowed_depth))
+        return {};
+
+    SmallPart collected; // sorted by layer_i, part_i
+    std::vector<LayerPartIndex> queue_next;
+    LayerPartIndex curr = island;
+    // create small part by flood fill neighbor parts
+    do {
+        if (curr.layer_index >= layers.size()){
+            if (queue_next.empty())
+                break; // finish collecting
+            curr = queue_next.back();
+            queue_next.pop_back();
+        }
+        auto collected_it = std::lower_bound(collected.begin(), collected.end(), curr);
+        if (collected_it != collected.end() && 
+            *collected_it == curr ) // already processed
+            continue;
+        collected.insert(collected_it, curr); // insert sorted
+
+        const LayerPart &curr_part = layers[curr.layer_index].parts[curr.part_index];
+        LayerPartIndex next{layers.size(), 0}; // set to uninitialized value(layer index is out of layers)
+        for (const PartLink &link : curr_part.next_parts) {
+            size_t next_layer_i = curr.layer_index + 1;
+            size_t part_i = link - layers[next_layer_i].parts.begin();
+            LayerPartIndex next_{next_layer_i, part_i};
+            auto it = std::lower_bound(collected.begin(), collected.end(), next_);
+            if (it != collected.end() && *it == next_)
+                continue; // already collected
+
+            if (next.layer_index >= layers.size()) // next is uninitialized
+                next = next_;
+            else
+                queue_next.push_back(next_); // insert sorted
+        }
+        for (const PartLink &link : curr_part.prev_parts) {
+            size_t prev_layer_i = curr.layer_index - 1;
+            size_t part_i = link - layers[prev_layer_i].parts.begin();
+            LayerPartIndex next_{prev_layer_i, part_i};
+            auto it = std::lower_bound(collected.begin(), collected.end(), next_);
+            if (it != collected.end() && *it == next_)
+                continue; // already collected
+
+            if (next.layer_index >= layers.size()) // next is uninitialized
+                next = next_;
+            else
+                queue_next.push_back(next_); // insert sorted
+        }
+        curr = next;
+    } while (true); // NOTE: It is break when queue is empty && curr is invalid
+
+    // Check that whole model part is inside support head sphere
+    float print_z = layers[island.layer_index].print_z;
+    std::vector<Vec3f> vertices;
+    for (const LayerPartIndex &part_id : collected) {
+        const Layer &layer = layers[part_id.layer_index];
+        double radius_sq = (sqr(radius_in_mm) - sqr(layer.print_z - print_z)) / sqr(SCALING_FACTOR);
+        const LayerPart &layer_part = layer.parts[part_id.part_index];
+        for (const Point &p : layer_part.shape->contour.points) {
+            Vec2d diff2d = (p - center).cast<double>();
+            if (sqr(diff2d.x()) + sqr(diff2d.y()) > radius_sq)
+                return {}; // part is too large
+        }
+    }
+    return collected;
+}
+
+/// <summary>
+/// Detection of small parts of support
+/// </summary>
+SmallParts get_small_parts(const Layers &layers, float radius_in_mm) {
+    // collect islands
+    coord_t diameter = static_cast<coord_t>(2 * scale_(radius_in_mm));
+    std::vector<LayerPartIndex> islands;
+    for (size_t layer_i = 0; layer_i < layers.size(); ++layer_i) {
+        const Layer &layer = layers[layer_i];
+        for (size_t part_i = 0; part_i < layer.parts.size(); ++part_i) {
+            const LayerPart &part = layer.parts[part_i];
+            if (!part.prev_parts.empty())
+                continue; // not island
+            if (const Point size = part.shape_extent.size();
+                size.x() > diameter || size.y() > diameter)
+                continue; // big island
+            islands.push_back({layer_i, part_i});
+        }
+    }
+
+    // multithreaded investigate islands
+    std::mutex m; // write access into result
+    SmallParts result;
+    execution::for_each(ex_tbb, size_t(0), islands.size(),
+    [&layers, radius_in_mm, &islands, &result, &m](size_t island_i) {
+        std::optional<SmallPart> small_part_opt = create_small_part(layers, islands[island_i], radius_in_mm);
+        if (!small_part_opt.has_value())
+            return; // no small part
+        std::lock_guard lock(m);
+        result.push_back(*small_part_opt);
+    }, 8 /* gransize */);
+    return result;
+}
+
+void erase(const SmallParts &small_parts, Layers &layers) {
+    // be carefull deleting small parts could invalidate const reference into vector with parts
+    // whole layer must be threated at once
+    std::vector<LayerPartIndex> to_erase;
+    for (const SmallPart &small_part : small_parts) 
+        to_erase.insert(to_erase.end(), small_part.begin(), small_part.end());
+
+    auto cmp = [](const LayerPartIndex &a, const LayerPartIndex &b) {
+        return a.layer_index < b.layer_index ||
+            (a.layer_index == b.layer_index && a.part_index > b.part_index);};
+    std::sort(to_erase.begin(), to_erase.end(), cmp); // sort by layer index and part index
+    assert(std::unique(to_erase.begin(), to_erase.end()) == to_erase.end());
+    size_t erase_to; // without this index
+    for (size_t erase_from = 0; erase_from < to_erase.size(); erase_from = erase_to) {
+        erase_to = erase_from + 1;
+        size_t layer_index = to_erase[erase_from].layer_index;
+        while (erase_to < to_erase.size() && 
+            to_erase[erase_to].layer_index == layer_index)
+            ++erase_to;
+
+        Layer &layer = layers[layer_index];
+        LayerParts& parts_ = layer.parts;
+        LayerParts layer_parts = parts_; // copy current
+
+        // https://stackoverflow.com/questions/11021764/does-moving-a-vector-invalidate-iterators
+        // use swap where const iterator should be guaranteed, instead of move on the end of loop
+        std::swap(layer_parts, parts_);  // swap copy into layer parts
+
+        // NOTE: part indices are sorted descent
+        for (size_t i = erase_from; i < erase_to; ++i)
+            parts_.erase(parts_.begin() + to_erase[i].part_index); // remove parts
+        
+        if (layer_index > 0) { // not first layer
+            Layer& prev_layer = layers[layer_index - 1];
+            for (LayerPart& prev_part: prev_layer.parts){
+                for (PartLink &next_part : prev_part.next_parts) {
+                    size_t part_i = next_part - layer_parts.cbegin();
+                    for (size_t i = erase_from; i < erase_to; ++i)
+                        if (part_i >= to_erase[i].part_index)
+                            --part_i; // index after removed part
+                    assert(part_i < parts_.size());
+                    next_part = parts_.begin() + part_i;
+                }
+            }
+        }
+        if (layer_index < layers.size() - 1) { // not last layer
+            Layer& next_layer = layers[layer_index + 1];
+            for (LayerPart &next_part : next_layer.parts) {
+                for (PartLink &prev_part : next_part.prev_parts) {
+                    size_t part_i = prev_part - layer_parts.cbegin();
+                    for (size_t i = erase_from; i < erase_to; ++i)
+                        if (part_i >= to_erase[i].part_index)
+                            --part_i; // index after removed part
+                    assert(part_i < parts_.size());
+                    prev_part = parts_.begin() + part_i;
+                }
+            }
+        }
+    }
+}
+
 } // namespace
 
-#include "libslic3r/Execution/ExecutionSeq.hpp"
 SupportPointGeneratorData Slic3r::sla::prepare_generator_data(
     std::vector<ExPolygons> &&slices,
     const std::vector<float> &heights,
@@ -748,16 +1016,17 @@ SupportPointGeneratorData Slic3r::sla::prepare_generator_data(
                 it_above->prev_parts.push_back(it_below);
                 it_below->next_parts.push_back(it_above);
             }
-
-            if (it_above->prev_parts.empty())
-                continue;
         }
     }, 8 /* gransize */);
+
+    // erase unsupportable model parts
+    SmallParts small_parts = get_small_parts(result.layers, config.minimal_bounding_sphere_radius);
+    if(!small_parts.empty()) erase(small_parts, result.layers);
 
     // Sample overhangs part of island
     double sample_distance_in_um = scale_(config.discretize_overhang_step);
     double sample_distance_in_um2 = sample_distance_in_um * sample_distance_in_um;
-    execution::for_each(ex_tbb, size_t(1), result.slices.size(),
+    execution::for_each(ex_tbb, size_t(1), result.layers.size(),
     [&result, sample_distance_in_um2, throw_on_cancel](size_t layer_id) {
         if ((layer_id % 32) == 0)
             throw_on_cancel();
@@ -776,7 +1045,7 @@ SupportPointGeneratorData Slic3r::sla::prepare_generator_data(
     }, 8 /* gransize */);
 
     // Detect peninsula
-    execution::for_each(ex_tbb, size_t(1), result.slices.size(),
+    execution::for_each(ex_tbb, size_t(1), result.layers.size(),
     [&layers = result.layers, &config, throw_on_cancel](size_t layer_id) {
         if ((layer_id % 32) == 0)
             throw_on_cancel();
@@ -789,7 +1058,7 @@ SupportPointGeneratorData Slic3r::sla::prepare_generator_data(
     }, 8 /* gransize */);
 
     // calc extended parts, more info PrepareSupportConfig::removing_delta
-    execution::for_each(ex_tbb, size_t(1), result.slices.size(),
+    execution::for_each(ex_tbb, size_t(1), result.layers.size(),
     [&layers = result.layers, delta = config.removing_delta, throw_on_cancel](size_t layer_id) {
         if ((layer_id % 16) == 0)
             throw_on_cancel();
@@ -1247,6 +1516,7 @@ LayerSupportPoints generate_support_points(
             const LayerParts &prev_layer_parts = layers[layer_id - 1].parts;
             NearPoints near_points = create_near_points(prev_layer_parts, part, prev_grids);
             remove_supports_out_of_part(near_points, part, layer.print_z);
+            assert(!near_points.get_indices().empty());
             if (!part.peninsulas.empty()) {
                 // only get copy of points do not modify permanent_index
                 Points permanent =
