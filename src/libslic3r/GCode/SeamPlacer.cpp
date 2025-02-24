@@ -339,6 +339,10 @@ boost::variant<Point, Scarf::Scarf> finalize_seam_position(
         perimeter.angle_types[seam_choice.previous_index] == Perimeters::AngleType::smooth
     };
 
+    if (perimeter.layer_index == 0) {
+        place_scarf_seam = false;
+    }
+
     if (region->config().scarf_seam_only_on_smooth && !is_smooth) {
         place_scarf_seam = false;
     }

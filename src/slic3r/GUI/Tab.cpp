@@ -1468,13 +1468,14 @@ void TabPrint::build()
         optgroup->append_single_option_line("seam_gap_distance", category_path + "seam-gap-distance");
         optgroup->append_single_option_line("staggered_inner_seams", category_path + "staggered-inner-seams");
 
-        optgroup->append_single_option_line("scarf_seam_placement", category_path + "scarf-seam-placement");
-        optgroup->append_single_option_line("scarf_seam_only_on_smooth", category_path + "scarf-seam-only-on-smooth");
-        optgroup->append_single_option_line("scarf_seam_start_height", category_path + "scarf-seam-start-height");
-        optgroup->append_single_option_line("scarf_seam_entire_loop", category_path + "scarf-seam-entire-loop");
-        optgroup->append_single_option_line("scarf_seam_length", category_path + "scarf-seam-length");
-        optgroup->append_single_option_line("scarf_seam_max_segment_length", category_path + "scarf-seam-max-segment-length");
-        optgroup->append_single_option_line("scarf_seam_on_inner_perimeters", category_path + "scarf-seam-on-inner-perimeters");
+        const std::string scarf_seam_path{"seam-position_151069#"};
+        optgroup->append_single_option_line("scarf_seam_placement", scarf_seam_path + "scarf-joint-placement");
+        optgroup->append_single_option_line("scarf_seam_only_on_smooth", scarf_seam_path + "scarf-joint-only-on-smooth-perimeters");
+        optgroup->append_single_option_line("scarf_seam_start_height", scarf_seam_path + "scarf-start-height");
+        optgroup->append_single_option_line("scarf_seam_entire_loop", scarf_seam_path + "scarf-joint-around-entire-perimeter");
+        optgroup->append_single_option_line("scarf_seam_length", scarf_seam_path + "scarf-joint-length");
+        optgroup->append_single_option_line("scarf_seam_max_segment_length", scarf_seam_path + "max-scarf-joint-segment-length");
+        optgroup->append_single_option_line("scarf_seam_on_inner_perimeters", scarf_seam_path + "scarf-joint-on-inner-perimeters");
 
         optgroup->append_single_option_line("external_perimeters_first", category_path + "external-perimeters-first");
         optgroup->append_single_option_line("gap_fill_enabled", category_path + "fill-gaps");
