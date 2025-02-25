@@ -731,8 +731,14 @@ RENDER_AGAIN:
 
         if (draw_view_mode(m_show_support_structure, m_icons)){
             show_sla_supports(m_show_support_structure);
-            if (m_show_support_structure)
-                reslice_until_step(slaposPad);
+            if (m_show_support_structure) {
+                if (m_normal_cache.empty()) { 
+                    // first click also have to generate point
+                    auto_generate();
+                } else {
+                    reslice_until_step(slaposPad);
+                }
+            }
         }
 
         const char *support_points_density = "support_points_density_relative";
