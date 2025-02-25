@@ -4564,14 +4564,6 @@ void PrintConfigDef::init_sla_params()
     def->min = 0;
     def->set_default_value(new ConfigOptionInt(100));
 
-    def = this->add("support_points_minimal_distance", coFloat);
-    def->label = L("Minimal distance of the support points");
-    def->category = L("Supports");
-    def->tooltip = L("No support points will be placed closer than this threshold.");
-    def->sidetext = L("mm");
-    def->min = 0;
-    def->set_default_value(new ConfigOptionFloat(1.));
-
     def = this->add("pad_enable", coBool);
     def->label = L("Use pad");
     def->category = L("Pad");
@@ -4994,7 +4986,8 @@ static std::set<std::string> PrintConfigDef_ignore = {
     "infill_only_where_needed",
     "gcode_binary", // Introduced in 2.7.0-alpha1, removed in 2.7.1 (replaced by binary_gcode).
     "wiping_volumes_extruders", // Removed in 2.7.3-alpha1.
-    "wipe_tower_x", "wipe_tower_y", "wipe_tower_rotation_angle" // Removed in 2.9.0
+    "wipe_tower_x", "wipe_tower_y", "wipe_tower_rotation_angle", // Removed in 2.9.0
+    "support_points_minimal_distance", // End of the using in 2.9.1 (change algorithm for the support generator)
 };
 
 void PrintConfigDef::handle_legacy(t_config_option_key &opt_key, std::string &value)

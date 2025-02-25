@@ -5953,7 +5953,6 @@ void TabSLAPrint::build()
 
     optgroup = page->new_optgroup(L("Automatic generation"));
     optgroup->append_single_option_line("support_points_density_relative");
-    optgroup->append_single_option_line("support_points_minimal_distance");
 
     page = add_options_page(L("Pad"), "pad");
     optgroup = page->new_optgroup(L("Pad"));
