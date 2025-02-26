@@ -1512,11 +1512,11 @@ SlaGizmoHelpDialog::SlaGizmoHelpDialog()
     }
 
     std::vector<std::pair<std::string, wxString>> point_types;
-    point_types.push_back(std::make_pair("sphere_lightgray",_L("Generated point")));
+    point_types.push_back(std::make_pair("sphere_lightgray",_L("Generated support point")));
     point_types.push_back(std::make_pair("sphere_redish",   _L("Selected support point")));
-    point_types.push_back(std::make_pair("sphere_orange",   _L("User edited point")));
+    point_types.push_back(std::make_pair("sphere_orange",   _L("Edited support point")));
     point_types.push_back(std::make_pair("sphere_blueish",  _L("Island support point")));
-    point_types.push_back(std::make_pair("sphere_cyan",     _L("Mouse hovered point")));
+    point_types.push_back(std::make_pair("sphere_cyan",     _L("Hovered support point")));
     for (const auto &[icon_name, description] : point_types) {
         auto desc = new wxStaticText(this, wxID_ANY, description);
         desc->SetFont(font);

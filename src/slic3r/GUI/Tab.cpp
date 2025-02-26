@@ -1714,7 +1714,7 @@ void TabPrint::build()
         line.widget = [this](wxWindow* parent) {
             ogStaticText* stat_text; // Let the pointer die, we don't need it and the parent will free it.
             wxSizer* sizer = description_line_widget(parent, &stat_text);
-            stat_text->SetText(from_u8("Note: When using this option, the Arrange function automatically "
+            stat_text->SetText(_L("Note: When using this option, the Arrange function automatically "
               "accounts for the printer geometry to prevent collisions. Extruder geometry is built-in for most "
               "Prusa printers, the others use generic model defined by values in Printer Settings."));
             return sizer;
