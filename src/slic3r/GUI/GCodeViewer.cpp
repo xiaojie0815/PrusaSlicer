@@ -370,7 +370,7 @@ void GCodeViewer::SequentialView::Marker::render()
     shader->set_uniform("volume_world_matrix", volume_world_matrix);
     m_model.render();
 
-    if (m_is_ht90)
+    if (m_is_ht90 && ! m_generic_marker)
         render_ht90_rods(m_world_position.cast<double>(), shader, view_matrix, bed_inst_offset, m_model_ht90_rod);
 
     shader->stop_using();
