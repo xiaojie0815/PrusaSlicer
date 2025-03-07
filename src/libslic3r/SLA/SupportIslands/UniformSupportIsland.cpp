@@ -19,6 +19,7 @@
 #include <libslic3r/SLA/SupportPointGenerator.hpp>
 #include <libslic3r/ExPolygonsIndex.hpp>
 #include <libslic3r/IntersectionPoints.hpp>
+#include <libslic3r/Exception.hpp>
 
 #include "VoronoiGraph.hpp"
 #include "Parabola.hpp"
@@ -2121,6 +2122,12 @@ coord_t get_longest_distance(const IslandPartChanges& changes, Position* center 
 
     // case with center on change neighbor should be already handled
     assert(node_distance != nullptr);
+    if (node_distance == nullptr)
+        // weird situation - hack to not crash on SPE-2714
+        throw Slic3r::RuntimeError("Can't sample island.");
+
+    //if (node_distance == nullptr)
+    //    return farest_from_change;
     assert(node_distance->shortest_distances[change_index].distance >= half_distance);
     assert(prev_node_distance->shortest_distances[change_index].distance <= half_distance);
     coord_t to_half_distance = half_distance - node_distance->shortest_distances[change_index].distance;
