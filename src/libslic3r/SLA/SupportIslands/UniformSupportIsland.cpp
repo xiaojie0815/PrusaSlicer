@@ -2124,7 +2124,9 @@ coord_t get_longest_distance(const IslandPartChanges& changes, Position* center 
     assert(node_distance != nullptr);
     if (node_distance == nullptr)
         // weird situation - hack to not crash on SPE-2714
-        throw Slic3r::RuntimeError("Can't sample island.");
+        throw Slic3r::RuntimeError("SLA support point generator has failed."
+            "\n\nThe generator was unable to sample an island. You may try to work around the problem "
+            "by changing the orientation of the model slightly.\n\nWe are sorry for the inconvenience.");
 
     //if (node_distance == nullptr)
     //    return farest_from_change;
