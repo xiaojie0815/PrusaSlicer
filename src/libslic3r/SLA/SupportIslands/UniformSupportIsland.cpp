@@ -40,7 +40,7 @@
 //#define SLA_SAMPLE_ISLAND_UTILS_STORE_ALIGNED_TO_SVG_PATH "C:/data/temp/align/island_<<COUNTER>>_aligned.svg"
 //#define SLA_SAMPLE_ISLAND_UTILS_STORE_ALIGN_ONCE_TO_SVG_PATH "C:/data/temp/align_once/iter_<<COUNTER>>.svg"
 //#define SLA_SAMPLE_ISLAND_UTILS_DEBUG_CELL_DISTANCE_PATH "C:/data/temp/island_cell.svg"
-//#define SLA_SAMPLE_ISLAND_UTILS_DEBUG_PARTS_PATH "C:/data/temp/parts.svg"
+//#define SLA_SAMPLE_ISLAND_UTILS_DEBUG_PARTS_PATH "C:/data/temp/parts/part<<COUNTER>>.svg"
 
 namespace {
 using namespace Slic3r;
@@ -1767,13 +1767,13 @@ size_t detect_interface(IslandParts &island_parts, size_t part_index, const Neig
     case IslandPartType::thin:
         // Near contour is type permanent no matter of width
         // assert(neighbor->min_width() <= min); 
-        if (neighbor->max_width() <= min) break; // still thin part
+        if (neighbor->max_width() < min) break; // still thin part
         next_part_index = add_part(island_parts, part_index, IslandPartType::middle, neighbor, min, lines, config);
-        if (neighbor->max_width() <= max) return next_part_index; // no thick part          
+        if (neighbor->max_width() < max) return next_part_index; // no thick part          
         return add_part(island_parts, next_part_index, IslandPartType::thick, neighbor, max, lines, config);
     case IslandPartType::middle:
         // assert(neighbor->min_width() >= min || neighbor->max_width() <= max);
-        if (neighbor->min_width() <= min) {
+        if (neighbor->min_width() < min) {
             return add_part(island_parts, part_index, IslandPartType::thin, neighbor, min, lines, config);
         } else if (neighbor->max_width() > max) {
             return add_part(island_parts, part_index, IslandPartType::thick, neighbor, max, lines, config);
@@ -1844,16 +1844,24 @@ void merge_island_parts(IslandParts &island_parts, size_t index, size_t remove_i
 /// <param name="remove_index">Index into island parts to merge</param>
 /// <param name="process">Queue of future processing</param>
 void merge_parts_and_fix_process(IslandParts &island_parts,
-    ProcessItem &item, size_t index, size_t remove_index, ProcessItems &process) {
+    ProcessItem &item, size_t index, size_t remove_index, ProcessItems &process, const Neighbor* neighbor) {
     if (remove_index == index) return; // nothing to merge, loop connect to itself
-    if (remove_index < index) // remove part with bigger index
-        std::swap(remove_index, index);
 
     // Merged parts should be the same state, it is essential for alhorithm
     // Only first island part changes its type, but only before first change
-    // assert(island_parts[index].type == island_parts[remove_index].type);
-    if (island_parts[index].type != island_parts[remove_index].type)
-        return; // no merge
+    IslandPart &part = island_parts[index];
+    IslandPart &part_ = island_parts[remove_index];
+    if (part.type != part_.type) {
+        part.changes.push_back(IslandPartChange{Position(neighbor, 0.), remove_index});
+        const Neighbor *twin = VoronoiGraphUtils::get_twin(*neighbor);
+        part_.changes.push_back(IslandPartChange{Position(twin, 1.), index});
+        return;
+    }
+
+    // remove part with bigger index
+    if (remove_index < index) 
+        std::swap(remove_index, index);
+
     island_parts[index].sum_lengths += island_parts[remove_index].sum_lengths;
     merge_island_parts(island_parts, index, remove_index);    
 
@@ -2337,12 +2345,15 @@ std::pair<ThinParts, ThickParts> convert_island_parts_to_thin_thick(
 #ifdef SLA_SAMPLE_ISLAND_UTILS_DEBUG_PARTS_PATH
 void draw(const IslandParts &parts, const ProcessItems &queue, const ProcessItem& current, const Lines& lines) {
 
-    SVG svg(SLA_SAMPLE_ISLAND_UTILS_DEBUG_PARTS_PATH, LineUtils::create_bounding_box(lines));
+    static int counter = 0;
+    std::string svg_path = replace_first(SLA_SAMPLE_ISLAND_UTILS_DEBUG_PARTS_PATH, "<<COUNTER>>", std::to_string(counter++));
+    SVG svg(svg_path.c_str(), LineUtils::create_bounding_box(lines));
     LineUtils::draw(svg, lines, "black", 0.);
 
     const char *thin_color = "blue";
     const char *thick_color = "green";
     const char *middle_color = "orange";
+    coord_t edge_width = 3e4;
 
     using Neighbor = VoronoiGraph::Node::Neighbor;    
     std::vector<const Neighbor *> queue_done;
@@ -2359,15 +2370,17 @@ void draw(const IslandParts &parts, const ProcessItems &queue, const ProcessItem
         queue_done.push_back(n);
         queue_done.push_back(VoronoiGraphUtils::get_twin(*n));
     }
-    const Neighbor *n = get_neighbor(current.prev_node, current.node);
-    if (n != nullptr) {
+    
+    if (const Neighbor *n = get_neighbor(current.prev_node, current.node);
+        n != nullptr) {
         queue_done.push_back(n);
         queue_done.push_back(VoronoiGraphUtils::get_twin(*n));
     }
     for (const IslandPart &part : parts){
         for (const IslandPartChange &change : part.changes) { // add changes
-            queue_done.push_back(change.position.neighbor);
-            queue_done.push_back(VoronoiGraphUtils::get_twin(*change.position.neighbor));
+            const Neighbor *n = change.position.neighbor;
+            queue_done.push_back(n);
+            queue_done.push_back(VoronoiGraphUtils::get_twin(*n));
         }
     }
     auto neighbor_sort = [](const Neighbor *a, const Neighbor *b) {return a < b;};
@@ -2399,19 +2412,28 @@ void draw(const IslandParts &parts, const ProcessItems &queue, const ProcessItem
                 type == IslandPartType::thin ? thin_color :
                 type == IslandPartType::thick ? thick_color : middle_color;
             svg.draw(p.cast<coord_t>(), "gray");
-
+            VoronoiGraphUtils::draw(svg, *edge, lines, "gray", edge_width);
             Point letter_offset(-.75/SCALING_FACTOR, -.7/SCALING_FACTOR);
             svg.draw_text(letter_offset + p + dir_, std::to_string(change.part_index).c_str(), neighbor_color);
             svg.draw_text(letter_offset + p - dir_, std::to_string(index).c_str(), color);
             ends.push_back(change.position);
         }
 
-        if (part.changes.empty())
-            continue;
-                        
+        if (part.changes.empty()) {
+            assert(parts.size() == 1);
+            continue; // only first part till first change
+        }
+
+        const Neighbor *start = VoronoiGraphUtils::get_twin(*part.changes.front().position.neighbor);
+        auto is_start = [start](const IslandPartChange &change) {
+            return change.position.neighbor == start; 
+        };
+        if (std::find_if(part.changes.begin(), part.changes.end(), is_start) != part.changes.end())
+            continue; // start is also end;  
+
         std::vector<const Neighbor *> done = queue_done; // copy queue        
-        std::function<void(const Neighbor *)> draw_neighbor;
-        draw_neighbor = [&draw_neighbor, &done, &svg, &lines, color, neighbor_sort]
+        std::function<void(const Neighbor *)> draw_neighbor; // recursive function for draw
+        draw_neighbor = [&draw_neighbor, &done, &svg, &lines, color, neighbor_sort, edge_width, index]
         (const Neighbor *neighbor) {
             VectorUtils::insert_sorted(done, neighbor, neighbor_sort);
             const Neighbor *twin = VoronoiGraphUtils::get_twin(*neighbor);
@@ -2424,11 +2446,15 @@ void draw(const IslandParts &parts, const ProcessItems &queue, const ProcessItem
                     it != done.end() && *it == &n)
                     continue; // already done
 
-                VoronoiGraphUtils::draw(svg, *n.edge, lines, color, 3e4);
+                VoronoiGraphUtils::draw(svg, *n.edge, lines, color, edge_width);
+                auto v0 = n.edge->vertex0();
+                auto v1 = n.edge->vertex1();
+                Point p(v0->x() / 2 + v1->x() / 2, v0->y() / 2 + v1->y() / 2);
+                svg.draw_text(p, std::to_string(index).c_str(), color, 1);
                 draw_neighbor(&n);//recursive call
             }
         };
-        draw_neighbor(VoronoiGraphUtils::get_twin(*part.changes.front().position.neighbor));
+        draw_neighbor(start);
     }
 
     for (const ProcessItem &item : queue) {
@@ -2500,31 +2526,31 @@ std::pair<ThinParts, ThickParts> separate_thin_thick(
     ProcessItem item = {/*prev_node*/ nullptr, start_node, 0}; // current processing item
     ProcessItems process; // queue of nodes to process     
     do { // iterate over all nodes in graph and collect interfaces into island_parts
-#ifdef SLA_SAMPLE_ISLAND_UTILS_DEBUG_PARTS_PATH
-        draw(island_parts, process, item, lines);
-#endif // SLA_SAMPLE_ISLAND_UTILS_DEBUG_PARTS_PATH
-        assert(item.node != nullptr);
+//#ifdef SLA_SAMPLE_ISLAND_UTILS_DEBUG_PARTS_PATH
+//        draw(island_parts, process, item, lines);
+//#endif // SLA_SAMPLE_ISLAND_UTILS_DEBUG_PARTS_PATH
         ProcessItem next_item = {nullptr, nullptr, std::numeric_limits<size_t>::max()};
         for (const Neighbor &neighbor: item.node->neighbors) {
             if (neighbor.node == item.prev_node) continue; // already done
-            if (next_item.node != nullptr) // already prepared item is stored into queue
-                process.push_back(next_item); 
-
-            size_t next_part_index = detect_interface(island_parts, item.i, &neighbor, lines, config);
-            next_item = ProcessItem{item.node, neighbor.node, next_part_index};
+            if (next_item.node != nullptr) { // already prepared item is stored into queue
+                process.push_back(next_item);
+                next_item.node = nullptr;
+            }
 
             // exist loop back?
-            auto is_oposit_item = [&next_item](const ProcessItem &p) {
-                return p.node == next_item.prev_node && p.prev_node == next_item.node;};
+            auto is_oposit_item = [prev_node = item.node, node = neighbor.node](const ProcessItem &p) {
+                return p.node == prev_node && p.prev_node == node;};
             if (auto process_it = std::find_if(process.begin(), process.end(), is_oposit_item);                                
                 process_it != process.end()) {
                 // solve loop back
-                merge_parts_and_fix_process(island_parts, item, process_it->i, next_item.i, process);
+                merge_parts_and_fix_process(island_parts, item, item.i, process_it->i, process, &neighbor);
                 // branch is already processed
                 process.erase(process_it);
-                next_item.node = nullptr; // do not use item as next one
                 continue;
             }
+
+            size_t next_part_index = detect_interface(island_parts, item.i, &neighbor, lines, config);
+            next_item = ProcessItem{item.node, neighbor.node, next_part_index};
         }
         // Select next node to process        
         if (next_item.node != nullptr) {
@@ -2536,6 +2562,10 @@ std::pair<ThinParts, ThickParts> separate_thin_thick(
             process.pop_back();            
         }
     } while (item.node != nullptr); // loop should end by break with empty process
+#ifdef SLA_SAMPLE_ISLAND_UTILS_DEBUG_PARTS_PATH
+    draw(island_parts, process, item, lines);
+#endif // SLA_SAMPLE_ISLAND_UTILS_DEBUG_PARTS_PATH
+
     merge_middle_parts_into_biggest_neighbor(island_parts);
     if (island_parts.size() != 1)
         merge_same_neighbor_type_parts(island_parts);
