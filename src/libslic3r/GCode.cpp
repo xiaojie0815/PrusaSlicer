@@ -2762,7 +2762,11 @@ LayerResult GCodeGenerator::process_layer(
             if (m_current_instance != next_instance) {
                 m_avoid_crossing_perimeters.use_external_mp_once = true;
             }
-            gcode += this->travel_to_first_position(first_point - to_3d(shift, 0), print_z, ExtrusionRole::Mixed, [this]() {
+
+            const double writer_z{m_writer.get_position().z()};
+            const double previous_z{writer_z <= std::numeric_limits<double>::epsilon() ? print_z : writer_z};
+
+            gcode += this->travel_to_first_position(first_point - to_3d(shift, 0), previous_z, ExtrusionRole::Mixed, [this]() {
                 if (m_writer.multiple_extruders) {
                     return std::string{""};
                 }
