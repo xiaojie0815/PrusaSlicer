@@ -2351,7 +2351,7 @@ std::pair<GCode::SmoothPath, std::size_t> split_with_seam(
                 loop, flipped, scaled_resolution, *seam_point, seam_point_merge_distance_threshold
             ),
             0};
-    } else if (scarf != nullptr && scarf->start_point == scarf->end_point) {
+    } else if (scarf != nullptr && scarf->start_point == scarf->end_point && !scarf->entire_loop) {
         return {smooth_path_cache.resolve_or_fit_split_with_seam(
             loop, flipped, scaled_resolution, scarf->start_point, seam_point_merge_distance_threshold
         ), 0};
