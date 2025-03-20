@@ -522,7 +522,7 @@ void introduce_ConsequentialTemporalLepoxAgainstFixed(z3::solver                
 		}
 		#endif
 		//Solver.add(dec_vars_T[undecided[i]] + temporal_spread < dec_vars_T[next_i] && dec_vars_T[undecided[i]] + temporal_spread + temporal_spread / 2 > dec_vars_T[next_i]);		
-		Solver.add((dec_vars_T[undecided[i]] < 0 || dec_vars_T[next_i] < 0) || dec_vars_T[undecided[i]] + temporal_spread < dec_vars_T[next_i] && dec_vars_T[undecided[i]] + temporal_spread + temporal_spread / 2 > dec_vars_T[next_i]);
+		Solver.add((dec_vars_T[undecided[i]] < 0 || dec_vars_T[next_i] < 0) || (dec_vars_T[undecided[i]] + temporal_spread < dec_vars_T[next_i] && dec_vars_T[undecided[i]] + temporal_spread + temporal_spread / 2 > dec_vars_T[next_i]));
 	    }
 	    /* Undecided --> missing */
 	    else
@@ -11371,9 +11371,9 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 									int                                progress_total_object_phases,
 									std::function<void(int)>           progress_callback)
 {
-    std::vector<int> undecided;
-
+    std::vector<int> undecided;    
     decided_polygons.clear();
+    
     remaining_polygons.clear();
     
     dec_values_X.resize(solvable_objects.size());
@@ -11419,9 +11419,10 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 	unreachable_polygons.push_back(solvable_object.unreachable_polygons);
 	lepox_to_next.push_back(solvable_object.lepox_to_next);
     }
-    
-    for (unsigned int curr_polygon = 0; curr_polygon < solvable_objects.size(); /* nothing */)
-    {	
+
+    unsigned int curr_polygon;    
+    for (curr_polygon = 0; curr_polygon < solvable_objects.size(); /* nothing */)
+    {
 	bool optimized = false;
 	z3::set_param("timeout", solver_configuration.optimization_timeout.c_str());
 	    
@@ -11500,13 +11501,13 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 							 polygons,
 							 lepox_to_next,
 							 trans_bed_lepox);
-	std::vector<int> missing;
-	std::vector<int> remaining_local;	
+	
+	std::vector<int> remaining_local;
     
 	while(object_group_size > 0)
-	{	    
+	{
 	    z3::expr_vector presence_assumptions(z_context);
-	    assume_ConsequentialObjectPresence(z_context, local_dec_vars_T, undecided, missing, presence_assumptions);
+	    assume_ConsequentialObjectPresence(z_context, local_dec_vars_T, undecided, remaining_local, presence_assumptions);
 	    
 	    #ifdef DEBUG
 	    {
@@ -11630,7 +11631,7 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 		    progress_callback((SEQ_PROGRESS_RANGE * progress_object_phases_done) / progress_total_object_phases);
 		    return true;
 		}		
-		curr_polygon += solver_configuration.object_group_size;
+		curr_polygon += object_group_size;
 		progress_callback((SEQ_PROGRESS_RANGE * progress_object_phases_done) / progress_total_object_phases);
 		break;
 	    }
@@ -11646,18 +11647,30 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 		    ++progress_object_phases_done;
 		}
 		remaining_local.push_back(undecided.back());
-	    }
-	    missing.push_back(undecided.back());
-	    undecided.pop_back();	    
+		undecided.pop_back();	    
 
-	    --object_group_size;
-	    progress_callback((SEQ_PROGRESS_RANGE * progress_object_phases_done) / progress_total_object_phases);
+		--object_group_size;
+		progress_callback((SEQ_PROGRESS_RANGE * progress_object_phases_done) / progress_total_object_phases);
+	    }
 	}
 
 	std::reverse(remaining_local.begin(), remaining_local.end());
 	remaining_polygons.insert(remaining_polygons.end(), remaining_local.begin(), remaining_local.end());
-	
-	if (!optimized)
+
+	if (optimized)
+	{
+	    if (object_group_size < solver_configuration.object_group_size)
+	    {
+		int group_size_diff = solver_configuration.object_group_size - object_group_size;
+		if (curr_polygon + group_size_diff < solvable_objects.size())
+		{
+		    curr_polygon += group_size_diff;
+		    break;
+		}
+		return true;
+	    }
+	}
+	else
 	{
 	    if (curr_polygon <= 0)
 	    {
@@ -11668,17 +11681,24 @@ bool optimize_SubglobalConsequentialPolygonNonoverlappingBinaryCentered(const So
 		if (curr_polygon + solver_configuration.object_group_size < solvable_objects.size())		
 		{
 		    curr_polygon += solver_configuration.object_group_size;
-
-		    for (; curr_polygon < solvable_objects.size(); ++curr_polygon)
-		    {
-			remaining_polygons.push_back(curr_polygon);			
-		    }
+		    break;
 		}
 		return true;		   
 	    }
 	}
     }
-    assert(remaining_polygons.empty());
+    for (; curr_polygon < solvable_objects.size(); ++curr_polygon)
+    {
+	remaining_polygons.push_back(curr_polygon);			
+    }
+    #ifdef DEBUG
+    {
+	for (unsigned int i = 0; i < remaining_polygons.size(); ++i)
+	{
+	    printf("Remaining: %d\n", remaining_polygons[i]);
+	}
+    }
+    #endif    
 	
     return true;    
 }
