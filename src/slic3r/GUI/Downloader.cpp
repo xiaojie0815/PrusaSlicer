@@ -140,6 +140,18 @@ Downloader::Downloader()
 	Bind(EVT_DWNLDR_FILE_CANCELED, &Downloader::on_canceled, this);
 }
 
+namespace {
+bool is_any_subdomain(const std::string& url, const std::vector<std::string>& subdomains)
+{
+    for (const std::string& sub : subdomains)
+    {
+        if(FileGet::is_subdomain(url, sub))
+            return true;
+    }
+    return false;
+}
+
+}
 void Downloader::start_download(const std::string& full_url)
 {
 	assert(m_initialized);
@@ -156,7 +168,7 @@ void Downloader::start_download(const std::string& full_url)
     
     size_t id = get_next_id();
 
-	if (!boost::starts_with(escaped_url, "https://") || !FileGet::is_subdomain(escaped_url, "printables.com")) {
+    if (!boost::starts_with(escaped_url, "https://") || !is_any_subdomain(escaped_url, {"printables.com", "thingiverse.com"})) {
 		std::string msg = format(_L("Download won't start. Download URL doesn't point to https://printables.com : %1%"), escaped_url);
 		BOOST_LOG_TRIVIAL(error) << msg;
 		NotificationManager* ntf_mngr = wxGetApp().notification_manager();
