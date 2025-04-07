@@ -69,7 +69,7 @@ LoadStepDialog::LoadStepDialog(wxWindow* parent, const std::string& filename, do
     auto buttons_sizer = CreateStdDialogButtonSizer(wxOK | wxCANCEL);
 
     if (multiple_loading) {
-        auto apply_btn = new wxButton(this, wxID_APPLY, "Apply to all");
+        auto apply_btn = new wxButton(this, wxID_APPLY, _L("Apply to all"));
         apply_btn->Bind(wxEVT_BUTTON, [this](wxEvent&) {
             m_apply_to_all = true;
             EndModal(wxID_OK);
@@ -98,7 +98,7 @@ void LoadStepDialog::add_params(wxSizer* sizer)
     // add radio buttons for selection default parameters
 
     for (const auto& [name, params] : default_step_import_params) {
-        wxRadioButton* radio_def = new wxRadioButton(this, wxID_ANY, format_wxstr("%1%", _L(name)));
+        wxRadioButton* radio_def = new wxRadioButton(this, wxID_ANY, format_wxstr("%1%", _(name)));
         radio_def->Bind(wxEVT_RADIOBUTTON, [params_copy = params, this](wxEvent&) {
             m_params.linear = params_copy.linear;
             m_params.angle = params_copy.angle;
