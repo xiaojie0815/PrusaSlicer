@@ -1351,6 +1351,8 @@ public:
     // Checks if any of objects is painted using the fuzzy skin painting gizmo.
     bool          is_fuzzy_skin_painted() const;
 
+    size_t        minimum_required_painting_version(FacetsAnnotation ModelVolume::*facets_annotation_member) const;
+
 private:
     explicit Model(int) : ObjectBase(-1) { assert(this->id().invalid()); }
 	void assign_new_unique_ids_recursive();

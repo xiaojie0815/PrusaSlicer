@@ -1500,12 +1500,12 @@ Print::ApplyStatus Print::apply(const Model &model, DynamicPrintConfig new_full_
         }
         std::vector<unsigned int> painting_extruders;
         if (const auto &volumes = print_object.model_object()->volumes; num_extruders > 1 && print_object.model_object()->is_mm_painted()) {
-            std::array<bool, static_cast<size_t>(TriangleStateType::Count)> used_facet_states{};
+            std::array<bool, TRIANGLE_STATE_TYPE_COUNT> used_facet_states{};
             for (const ModelVolume *volume : volumes) {
                 if (volume->is_mm_painted()) {
                     const std::vector<bool> &volume_used_facet_states = volume->mm_segmentation_facets.get_data().used_states;
 
-                    assert(volume_used_facet_states.size() == used_facet_states.size());
+                    assert(volume_used_facet_states.size() <= used_facet_states.size());
                     for (size_t state_idx = 1; state_idx < std::min(volume_used_facet_states.size(), used_facet_states.size()); ++state_idx) {
                         used_facet_states[state_idx] |= volume_used_facet_states[state_idx];
                     }
