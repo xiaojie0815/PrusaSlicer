@@ -4325,12 +4325,14 @@ void PrintConfigDef::init_sla_params()
     def = this->add("display_width", coFloat);
     def->label = L("Display width");
     def->tooltip = L("Width of the display");
+    def->mode = comExpert;
     def->min = 1;
     def->set_default_value(new ConfigOptionFloat(120.));
 
     def = this->add("display_height", coFloat);
     def->label = L("Display height");
     def->tooltip = L("Height of the display");
+    def->mode = comExpert;
     def->min = 1;
     def->set_default_value(new ConfigOptionFloat(68.));
 
@@ -4338,12 +4340,14 @@ void PrintConfigDef::init_sla_params()
     def->full_label = L("Number of pixels in");
     def->label = ("X");
     def->tooltip = L("Number of pixels in X");
+    def->mode = comExpert;
     def->min = 100;
     def->set_default_value(new ConfigOptionInt(2560));
 
     def = this->add("display_pixels_y", coInt);
     def->label = ("Y");
     def->tooltip = L("Number of pixels in Y");
+    def->mode = comExpert;
     def->min = 100;
     def->set_default_value(new ConfigOptionInt(1440));
 
