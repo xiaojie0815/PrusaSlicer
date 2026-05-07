@@ -5382,14 +5382,19 @@ msgid ""
 "Cyclic - Uses extruders in a fixed sequential order (1, 2, 3, ...) on every "
 "layer."
 msgstr ""
+"Určuje pořadí výměn nástrojů v každé vrstvě.\n"
+"Optimalizované – Začíná s naposledy použitým extruderem pro minimalizaci "
+"počtu výměn.\n"
+"Cyklické – Používá extrudery v pevném sekvenčním pořadí (1, 2, 3, ...) v "
+"každé vrstvě."
 
 #: src/libslic3r/PrintConfig.cpp:3703
 msgid "Optimized"
-msgstr ""
+msgstr "Optimalizované"
 
 #: src/libslic3r/PrintConfig.cpp:3704
 msgid "Cyclic"
-msgstr ""
+msgstr "Cyklický"
 
 #: src/libslic3r/PrintConfig.cpp:3711
 msgid ""

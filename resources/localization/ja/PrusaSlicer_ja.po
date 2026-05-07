@@ -6089,7 +6089,7 @@ msgstr ""
 
 #: src/libslic3r/PrintConfig.cpp:4418
 msgid "Printing temperature"
-msgstr ""
+msgstr "造形温度"
 
 #: src/libslic3r/PrintConfig.cpp:4419
 msgid ""
