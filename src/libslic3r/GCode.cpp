@@ -3950,10 +3950,13 @@ std::string GCodeGenerator::set_extruder(unsigned int extruder_id, double print_
     const std::string& toolchange_gcode = m_config.toolchange_gcode.value;
     std::string toolchange_gcode_parsed;
 
+    const int prev_extruder_id =
+        static_cast<int>(m_writer.extruder() != nullptr ? m_writer.extruder()->id() : -1);
+
     // Process the custom toolchange_gcode. If it is empty, insert just a Tn command.
     if (!toolchange_gcode.empty()) {
         DynamicConfig config;
-        config.set_key_value("previous_extruder", new ConfigOptionInt((int)(m_writer.extruder() != nullptr ? m_writer.extruder()->id() : -1 )));
+        config.set_key_value("previous_extruder", new ConfigOptionInt(prev_extruder_id));
         config.set_key_value("next_extruder",     new ConfigOptionInt((int)extruder_id));
         config.set_key_value("layer_num",         new ConfigOptionInt(m_layer_index));
         config.set_key_value("layer_z",           new ConfigOptionFloat(print_z));
@@ -3970,6 +3973,17 @@ std::string GCodeGenerator::set_extruder(unsigned int extruder_id, double print_
         gcode += toolchange_command;
     else {
         // user provided his own toolchange gcode, no need to do anything
+    }
+
+    // Emit toolchange time annotation for CoolingBuffer except for the XL printers.
+    if (!is_XL_printer(m_config)) {
+        const float toolchange_time =
+            static_cast<float>(m_config.filament_unload_time.get_at(prev_extruder_id)) +
+            static_cast<float>(m_config.filament_load_time.get_at(extruder_id));
+
+        if (toolchange_time > 0.f) {
+            gcode += ";_TOOLCHANGE_TIME" + std::to_string(toolchange_time) + "\n";
+        }
     }
 
     // Set the temperature if the wipe tower didn't (not needed for non-single extruder MM)
