@@ -5535,7 +5535,7 @@ msgstr ""
 
 #: src/libslic3r/PrintConfig.cpp:3694
 msgid "Toolchange ordering"
-msgstr ""
+msgstr "Reihenfolge beim Werkzeugwechsel"
 
 #: src/libslic3r/PrintConfig.cpp:3697
 msgid ""
@@ -5544,14 +5544,19 @@ msgid ""
 "Cyclic - Uses extruders in a fixed sequential order (1, 2, 3, ...) on every "
 "layer."
 msgstr ""
+"Legt die Reihenfolge der Werkzeugwechsel auf jeder Schicht fest.\n"
+"Optimiert – Beginnt mit dem zuletzt verwendeten Extruder, um Werkzeugwechsel "
+"zu minimieren.\n"
+"Zyklisch – Verwendet die Extruder auf jeder Schicht in einer festgelegten "
+"Reihenfolge (1, 2, 3, ...)."
 
 #: src/libslic3r/PrintConfig.cpp:3703
 msgid "Optimized"
-msgstr ""
+msgstr "Optimiert"
 
 #: src/libslic3r/PrintConfig.cpp:3704
 msgid "Cyclic"
-msgstr ""
+msgstr "Zyklisch"
 
 #: src/libslic3r/PrintConfig.cpp:3711
 msgid ""

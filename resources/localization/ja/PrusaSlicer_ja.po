@@ -5321,7 +5321,7 @@ msgstr ""
 
 #: src/libslic3r/PrintConfig.cpp:3694
 msgid "Toolchange ordering"
-msgstr ""
+msgstr "ツールチェンジ順序"
 
 #: src/libslic3r/PrintConfig.cpp:3697
 msgid ""
@@ -5330,6 +5330,11 @@ msgid ""
 "Cyclic - Uses extruders in a fixed sequential order (1, 2, 3, ...) on every "
 "layer."
 msgstr ""
+"各レイヤーにおけるツールチェンジの順序を設定します。\n"
+"最適化 — ツールチェンジ回数を最小限に抑えるため、最後に使用したエクストルー"
+"ダーから開始します。\n"
+"サイクリック — 各レイヤーで、エクストルーダーを固定された順序（1、2、3...）で"
+"使用します。"
 
 #: src/libslic3r/PrintConfig.cpp:3703
 msgid "Optimized"

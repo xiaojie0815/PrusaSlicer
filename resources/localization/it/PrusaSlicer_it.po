@@ -5515,7 +5515,7 @@ msgstr ""
 
 #: src/libslic3r/PrintConfig.cpp:3694
 msgid "Toolchange ordering"
-msgstr ""
+msgstr "Ordine del cambio strumenti"
 
 #: src/libslic3r/PrintConfig.cpp:3697
 msgid ""
@@ -5524,14 +5524,19 @@ msgid ""
 "Cyclic - Uses extruders in a fixed sequential order (1, 2, 3, ...) on every "
 "layer."
 msgstr ""
+"Determina l'ordine di cambio degli estrusori su ogni layer.\n"
+"Ottimizzato - Inizia con l'estrusore utilizzato per ultimo per ridurre al "
+"minimo i cambi di estrusore.\n"
+"Ciclico - Utilizza gli estrusori in un ordine sequenziale fisso (1, 2, "
+"3, ...) su ogni layer."
 
 #: src/libslic3r/PrintConfig.cpp:3703
 msgid "Optimized"
-msgstr ""
+msgstr "Ottimizzato"
 
 #: src/libslic3r/PrintConfig.cpp:3704
 msgid "Cyclic"
-msgstr ""
+msgstr "Ciclico"
 
 #: src/libslic3r/PrintConfig.cpp:3711
 msgid ""

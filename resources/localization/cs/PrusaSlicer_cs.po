@@ -5373,7 +5373,7 @@ msgstr ""
 
 #: src/libslic3r/PrintConfig.cpp:3694
 msgid "Toolchange ordering"
-msgstr ""
+msgstr "Pořadí výměn nástroje"
 
 #: src/libslic3r/PrintConfig.cpp:3697
 msgid ""
