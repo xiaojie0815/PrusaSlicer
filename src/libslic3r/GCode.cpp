@@ -492,12 +492,38 @@ namespace DoExport {
             total_cost          += weight * extruder->filament_cost() * 0.001;
         }
 
-        print_statistics.total_extruded_volume = total_extruded_volume;
-        print_statistics.total_used_filament   = total_used_filament;
-        print_statistics.total_weight          = total_weight;
-        print_statistics.total_cost            = total_cost;
+        double total_flush_cost            = 0.;
+        double total_flush_filament        = 0.;
+        double total_flush_filament_weight = 0.;
+        for (const auto& [extruder_id, volume] : result.print_statistics.flush_per_extruder) {
+            auto extruder_it = std::find_if(
+                extruders.begin(),
+                extruders.end(),
+                [extruder_id](const Extruder& extr) { return extr.id() == extruder_id; }
+            );
 
-        print_statistics.filament_stats        = result.print_statistics.volumes_per_extruder;
+            if (extruder_it == extruders.end()) {
+                continue;
+            }
+
+            const double s      = PI * sqr(0.5 * extruder_it->filament_diameter());
+            const double weight = volume * extruder_it->filament_density() * 0.001;
+            total_flush_cost            += weight * extruder_it->filament_cost() * 0.001;
+            total_flush_filament        += volume / s;
+            total_flush_filament_weight += weight;
+        }
+
+        print_statistics.total_extruded_volume       = total_extruded_volume;
+        print_statistics.total_used_filament         = total_used_filament;
+        print_statistics.total_weight                = total_weight;
+        print_statistics.total_cost                  = total_cost;
+        print_statistics.total_flush_cost            = total_flush_cost;
+        print_statistics.total_flush_filament        = total_flush_filament;
+        print_statistics.total_flush_filament_weight = total_flush_filament_weight;
+
+        print_statistics.filament_stats              = result.print_statistics.volumes_per_extruder;
+        print_statistics.flush_stats                 = result.print_statistics.flush_per_extruder;
+        print_statistics.wipe_tower_stats            = result.print_statistics.wipe_tower_per_extruder;
     }
 
     // if any reserved keyword is found, returns a std::vector containing the first MAX_COUNT keywords found
