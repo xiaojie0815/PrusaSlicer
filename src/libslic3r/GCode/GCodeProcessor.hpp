@@ -199,6 +199,8 @@ namespace Slic3r {
         {
             Flush_Start,
             Flush_End,
+            Exclude_E_Start,
+            Exclude_E_End,
         };
 
         static const std::string& reserved_tag(ETags tag)
@@ -553,6 +555,7 @@ namespace Slic3r {
         ExtruderTemps m_extruder_temps_first_layer_config;
         bool  m_is_XL_printer = false;
         bool  m_flushing      = false;
+        bool  m_exclude_e     = false;
         float m_parking_position;
         float m_extra_loading_move;
         float m_extruded_last_z;

@@ -69,6 +69,8 @@ const std::vector<std::string> GCodeProcessor::Reserved_Tags = {
 const std::vector<std::string> GCodeProcessor::Custom_Tags = {
     "FLUSH_START",
     "FLUSH_END",
+    "EXCLUDE_E_START",
+    "EXCLUDE_E_END",
 };
 
 const float GCodeProcessor::Wipe_Width = 0.05f;
@@ -1085,6 +1087,7 @@ void GCodeProcessor::reset()
 
     m_extrusion_role = GCodeExtrusionRole::None;
     m_flushing       = false;
+    m_exclude_e      = false;
     m_extruder_id    = 0;
     m_extruder_colors.resize(MIN_EXTRUDERS_COUNT);
     for (size_t i = 0; i < MIN_EXTRUDERS_COUNT; ++i) {
@@ -1953,6 +1956,18 @@ void GCodeProcessor::process_tags(const std::string_view comment, bool producers
         return;
     }
 
+    // exclude E start tag
+    if (boost::starts_with(comment, custom_tag(CustomETags::Exclude_E_Start))) {
+        m_exclude_e = true;
+        return;
+    }
+
+    // exclude E end tag
+    if (boost::starts_with(comment, custom_tag(CustomETags::Exclude_E_End))) {
+        m_exclude_e = false;
+        return;
+    }
+
     if (!producers_enabled || m_producer == EProducer::PrusaSlicer) {
         // height tag
         if (boost::starts_with(comment, reserved_tag(ETags::Height))) {
@@ -2674,7 +2689,7 @@ void GCodeProcessor::process_G1(const std::array<std::optional<double>, 4>& axes
 
     const float volume_extruded_filament = area_filament_cross_section * delta_pos[E];
 
-    if (volume_extruded_filament != 0.) {
+    if (volume_extruded_filament != 0. && !m_exclude_e) {
         if (m_flushing) {
             m_used_filaments.update_flush_per_extruder(volume_extruded_filament, m_extruder_id);
         } else {
