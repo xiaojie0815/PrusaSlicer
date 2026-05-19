@@ -12,6 +12,7 @@
 #include "libslic3r/GCode/ThumbnailData.hpp"
 #include "libslic3r/Semver.hpp"
 #include "libslic3r/Time.hpp"
+#include "libslic3r/Feature/FullSpectrum/VirtualExtruder.hpp"
 
 #include "libslic3r/I18N.hpp"
 
@@ -90,6 +91,7 @@ const std::string RELATIONSHIPS_FILE = "_rels/.rels";
 const std::string THUMBNAIL_FILE = "Metadata/thumbnail.png";
 const std::string PRINT_CONFIG_FILE = "Metadata/Slic3r_PE.config";
 const std::string MODEL_CONFIG_FILE = "Metadata/Slic3r_PE_model.config";
+const std::string FULL_SPECTRUM_CONFIG_FILE = "Metadata/Prusa_Slicer_full_spectrum.json";
 const std::string LAYER_HEIGHTS_PROFILE_FILE = "Metadata/Slic3r_PE_layer_heights_profile.txt";
 const std::string LAYER_CONFIG_RANGES_FILE = "Metadata/Prusa_Slicer_layer_config_ranges.xml";
 const std::string SLA_SUPPORT_POINTS_FILE = "Metadata/Slic3r_PE_sla_support_points.txt";
@@ -570,6 +572,7 @@ namespace Slic3r {
         void _extract_print_config_from_archive(mz_zip_archive& archive, const mz_zip_archive_file_stat& stat, DynamicPrintConfig& config, ConfigSubstitutionContext& subs_context, const std::string& archive_filename);
         bool _extract_model_config_from_archive(mz_zip_archive& archive, const mz_zip_archive_file_stat& stat, Model& model);
         void _extract_embossed_svg_shape_file(const std::string &filename, mz_zip_archive &archive, const mz_zip_archive_file_stat &stat);
+        void _extract_full_spectrum_from_archive(mz_zip_archive &archive, const mz_zip_archive_file_stat &stat, Model &model);
 
         // handlers to parse the .rels file
         void _handle_start_relationships_element(const char* name, const char** attributes);
@@ -852,6 +855,9 @@ namespace Slic3r {
                 } 
                 else if (_is_svg_shape_file(name)) {
                     _extract_embossed_svg_shape_file(name, archive, stat);
+                }
+                else if (boost::algorithm::iequals(name, FULL_SPECTRUM_CONFIG_FILE)) {
+                    _extract_full_spectrum_from_archive(archive, stat, model);
                 }
             }
         }
@@ -1566,6 +1572,23 @@ namespace Slic3r {
             if (filename.compare(svg->path_in_3mf) == 0)
                 svg->file_data = m_path_to_emboss_shape_files[filename];
         }
+    }
+
+    void _3MF_Importer::_extract_full_spectrum_from_archive(mz_zip_archive &archive, const mz_zip_archive_file_stat &stat, Model &model)
+    {
+        if (stat.m_uncomp_size == 0) {
+            return;
+        }
+
+        std::string buffer(static_cast<size_t>(stat.m_uncomp_size), '\0');
+        if (!mz_zip_reader_extract_to_mem(&archive, stat.m_file_index, buffer.data(), buffer.size(), 0)) {
+            add_error("Error reading " + FULL_SPECTRUM_CONFIG_FILE + " from archive");
+            return;
+        }
+
+        model.virtual_extruders = FullSpectrum::normalize_virtual_extruders(
+            FullSpectrum::deserialize_virtual_extruders_from_json(buffer)
+        );
     }
 
     bool _3MF_Importer::_extract_model_config_from_archive(mz_zip_archive& archive, const mz_zip_archive_file_stat& stat, Model& model)
@@ -2805,6 +2828,7 @@ namespace Slic3r {
         bool _add_model_config_file_to_archive(mz_zip_archive& archive, const Model& model, const IdToObjectDataMap &objects_data);
         bool _add_custom_gcode_per_print_z_file_to_archive(mz_zip_archive& archive, Model& model, const DynamicPrintConfig* config);
         bool _add_wipe_tower_information_file_to_archive( mz_zip_archive& archive, Model& model);
+        bool _add_full_spectrum_file_to_archive(mz_zip_archive& archive, const Model& model, const DynamicPrintConfig* config);
     };
 
     bool _3MF_Exporter::save_model_to_file(const std::string& filename, Model& model, const DynamicPrintConfig* config, bool fullpath_sources, const ThumbnailData* thumbnail_data, bool zip64)
@@ -2935,6 +2959,12 @@ namespace Slic3r {
         // As there is just a single Indexed Triangle Set data stored per ModelObject, offsets of volumes into their respective Indexed Triangle Set data
         // is stored here as well.
         if (!_add_model_config_file_to_archive(archive, model, objects_data)) {
+            close_zip_writer(&archive);
+            boost::filesystem::remove(filename);
+            return false;
+        }
+
+        if (!_add_full_spectrum_file_to_archive(archive, model, config)) {
             close_zip_writer(&archive);
             boost::filesystem::remove(filename);
             return false;
@@ -3924,6 +3954,67 @@ bool _3MF_Exporter::_add_wipe_tower_information_file_to_archive( mz_zip_archive&
             add_error("Unable to add wipe tower information file to archive");
             return false;
         }
+    }
+
+    return true;
+}
+
+bool _3MF_Exporter::_add_full_spectrum_file_to_archive(
+    mz_zip_archive& archive,
+    const Model& model,
+    const DynamicPrintConfig* config
+)
+{
+    if (model.virtual_extruders.empty() || config == nullptr) {
+        return true;
+    }
+
+    const ConfigOptionFloats* nozzle_diameter_opt =
+        config->option<ConfigOptionFloats>("nozzle_diameter");
+    const ConfigOptionStrings* extruder_colour_opt =
+        config->option<ConfigOptionStrings>("extruder_colour");
+    const ConfigOptionStrings* filament_colour_opt =
+        config->option<ConfigOptionStrings>("filament_colour");
+
+    if (nozzle_diameter_opt == nullptr) {
+        return true;
+    }
+
+    const size_t physical_extruders_cnt = nozzle_diameter_opt->values.size();
+    const size_t extruder_colour_cnt = extruder_colour_opt ? extruder_colour_opt->values.size() : 0;
+    const size_t filament_colour_cnt = filament_colour_opt ? filament_colour_opt->values.size() : 0;
+
+    std::vector<std::string> colors;
+    colors.reserve(physical_extruders_cnt);
+    for (size_t extruder_idx = 0; extruder_idx < physical_extruders_cnt; ++extruder_idx) {
+        std::string color;
+        if (extruder_idx < extruder_colour_cnt) {
+            color = extruder_colour_opt->values[extruder_idx];
+        }
+
+        if (color.empty() && extruder_idx < filament_colour_cnt) {
+            color = filament_colour_opt->values[extruder_idx];
+        }
+
+        if (color.empty()) {
+            color = "#808080";
+        }
+
+        colors.push_back(std::move(color));
+    }
+
+    const std::string json =
+        FullSpectrum::serialize_virtual_extruders_to_json(colors, model.virtual_extruders);
+    if (!mz_zip_writer_add_mem(
+            &archive,
+            FULL_SPECTRUM_CONFIG_FILE.c_str(),
+            json.data(),
+            json.size(),
+            MZ_DEFAULT_COMPRESSION
+        ))
+    {
+        add_error("Unable to add " + FULL_SPECTRUM_CONFIG_FILE + " to archive");
+        return false;
     }
 
     return true;

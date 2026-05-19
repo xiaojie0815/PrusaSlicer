@@ -25,6 +25,7 @@
 #include "TextConfiguration.hpp"
 #include "EmbossShape.hpp"
 #include "TriangleSelector.hpp"
+#include "Feature/FullSpectrum/VirtualExtruder.hpp"
 
 #include <map>
 #include <memory>
@@ -1259,6 +1260,8 @@ public:
     ModelMaterialMap    materials;
     // Objects are owned by a model. Each model may have multiple instances, each instance having its own transformation (shift, scale, rotation).
     ModelObjectPtrs     objects;
+    // Virtual extruder definitions. Empty when no virtual extruders are defined.
+    FullSpectrum::VirtualExtruders virtual_extruders;
 
     ModelWipeTower& wipe_tower();
     const ModelWipeTower& wipe_tower() const;
@@ -1266,6 +1269,8 @@ public:
     ModelWipeTower& wipe_tower(const int bed_index);
     std::vector<ModelWipeTower>& get_wipe_tower_vector() { return wipe_tower_vector; }
     const std::vector<ModelWipeTower>& get_wipe_tower_vector() const { return wipe_tower_vector; }
+
+    FullSpectrum::VirtualExtruders &get_virtual_extruders() { return virtual_extruders; }
 
     CustomGCode::Info& custom_gcode_per_print_z();
     const CustomGCode::Info& custom_gcode_per_print_z() const;
