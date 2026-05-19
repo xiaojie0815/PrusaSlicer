@@ -655,6 +655,7 @@ target_link_libraries(libslic3r PUBLIC
     ankerl
     boost_headeronly
     libseqarrange
+    prusa_fdm_mixer
 )
 
 if (APPLE)
