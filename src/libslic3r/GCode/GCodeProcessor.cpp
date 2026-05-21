@@ -21,6 +21,7 @@
 #include <boost/nowide/cstdio.hpp>
 #include <boost/filesystem/path.hpp>
 #include <boost/algorithm/string/replace.hpp>
+#include <boost/algorithm/string/trim.hpp>
 
 #include <float.h>
 #include <assert.h>
@@ -1863,13 +1864,14 @@ void GCodeProcessor::process_gcode_line(const GCodeReader::GCodeLine& line, bool
         default:
             break;
         }
-    }
-    else {
-        const std::string &comment = line.raw();
-        if (comment.length() > 2 && comment.front() == ';')
+    } else {
+        // Leading whitespace is trimmed so that tags inside indented blocks (e.g. {if}) are recognized.
+        const std::string comment = boost::algorithm::trim_left_copy(line.raw());
+        if (comment.length() > 2 && comment.front() == ';') {
             // Process tags embedded into comments. Tag comments always start at the start of a line
             // with a comment and continue with a tag without any whitespace separator.
             process_tags(comment.substr(1), producers_enabled);
+        }
     }
 }
 
