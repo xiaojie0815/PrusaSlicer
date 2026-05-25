@@ -16,6 +16,7 @@
 
 #include "libslic3r/ClipperUtils.hpp"
 #include "libslic3r/Color.hpp"
+#include "libslic3r/Model.hpp"
 #include "libslic3r/Layer.hpp"
 #include "libslic3r/LayerRegion.hpp"
 #include "libslic3r/Print.hpp"
@@ -833,14 +834,14 @@ std::string serialize_virtual_extruders_to_json(
     return root.dump(4);
 }
 
-std::vector<VirtualExtruder> deserialize_virtual_extruders_from_json(
+FullSpectrumConfig deserialize_virtual_extruders_from_json(
     const std::string& json_content
 )
 {
     constexpr unsigned int max_extruder_id =
         static_cast<unsigned int>(TRIANGLE_STATE_TYPE_COUNT) - 1;
 
-    VirtualExtruders result;
+    FullSpectrumConfig result;
 
     nlohmann::json root;
     try {
@@ -866,6 +867,15 @@ std::vector<VirtualExtruder> deserialize_virtual_extruders_from_json(
             << FULL_SPECTRUM_CONFIG_VERSION
             << ")";
         return result;
+    }
+
+    if (root.contains("physical_extruders") && root["physical_extruders"].is_array()) {
+        const nlohmann::json& phys_array = root["physical_extruders"];
+        result.source_physical_count     = static_cast<unsigned int>(phys_array.size());
+        result.physical_colors.reserve(phys_array.size());
+        for (const nlohmann::json& phys_entry : phys_array) {
+            result.physical_colors.push_back(phys_entry.value("color", std::string("#808080")));
+        }
     }
 
     if (!root.contains("virtual_extruders") || !root["virtual_extruders"].is_array()) {
@@ -989,7 +999,7 @@ std::vector<VirtualExtruder> deserialize_virtual_extruders_from_json(
             }
 
             virtual_extruder.gradient = VirtualExtruderGradient{z_min, z_max, std::move(stops)};
-            result.push_back(std::move(virtual_extruder));
+            result.virtual_extruders.push_back(std::move(virtual_extruder));
             continue;
         }
 
@@ -1052,10 +1062,141 @@ std::vector<VirtualExtruder> deserialize_virtual_extruders_from_json(
             continue;
         }
 
-        result.push_back(std::move(virtual_extruder));
+        result.virtual_extruders.push_back(std::move(virtual_extruder));
     }
 
     return result;
+}
+
+/**
+ * @brief Compute a remap table {old_id -> new_id} for virtual extruder IDs
+ *        that collide with physical extruder slots on the target printer.
+ *
+ * @return Non-empty map when remapping is needed; empty otherwise.
+ */
+static std::map<unsigned int, unsigned int> compute_virtual_id_remap(
+    unsigned int source_physical_count,
+    unsigned int target_physical_count,
+    const VirtualExtruders& virtual_extruders
+)
+{
+    constexpr unsigned int max_id = static_cast<unsigned int>(TRIANGLE_STATE_TYPE_COUNT) - 1;
+
+    if (source_physical_count == 0
+        || source_physical_count >= target_physical_count
+        || virtual_extruders.empty())
+    {
+        return {};
+    }
+
+    bool any_collision = false;
+    for (const VirtualExtruder& ve : virtual_extruders) {
+        if (ve.id >= 1 && ve.id <= target_physical_count) {
+            any_collision = true;
+            break;
+        }
+    }
+
+    if (!any_collision) {
+        return {};
+    }
+
+    const unsigned int shift = target_physical_count - source_physical_count;
+    std::map<unsigned int, unsigned int> remap;
+    for (const VirtualExtruder& ve : virtual_extruders) {
+        const unsigned int new_id = ve.id + shift;
+        if (new_id > max_id) {
+            BOOST_LOG_TRIVIAL(error)
+                << "FullSpectrum: remap would push virtual extruder id="
+                << ve.id
+                << " to "
+                << new_id
+                << " which exceeds max "
+                << max_id
+                << ", aborting remap";
+            return {};
+        }
+
+        remap[ve.id] = new_id;
+    }
+
+    return remap;
+}
+
+void remap_full_spectrum_on_import(
+    Model& loaded_model,
+    VirtualExtruders& target_virtual_extruders,
+    unsigned int target_physical_count,
+    const FullSpectrumConfig& fs_config
+)
+{
+    if (fs_config.source_physical_count == 0 || target_virtual_extruders.empty()) {
+        return;
+    }
+
+    const std::map<unsigned int, unsigned int> id_remap = compute_virtual_id_remap(
+        fs_config.source_physical_count,
+        target_physical_count,
+        target_virtual_extruders
+    );
+    if (id_remap.empty()) {
+        return;
+    }
+
+    for (VirtualExtruder& virtual_extruder : target_virtual_extruders) {
+        const std::map<unsigned int, unsigned int>::const_iterator it =
+            id_remap.find(virtual_extruder.id);
+        if (it != id_remap.end()) {
+            virtual_extruder.id = it->second;
+        }
+    }
+
+    std::map<TriangleStateType, TriangleStateType> state_remap;
+    for (const std::pair<const unsigned int, unsigned int>& entry : id_remap) {
+        state_remap[static_cast<TriangleStateType>(entry.first)] =
+            static_cast<TriangleStateType>(entry.second);
+    }
+
+    for (ModelObject* obj : loaded_model.objects) {
+        if (obj == nullptr) {
+            continue;
+        }
+
+        for (ModelVolume* vol : obj->volumes) {
+            if (vol == nullptr || !vol->is_mm_painted()) {
+                continue;
+            }
+
+            const std::vector<bool>& used = vol->mm_segmentation_facets.get_data().used_states;
+            bool needs_remap              = false;
+            for (const std::pair<const TriangleStateType, TriangleStateType>& entry : state_remap) {
+                if (static_cast<size_t>(entry.first) < used.size()
+                    && used[static_cast<size_t>(entry.first)])
+                {
+                    needs_remap = true;
+                    break;
+                }
+            }
+
+            if (!needs_remap) {
+                continue;
+            }
+
+            TriangleSelector sel(vol->mesh());
+            sel.deserialize(vol->mm_segmentation_facets.get_data(), false);
+            sel.remap_states(state_remap);
+            vol->mm_segmentation_facets.set(sel);
+        }
+    }
+
+    BOOST_LOG_TRIVIAL(info)
+        << "FullSpectrum: remapped "
+        << id_remap.size()
+        << " virtual extruder IDs (source_physical="
+        << fs_config.source_physical_count
+        << " target_physical="
+        << target_physical_count
+        << ")";
 }
 
 std::optional<unsigned int> source_virtual_extruder_in_region_config(

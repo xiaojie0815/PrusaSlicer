@@ -2,11 +2,13 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <map>
 #include <optional>
 #include <string>
 #include <vector>
 
 namespace Slic3r {
+class Model;
 class PrintObject;
 class PrintRegionConfig;
 class ExPolygon;
@@ -307,6 +309,36 @@ std::string serialize_virtual_extruders_to_json(
     const VirtualExtruders& virtual_extruders
 );
 
-VirtualExtruders deserialize_virtual_extruders_from_json(const std::string& json_content);
+/**
+ * @brief All data parsed from the Full Spectrum JSON in a 3MF.
+ */
+struct FullSpectrumConfig
+{
+    VirtualExtruders virtual_extruders;
+    // Number of physical extruders the 3MF was saved with (0 = absent/old format).
+    unsigned int source_physical_count = 0;
+    // Hex color per physical extruder, 0-based. Empty when not present in JSON.
+    std::vector<std::string> physical_colors;
+};
+
+FullSpectrumConfig deserialize_virtual_extruders_from_json(const std::string& json_content);
+
+/**
+ * @brief Remap virtual extruder IDs and mm-painting data on 3MF import.
+ *
+ * Shifts colliding virtual IDs above the target physical range,
+ * then remaps TriangleSelector states on all painted ModelVolumes.
+ *
+ * @param loaded_model Model whose volumes are remapped in-place.
+ * @param target_virtual_extruders Virtual extruder list to update IDs on.
+ * @param target_physical_count Physical extruder count of the current printer.
+ * @param fs_config Parsed Full Spectrum config from the 3MF.
+ */
+void remap_full_spectrum_on_import(
+    Model& loaded_model,
+    VirtualExtruders& target_virtual_extruders,
+    unsigned int target_physical_count,
+    const FullSpectrumConfig& fs_config
+);
 
 } // namespace Slic3r::FullSpectrum

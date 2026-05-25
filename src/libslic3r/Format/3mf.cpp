@@ -508,6 +508,8 @@ namespace Slic3r {
         unsigned int m_fuzzy_skin_painting_version   = 0;
         unsigned int m_mm_painting_version           = 0;
 
+        FullSpectrum::FullSpectrumConfig m_full_spectrum_config;
+
         XML_Parser m_xml_parser;
         // Error code returned by the application side of the parser. In that case the expat may not reliably deliver the error state
         // after returning from XML_Parse() function, thus we keep the error state here.
@@ -541,6 +543,7 @@ namespace Slic3r {
         bool load_model_from_file(const std::string& filename, Model& model, DynamicPrintConfig& config, ConfigSubstitutionContext& config_substitutions, bool check_version);
         unsigned int version() const { return m_version; }
         boost::optional<Semver> prusaslicer_generator_version() const { return m_prusaslicer_generator_version; }
+        const FullSpectrum::FullSpectrumConfig& full_spectrum_config() const { return m_full_spectrum_config; }
 
     private:
         void _destroy_xml_parser();
@@ -1586,9 +1589,9 @@ namespace Slic3r {
             return;
         }
 
+        m_full_spectrum_config = FullSpectrum::deserialize_virtual_extruders_from_json(buffer);
         model.virtual_extruders = FullSpectrum::normalize_virtual_extruders(
-            FullSpectrum::deserialize_virtual_extruders_from_json(buffer)
-        );
+            m_full_spectrum_config.virtual_extruders);
     }
 
     bool _3MF_Importer::_extract_model_config_from_archive(mz_zip_archive& archive, const mz_zip_archive_file_stat& stat, Model& model)
@@ -4105,7 +4108,8 @@ bool load_3mf(
     ConfigSubstitutionContext& config_substitutions,
     Model* model,
     bool check_version,
-    boost::optional<Semver> &prusaslicer_generator_version
+    boost::optional<Semver> &prusaslicer_generator_version,
+    FullSpectrum::FullSpectrumConfig* out_fs_config
 )
 {
     if (path == nullptr || model == nullptr)
@@ -4118,6 +4122,10 @@ bool load_3mf(
     importer.log_errors();
     handle_legacy_project_loaded(config, importer.prusaslicer_generator_version());
     prusaslicer_generator_version = importer.prusaslicer_generator_version();
+
+    if (out_fs_config) {
+        *out_fs_config = importer.full_spectrum_config();
+    }
 
     return res;
 }
