@@ -281,6 +281,11 @@ void FullSpectrumDialog::build_layout()
     left_box->SetBorderColor(
         StateColor(std::make_pair(clr_border_normal, (int) StateColor::Normal))
     );
+    left_box->Bind(wxEVT_SIZE, [left_box](wxSizeEvent &e) {
+        left_box->Refresh();
+        e.Skip();
+    });
+
     wxBoxSizer* left_box_sizer = new wxBoxSizer(wxVERTICAL);
 
     wxStaticText* left_title = new wxStaticText(left_box, wxID_ANY, _L("Virtual Extruders"));
@@ -387,6 +392,11 @@ void FullSpectrumDialog::build_layout()
     right_box->SetBorderColor(
         StateColor(std::make_pair(clr_border_normal, (int) StateColor::Normal))
     );
+    right_box->Bind(wxEVT_SIZE, [right_box](wxSizeEvent &e) {
+        right_box->Refresh();
+        e.Skip();
+    });
+
     wxBoxSizer* right_box_sizer = new wxBoxSizer(wxVERTICAL);
 
     m_right_panel          = right_box;
@@ -638,6 +648,7 @@ void FullSpectrumDialog::build_layout()
         [this](wxSizeEvent& e)
         {
             m_presets_scrolled_window->FitInside();
+            m_presets_scrolled_window->Refresh();
             e.Skip();
         }
     );
