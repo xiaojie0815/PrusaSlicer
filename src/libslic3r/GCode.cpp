@@ -1487,8 +1487,6 @@ void GCodeGenerator::_do_export(Print& print, GCodeOutputStream &file, Thumbnail
 
     if (export_to_binary_gcode) {
         bgcode::binarize::BinaryData& binary_data = m_processor.get_binary_data();
-        if (print.m_print_statistics.total_toolchanges > 0)
-            binary_data.print_metadata.raw_data.emplace_back("total toolchanges", std::to_string(print.m_print_statistics.total_toolchanges));
         char buf[1024];
         sprintf(buf, "%.2lf", m_max_layer_z);
         binary_data.printer_metadata.raw_data.emplace_back("max_layer_z", buf);

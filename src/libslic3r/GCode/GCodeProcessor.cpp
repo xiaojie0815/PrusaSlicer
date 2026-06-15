@@ -3881,6 +3881,8 @@ void GCodeProcessor::post_process()
             return ret;
         };
 
+        const int total_toolchanges = m_print->print_statistics().total_toolchanges;
+
         // update binary data
         bgcode::binarize::BinaryData& binary_data = m_binarizer.get_binary_data();
         binary_data.print_metadata.raw_data.emplace_back(PrintStatistics::FilamentUsedMm, stringify(filament_mm));
@@ -3890,12 +3892,18 @@ void GCodeProcessor::post_process()
         binary_data.print_metadata.raw_data.emplace_back(PrintStatistics::TotalFilamentUsedG, stringify({ filament_total_g }));
         binary_data.print_metadata.raw_data.emplace_back(PrintStatistics::TotalFilamentCost, stringify({ filament_total_cost }));
         binary_data.print_metadata.raw_data.emplace_back(PrintStatistics::TotalFilamentUsedWipeTower, stringify({ total_g_wipe_tower }));
+        if (total_toolchanges > 0) {
+            binary_data.print_metadata.raw_data.emplace_back(PrintStatistics::TotalToolchanges, std::to_string(total_toolchanges));
+        }
 
         binary_data.printer_metadata.raw_data.emplace_back(PrintStatistics::FilamentUsedMm, stringify(filament_mm)); // duplicated into print metadata
         binary_data.printer_metadata.raw_data.emplace_back(PrintStatistics::FilamentUsedG, stringify(filament_g));   // duplicated into print metadata
         binary_data.printer_metadata.raw_data.emplace_back(PrintStatistics::FilamentCost, stringify(filament_cost));   // duplicated into print metadata
         binary_data.printer_metadata.raw_data.emplace_back(PrintStatistics::FilamentUsedCm3, stringify(filament_cm3)); // duplicated into print metadata
         binary_data.printer_metadata.raw_data.emplace_back(PrintStatistics::TotalFilamentUsedWipeTower, stringify({ total_g_wipe_tower })); // duplicated into print metadata
+        if (total_toolchanges > 0) {
+            binary_data.printer_metadata.raw_data.emplace_back(PrintStatistics::TotalToolchanges, std::to_string(total_toolchanges)); // duplicated into print metadata
+        }
 
         for (size_t i = 0; i < static_cast<size_t>(PrintEstimatedStatistics::ETimeMode::Count); ++i) {
             const TimeMachine& machine = m_time_processor.machines[i];

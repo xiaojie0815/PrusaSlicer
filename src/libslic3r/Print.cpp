@@ -1649,6 +1649,8 @@ const std::string PrintStatistics::TotalFilamentCostValueMask = "; total filamen
 const std::string PrintStatistics::TotalFilamentUsedWipeTower     = "total filament used for wipe tower [g]";
 const std::string PrintStatistics::TotalFilamentUsedWipeTowerValueMask = "; total filament used for wipe tower [g] = %.2lf\n";
 
+const std::string PrintStatistics::TotalToolchanges = "total toolchanges";
+
 
 
 DynamicConfig PrintStatistics::config() const

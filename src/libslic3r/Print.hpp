@@ -609,6 +609,7 @@ struct PrintStatistics
     static const std::string TotalFilamentCostValueMask;
     static const std::string TotalFilamentUsedWipeTower;
     static const std::string TotalFilamentUsedWipeTowerValueMask;
+    static const std::string TotalToolchanges;
 };
 
 using PrintObjectPtrs          = std::vector<PrintObject*>;
