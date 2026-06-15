@@ -423,7 +423,20 @@ void FullSpectrumDialog::build_layout()
     m_editor_description = new wxStaticText(m_editor_box, wxID_ANY, wxEmptyString);
     m_editor_description->SetFont(wxGetApp().small_font());
     m_editor_description->Wrap(40 * em);
-    editor_sizer->Add(m_editor_description, 0, wxALL, pad);
+    m_editor_description->Bind(
+        wxEVT_SIZE,
+        [this](wxSizeEvent& e)
+        {
+            if (!m_editor_desc_wrap_guard) {
+                m_editor_desc_wrap_guard = true;
+                m_editor_description->SetLabel(m_editor_description_text);
+                m_editor_description->Wrap(e.GetSize().GetWidth());
+                m_editor_desc_wrap_guard = false;
+            }
+            e.Skip();
+        }
+    );
+    editor_sizer->Add(m_editor_description, 0, wxALL | wxEXPAND, pad);
 
     m_rows_sizer = new wxBoxSizer(wxVERTICAL);
     editor_sizer->Add(m_rows_sizer, 0, wxLEFT | wxRIGHT | wxBOTTOM | wxEXPAND, pad);
@@ -724,6 +737,14 @@ void FullSpectrumDialog::build_layout()
     rebuild_preset_grid();
 }
 
+void FullSpectrumDialog::set_editor_description(const wxString& text)
+{
+    m_editor_description_text = text;
+    m_editor_description->SetLabel(text);
+    const int w = m_editor_description->GetClientSize().GetWidth();
+    m_editor_description->Wrap(w > 0 ? w : 40 * wxGetApp().em_unit());
+}
+
 void FullSpectrumDialog::refresh_virtual_extruder_list(int select_index)
 {
     std::vector<VirtualExtruderListBox::Row> rows;
@@ -781,12 +802,11 @@ void FullSpectrumDialog::populate_editor_from_selection()
             _L("Preview of the blended color. Click to pick a custom display color. "
                "Resets automatically when you change the composition.")
         );
-        m_editor_description->SetLabel(
+        this->set_editor_description(
             _L("Set the filament at each point along the gradient. "
                "Position 0 is the bottom, 1 is the top. "
                "The gradient range is determined automatically from the assigned area.")
         );
-        m_editor_description->Wrap(40 * wxGetApp().em_unit());
         m_permanent_ratio_title->Show(false);
         m_permanent_ratio_bar->Show(false);
         m_permanent_ternary_picker->Show(false);
@@ -799,19 +819,18 @@ void FullSpectrumDialog::populate_editor_from_selection()
                "Resets automatically when you change the composition.")
         );
         if (ve.components.size() == 2) {
-            m_editor_description->SetLabel(_L(
+            this->set_editor_description(_L(
                 "Drag the slider to set how many layers each filament gets in the repeating pattern."
             ));
         } else if (ve.components.size() == 3) {
-            m_editor_description->SetLabel(
+            this->set_editor_description(
                 _L("Drag the handle inside the triangle to set the share of each filament.")
             );
         } else {
-            m_editor_description->SetLabel(_L(
-                "Each component's weight controls how many layers it gets in the repeating pattern."
+            this->set_editor_description(_L(
+                "Each component's weight controls how many layers it gets in the repeating  pattern. pattern. pattern. pattern. pattern. pattern. pattern. pattern. pattern. pattern."
             ));
         }
-        m_editor_description->Wrap(40 * wxGetApp().em_unit());
 
         rebuild_component_rows();
 
@@ -1133,18 +1152,17 @@ void FullSpectrumDialog::rebuild_component_rows()
 
     if (m_editor_description) {
         if (is_two_component)
-            m_editor_description->SetLabel(_L(
+            this->set_editor_description(_L(
                 "Drag the slider to set how many layers each filament gets in the repeating pattern."
             ));
         else if (is_three_component)
-            m_editor_description->SetLabel(
+            this->set_editor_description(
                 _L("Drag the handle inside the triangle to set the share of each filament.")
             );
         else
-            m_editor_description->SetLabel(_L(
+            this->set_editor_description(_L(
                 "Each component's weight controls how many layers it gets in the repeating pattern."
             ));
-        m_editor_description->Wrap(40 * wxGetApp().em_unit());
     }
 
     m_editor_box->Layout();
@@ -1499,7 +1517,7 @@ void FullSpectrumDialog::update_right_panel_visibility()
         if (m_editor_title)
             m_editor_title->SetLabel(_L("Virtual Extruder"));
         if (m_editor_description)
-            m_editor_description->SetLabel(wxEmptyString);
+            this->set_editor_description(wxEmptyString);
         if (m_color_swatch) {
             m_color_swatch->SetBackgroundColour(parse_hex_color("#808080"));
             m_color_swatch->Refresh();
